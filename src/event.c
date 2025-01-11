@@ -1,10 +1,12 @@
+#ifdef DEBUG
+
 #include <stdio.h>
 #include <inttypes.h>
-#include <xcb/xproto.h>
 
+#include "fensterchef.h"
 #include "util.h"
 
-const char *event_strings[] = {
+static const char *event_strings[] = {
     [0] = "NULL-0",
     [1] = "NULL-1",
     [XCB_KEY_PRESS] = "KEY_PRESS",
@@ -43,7 +45,7 @@ const char *event_strings[] = {
     [XCB_GE_GENERIC] = "GE_GENERIC",
 };
 
-const char *generic_event_strings[] = {
+static const char *generic_event_strings[] = {
     [XCB_REQUEST] = "REQUEST",
     [XCB_VALUE] = "VALUE",
     [XCB_WINDOW] = "WINDOW",
@@ -443,3 +445,10 @@ void log_modifiers(uint32_t mask)
     }
 }
 */
+
+#else
+
+/* prevent compiler error */
+typedef int i_am_not_empty;
+
+#endif
