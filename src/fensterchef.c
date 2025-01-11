@@ -13,7 +13,7 @@
 
 #define ROOT_EVENT_MASK (XCB_EVENT_MASK_SUBSTRUCTURE_REDIRECT | \
                          XCB_EVENT_MASK_BUTTON_PRESS | \
-                         /* when the user adds a screen (e.g. video
+                         /* when the user adds a monitor (e.g. video
                           * projector), the root window gets a
                           * ConfigureNotify */ \
                          XCB_EVENT_MASK_STRUCTURE_NOTIFY | \
@@ -138,14 +138,6 @@ int take_control(void)
         return 1;
     }
     //xcb_ungrab_key(g_dpy, XCB_GRAB_ANY, screen->root, XCB_MOD_MASK_ANY);
-    /*int key_table_size = sizeof(keys) / sizeof(*keys);
-    for (int i = 0; i < key_table_size; ++i) {
-        xcb_keycode_t *keycode = xcb_get_keycodes(keys[i].keysym);
-        if (keycode != NULL) {
-            xcb_grab_key(dpy, 1, scre->root, keys[i].mod, *keycode,
-                XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC );
-        }
-    }*/
     xcb_flush(g_dpy);
     /*xcb_grab_button(g_dpy, 0, screen->root, XCB_EVENT_MASK_BUTTON_PRESS |
         XCB_EVENT_MASK_BUTTON_RELEASE, XCB_GRAB_MODE_ASYNC,

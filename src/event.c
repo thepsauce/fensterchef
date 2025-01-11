@@ -6,6 +6,27 @@
 #include "fensterchef.h"
 #include "util.h"
 
+void log_modifiers(uint32_t mask, FILE *fp)
+{
+    const char *modifiers[] = {
+            "Shift", "Lock", "Ctrl", "Alt",
+            "Mod2", "Mod3", "Mod4", "Mod5",
+            "Button1", "Button2", "Button3", "Button4", "Button5"
+    };
+    int mod_count = 0;
+
+    for (const char **modifier = modifiers; mask != 0; mask >>= 1,
+            modifier++) {
+        if ((mask & 1)) {
+            if (mod_count > 0) {
+                fprintf(fp, "+");
+            }
+            fprintf(fp, *modifier);
+            mod_count++;
+        }
+    }
+}
+
 static const char *event_strings[] = {
     [0] = "NULL-0",
     [1] = "NULL-1",
@@ -118,21 +139,24 @@ void log_event(xcb_generic_event_t *ev, FILE *fp)
     case XCB_KEY_PRESS:
     case XCB_KEY_RELEASE:
         kp = (xcb_key_press_event_t*) ev;
-        fprintf(fp, "time=%" PRIu32 ", root=%" PRIu32 ", event=%" PRIu32 ", child=%" PRIu32 ", detail=%" PRIu8,
+        fprintf(fp, "time=%" PRIu32 ", root=%" PRIu32 ", event=%" PRIu32 ", child=%" PRIu32 ", detail=%" PRIu8 ", mod=",
                 kp->time, kp->root, kp->event, kp->child, kp->detail);
+        log_modifiers(kp->state, fp);
         break;
 
     case XCB_BUTTON_PRESS:
     case XCB_BUTTON_RELEASE:
         bp = (xcb_button_press_event_t*) ev;
-        fprintf(fp, "time=%" PRIu32 ", root=%" PRIu32 ", event=%" PRIu32 ", child=%" PRIu32 ", detail=%" PRIu8,
+        fprintf(fp, "time=%" PRIu32 ", root=%" PRIu32 ", event=%" PRIu32 ", child=%" PRIu32 ", detail=%" PRIu8 ", mod=",
                 bp->time, bp->root, bp->event, bp->child, bp->detail);
+        log_modifiers(bp->state, fp);
         break;
 
     case XCB_MOTION_NOTIFY:
         mn = (xcb_motion_notify_event_t*) ev;
-        fprintf(fp, "time=%" PRIu32 ", root=%" PRIu32 ", event=%" PRIu32 ", child=%" PRIu32 ", detail=%" PRIu8 ", root_x=%" PRId16 ", root_y=%" PRId16 ", event_x=%" PRId16 ", event_y=%" PRId16,
+        fprintf(fp, "time=%" PRIu32 ", root=%" PRIu32 ", event=%" PRIu32 ", child=%" PRIu32 ", detail=%" PRIu8 ", root_x=%" PRId16 ", root_y=%" PRId16 ", event_x=%" PRId16 ", event_y=%" PRId16 ", mod=",
                 mn->time, mn->root, mn->event, mn->child, mn->detail, mn->root_x, mn->root_y, mn->event_x, mn->event_y);
+        log_modifiers(mn->state, fp);
         break;
 
     case XCB_ENTER_NOTIFY:
@@ -300,7 +324,7 @@ void log_event(xcb_generic_event_t *ev, FILE *fp)
     fputc(')', fp);
 }
 
-/*
+/* TODO: figure out what these are used for
 XCB_CREATE_WINDOW 1
 XCB_CHANGE_WINDOW_ATTRIBUTES 2
 XCB_GET_WINDOW_ATTRIBUTES 3
@@ -421,29 +445,6 @@ XCB_GET_POINTER_MAPPING 117
 XCB_SET_MODIFIER_MAPPING 118
 XCB_GET_MODIFIER_MAPPING 119
 XCB_NO_OPERATION 127
-*/
-
-/*
-void log_modifiers(uint32_t mask)
-{
-    const char *modifiers[] = {
-            "Shift", "Lock", "Ctrl", "Alt",
-            "Mod2", "Mod3", "Mod4", "Mod5",
-            "Button1", "Button2", "Button3", "Button4", "Button5"
-    };
-    int mod_count = 0;
-
-    for (const char **modifier = modifiers; mask != 0; mask >>= 1,
-            modifier++) {
-        if ((mask & 1)) {
-            if (mod_count > 0) {
-                fprintf(stderr, "+");
-            }
-            fprintf(stderr, *modifier);
-            mod_count++;
-        }
-    }
-}
 */
 
 #else
