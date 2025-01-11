@@ -11,6 +11,17 @@
 #include "xalloc.h"
 #include "util.h"
 
+#define ROOT_EVENT_MASK (XCB_EVENT_MASK_SUBSTRUCTURE_REDIRECT | \
+                         XCB_EVENT_MASK_BUTTON_PRESS | \
+                         /* when the user adds a screen (e.g. video
+                          * projector), the root window gets a
+                          * ConfigureNotify */ \
+                         XCB_EVENT_MASK_STRUCTURE_NOTIFY | \
+                         XCB_EVENT_MASK_POINTER_MOTION | \
+                         XCB_EVENT_MASK_PROPERTY_CHANGE | \
+                         XCB_EVENT_MASK_FOCUS_CHANGE | \
+                         XCB_EVENT_MASK_ENTER_WINDOW)
+
 xcb_connection_t    *g_dpy;
 
 xcb_screen_t        **g_screens;
@@ -120,11 +131,7 @@ int take_control(void)
     xcb_generic_error_t *error;
 
     screen = g_screens[g_screen_no];
-    g_values[0] = XCB_EVENT_MASK_SUBSTRUCTURE_REDIRECT |
-        XCB_EVENT_MASK_STRUCTURE_NOTIFY |
-        XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY |
-        XCB_EVENT_MASK_BUTTON_PRESS |
-        XCB_EVENT_MASK_PROPERTY_CHANGE;
+    g_values[0] = ROOT_EVENT_MASK;
     error = xcb_request_check(g_dpy, xcb_change_window_attributes_checked(g_dpy, screen->root,
             XCB_CW_EVENT_MASK, g_values));
     if (error != NULL) {
@@ -150,13 +157,13 @@ int take_control(void)
     return 0;
 }
 
-void set_focus_window(xcb_drawable_t win)
+void set_focus_window(xcb_window_t win)
 {
     xcb_set_input_focus(g_dpy, XCB_INPUT_FOCUS_POINTER_ROOT, win,
             XCB_CURRENT_TIME);
 }
 
-void accept_new_window(xcb_drawable_t win)
+void accept_new_window(xcb_window_t win)
 {
     xcb_screen_t *screen;
 
@@ -170,11 +177,11 @@ void accept_new_window(xcb_drawable_t win)
     xcb_configure_window(g_dpy, win, XCB_CONFIG_WINDOW_X |
         XCB_CONFIG_WINDOW_Y | XCB_CONFIG_WINDOW_WIDTH |
         XCB_CONFIG_WINDOW_HEIGHT | XCB_CONFIG_WINDOW_BORDER_WIDTH, g_values);
-    xcb_flush(g_dpy);
     g_values[0] = XCB_EVENT_MASK_ENTER_WINDOW | XCB_EVENT_MASK_FOCUS_CHANGE;
     xcb_change_window_attributes_checked(g_dpy, win,
         XCB_CW_EVENT_MASK, g_values);
     set_focus_window(win);
+    xcb_flush(g_dpy);
 }
 
 static void handle_key_press(xcb_key_press_event_t *ev)
@@ -190,7 +197,7 @@ static void handle_key_press(xcb_key_press_event_t *ev)
     }
 }
 
-/* declare this, it is implement in event.c */
+/* declare this, it is implemented in event.c */
 void log_event(xcb_generic_event_t *ev, FILE *fp);
 
 void handle_event(void)
