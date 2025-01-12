@@ -5,7 +5,7 @@
 void start_terminal(void)
 {
     if (fork() == 0) {
-        execl("/usr/bin/st", "/usr/bin/st", NULL);
+        execl("/usr/bin/xterm", "/usr/bin/xterm", NULL);
     }
 }
 

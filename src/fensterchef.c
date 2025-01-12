@@ -22,16 +22,22 @@
                          XCB_EVENT_MASK_FOCUS_CHANGE | \
                          XCB_EVENT_MASK_ENTER_WINDOW)
 
+/* xcb server connection */
 xcb_connection_t    *g_dpy;
 
+/* screens */
 xcb_screen_t        **g_screens;
 uint32_t            g_screen_count;
+/* the screen being used */
 uint32_t            g_screen_no;
 
-uint32_t            g_values[5];
-
+/* 1 while the window manager is running */
 int                 g_running;
 
+/* general purpose values */
+uint32_t            g_values[5];
+
+/* init the connection to xcb */
 void init_connection(void)
 {
     g_dpy = xcb_connect(NULL, NULL);
@@ -41,6 +47,7 @@ void init_connection(void)
     }
 }
 
+/* log the screens information to a file */
 void log_screens(FILE *fp)
 {
     xcb_screen_t            *screen;
@@ -57,6 +64,7 @@ void log_screens(FILE *fp)
     }
 }
 
+/* initialize the screens */
 void init_screens(void)
 {
     xcb_screen_iterator_t   iter;
@@ -105,6 +113,7 @@ static struct {
     { XCB_MOD_MASK_1, XK_Return, ACTION_START_TERMINAL },
 };
 
+/* grab the keybinds so we receive the keypress events for them */
 void grab_keys(void)
 {
     xcb_screen_t    *screen;
@@ -125,6 +134,8 @@ void grab_keys(void)
     }
 }
 
+/* subscribe to event substructe redirecting so that we receive map/unmap
+ * requests */
 int take_control(void)
 {
     xcb_screen_t        *screen;
@@ -149,12 +160,14 @@ int take_control(void)
     return 0;
 }
 
+/* focuses a particular window so that it receives keyboard input */
 void set_focus_window(xcb_window_t win)
 {
     xcb_set_input_focus(g_dpy, XCB_INPUT_FOCUS_POINTER_ROOT, win,
             XCB_CURRENT_TIME);
 }
 
+/* handle the mapping of a new window */
 void accept_new_window(xcb_window_t win)
 {
     xcb_screen_t *screen;
@@ -192,6 +205,7 @@ static void handle_key_press(xcb_key_press_event_t *ev)
 /* declare this, it is implemented in event.c */
 void log_event(xcb_generic_event_t *ev, FILE *fp);
 
+/* handle the next event xcb has */
 void handle_event(void)
 {
     xcb_generic_event_t *ev;
@@ -220,6 +234,7 @@ void handle_event(void)
     }
 }
 
+/* close the connection to the xcb server */
 void close_connection(void)
 {
     xcb_disconnect(g_dpy);
