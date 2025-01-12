@@ -36,10 +36,24 @@ typedef struct frame {
     struct frame *next;
 } Frame;
 
+/*the empty Frame is a frame without a window*/
+typedef struct empty_frame {
+    /* coordinates and size of the frame */
+    int32_t x;
+    int32_t y;
+    int32_t w;
+    int32_t h;
+    /* the next frame in the linked list */
+    struct empty_frame *next;
+} EmptyFrame;
+
 /* the first frame in the linked list */
 extern Frame *g_first_frame;
 /* the currently selected/focused frame */
 extern Frame *g_cur_frame;
+
+/* the first empty frame in the linked list */
+extern EmptyFrame *g_first_empty_frame;
 
 /* create a window struct and add it to the window list,
  * this also assigns the next id */
@@ -64,11 +78,23 @@ void set_focus_window(Window *window);
  * and attach it to the linked list */
 Frame *create_frame(Window *window, int32_t x, int32_t y, int32_t w, int32_t h);
 
+/* create an empty frame at given coordinates and attach it to the linked list */
+EmptyFrame *create_empty_frame(int32_t x, int32_t y, int32_t w, int32_t h);
+
+/* assign a window to an empty frame, converting it to a regular frame */
+Frame *assign_window_to_empty_frame(EmptyFrame *empty_frame, Window *window);
+
 /* remove a frame from the screen and hide the inner window, this
  * returns 1 when the given frame is the last frame */
 int remove_frame(Frame *frame);
 
 /* set the frame in focus, this also focuses the inner window if it exists */
 void set_focus_frame(Frame *frame);
+
+/*get the frame in focus*/
+Frame *get_focus_frame(void);
+
+/* reload the frame to apply changes with xcb */
+void reload_frame(Frame *frame);
 
 #endif

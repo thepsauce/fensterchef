@@ -12,6 +12,9 @@ Frame *g_first_frame;
 /* the currently selected/focused frame */
 Frame *g_cur_frame;
 
+/* the first empty frame in the linked list */
+EmptyFrame *g_first_empty_frame = NULL;
+
 /* create a window struct and add it to the window list,
  * this also assigns the next id */
 Window *create_window(xcb_window_t xcb_window)
@@ -202,4 +205,64 @@ void set_focus_frame(Frame *frame)
     g_cur_frame = frame;
 
     LOG(stderr, "frame %p was focused\n", (void*) frame);
+}
+
+/* get the currently focused frame */
+Frame *get_focus_frame(void)
+{
+    return g_cur_frame;
+}
+
+/* create an empty frame at given coordinates and attach it to the linked list */
+EmptyFrame *create_empty_frame(int32_t x, int32_t y, int32_t w, int32_t h) {
+    EmptyFrame *new_empty_frame = xmalloc(sizeof(*new_empty_frame));
+    new_empty_frame->x = x;
+    new_empty_frame->y = y;
+    new_empty_frame->w = w;
+    new_empty_frame->h = h;
+    new_empty_frame->next = NULL;
+
+    if (g_first_empty_frame == NULL) {
+        g_first_empty_frame = new_empty_frame;
+    } else {
+        EmptyFrame *last = g_first_empty_frame;
+        while (last->next != NULL) {
+            last = last->next;
+        }
+        last->next = new_empty_frame;
+    }
+
+    return new_empty_frame;
+}
+
+/* assign a window to an empty frame, converting it to a regular frame */
+Frame *assign_window_to_empty_frame(EmptyFrame *empty_frame, Window *window) {
+    Frame *new_frame = create_frame(window, empty_frame->x, empty_frame->y, empty_frame->w, empty_frame->h);
+
+    // Remove empty frame from the list
+    if (g_first_empty_frame == empty_frame) {
+        g_first_empty_frame = empty_frame->next;
+    } else {
+        EmptyFrame *prev = g_first_empty_frame;
+        while (prev->next != empty_frame) {
+            prev = prev->next;
+        }
+        prev->next = empty_frame->next;
+    }
+
+    free(empty_frame);
+    return new_frame;
+}
+
+void reload_frame(Frame *frame) {
+    if (frame->window != NULL && frame->window->visible) {
+        g_values[0] = frame->x;
+        g_values[1] = frame->y;
+        g_values[2] = frame->w;
+        g_values[3] = frame->h;
+        g_values[4] = 0;
+        xcb_configure_window(g_dpy, frame->window->xcb_window,
+            XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y | XCB_CONFIG_WINDOW_WIDTH |
+            XCB_CONFIG_WINDOW_HEIGHT | XCB_CONFIG_WINDOW_BORDER_WIDTH, g_values);
+    }
 }

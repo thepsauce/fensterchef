@@ -4,6 +4,7 @@
 #include "frame.h"
 #include "fensterchef.h"
 #include "xalloc.h"
+#include "tilling.h"
 
 #define ROOT_EVENT_MASK (XCB_EVENT_MASK_SUBSTRUCTURE_REDIRECT | \
                          XCB_EVENT_MASK_BUTTON_PRESS | \
@@ -108,6 +109,10 @@ void accept_new_window(xcb_window_t win)
     g_cur_frame->window = window;
     show_window(window);
     set_focus_window(window);
+
+    //########################## FUER DEBUGGING ##########################
+    //split_vertically();
+    split_horizontally();
 }
 
 /* declare this, it is implemented in event.c */
