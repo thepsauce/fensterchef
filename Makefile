@@ -46,14 +46,14 @@ test: build
 	./$(BUILD)/$(RUN)
 
 run: build
-	Xephyr -br -ac -noreset -screen 800x600 :1 &
+	Xephyr -br -ac -noreset -screen 800x600 :8 &
 	# wait for x server to start
 	sleep 1
-	DISPLAY=:1 ./$(BUILD)/$(RUN) &
+	DISPLAY=:8 ./$(BUILD)/$(RUN) &
 	# wait for fensterchef to take control
 	sleep 1
 	# make a test window
-	DISPLAY=:1 alacritty &
+	DISPLAY=:8 xterm &
 
 stop:
 	pkill Xephyr
