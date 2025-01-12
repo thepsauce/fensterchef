@@ -35,15 +35,9 @@ void log_screens(FILE *fp);
 /* initialize the screens */
 void init_screens(void);
 
-/* grab the keybinds so we receive the keypress events for them */
-void grab_keys(void);
-
 /* subscribe to event substructe redirecting so that we receive map/unmap
  * requests */
 int take_control(void);
-
-/* focuses a particular window so that it receives keyboard input */
-void set_focus_window(xcb_drawable_t win);
 
 /* handle the mapping of a new window */
 void accept_new_window(xcb_drawable_t win);
@@ -53,5 +47,13 @@ void handle_event(void);
 
 /* close the connection to the xcb server */
 void close_connection(void);
+
+/* implemented in keyboard.c */
+
+/* grab all keys so we receive the keypress events for them */
+int setup_keys(void);
+
+/* handle a key press event */
+void handle_key_press(xcb_key_press_event_t *ev);
 
 #endif

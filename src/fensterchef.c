@@ -1,15 +1,9 @@
 #include <stdlib.h>
-#include <xcb/xcb.h>
-#include <xcb/xcb_keysyms.h>
-#include <xcb/xcb_icccm.h>
-#include <X11/keysym.h>
-
 #include <stdio.h>
 
-#include "action.h"
+#include "frame.h"
 #include "fensterchef.h"
 #include "xalloc.h"
-#include "util.h"
 
 #define ROOT_EVENT_MASK (XCB_EVENT_MASK_SUBSTRUCTURE_REDIRECT | \
                          XCB_EVENT_MASK_BUTTON_PRESS | \
@@ -77,63 +71,6 @@ void init_screens(void)
     }
 }
 
-static xcb_keysym_t xcb_get_keysym(xcb_keycode_t keycode)
-{
-    xcb_key_symbols_t *keysyms;
-    xcb_keysym_t       keysym;
-
-    keysyms = xcb_key_symbols_alloc(g_dpy);
-    if (keysyms == NULL) {
-        return 0;
-    }
-    keysym = xcb_key_symbols_get_keysym(keysyms, keycode, 0);
-    xcb_key_symbols_free(keysyms);
-    return keysym;
-}
-
-static xcb_keycode_t *xcb_get_keycodes(xcb_keysym_t keysym)
-{
-    xcb_key_symbols_t   *keysyms;
-    xcb_keycode_t       *keycode;
-
-    keysyms = xcb_key_symbols_alloc(g_dpy);
-    if (keysyms == NULL) {
-        return NULL;
-    }
-    keycode = xcb_key_symbols_get_keycode(keysyms, keysym);
-    xcb_key_symbols_free(keysyms);
-    return keycode;
-}
-
-static struct {
-    int mod;
-    xcb_keysym_t keysym;
-    int action;
-} keys[] = {
-    { XCB_MOD_MASK_1, XK_Return, ACTION_START_TERMINAL },
-};
-
-/* grab the keybinds so we receive the keypress events for them */
-void grab_keys(void)
-{
-    xcb_screen_t    *screen;
-    xcb_keycode_t   *keycode;
-    uint32_t        modifiers[] = { 0, XCB_MOD_MASK_LOCK };
-
-    screen = g_screens[g_screen_no];
-    xcb_ungrab_key(g_dpy, XCB_GRAB_ANY, screen->root, XCB_MOD_MASK_ANY);
-    for (uint32_t i = 0; i < SIZE(keys); i++) {
-        keycode = xcb_get_keycodes(keys[i].keysym);
-        for (uint32_t k = 0; keycode[k] != XCB_NO_SYMBOL; k++) {
-            for (uint32_t m = 0; m < SIZE(modifiers); m++) {
-                xcb_grab_key(g_dpy, 1, screen->root, keys[i].mod | modifiers[m],
-                        keycode[k], XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC);
-            }
-        }
-        free(keycode);
-    }
-}
-
 /* subscribe to event substructe redirecting so that we receive map/unmap
  * requests */
 int take_control(void)
@@ -149,7 +86,6 @@ int take_control(void)
         return 1;
     }
     //xcb_ungrab_key(g_dpy, XCB_GRAB_ANY, screen->root, XCB_MOD_MASK_ANY);
-    xcb_flush(g_dpy);
     /*xcb_grab_button(g_dpy, 0, screen->root, XCB_EVENT_MASK_BUTTON_PRESS |
         XCB_EVENT_MASK_BUTTON_RELEASE, XCB_GRAB_MODE_ASYNC,
         XCB_GRAB_MODE_ASYNC, screen->root, XCB_NONE, 1, MOD1);
@@ -160,46 +96,18 @@ int take_control(void)
     return 0;
 }
 
-/* focuses a particular window so that it receives keyboard input */
-void set_focus_window(xcb_window_t win)
-{
-    xcb_set_input_focus(g_dpy, XCB_INPUT_FOCUS_POINTER_ROOT, win,
-            XCB_CURRENT_TIME);
-}
-
 /* handle the mapping of a new window */
 void accept_new_window(xcb_window_t win)
 {
-    xcb_screen_t *screen;
+    Window *window;
 
-    screen = g_screens[g_screen_no];
-    xcb_map_window(g_dpy, win);
-    g_values[0] = 0;
-    g_values[1] = 0;
-    g_values[2] = screen->width_in_pixels;
-    g_values[3] = screen->height_in_pixels;
-    g_values[4] = 0;
-    xcb_configure_window(g_dpy, win, XCB_CONFIG_WINDOW_X |
-        XCB_CONFIG_WINDOW_Y | XCB_CONFIG_WINDOW_WIDTH |
-        XCB_CONFIG_WINDOW_HEIGHT | XCB_CONFIG_WINDOW_BORDER_WIDTH, g_values);
-    g_values[0] = XCB_EVENT_MASK_ENTER_WINDOW | XCB_EVENT_MASK_FOCUS_CHANGE;
-    xcb_change_window_attributes_checked(g_dpy, win,
-        XCB_CW_EVENT_MASK, g_values);
-    set_focus_window(win);
-    xcb_flush(g_dpy);
-}
-
-static void handle_key_press(xcb_key_press_event_t *ev)
-{
-    xcb_keysym_t           keysym;
-
-    keysym = xcb_get_keysym(ev->detail);
-    for (uint32_t i = 0; i < SIZE(keys); i++) {
-        if (keysym == keys[i].keysym && keys[i].mod == ev->state) {
-            LOG(stderr, "triggered keybind: %d\n", keys[i].action);
-            do_action(keys[i].action);
-        }
+    window = create_window(win);
+    if (g_cur_frame->window != NULL) {
+        hide_window(g_cur_frame->window);
     }
+    g_cur_frame->window = window;
+    show_window(window);
+    set_focus_window(window);
 }
 
 /* declare this, it is implemented in event.c */
