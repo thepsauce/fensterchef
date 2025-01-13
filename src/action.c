@@ -16,21 +16,10 @@ static void next_window(void)
     Window *next;
 
     window = g_cur_frame->window;
-    if (window == NULL) {
+    next = get_next_hidden_window(window);
+    if (next == NULL) {
         return;
     }
-    next = window;
-    do {
-        if (next->next == NULL) {
-            next = g_first_window;
-        } else {
-            next = next->next;
-        }
-        if (window == next) {
-            /* TODO: notify user that there is no other window */
-            return;
-        }
-    } while (next->visible);
 
     hide_window(window);
     g_cur_frame->window = next;
@@ -40,26 +29,13 @@ static void next_window(void)
 static void prev_window(void)
 {
     Window *window;
-    Window *prev, *prev_prev;
+    Window *prev;
 
     window = g_cur_frame->window;
-    if (window == NULL) {
+    prev = get_prev_hidden_window(window);
+    if (prev == NULL) {
         return;
     }
-    prev = window;
-    do {
-        for (prev_prev = g_first_window; prev_prev->next != prev; ) {
-            if (prev_prev->next == NULL) {
-                break;
-            }
-            prev_prev = prev_prev->next;
-        }
-        prev = prev_prev;
-        if (window == prev) {
-            /* TODO: notify user that there is no other window */
-            return;
-        }
-    } while (prev->visible);
 
     hide_window(window);
     g_cur_frame->window = prev;
