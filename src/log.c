@@ -5,9 +5,10 @@
 #include <xcb/xcb_event.h>
 
 #include "fensterchef.h"
+#include "log.h"
 #include "util.h"
 
-void log_modifiers(uint32_t mask, FILE *fp)
+static void log_modifiers(uint32_t mask, FILE *fp)
 {
     const char *modifiers[] = {
             "Shift", "Lock", "Ctrl", "Alt",
@@ -48,6 +49,7 @@ static const char *generic_event_strings[] = {
     [XCB_IMPLEMENTATION] = "IMPLEMENTATION",
 };
 
+/* Log an event to a file.  */
 void log_event(xcb_generic_event_t *ev, FILE *fp)
 {
     uint8_t                         ev_type;
@@ -404,6 +406,23 @@ XCB_SET_MODIFIER_MAPPING 118
 XCB_GET_MODIFIER_MAPPING 119
 XCB_NO_OPERATION 127
 */
+
+/* Log the screens information to a file. */
+void log_screens(FILE *fp)
+{
+    xcb_screen_t            *screen;
+
+    LOG(fp, "Have %u screen(s):\n", g_screen_count);
+    for (uint32_t i = 0; i < g_screen_count; i++) {
+        screen = g_screens[i];
+        LOG(fp, "Screen %u ; %u:\n", i, screen->root);
+        LOG(fp, "  width.........: %u\n", screen->width_in_pixels);
+        LOG(fp, "  height........: %u\n", screen->height_in_pixels);
+        LOG(fp, "  white pixel...: %u\n", screen->white_pixel);
+        LOG(fp, "  black pixel...: %u\n", screen->black_pixel);
+        LOG(fp, "\n");
+    }
+}
 
 #else
 

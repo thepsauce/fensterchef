@@ -42,6 +42,7 @@ static void prev_window(void)
     show_window(prev);
 }
 
+/* Do the given action, the action codes are `ACTION_*`. */
 void do_action(int action)
 {
     switch (action) {

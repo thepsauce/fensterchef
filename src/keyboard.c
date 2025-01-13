@@ -3,6 +3,7 @@
 
 #include "action.h"
 #include "fensterchef.h"
+#include "log.h"
 #include "util.h"
 
 static struct {
@@ -27,7 +28,7 @@ static xcb_keycode_t *xcb_get_keycodes(xcb_keysym_t keysym)
     return xcb_key_symbols_get_keycode(keysyms, keysym);
 }
 
-/* grab the keybinds so we receive the keypress events for them */
+/* Grab the keybinds so we receive the keypress events for them. */
 int setup_keys(void)
 {
     xcb_screen_t    *screen;
@@ -53,7 +54,7 @@ int setup_keys(void)
     return 0;
 }
 
-/* handle a key press event */
+/* Handle a key press event. */
 void handle_key_press(xcb_key_press_event_t *ev)
 {
     xcb_keysym_t keysym;

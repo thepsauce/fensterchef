@@ -6,8 +6,11 @@
 
 #include "fensterchef.h"
 #include "frame.h"
+#include "log.h"
+#include "util.h"
 #include "xalloc.h"
 
+/* event mask for the root window */
 #define ROOT_EVENT_MASK (XCB_EVENT_MASK_SUBSTRUCTURE_REDIRECT | \
                          XCB_EVENT_MASK_BUTTON_PRESS | \
                          /* when the user adds a monitor (e.g. video
@@ -48,7 +51,7 @@ const char          *g_atom_names[ATOM_COUNT] = {
 /* all interned atoms */
 xcb_atom_t          g_atoms[ATOM_COUNT];
 
-/* init the connection to xcb */
+/* Init the connection to xcb. */
 void init_connection(void)
 {
     g_dpy = xcb_connect(NULL, NULL);
@@ -58,41 +61,20 @@ void init_connection(void)
     }
 }
 
-#ifdef DEBUG
-
-/* log the screens information to a file */
-void log_screens(FILE *fp)
-{
-    xcb_screen_t            *screen;
-
-    LOG(fp, "Have %u screen(s):\n", g_screen_count);
-    for (uint32_t i = 0; i < g_screen_count; i++) {
-        screen = g_screens[i];
-        LOG(fp, "Screen %u ; %u:\n", i, screen->root);
-        LOG(fp, "  width.........: %u\n", screen->width_in_pixels);
-        LOG(fp, "  height........: %u\n", screen->height_in_pixels);
-        LOG(fp, "  white pixel...: %u\n", screen->white_pixel);
-        LOG(fp, "  black pixel...: %u\n", screen->black_pixel);
-        LOG(fp, "\n");
-    }
-}
-
-#endif
-
-/* initialize the screens */
+/* Initialize the screens. */
 void init_screens(void)
 {
     xcb_screen_iterator_t   iter;
 
     iter = xcb_setup_roots_iterator(xcb_get_setup(g_dpy));
-    g_screens = xmalloc(sizeof(*g_screens) * iter.rem);
+    RESIZE(g_screens, iter.rem);
     g_screen_count = 0;
     for (; iter.rem > 0; xcb_screen_next(&iter)) {
         g_screens[g_screen_count++] = iter.data;
     }
 }
 
-/* subscribe to event substructe redirecting so that we receive map requests */
+/* Subscribe to event substructe redirecting so that we receive map requests. */
 int take_control(void)
 {
     xcb_screen_t                *screen;
@@ -130,7 +112,7 @@ int take_control(void)
     return error != NULL;
 }
 
-/* handle the mapping of a new window */
+/* Handle the mapping of a new window. */
 void accept_new_window(xcb_window_t win)
 {
     Window *window;
@@ -144,15 +126,8 @@ void accept_new_window(xcb_window_t win)
     set_focus_window(window);
 }
 
-#ifdef DEBUG
-
-/* declare this, it is implemented in event.c */
-void log_event(xcb_generic_event_t *event, FILE *fp);
-
-#endif
-
-/* handle the next event xcb has */
-void handle_event(void)
+/* Handle the next event xcb has. */
+void handle_next_event(void)
 {
     xcb_generic_event_t             *event;
     xcb_configure_request_event_t   *request_event;
@@ -218,7 +193,7 @@ void handle_event(void)
     }
 }
 
-/* close the connection to the xcb server */
+/* Close the connection to the xcb server. */
 void close_connection(void)
 {
     xcb_disconnect(g_dpy);

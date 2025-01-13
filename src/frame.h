@@ -8,6 +8,9 @@
 /* the number the first window gets assigned */
 #define FIRST_WINDOW_NUMBER 1
 
+/* A window is a wrapper around and xcb window, it is always part of a global
+ * linked list and has a unique id.
+ */
 typedef struct window {
     /* the actual X window */
     xcb_window_t xcb_window;
@@ -24,6 +27,11 @@ typedef struct window {
 /* the first window in the linked list */
 extern Window *g_first_window;
 
+/* A frame is a rectangular region on the screen that may or may not
+ * contain a window.
+ * Frames can be split into smaller sub frames and are the driving
+ * force of the tiling layout.
+ */
 typedef struct frame {
     /* the window inside the frame, may be NULL */
     Window *window;

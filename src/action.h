@@ -10,7 +10,7 @@ enum {
     ACTION_PREV_WINDOW,
 };
 
-/* do the given action, codes are above */
+/* Do the given action, the action codes are `ACTION_*`. */
 void do_action(int action);
 
 #endif

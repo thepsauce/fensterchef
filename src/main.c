@@ -18,7 +18,7 @@ int main(void)
     }
 
     while (g_running) {
-        handle_event();
+        handle_next_event();
         xcb_flush(g_dpy);
     }
 

@@ -11,12 +11,6 @@
                          XCB_CONFIG_WINDOW_HEIGHT | \
                          XCB_CONFIG_WINDOW_BORDER_WIDTH)
 
-#ifdef DEBUG
-#define LOG(fp, fmt, ...) fprintf((fp), (fmt), ##__VA_ARGS__)
-#else
-#define LOG(fp, fmt, ...)
-#endif
-
 /* xcb server connection */
 extern xcb_connection_t     *g_dpy;
 
@@ -51,37 +45,30 @@ extern const char           *g_atom_names[ATOM_COUNT];
 /* all interned atoms */
 extern xcb_atom_t           g_atoms[ATOM_COUNT];
 
-/* init the connection to xcb */
+/* Initialize the connection to xcb. */
 void init_connection(void);
 
-#ifdef DEBUG
-
-/* log the screens information to a file */
-void log_screens(FILE *fp);
-
-#endif
-
-/* initialize the screens */
+/* Initialize the screens. */
 void init_screens(void);
 
-/* subscribe to event substructe redirecting so that we receive map requests */
+/* Subscribe to event substructe redirecting so that we receive map requests. */
 int take_control(void);
 
-/* handle the mapping of a new window */
-void accept_new_window(xcb_drawable_t win);
+/* Handle the mapping of a new window. */
+void accept_new_window(xcb_drawable_t xcb_window);
 
-/* handle the next event xcb has */
-void handle_event(void);
+/* Handle the next event xcb has. */
+void handle_next_event(void);
 
-/* close the connection to the xcb server */
+/* Close the connection to the xcb server. */
 void close_connection(void);
 
 /* implemented in keyboard.c */
 
-/* grab all keys so we receive the keypress events for them */
+/* Grab all keys so we receive the keypress events for them. */
 int setup_keys(void);
 
-/* handle a key press event */
-void handle_key_press(xcb_key_press_event_t *ev);
+/* Handle a key press event. */
+void handle_key_press(xcb_key_press_event_t *event);
 
 #endif

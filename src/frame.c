@@ -2,6 +2,7 @@
 
 #include "fensterchef.h"
 #include "frame.h"
+#include "log.h"
 #include "xalloc.h"
 
 /* the first window in the linked list */
