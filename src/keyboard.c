@@ -32,7 +32,7 @@ int setup_keys(void)
 {
     xcb_screen_t    *screen;
     xcb_keycode_t   *keycode;
-    uint32_t        modifiers[] = { 0, XCB_MOD_MASK_LOCK };
+    const uint32_t  modifiers[] = { 0, XCB_MOD_MASK_LOCK };
 
     keysyms = xcb_key_symbols_alloc(g_dpy);
     if (keysyms == NULL) {

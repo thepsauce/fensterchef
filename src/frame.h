@@ -41,34 +41,72 @@ extern Frame *g_first_frame;
 /* the currently selected/focused frame */
 extern Frame *g_cur_frame;
 
-/* create a window struct and add it to the window list,
- * this also assigns the next id */
+/* Create a window struct and add it to the window list,
+ * this also assigns the next id. */
 Window *create_window(xcb_window_t xcb_window);
 
-/* get the frame this window is contained in, may return NULL */
+/* Get the internal window that has the associated xcb window.
+ *
+ * @return NULL when none has this xcb window.
+ */
+Window *get_window_of_xcb_window(xcb_window_t xcb_window);
+
+/* Get the frame this window is contained in.
+ *
+ * @return NULL when the window is not in any frame.
+ */
 Frame *get_frame_of_window(Window *window);
 
-/* shows the window by mapping and sizing it */
+/* Show the window by mapping and sizing it. */
 void show_window(Window *window);
 
-/* hides the window by unmapping it */
+/* Hide the window by unmapping it. */
 void hide_window(Window *window);
 
-/* gets the currently focused window */
+/* Get the currently focused window.
+ *
+ * @return NULL when the root has focus.
+ */
 Window *get_focus_window(void);
 
-/* set the window that is in focus */
+/* Set the window that is in focus. */
 void set_focus_window(Window *window);
 
-/* create a frame at given coordinates that contains a window (`win` may be 0)
- * and attach it to the linked list */
+/* Get a window that is not shown but in the window list coming after
+ * the given window or NULL when there is none.
+ *
+ * @window may be NULL.
+ * @return NULL iff there is no hidden window.
+ */
+Window *get_next_hidden_window(Window *window);
+
+/* Get a window that is not shown but in the window list coming before
+ * the given window.
+ *
+ * @window may be NULL.
+ * @return NULL iff there is no hidden window.
+ */
+Window *get_prev_hidden_window(Window *window);
+
+/* Destroy given window and removes it from the window linked list.
+ * This does NOT destroy the underlying xcb window.
+ */
+void destroy_window(Window *window);
+
+/* Create a frame at given coordinates that contains a window
+ * and attach it to the linked list.
+ *
+ * @window may be NULL to indicate an empty frame.
+ */
 Frame *create_frame(Window *window, int32_t x, int32_t y, int32_t w, int32_t h);
 
-/* remove a frame from the screen and hide the inner window, this
- * returns 1 when the given frame is the last frame */
+/* Remove a frame from the screen and hide the inner window.
+ *
+ * @return 1 when the given frame is the last frame, otherwise 0.
+ */
 int remove_frame(Frame *frame);
 
-/* set the frame in focus, this also focuses the inner window if it exists */
+/* Set the frame in focus, this also focuses the inner window if it exists. */
 void set_focus_frame(Frame *frame);
 
 #endif

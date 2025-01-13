@@ -5,6 +5,12 @@
 
 #include <stdio.h>
 
+#define XCB_CONFIG_SIZE (XCB_CONFIG_WINDOW_X | \
+                         XCB_CONFIG_WINDOW_Y | \
+                         XCB_CONFIG_WINDOW_WIDTH | \
+                         XCB_CONFIG_WINDOW_HEIGHT | \
+                         XCB_CONFIG_WINDOW_BORDER_WIDTH)
+
 #ifdef DEBUG
 #define LOG(fp, fmt, ...) fprintf((fp), (fmt), ##__VA_ARGS__)
 #else
@@ -26,17 +32,39 @@ extern int                  g_running;
 /* general purpose values */
 extern uint32_t             g_values[5];
 
+enum {
+    WM_PROTOCOLS,
+    WM_DELETE_WINDOW,
+
+    FIRST_NET_ATOM,
+    NET_SUPPORTED = FIRST_NET_ATOM,
+    NET_FULLSCREEN,
+    NET_WM_STATE,
+    NET_ACTIVE,
+
+    ATOM_COUNT,
+};
+
+/* string names of the atoms */
+extern const char           *g_atom_names[ATOM_COUNT];
+
+/* all interned atoms */
+extern xcb_atom_t           g_atoms[ATOM_COUNT];
+
 /* init the connection to xcb */
 void init_connection(void);
+
+#ifdef DEBUG
 
 /* log the screens information to a file */
 void log_screens(FILE *fp);
 
+#endif
+
 /* initialize the screens */
 void init_screens(void);
 
-/* subscribe to event substructe redirecting so that we receive map/unmap
- * requests */
+/* subscribe to event substructe redirecting so that we receive map requests */
 int take_control(void);
 
 /* handle the mapping of a new window */

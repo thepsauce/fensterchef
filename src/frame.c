@@ -12,8 +12,8 @@ Frame *g_first_frame;
 /* the currently selected/focused frame */
 Frame *g_cur_frame;
 
-/* create a window struct and add it to the window list,
- * this also assigns the next id */
+/* Create a window struct and add it to the window list,
+ * this also assigns the next id. */
 Window *create_window(xcb_window_t xcb_window)
 {
     Window      *next;
@@ -48,7 +48,8 @@ Window *create_window(xcb_window_t xcb_window)
         last->next = next;
     }
 
-    g_values[0] = XCB_EVENT_MASK_ENTER_WINDOW | XCB_EVENT_MASK_FOCUS_CHANGE;
+    g_values[0] = XCB_EVENT_MASK_PROPERTY_CHANGE | XCB_EVENT_MASK_ENTER_WINDOW |
+        XCB_EVENT_MASK_FOCUS_CHANGE;
     xcb_change_window_attributes_checked(g_dpy, xcb_window,
         XCB_CW_EVENT_MASK, g_values);
 
@@ -56,7 +57,19 @@ Window *create_window(xcb_window_t xcb_window)
     return next;
 }
 
-/* get the frame this window is contained in, may return NULL */
+/* Get the internal window that has the associated xcb window. */
+Window *get_window_of_xcb_window(xcb_window_t xcb_window)
+{
+    for (Window *window = g_first_window; window != NULL;
+            window = window->next) {
+        if (window->xcb_window == xcb_window) {
+            return window;
+        }
+    }
+    return NULL;
+}
+
+/* Get the frame this window is contained in. */
 Frame *get_frame_of_window(Window *window)
 {
     for (Frame *frame = g_first_frame; frame != NULL; frame = frame->next) {
@@ -67,7 +80,7 @@ Frame *get_frame_of_window(Window *window)
     return NULL;
 }
 
-/* shows the window by mapping and sizing it */
+/* Show the window by mapping and sizing it. */
 void show_window(Window *window)
 {
     Frame *frame;
@@ -77,25 +90,25 @@ void show_window(Window *window)
         return;
     }
 
-    frame = get_frame_of_window(window);
-
     xcb_map_window(g_dpy, window->xcb_window);
 
-    g_values[0] = frame->x;
-    g_values[1] = frame->y;
-    g_values[2] = frame->w;
-    g_values[3] = frame->h;
-    g_values[4] = 0;
-    xcb_configure_window(g_dpy, window->xcb_window,
-        XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y | XCB_CONFIG_WINDOW_WIDTH |
-        XCB_CONFIG_WINDOW_HEIGHT | XCB_CONFIG_WINDOW_BORDER_WIDTH, g_values);
+    frame = get_frame_of_window(window);
+    if (frame != NULL) {
+        g_values[0] = frame->x;
+        g_values[1] = frame->y;
+        g_values[2] = frame->w;
+        g_values[3] = frame->h;
+        g_values[4] = 0;
+        xcb_configure_window(g_dpy, window->xcb_window,
+                XCB_CONFIG_SIZE, g_values);
+    }
 
     window->visible = 1;
 
     LOG(stderr, "showing window %p\n", (void*) window);
 }
 
-/* hides the window by unmapping it */
+/* Hide the window by unmapping it. */
 void hide_window(Window *window)
 {
     xcb_unmap_window(g_dpy, window->xcb_window);
@@ -105,7 +118,7 @@ void hide_window(Window *window)
     LOG(stderr, "hiding window %p\n", (void*) window);
 }
 
-/* gets the currently focused window */
+/* Get the currently focused window. */
 Window *get_focus_window(void)
 {
     for (Window *w = g_first_window; w != NULL; w = w->next) {
@@ -116,7 +129,7 @@ Window *get_focus_window(void)
     return NULL;
 }
 
-/* set the window that is in focus */
+/* Set the window that is in focus. */
 void set_focus_window(Window *window)
 {
     Window *old_focus;
@@ -136,12 +149,79 @@ void set_focus_window(Window *window)
     LOG(stderr, "focus change from %p to %p\n", (void*) old_focus, (void*) window);
 }
 
-/* create a frame at given coordinates that contains a window (`win` may be 0)
- * and attach it to the linked list */
+/* Get a window that is not shown but in the window list coming after
+ * the given window. */
+Window *get_next_hidden_window(Window *window)
+{
+    Window *next;
+
+    if (window == NULL) {
+        return NULL;
+    }
+    next = window;
+    do {
+        if (next->next == NULL) {
+            next = g_first_window;
+        } else {
+            next = next->next;
+        }
+        if (window == next) {
+            return NULL;
+        }
+    } while (next->visible);
+
+    return next;
+}
+
+/* Get a window that is not shown but in the window list coming before
+ * the given window. */
+Window *get_prev_hidden_window(Window *window)
+{
+    Window *prev, *prev_prev;
+
+    if (window == NULL) {
+        return NULL;
+    }
+    prev = window;
+    do {
+        for (prev_prev = g_first_window; prev_prev->next != prev; ) {
+            if (prev_prev->next == NULL) {
+                break;
+            }
+            prev_prev = prev_prev->next;
+        }
+        prev = prev_prev;
+        if (window == prev) {
+            return NULL;
+        }
+    } while (prev->visible);
+
+    return prev;
+}
+
+/* Destroys given window and removes it from the window linked list. */
+void destroy_window(Window *window)
+{
+    Window *prev;
+
+    if (window == g_first_window) {
+        g_first_window = window->next;
+    } else {
+        for (prev = g_first_window; prev->next != window; ) {
+            prev = prev->next;
+        }
+        prev->next = window->next;
+    }
+
+    free(window);
+}
+
+/* Create a frame at given coordinates that contains a window
+ * (`window` may be NULL) and attach it to the linked list. */
 Frame *create_frame(Window *window, int32_t x, int32_t y, int32_t w, int32_t h)
 {
-    Frame   *next;
-    Frame   *last;
+    Frame *next;
+    Frame *last;
 
     next = xmalloc(sizeof(*next));
     next->window = window;
@@ -166,8 +246,7 @@ Frame *create_frame(Window *window, int32_t x, int32_t y, int32_t w, int32_t h)
     return next;
 }
 
-/* remove a frame from the screen and hide the inner window, this
- * returns 1 when the given frame is the last frame */
+/* Remove a frame from the screen and hide the inner window. */
 int remove_frame(Frame *frame)
 {
     Frame *prev;
@@ -179,11 +258,12 @@ int remove_frame(Frame *frame)
 
     if (frame == g_first_frame) {
         g_first_frame = frame->next;
+    } else {
+        for (prev = g_first_frame; prev->next != frame; ) {
+            prev = prev->next;
+        }
+        prev->next = frame->next;
     }
-    for (prev = g_first_frame; prev->next != frame; ) {
-        prev = prev->next;
-    }
-    prev->next = frame->next;
 
     hide_window(frame->window);
 
@@ -193,7 +273,7 @@ int remove_frame(Frame *frame)
     return 0;
 }
 
-/* set the frame in focus, this also focuses the inner window if it exists */
+/* Set the frame in focus, this also focuses the inner window if it exists. */
 void set_focus_frame(Frame *frame)
 {
     if (frame->window != NULL) {
