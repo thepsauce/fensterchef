@@ -1,8 +1,8 @@
 #include <unistd.h>
 
 #include "action.h"
+#include "fensterchef.h"
 #include "frame.h"
-#include "notify.h"
 
 static void start_terminal(void)
 {

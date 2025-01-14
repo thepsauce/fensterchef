@@ -246,7 +246,7 @@ Frame *create_frame(Window *window, int32_t x, int32_t y, int32_t w, int32_t h)
         last->next = next;
     }
 
-    LOG("frame %p created at %" PRId32 ",%" PRId32 ":%" PRId32 "x%" PRId32,
+    LOG("frame %p created at %" PRId32 ",%" PRId32 ":%" PRId32 "x%" PRId32 "\n",
             (void*) next, x, y, w, h);
     return next;
 }

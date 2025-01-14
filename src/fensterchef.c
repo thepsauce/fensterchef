@@ -1,7 +1,9 @@
 #include <inttypes.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 #include <xcb/xcb_atom.h>
 
 #include "fensterchef.h"
@@ -35,6 +37,12 @@ uint32_t            g_screen_no;
 /* 1 while the window manager is running */
 int                 g_running;
 
+/* the graphics context used for drawing black text on white background */
+xcb_gcontext_t      g_drawing_context;
+
+/* the font used for rendering */
+xcb_font_t          g_font;
+
 /* general purpose values */
 uint32_t            g_values[6];
 
@@ -51,20 +59,33 @@ const char          *g_atom_names[ATOM_COUNT] = {
 /* all interned atoms */
 xcb_atom_t          g_atoms[ATOM_COUNT];
 
-/* Init the connection to xcb. */
-void init_connection(void)
+/* user notification window */
+static xcb_window_t notification_window;
+
+/* Handle an incoming alarm. */
+static void alarm_handler(int sig)
 {
+    (void) sig;
+    LOG("triggered alarm: hiding notification window\n");
+    xcb_unmap_window(g_dpy, notification_window);
+    xcb_flush(g_dpy);
+}
+
+/* Initialize most of fensterchef data and set root window flags. */
+int init_fensterchef(void)
+{
+    xcb_screen_iterator_t       iter;
+    xcb_screen_t                *screen;
+    xcb_generic_error_t         *error;
+    xcb_intern_atom_cookie_t    cookies[ATOM_COUNT];
+    xcb_intern_atom_reply_t     *reply;
+    const char                  *font_name = "-misc-fixed-*";
+
     g_dpy = xcb_connect(NULL, NULL);
     if (xcb_connection_has_error(g_dpy) > 0) {
         LOG("could not create xcb connection\n");
         exit(1);
     }
-}
-
-/* Initialize the screens. */
-void init_screens(void)
-{
-    xcb_screen_iterator_t   iter;
 
     iter = xcb_setup_roots_iterator(xcb_get_setup(g_dpy));
     RESIZE(g_screens, iter.rem);
@@ -72,15 +93,6 @@ void init_screens(void)
     for (; iter.rem > 0; xcb_screen_next(&iter)) {
         g_screens[g_screen_count++] = iter.data;
     }
-}
-
-/* Subscribe to event substructe redirecting so that we receive map requests. */
-int take_control(void)
-{
-    xcb_screen_t                *screen;
-    xcb_generic_error_t         *error;
-    xcb_intern_atom_cookie_t    cookies[ATOM_COUNT];
-    xcb_intern_atom_reply_t     *reply;
 
     for (uint32_t i = 0; i < ATOM_COUNT; i++) {
         cookies[i] = xcb_intern_atom(g_dpy, 0,
@@ -99,7 +111,14 @@ int take_control(void)
         }
     }
 
+    if (g_screen_count == 0) {
+        return 1;
+    }
+
+    g_screen_no = 0;
     screen = g_screens[g_screen_no];
+
+    create_frame(NULL, 0, 0, screen->width_in_pixels, screen->height_in_pixels);
 
     xcb_change_property(g_dpy, XCB_PROP_MODE_REPLACE, screen->root,
             g_atoms[NET_SUPPORTED], XCB_ATOM_ATOM, 32,
@@ -109,7 +128,99 @@ int take_control(void)
     error = xcb_request_check(g_dpy,
             xcb_change_window_attributes_checked(g_dpy, screen->root,
                 XCB_CW_EVENT_MASK, g_values));
-    return error != NULL;
+    if (error != NULL) {
+        LOG("could not change root window mask\n");
+        return 1;
+    }
+
+    g_values[0] = 0x000000;
+    xcb_change_window_attributes(g_dpy, notification_window,
+            XCB_CW_BORDER_PIXEL, g_values);
+
+    g_drawing_context = xcb_generate_id(g_dpy);
+
+    g_font = xcb_generate_id(g_dpy);
+    error = xcb_request_check(g_dpy, xcb_open_font_checked(g_dpy,
+                g_font, strlen(font_name), font_name));
+    if (error != NULL) {
+        LOG("could not create notification window font\n");
+        return 1;
+    }
+
+    g_values[0] = screen->black_pixel;
+    g_values[1] = screen->white_pixel;
+    g_values[2] = g_font;
+    error = xcb_request_check(g_dpy,
+            xcb_create_gc_checked(g_dpy, g_drawing_context, screen->root,
+                XCB_GC_FOREGROUND | XCB_GC_BACKGROUND | XCB_GC_FONT, g_values));
+    if (error != NULL) {
+        LOG("could not create graphics context for notifications\n");
+        return 1;
+    }
+
+    notification_window = xcb_generate_id(g_dpy);
+    error = xcb_request_check(g_dpy, xcb_create_window_checked(g_dpy,
+                XCB_COPY_FROM_PARENT, notification_window,
+                screen->root, -1, -1, 1, 1, 0,
+                XCB_WINDOW_CLASS_COPY_FROM_PARENT, XCB_COPY_FROM_PARENT,
+                0, NULL));
+    if (error != NULL) {
+        LOG("could not create notification window\n");
+        return 1;
+    }
+
+    signal(SIGALRM, alarm_handler);
+
+    return 0;
+}
+
+/* Show the notification window with given message at given coordinates. */
+void set_notification(const char *msg, int32_t x, int32_t y)
+{
+    size_t                          msg_len;
+    xcb_char2b_t                    *xcb_str = NULL;
+    xcb_query_text_extents_cookie_t cookie;
+    xcb_query_text_extents_reply_t  *reply;
+    uint32_t                        w, h;
+    const uint32_t                  padding = 2;
+
+    msg_len = strlen(msg);
+    RESIZE(xcb_str, msg_len);
+    for (size_t i = 0; i < msg_len; i++) {
+        xcb_str[i].byte1 = 0;
+        xcb_str[i].byte2 = msg[i];
+    }
+    cookie = xcb_query_text_extents(g_dpy, g_font, msg_len, xcb_str);
+    free(xcb_str);
+
+    reply = xcb_query_text_extents_reply(g_dpy, cookie, NULL);
+    if (reply == NULL) {
+        LOG("could not get text extent reply for the notification window\n");
+        return;
+    }
+
+    w = reply->overall_width + padding;
+    h = reply->font_ascent + reply->font_descent + padding;
+    x -= w / 2;
+    y -= h / 2;
+
+    g_values[0] = x;
+    g_values[1] = y;
+    g_values[2] = w;
+    g_values[3] = h;
+    g_values[4] = 1;
+    g_values[5] = XCB_STACK_MODE_ABOVE;
+    xcb_configure_window(g_dpy, notification_window,
+            XCB_CONFIG_SIZE | XCB_CONFIG_WINDOW_STACK_MODE, g_values);
+
+    xcb_map_window(g_dpy, notification_window);
+
+    xcb_image_text_8(g_dpy, strlen(msg), notification_window, g_drawing_context,
+            padding / 2, reply->font_ascent, msg);
+
+    alarm(3);
+
+    free(reply);
 }
 
 /* Handle the mapping of a new window. */

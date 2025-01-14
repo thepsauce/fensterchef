@@ -23,6 +23,12 @@ extern uint32_t             g_screen_no;
 /* 1 while the window manager is running */
 extern int                  g_running;
 
+/* the graphics context used for drawing black text on white background */
+extern xcb_gcontext_t       g_drawing_context;
+
+/* the font used for rendering */
+extern xcb_font_t           g_font;
+
 /* general purpose values */
 extern uint32_t             g_values[6];
 
@@ -45,23 +51,24 @@ extern const char           *g_atom_names[ATOM_COUNT];
 /* all interned atoms */
 extern xcb_atom_t           g_atoms[ATOM_COUNT];
 
-/* Initialize the connection to xcb. */
-void init_connection(void);
-
 /* Initialize the screens. */
 void init_screens(void);
 
-/* Subscribe to event substructe redirecting so that we receive map requests. */
-int take_control(void);
+/* Initialize most of fensterchef data and set root window flags. */
+int init_fensterchef(void);
+
+/* Show the notification window with given message at given coordinates.
+ *
+ * @x Center x position.
+ * @y Center y position.
+ */
+void set_notification(const char *msg, int32_t x, int32_t y);
 
 /* Handle the mapping of a new window. */
 void accept_new_window(xcb_drawable_t xcb_window);
 
 /* Handle the next event xcb has. */
 void handle_next_event(void);
-
-/* Close the connection to the xcb server. */
-void close_connection(void);
 
 /* implemented in keyboard.c */
 
