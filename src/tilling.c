@@ -1,30 +1,28 @@
 #include "tilling.h"
 #include "frame.h"
 
-void split_vertically()
-{
-    Frame *focused_frame = get_focus_frame();   
+#include <stdint.h>
 
-    unsigned int width_old_frame = focused_frame->w / 2;
-    unsigned int width_new_frame = focused_frame->w - width_old_frame;
-    unsigned int x_new_frame = focused_frame->x + width_old_frame + 1;
+void split_vertically(void)
+{       
+    uint32_t width_old_frame = g_cur_frame->w / 2;
+    uint32_t width_new_frame = g_cur_frame->w - width_old_frame;
+    int32_t x_new_frame = g_cur_frame->x + width_old_frame + 1;
 
-    focused_frame->w = width_old_frame;
-    create_empty_frame(x_new_frame, focused_frame->y, width_new_frame, focused_frame->h);
+    g_cur_frame->w = width_old_frame;
+    create_frame(NULL, x_new_frame, g_cur_frame->y, width_new_frame, g_cur_frame->h);
     
-    reload_frame(focused_frame);
+    reload_frame(g_cur_frame);
 }   
 
-void split_horizontally()
+void split_horizontally(void)
 {
-    Frame *focused_frame = get_focus_frame();   
+    uint32_t hight_old_frame = g_cur_frame->h / 2;
+    uint32_t hight_new_frame = g_cur_frame->h - hight_old_frame;
+    int32_t y_new_frame = g_cur_frame->y + hight_old_frame + 1;
 
-    unsigned int hight_old_frame = focused_frame->h / 2;
-    unsigned int hight_new_frame = focused_frame->h - hight_old_frame;
-    unsigned int y_new_frame = focused_frame->y + hight_old_frame + 1;
-
-    focused_frame->h = hight_old_frame;
-    create_empty_frame(focused_frame->x, y_new_frame, focused_frame->w, hight_new_frame);
+    g_cur_frame->h = hight_old_frame;
+    create_frame(NULL, g_cur_frame->x, y_new_frame, g_cur_frame->w, hight_new_frame);
     
-    reload_frame(focused_frame);
+    reload_frame(g_cur_frame);
 }   
