@@ -58,6 +58,13 @@ Window *create_window(xcb_window_t xcb_window);
  */
 void destroy_window(Window *window);
 
+/* Get the window before this window in the linked list.
+ * This function WRAPS around so
+ *  `get_previous_window(g_first_window)` returns the last window.
+ * @window may be NULL, then NULL is also returned.
+ */
+Window *get_previous_window(Window *window);
+
 /* Get the internal window that has the associated xcb window.
  *
  * @return NULL when none has this xcb window.
@@ -99,7 +106,7 @@ Window *get_next_hidden_window(Window *window);
  * @window may be NULL.
  * @return NULL iff there is no hidden window.
  */
-Window *get_prev_hidden_window(Window *window);
+Window *get_previous_hidden_window(Window *window);
 
 /* Create a frame at given coordinates that contains a window
  * and attach it to the linked list.

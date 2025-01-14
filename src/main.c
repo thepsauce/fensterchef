@@ -1,9 +1,13 @@
+#include <stdlib.h>
+
 #include "fensterchef.h"
 #include "frame.h"
 #include "log.h"
 
 int main(void)
 {
+    xcb_generic_event_t *event;
+
     if ((void*) LOG_FILE == (void*) stderr) {
         g_log_file = stderr;
     } else {
@@ -21,8 +25,16 @@ int main(void)
 
     g_running = 1;
     while (g_running) {
-        handle_next_event();
-        xcb_flush(g_dpy);
+        if (xcb_connection_has_error(g_dpy) > 0) {
+            /* quit because the connection is broken */
+            break;
+        }
+        event = xcb_wait_for_event(g_dpy);
+        if (event != NULL) {
+            handle_event(event);
+            free(event);
+            xcb_flush(g_dpy);
+        }
     }
 
     xcb_disconnect(g_dpy);

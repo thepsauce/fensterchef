@@ -5,9 +5,10 @@
 #include <string.h>
 #include <unistd.h>
 #include <xcb/xcb_atom.h>
+#include <xcb/xcb_keysyms.h>
+#include <X11/keysym.h>
 
 #include "fensterchef.h"
-#include "frame.h"
 #include "log.h"
 #include "util.h"
 #include "xalloc.h"
@@ -40,6 +41,9 @@ int                 g_running;
 /* the graphics context used for drawing black text on white background */
 xcb_gcontext_t      g_drawing_context;
 
+/* same as g_drawing_context but with inverted colors */
+xcb_gcontext_t      g_inverted_context;
+
 /* the font used for rendering */
 xcb_font_t          g_font;
 
@@ -60,14 +64,17 @@ const char          *g_atom_names[ATOM_COUNT] = {
 xcb_atom_t          g_atoms[ATOM_COUNT];
 
 /* user notification window */
-static xcb_window_t notification_window;
+xcb_window_t        g_notification_window;
+
+/* list of windows */
+xcb_window_t        g_window_list_window;
 
 /* Handle an incoming alarm. */
 static void alarm_handler(int sig)
 {
     (void) sig;
     LOG("triggered alarm: hiding notification window\n");
-    xcb_unmap_window(g_dpy, notification_window);
+    xcb_unmap_window(g_dpy, g_notification_window);
     xcb_flush(g_dpy);
 }
 
@@ -112,6 +119,7 @@ int init_fensterchef(void)
     }
 
     if (g_screen_count == 0) {
+        LOG("no screens to attach to\n");
         return 1;
     }
 
@@ -133,13 +141,10 @@ int init_fensterchef(void)
         return 1;
     }
 
-    g_values[0] = 0x000000;
-    xcb_change_window_attributes(g_dpy, notification_window,
-            XCB_CW_BORDER_PIXEL, g_values);
-
     g_drawing_context = xcb_generate_id(g_dpy);
-
+    g_inverted_context = xcb_generate_id(g_dpy);
     g_font = xcb_generate_id(g_dpy);
+
     error = xcb_request_check(g_dpy, xcb_open_font_checked(g_dpy,
                 g_font, strlen(font_name), font_name));
     if (error != NULL) {
@@ -158,14 +163,39 @@ int init_fensterchef(void)
         return 1;
     }
 
-    notification_window = xcb_generate_id(g_dpy);
+    g_values[0] = screen->white_pixel;
+    g_values[1] = screen->black_pixel;
+    g_values[2] = g_font;
+    error = xcb_request_check(g_dpy,
+            xcb_create_gc_checked(g_dpy, g_inverted_context, screen->root,
+                XCB_GC_FOREGROUND | XCB_GC_BACKGROUND | XCB_GC_FONT, g_values));
+    if (error != NULL) {
+        LOG("could not create inverted graphics context for notifications\n");
+        return 1;
+    }
+
+    g_notification_window = xcb_generate_id(g_dpy);
+    g_values[0] = 0x000000;
     error = xcb_request_check(g_dpy, xcb_create_window_checked(g_dpy,
-                XCB_COPY_FROM_PARENT, notification_window,
+                XCB_COPY_FROM_PARENT, g_notification_window,
                 screen->root, -1, -1, 1, 1, 0,
                 XCB_WINDOW_CLASS_COPY_FROM_PARENT, XCB_COPY_FROM_PARENT,
-                0, NULL));
+                XCB_CW_BORDER_PIXEL, g_values));
     if (error != NULL) {
         LOG("could not create notification window\n");
+        return 1;
+    }
+
+    g_window_list_window = xcb_generate_id(g_dpy);
+    g_values[0] = 0x000000;
+    g_values[1] = XCB_EVENT_MASK_KEY_PRESS | XCB_EVENT_MASK_BUTTON_PRESS;
+    error = xcb_request_check(g_dpy, xcb_create_window_checked(g_dpy,
+                XCB_COPY_FROM_PARENT, g_window_list_window,
+                screen->root, -1, -1, 1, 1, 0,
+                XCB_WINDOW_CLASS_COPY_FROM_PARENT, XCB_COPY_FROM_PARENT,
+                XCB_CW_BORDER_PIXEL | XCB_CW_EVENT_MASK, g_values));
+    if (error != NULL) {
+        LOG("could not create window list window\n");
         return 1;
     }
 
@@ -210,13 +240,13 @@ void set_notification(const char *msg, int32_t x, int32_t y)
     g_values[3] = h;
     g_values[4] = 1;
     g_values[5] = XCB_STACK_MODE_ABOVE;
-    xcb_configure_window(g_dpy, notification_window,
+    xcb_configure_window(g_dpy, g_notification_window,
             XCB_CONFIG_SIZE | XCB_CONFIG_WINDOW_STACK_MODE, g_values);
 
-    xcb_map_window(g_dpy, notification_window);
+    xcb_map_window(g_dpy, g_notification_window);
 
-    xcb_image_text_8(g_dpy, strlen(msg), notification_window, g_drawing_context,
-            padding / 2, reply->font_ascent, msg);
+    xcb_image_text_8(g_dpy, strlen(msg), g_notification_window, g_drawing_context,
+            padding / 2, reply->font_ascent + padding / 2, msg);
 
     alarm(3);
 
@@ -237,72 +267,62 @@ void accept_new_window(xcb_window_t win)
     set_focus_window(window);
 }
 
-/* Handle the next event xcb has. */
-void handle_next_event(void)
+/* Handle the given xcb event. */
+void handle_event(xcb_generic_event_t *event)
 {
-    xcb_generic_event_t             *event;
     xcb_configure_request_event_t   *request_event;
     Window                          *window;
     Frame                           *frame;
 
-    if (xcb_connection_has_error(g_dpy) > 0) {
-        /* quit because the connection is broken */
-        g_running = 0;
-        return;
-    }
-
-    event = xcb_wait_for_event(g_dpy);
-    if (event != NULL) {
 #ifdef DEBUG
-        log_event(event, g_log_file);
-        fputc('\n', g_log_file);
+    log_event(event, g_log_file);
+    fputc('\n', g_log_file);
 #endif
-        switch ((event->response_type & ~0x80)) {
-        case XCB_MAP_REQUEST:
-            accept_new_window(((xcb_map_request_event_t*) event)->window);
-            break;
 
-        case XCB_UNMAP_NOTIFY:
-            window = get_window_of_xcb_window(
-                    ((xcb_unmap_notify_event_t*) event)->window);
-            if (window != NULL && window->visible) {
-                window->visible = 0;
-                frame = get_frame_of_window(window);
-                window = get_next_hidden_window(window);
-                frame->window = window;
-                if (window != NULL) {
-                    show_window(window);
-                }
-            }
-            break;
+    switch ((event->response_type & ~0x80)) {
+    case XCB_MAP_REQUEST:
+        accept_new_window(((xcb_map_request_event_t*) event)->window);
+        break;
 
-        case XCB_DESTROY_NOTIFY:
-            window = get_window_of_xcb_window(
-                    ((xcb_unmap_notify_event_t*) event)->window);
+    case XCB_UNMAP_NOTIFY:
+        window = get_window_of_xcb_window(
+                ((xcb_unmap_notify_event_t*) event)->window);
+        if (window != NULL && window->visible) {
+            window->visible = 0;
+            frame = get_frame_of_window(window);
+            window = get_next_hidden_window(window);
+            frame->window = window;
             if (window != NULL) {
-                destroy_window(window);
+                show_window(window);
             }
-            break;
-
-        case XCB_CONFIGURE_REQUEST:
-            request_event = (xcb_configure_request_event_t*) event;
-            g_values[0] = request_event->x;
-            g_values[1] = request_event->y;
-            g_values[2] = request_event->width;
-            g_values[3] = request_event->height;
-            g_values[4] = request_event->border_width;
-            xcb_configure_window(g_dpy, request_event->window,
-                    XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y |
-                    XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT |
-                    XCB_CONFIG_WINDOW_BORDER_WIDTH,
-                    g_values);
-            break;
-
-        case XCB_KEY_PRESS:
-            handle_key_press((xcb_key_press_event_t*) event);
-            break;
         }
-        free(event);
+        break;
+
+    case XCB_DESTROY_NOTIFY:
+        window = get_window_of_xcb_window(
+                ((xcb_unmap_notify_event_t*) event)->window);
+        if (window != NULL) {
+            destroy_window(window);
+        }
+        break;
+
+    case XCB_CONFIGURE_REQUEST:
+        request_event = (xcb_configure_request_event_t*) event;
+        g_values[0] = request_event->x;
+        g_values[1] = request_event->y;
+        g_values[2] = request_event->width;
+        g_values[3] = request_event->height;
+        g_values[4] = request_event->border_width;
+        xcb_configure_window(g_dpy, request_event->window,
+                XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y |
+                XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT |
+                XCB_CONFIG_WINDOW_BORDER_WIDTH,
+                g_values);
+        break;
+
+    case XCB_KEY_PRESS:
+        handle_key_press((xcb_key_press_event_t*) event);
+        break;
     }
 }
 

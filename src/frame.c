@@ -78,6 +78,23 @@ void destroy_window(Window *window)
     free(window);
 }
 
+/* Get the window before this window in the linked list. */
+Window *get_previous_window(Window *window)
+{
+    Window *prev;
+
+    if (window == NULL) {
+        return NULL;
+    }
+
+    for (prev = g_first_window; prev->next != window; prev = prev->next) {
+        if (prev->next == NULL) {
+            break;
+        }
+    }
+    return prev;
+}
+
 /* Get the internal window that has the associated xcb window. */
 Window *get_window_of_xcb_window(xcb_window_t xcb_window)
 {
@@ -197,22 +214,16 @@ Window *get_next_hidden_window(Window *window)
 
 /* Get a window that is not shown but in the window list coming before
  * the given window. */
-Window *get_prev_hidden_window(Window *window)
+Window *get_previous_hidden_window(Window *window)
 {
-    Window *prev, *prev_prev;
+    Window *prev;
 
     if (window == NULL) {
         return NULL;
     }
     prev = window;
     do {
-        for (prev_prev = g_first_window; prev_prev->next != prev; ) {
-            if (prev_prev->next == NULL) {
-                break;
-            }
-            prev_prev = prev_prev->next;
-        }
-        prev = prev_prev;
+        prev = get_previous_window(prev);
         if (window == prev) {
             return NULL;
         }

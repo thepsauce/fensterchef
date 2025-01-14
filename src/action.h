@@ -8,6 +8,8 @@ enum {
     ACTION_NEXT_WINDOW,
     /* go to the previous window in the window list */
     ACTION_PREV_WINDOW,
+    /* show the interactive window list */
+    ACTION_SHOW_WINDOW_LIST,
 };
 
 /* Do the given action, the action codes are `ACTION_*`. */
