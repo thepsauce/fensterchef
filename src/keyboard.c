@@ -62,10 +62,10 @@ void handle_key_press(xcb_key_press_event_t *ev)
     keysym = xcb_get_keysym(ev->detail);
     for (uint32_t i = 0; i < SIZE(key_binds); i++) {
         if (keysym == key_binds[i].keysym && key_binds[i].mod == ev->state) {
-            LOG(stderr, "triggered keybind: %d\n", key_binds[i].action);
+            LOG("triggered keybind: %d\n", key_binds[i].action);
             do_action(key_binds[i].action);
             return;
         }
     }
-    LOG(stderr, "trash keybind: %d\n", keysym);
+    LOG("trash keybind: %d\n", keysym);
 }

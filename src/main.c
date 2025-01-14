@@ -1,11 +1,17 @@
 #include "fensterchef.h"
 #include "frame.h"
+#include "log.h"
+#include "notify.h"
 
 int main(void)
 {
+    g_log_file = fopen("/tmp/fensterchef-log.txt", "w");
+    if (g_log_file == NULL) {
+        g_log_file = stderr;
+    }
     init_connection();
     init_screens();
-    if (setup_keys() != 0) {
+    if (setup_keys() != 0 || init_notification() != 0) {
         close_connection();
         return 1;
     }

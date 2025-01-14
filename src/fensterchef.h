@@ -24,7 +24,7 @@ extern uint32_t             g_screen_no;
 extern int                  g_running;
 
 /* general purpose values */
-extern uint32_t             g_values[5];
+extern uint32_t             g_values[6];
 
 enum {
     WM_PROTOCOLS,

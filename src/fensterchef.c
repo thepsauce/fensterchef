@@ -36,7 +36,7 @@ uint32_t            g_screen_no;
 int                 g_running;
 
 /* general purpose values */
-uint32_t            g_values[5];
+uint32_t            g_values[6];
 
 const char          *g_atom_names[ATOM_COUNT] = {
     [WM_PROTOCOLS]      = "WM_PROTOCOLS",
@@ -56,7 +56,7 @@ void init_connection(void)
 {
     g_dpy = xcb_connect(NULL, NULL);
     if (xcb_connection_has_error(g_dpy) > 0) {
-        LOG(stderr, "could not create xcb connection\n");
+        LOG("could not create xcb connection\n");
         exit(1);
     }
 }
@@ -90,9 +90,9 @@ int take_control(void)
     for (uint32_t i = 0; i < ATOM_COUNT; i++) {
         reply = xcb_intern_atom_reply(g_dpy, cookies[i], NULL);
         if (reply == NULL) {
-            LOG(stderr, "failed interning %s\n", g_atom_names[i]);
+            LOG("failed interning %s\n", g_atom_names[i]);
         } else {
-            LOG(stderr, "interned atom %s : %" PRId32 "\n", g_atom_names[i],
+            LOG("interned atom %s : %" PRId32 "\n", g_atom_names[i],
                     reply->atom);
             g_atoms[i] = reply->atom;
             free(reply);
@@ -143,8 +143,8 @@ void handle_next_event(void)
     event = xcb_wait_for_event(g_dpy);
     if (event != NULL) {
 #ifdef DEBUG
-        log_event(event, stderr);
-        fputc('\n', stderr);
+        log_event(event, g_log_file);
+        fputc('\n', g_log_file);
 #endif
         switch ((event->response_type & ~0x80)) {
         case XCB_MAP_REQUEST:
@@ -154,7 +154,7 @@ void handle_next_event(void)
         case XCB_UNMAP_NOTIFY:
             window = get_window_of_xcb_window(
                     ((xcb_unmap_notify_event_t*) event)->window);
-            if (window->visible) {
+            if (window != NULL && window->visible) {
                 window->visible = 0;
                 frame = get_frame_of_window(window);
                 window = get_next_hidden_window(window);
@@ -168,7 +168,9 @@ void handle_next_event(void)
         case XCB_DESTROY_NOTIFY:
             window = get_window_of_xcb_window(
                     ((xcb_unmap_notify_event_t*) event)->window);
-            destroy_window(window);
+            if (window != NULL) {
+                destroy_window(window);
+            }
             break;
 
         case XCB_CONFIGURE_REQUEST:

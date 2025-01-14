@@ -53,6 +53,11 @@ extern Frame *g_cur_frame;
  * this also assigns the next id. */
 Window *create_window(xcb_window_t xcb_window);
 
+/* Destroy given window and removes it from the window linked list.
+ * This does NOT destroy the underlying xcb window.
+ */
+void destroy_window(Window *window);
+
 /* Get the internal window that has the associated xcb window.
  *
  * @return NULL when none has this xcb window.
@@ -95,11 +100,6 @@ Window *get_next_hidden_window(Window *window);
  * @return NULL iff there is no hidden window.
  */
 Window *get_prev_hidden_window(Window *window);
-
-/* Destroy given window and removes it from the window linked list.
- * This does NOT destroy the underlying xcb window.
- */
-void destroy_window(Window *window);
 
 /* Create a frame at given coordinates that contains a window
  * and attach it to the linked list.

@@ -8,6 +8,8 @@
 #include "log.h"
 #include "util.h"
 
+FILE *g_log_file;
+
 static void log_modifiers(uint32_t mask, FILE *fp)
 {
     const char *modifiers[] = {
@@ -412,15 +414,15 @@ void log_screens(FILE *fp)
 {
     xcb_screen_t            *screen;
 
-    LOG(fp, "Have %u screen(s):\n", g_screen_count);
+    fprintf(fp, "Have %u screen(s):\n", g_screen_count);
     for (uint32_t i = 0; i < g_screen_count; i++) {
         screen = g_screens[i];
-        LOG(fp, "Screen %u ; %u:\n", i, screen->root);
-        LOG(fp, "  width.........: %u\n", screen->width_in_pixels);
-        LOG(fp, "  height........: %u\n", screen->height_in_pixels);
-        LOG(fp, "  white pixel...: %u\n", screen->white_pixel);
-        LOG(fp, "  black pixel...: %u\n", screen->black_pixel);
-        LOG(fp, "\n");
+        fprintf(fp, "Screen %u ; %u:\n", i, screen->root);
+        fprintf(fp, "  width.........: %u\n", screen->width_in_pixels);
+        fprintf(fp, "  height........: %u\n", screen->height_in_pixels);
+        fprintf(fp, "  white pixel...: %u\n", screen->white_pixel);
+        fprintf(fp, "  black pixel...: %u\n", screen->black_pixel);
+        fprintf(fp, "\n");
     }
 }
 
