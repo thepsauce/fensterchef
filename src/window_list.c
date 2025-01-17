@@ -8,79 +8,97 @@
 #include "log.h"
 #include "util.h"
 
-static inline xcb_query_text_extents_reply_t *get_text_extent(
-        int32_t num_chars)
+static int render_window_list(Window *selected)
 {
-    xcb_char2b_t                    ch = { .byte1 = 0, .byte2 = 'X' };
-    xcb_query_text_extents_cookie_t cookie;
-    xcb_query_text_extents_reply_t  *reply;
-
-    cookie = xcb_query_text_extents(g_dpy, g_font, 1, &ch);
-    reply = xcb_query_text_extents_reply(g_dpy, cookie, NULL);
-    reply->overall_width *= num_chars;
-    return reply;
-}
-
-void get_window_title(xcb_window_t xcb_window, char *buf, uint32_t max_len)
-{
-    xcb_get_property_cookie_t   cookie;
+    uint32_t                    window_count, i;
+    struct tile {
+        xcb_get_property_cookie_t cookie;
+        FcChar8 buf[256];
+    }                           *titles = NULL;
     xcb_get_property_reply_t    *reply;
-    int                         len;
+    struct text_measure         tm;
+    uint32_t                    max_width = 0;
+    xcb_screen_t                *screen;
+    xcb_rectangle_t             rect;
+    xcb_render_color_t          bg_color;
+    xcb_render_picture_t        pen;
 
-    buf[0] = '\0';
-
-    cookie = xcb_get_property(g_dpy, 0, xcb_window,
-            XCB_ATOM_WM_NAME, XCB_ATOM_STRING, 0, (max_len >> 2) + 1);
-    reply = xcb_get_property_reply(g_dpy, cookie, NULL);
-    if (reply == NULL) {
-        return;
-    }
-    len = xcb_get_property_value_length(reply);
-    len = MIN(max_len, (uint32_t) len);
-    memcpy(buf, xcb_get_property_value(reply), len);
-    buf[len - 1] = '\0';
-
-    free(reply);
-}
-
-static void render_window_list(
-        xcb_query_text_extents_reply_t *extents,
-        Window *selected)
-{
-    int32_t         y = 0;
-    char            buf[32];
-    int             n;
-    xcb_gcontext_t  drawing_context, rect_context;
-    xcb_rectangle_t rect;
-
+    window_count = 0;
     for (Window *w = g_first_window; w != NULL; w = w->next) {
-        n = snprintf(buf, sizeof(buf), "%" PRId32 "%c ", w->number,
-                w->focused ? 'f' : w->visible ? 'v' : ' ');
-        get_window_title(w->xcb_window, &buf[n], sizeof(buf) - n);
-        if (w == selected) {
-            drawing_context = g_inverted_context;
-            rect_context = g_drawing_context;
-        } else {
-            drawing_context = g_drawing_context;
-            rect_context = g_inverted_context;
-        }
-        rect.x = 0;
-        rect.y = y;
-        rect.width = extents->overall_width;
-        rect.height = extents->font_ascent + extents->font_descent +
-            WINDOW_PADDING;
-        xcb_poly_fill_rectangle(g_dpy, g_window_list_window, rect_context,
-                1, &rect);
-        xcb_image_text_8(g_dpy, strlen(buf), g_window_list_window,
-                drawing_context, WINDOW_PADDING / 2,
-                y + extents->font_ascent + WINDOW_PADDING / 2, buf);
-        y += rect.height;
+        window_count++;
     }
+
+    if (window_count == 0) {
+        return 1;
+    }
+
+    RESIZE(titles, window_count);
+
+    i = 0;
+    for (Window *w = g_first_window; w != NULL; w = w->next, i++) {
+        titles[i].cookie = xcb_get_property(g_dpy, 0, w->xcb_window,
+                XCB_ATOM_WM_NAME, XCB_ATOM_STRING, 0,
+                (sizeof(titles[0].buf) >> 2) + 1);
+    }
+
+    i = 0;
+    tm.ascent = 12;
+    tm.descent = -4;
+    for (Window *w = g_first_window; w != NULL; w = w->next, i++) {
+        reply = xcb_get_property_reply(g_dpy, titles[i].cookie, NULL);
+        snprintf((char*) titles[i].buf, sizeof(titles[i].buf),
+                "%" PRId32 "%c%.*s",
+                w->number, w->focused ? '*' : w->visible ? '+' : '-',
+                reply == NULL ? 0 : xcb_get_property_value_length(reply),
+                reply == NULL ? "" : (char*) xcb_get_property_value(reply));
+        free(reply);
+        measure_text(titles[i].buf, strlen((char*) titles[i].buf), &tm);
+        max_width = MAX(max_width, tm.total_width);
+    }
+
+    screen = g_screens[g_screen_no];
+    /* TODO: show window on current monitor */
+    g_values[0] = screen->width_in_pixels - max_width -
+        WINDOW_PADDING / 2;
+    g_values[1] = 0;
+    g_values[2] = max_width + WINDOW_PADDING / 2;
+    g_values[3] = window_count * (tm.ascent - tm.descent + WINDOW_PADDING);
+    g_values[4] = 1;
+    g_values[5] = XCB_STACK_MODE_ABOVE;
+    xcb_configure_window(g_dpy, g_window_list_window,
+            XCB_CONFIG_SIZE | XCB_CONFIG_WINDOW_STACK_MODE, g_values);
+
+    xcb_set_input_focus(g_dpy, XCB_INPUT_FOCUS_POINTER_ROOT,
+            g_window_list_window, XCB_CURRENT_TIME);
+
+    i = 0;
+    rect.x = 0;
+    rect.y = 0;
+    rect.width = max_width + WINDOW_PADDING / 2;
+    rect.height = tm.ascent - tm.descent + WINDOW_PADDING;
+    for (Window *w = g_first_window; w != NULL; w = w->next, i++) {
+        bg_color.alpha = 0xff00;
+        if (w == selected) {
+            pen = g_stock_objects[STOCK_WHITE_PEN];
+            bg_color.red = 0x0000;
+            bg_color.green = 0x0000;
+            bg_color.blue = 0x0000;
+        } else {
+            pen = g_stock_objects[STOCK_BLACK_PEN];
+            bg_color.red = 0xff00;
+            bg_color.green = 0xff00;
+            bg_color.blue = 0xff00;
+        }
+        draw_text(g_window_list_window, titles[i].buf,
+                strlen((char*) titles[i].buf), bg_color, &rect,
+                pen, WINDOW_PADDING / 2,
+                rect.y + tm.ascent + WINDOW_PADDING / 2);
+        rect.y += rect.height;
+    }
+    return 0;
 }
 
-static inline Window *handle_window_list_events(
-        xcb_query_text_extents_reply_t *extents,
-        Window *selected)
+static inline Window *handle_window_list_events(Window *selected)
 {
     xcb_generic_event_t             *event;
     xcb_key_press_event_t           *key_press;
@@ -91,7 +109,7 @@ static inline Window *handle_window_list_events(
         if (event != NULL) {
             switch ((event->response_type & ~0x80)) {
             case XCB_EXPOSE:
-                render_window_list(extents, selected);
+                render_window_list(selected);
                 break;
 
             case XCB_KEY_PRESS:
@@ -110,7 +128,6 @@ static inline Window *handle_window_list_events(
 
                 case XK_Home:
                     selected = g_first_window;
-                    render_window_list(extents, selected);
                     break;
 
                 case XK_End:
@@ -118,13 +135,11 @@ static inline Window *handle_window_list_events(
                     while (selected->next != NULL) {
                         selected = selected->next;
                     }
-                    render_window_list(extents, selected);
                     break;
 
                 case XK_k:
                 case XK_Up:
                     selected = get_previous_window(selected);
-                    render_window_list(extents, selected);
                     break;
 
                 case XK_j:
@@ -133,7 +148,6 @@ static inline Window *handle_window_list_events(
                     if (selected == NULL) {
                         selected = g_first_window;
                     }
-                    render_window_list(extents, selected);
                     break;
                 }
                 break;
@@ -145,6 +159,9 @@ static inline Window *handle_window_list_events(
             default:
                 handle_event(event);
             }
+            if (render_window_list(selected) != 0) {
+                return NULL;
+            }
             free(event);
             xcb_flush(g_dpy);
         }
@@ -155,62 +172,31 @@ static inline Window *handle_window_list_events(
 /* Shows a windows list where the user can select a window from. */
 Window *select_window_from_list(void)
 {
-    uint32_t                        window_count;
     xcb_screen_t                    *screen;
-    xcb_query_text_extents_reply_t  *reply;
     Window                          *old_focus;
     Window                          *window;
 
-    window_count = 0;
-    for (Window *w = g_first_window; w != NULL; w = w->next) {
-        window_count++;
-    }
-
-    reply = get_text_extent(32);
-    if (reply == NULL) {
-        LOG("could not get text extent reply for the window list window\n");
-        return NULL;
-    }
-
     screen = g_screens[g_screen_no];
-
-    if (window_count == 0) {
-        set_notification("No managed windows\n",
+    if (g_first_window == NULL) {
+        set_notification((FcChar8*) "No managed windows",
                 screen->width_in_pixels / 2, screen->height_in_pixels / 2);
         return NULL;
     }
-
-    /* TODO: show window on current monitor */
-    g_values[0] = screen->width_in_pixels - reply->overall_width -
-        WINDOW_PADDING / 2;
-    g_values[1] = 0;
-    g_values[2] = reply->overall_width - WINDOW_PADDING / 2;
-    g_values[3] = window_count *
-        (reply->font_ascent + reply->font_descent + WINDOW_PADDING);
-    g_values[4] = 1;
-    g_values[5] = XCB_STACK_MODE_ABOVE;
-    xcb_configure_window(g_dpy, g_window_list_window,
-            XCB_CONFIG_SIZE | XCB_CONFIG_WINDOW_STACK_MODE, g_values);
 
     xcb_map_window(g_dpy, g_window_list_window);
 
     window = get_focus_window();
 
-    render_window_list(reply, window);
+    old_focus = window;
 
-    old_focus = get_focus_window();
+    render_window_list(window);
 
-    xcb_set_input_focus(g_dpy, XCB_INPUT_FOCUS_POINTER_ROOT,
-            g_window_list_window, XCB_CURRENT_TIME);
-
-    window = handle_window_list_events(reply, window);
+    window = handle_window_list_events(window);
 
     if (old_focus != NULL) {
         xcb_set_input_focus(g_dpy, XCB_INPUT_FOCUS_POINTER_ROOT,
                 old_focus->xcb_window, XCB_CURRENT_TIME);
     }
-
-    free(reply);
 
     xcb_unmap_window(g_dpy, g_window_list_window);
 

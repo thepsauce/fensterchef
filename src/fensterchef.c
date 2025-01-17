@@ -4,7 +4,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+
 #include <xcb/xcb_atom.h>
+#include <xcb/xcb_renderutil.h>
 #include <xcb/xcb_keysyms.h>
 #include <X11/keysym.h>
 
@@ -38,14 +40,11 @@ uint32_t            g_screen_no;
 /* 1 while the window manager is running */
 int                 g_running;
 
-/* the graphics context used for drawing black text on white background */
-xcb_gcontext_t      g_drawing_context;
+/* graphis objects with the id referring to the xcb id */
+uint32_t            g_stock_objects[STOCK_COUNT];
 
-/* same as g_drawing_context but with inverted colors */
-xcb_gcontext_t      g_inverted_context;
-
-/* the font used for rendering */
-xcb_font_t          g_font;
+/* the currently used font information */
+struct font         g_font;
 
 /* general purpose values */
 uint32_t            g_values[6];
@@ -78,19 +77,136 @@ static void alarm_handler(int sig)
     xcb_flush(g_dpy);
 }
 
+static int init_stock_objects(void)
+{
+    xcb_screen_t                                *screen;
+    xcb_generic_error_t                         *error;
+    xcb_render_color_t                          color;
+    xcb_render_pictforminfo_t                   *fmt;
+    const xcb_render_query_pict_formats_reply_t *fmt_reply;
+    xcb_drawable_t                              root;
+    xcb_pixmap_t                                pixmap;
+    xcb_rectangle_t                             rect;
+
+    for (uint32_t i = 0; i < STOCK_COUNT; i++) {
+        g_stock_objects[i] = xcb_generate_id(g_dpy);
+    }
+
+    screen = g_screens[g_screen_no];
+
+    g_values[0] = screen->black_pixel;
+    g_values[1] = screen->white_pixel;
+    error = xcb_request_check(g_dpy,
+            xcb_create_gc_checked(g_dpy, g_stock_objects[STOCK_GC],
+                screen->root,
+                XCB_GC_FOREGROUND | XCB_GC_BACKGROUND, g_values));
+    if (error != NULL) {
+        LOG("could not create graphics context for notifications: %d\n",
+                error->error_code);
+        return 1;
+    }
+
+    g_values[0] = screen->white_pixel;
+    g_values[1] = screen->black_pixel;
+    error = xcb_request_check(g_dpy,
+            xcb_create_gc_checked(g_dpy, g_stock_objects[STOCK_INVERTED_GC],
+                screen->root,
+                XCB_GC_FOREGROUND | XCB_GC_BACKGROUND, g_values));
+    if (error != NULL) {
+        LOG("could not create inverted graphics context for notifications: %d\n",
+                error->error_code);
+        return 1;
+    }
+
+    fmt_reply = xcb_render_util_query_formats(g_dpy);
+
+    fmt = xcb_render_util_find_standard_format(fmt_reply,
+            XCB_PICT_STANDARD_ARGB_32);
+
+    root = g_screens[g_screen_no]->root;
+
+    /* create white pen */
+    pixmap = xcb_generate_id(g_dpy);
+    xcb_create_pixmap(g_dpy, 32, pixmap, root, 1, 1);
+
+    g_values[0] = XCB_RENDER_REPEAT_NORMAL;
+    xcb_render_create_picture(g_dpy, g_stock_objects[STOCK_WHITE_PEN],
+            pixmap, fmt->id,
+            XCB_RENDER_CP_REPEAT, g_values);
+
+    rect.x = 0;
+    rect.y = 0;
+    rect.width = 1;
+    rect.height = 1;
+
+    color.alpha = 0xff00;
+    color.red = 0xff00;
+    color.green = 0xff00;
+    color.blue = 0xff00;
+    xcb_render_fill_rectangles(g_dpy, XCB_RENDER_PICT_OP_OVER,
+            g_stock_objects[STOCK_WHITE_PEN], color, 1, &rect);
+
+    xcb_free_pixmap(g_dpy, pixmap);
+
+    /* create black pen */
+    pixmap = xcb_generate_id(g_dpy);
+    xcb_create_pixmap(g_dpy, 32, pixmap, root, 1, 1);
+
+    g_values[0] = XCB_RENDER_REPEAT_NORMAL;
+    xcb_render_create_picture(g_dpy, g_stock_objects[STOCK_BLACK_PEN],
+            pixmap, fmt->id,
+            XCB_RENDER_CP_REPEAT, g_values);
+
+    color.red = 0x0000;
+    color.green = 0x0000;
+    color.blue = 0x0000;
+    xcb_render_fill_rectangles(g_dpy, XCB_RENDER_PICT_OP_OVER,
+            g_stock_objects[STOCK_BLACK_PEN], color, 1, &rect);
+
+    xcb_free_pixmap(g_dpy, pixmap);
+
+    return 0;
+}
+
 /* Initialize most of fensterchef data and set root window flags. */
 int init_fensterchef(void)
 {
-    xcb_screen_iterator_t       iter;
-    xcb_screen_t                *screen;
-    xcb_generic_error_t         *error;
-    xcb_intern_atom_cookie_t    cookies[ATOM_COUNT];
-    xcb_intern_atom_reply_t     *reply;
-    const char                  *font_name = "-misc-fixed-*";
+    FT_Error                                    ft_error;
+    xcb_screen_iterator_t                       iter;
+    xcb_screen_t                                *screen;
+    xcb_generic_error_t                         *error;
+    xcb_intern_atom_cookie_t                    cookies[ATOM_COUNT];
+    xcb_intern_atom_reply_t                     *reply;
+
+    if ((void*) LOG_FILE == (void*) stderr) {
+        g_log_file = stderr;
+    } else {
+        g_log_file = fopen(LOG_FILE, "w");
+        if (g_log_file == NULL) {
+            g_log_file = stderr;
+        }
+    }
 
     g_dpy = xcb_connect(NULL, NULL);
     if (xcb_connection_has_error(g_dpy) > 0) {
         LOG("could not create xcb connection\n");
+        fclose(g_log_file);
+        exit(1);
+    }
+
+    if (FcInit() == FcFalse) {
+        LOG("could not initialize fontconfig\n");
+        xcb_disconnect(g_dpy);
+        fclose(g_log_file);
+        exit(1);
+    }
+
+    ft_error = FT_Init_FreeType(&g_font.library);
+    if (ft_error != FT_Err_Ok) {
+        LOG("could not initialize freetype: 0x%x\n", ft_error);
+        FcFini();
+        xcb_disconnect(g_dpy);
+        fclose(g_log_file);
         exit(1);
     }
 
@@ -100,6 +216,14 @@ int init_fensterchef(void)
     for (; iter.rem > 0; xcb_screen_next(&iter)) {
         g_screens[g_screen_count++] = iter.data;
     }
+
+    if (g_screen_count == 0) {
+        LOG("no screens to attach to\n");
+        return 1;
+    }
+
+    g_screen_no = 0;
+    screen = g_screens[g_screen_no];
 
     for (uint32_t i = 0; i < ATOM_COUNT; i++) {
         cookies[i] = xcb_intern_atom(g_dpy, 0,
@@ -118,61 +242,24 @@ int init_fensterchef(void)
         }
     }
 
-    if (g_screen_count == 0) {
-        LOG("no screens to attach to\n");
-        return 1;
-    }
-
-    g_screen_no = 0;
-    screen = g_screens[g_screen_no];
-
-    create_frame(NULL, 0, 0, screen->width_in_pixels, screen->height_in_pixels);
-
     xcb_change_property(g_dpy, XCB_PROP_MODE_REPLACE, screen->root,
             g_atoms[NET_SUPPORTED], XCB_ATOM_ATOM, 32,
             ATOM_COUNT - FIRST_NET_ATOM, &g_atoms[FIRST_NET_ATOM]);
+
+    create_frame(NULL, 0, 0, screen->width_in_pixels, screen->height_in_pixels);
 
     g_values[0] = ROOT_EVENT_MASK;
     error = xcb_request_check(g_dpy,
             xcb_change_window_attributes_checked(g_dpy, screen->root,
                 XCB_CW_EVENT_MASK, g_values));
     if (error != NULL) {
-        LOG("could not change root window mask\n");
+        LOG("could not change root window mask: %d\n", error->error_code);
         return 1;
     }
 
-    g_drawing_context = xcb_generate_id(g_dpy);
-    g_inverted_context = xcb_generate_id(g_dpy);
-    g_font = xcb_generate_id(g_dpy);
+    set_font(NULL);
 
-    error = xcb_request_check(g_dpy, xcb_open_font_checked(g_dpy,
-                g_font, strlen(font_name), font_name));
-    if (error != NULL) {
-        LOG("could not create notification window font\n");
-        return 1;
-    }
-
-    g_values[0] = screen->black_pixel;
-    g_values[1] = screen->white_pixel;
-    g_values[2] = g_font;
-    error = xcb_request_check(g_dpy,
-            xcb_create_gc_checked(g_dpy, g_drawing_context, screen->root,
-                XCB_GC_FOREGROUND | XCB_GC_BACKGROUND | XCB_GC_FONT, g_values));
-    if (error != NULL) {
-        LOG("could not create graphics context for notifications\n");
-        return 1;
-    }
-
-    g_values[0] = screen->white_pixel;
-    g_values[1] = screen->black_pixel;
-    g_values[2] = g_font;
-    error = xcb_request_check(g_dpy,
-            xcb_create_gc_checked(g_dpy, g_inverted_context, screen->root,
-                XCB_GC_FOREGROUND | XCB_GC_BACKGROUND | XCB_GC_FONT, g_values));
-    if (error != NULL) {
-        LOG("could not create inverted graphics context for notifications\n");
-        return 1;
-    }
+    init_stock_objects();
 
     g_notification_window = xcb_generate_id(g_dpy);
     g_values[0] = 0x000000;
@@ -182,7 +269,7 @@ int init_fensterchef(void)
                 XCB_WINDOW_CLASS_COPY_FROM_PARENT, XCB_COPY_FROM_PARENT,
                 XCB_CW_BORDER_PIXEL, g_values));
     if (error != NULL) {
-        LOG("could not create notification window\n");
+        LOG("could not create notification window: %d\n", error->error_code);
         return 1;
     }
 
@@ -204,40 +291,36 @@ int init_fensterchef(void)
     return 0;
 }
 
-/* Show the notification window with given message at given coordinates. */
-void set_notification(const char *msg, int32_t x, int32_t y)
+void quit_fensterchef(int exit_code)
 {
-    size_t                          msg_len;
-    xcb_char2b_t                    *xcb_str = NULL;
-    xcb_query_text_extents_cookie_t cookie;
-    xcb_query_text_extents_reply_t  *reply;
-    uint32_t                        w, h;
-    const uint32_t                  padding = 2;
+    LOG("quitting fensterchef with exit code: %d\n", exit_code);
+    FT_Done_FreeType(g_font.library);
+    FcFini();
+    xcb_disconnect(g_dpy);
+    fclose(g_log_file);
+    exit(exit_code);
+}
 
-    msg_len = strlen(msg);
-    RESIZE(xcb_str, msg_len);
-    for (size_t i = 0; i < msg_len; i++) {
-        xcb_str[i].byte1 = 0;
-        xcb_str[i].byte2 = msg[i];
-    }
-    cookie = xcb_query_text_extents(g_dpy, g_font, msg_len, xcb_str);
-    free(xcb_str);
+/* Show the notification window with given message at given coordinates. */
+void set_notification(const FcChar8 *msg, int32_t x, int32_t y)
+{
+    size_t              msg_len;
+    struct text_measure tm;
+    xcb_rectangle_t     rect;
+    xcb_render_color_t  color;
 
-    reply = xcb_query_text_extents_reply(g_dpy, cookie, NULL);
-    if (reply == NULL) {
-        LOG("could not get text extent reply for the notification window\n");
-        return;
-    }
+    msg_len = strlen((char*) msg);
+    measure_text(msg, msg_len, &tm);
 
-    w = reply->overall_width + padding;
-    h = reply->font_ascent + reply->font_descent + padding;
-    x -= w / 2;
-    y -= h / 2;
+    tm.total_width += WINDOW_PADDING;
+
+    x -= tm.total_width / 2;
+    y -= (tm.ascent - tm.descent + WINDOW_PADDING) / 2;
 
     g_values[0] = x;
     g_values[1] = y;
-    g_values[2] = w;
-    g_values[3] = h;
+    g_values[2] = tm.total_width;
+    g_values[3] = tm.ascent - tm.descent + WINDOW_PADDING;
     g_values[4] = 1;
     g_values[5] = XCB_STACK_MODE_ABOVE;
     xcb_configure_window(g_dpy, g_notification_window,
@@ -245,12 +328,19 @@ void set_notification(const char *msg, int32_t x, int32_t y)
 
     xcb_map_window(g_dpy, g_notification_window);
 
-    xcb_image_text_8(g_dpy, strlen(msg), g_notification_window, g_drawing_context,
-            padding / 2, reply->font_ascent + padding / 2, msg);
+    rect.x = 0;
+    rect.y = 0;
+    rect.width = tm.total_width;
+    rect.height = tm.ascent - tm.descent + WINDOW_PADDING;
+    color.alpha = 0xff00;
+    color.red = 0xff00;
+    color.green = 0xff00;
+    color.blue = 0xff00;
+    draw_text(g_notification_window, msg, msg_len, color, &rect,
+            g_stock_objects[STOCK_BLACK_PEN], WINDOW_PADDING / 2,
+            tm.ascent + WINDOW_PADDING / 2);
 
     alarm(3);
-
-    free(reply);
 }
 
 /* Handle the mapping of a new window. */
@@ -294,6 +384,7 @@ void handle_event(xcb_generic_event_t *event)
             frame->window = window;
             if (window != NULL) {
                 show_window(window);
+                set_focus_window(window);
             }
         }
         break;

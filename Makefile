@@ -4,7 +4,7 @@ C_FLAGS := -Wall -Wextra -Wpedantic -Werror
 RELEASE_FLAGS := -O3
 
 # Libs
-C_LIBS := $(shell pkg-config --libs xcb xcb-icccm xcb-keysyms xcb-event)
+C_LIBS := $(shell pkg-config --libs xcb xcb-icccm xcb-keysyms xcb-event xcb-render xcb-renderutil freetype2 fontconfig)
 
 # Input
 SRC := src
@@ -51,11 +51,7 @@ run: build
 	Xephyr -br -ac -noreset -screen 800x600 :$(DISPLAY_NO) &
 	# wait for x server to start
 	sleep 1
-	DISPLAY=:$(DISPLAY_NO) ./$(BUILD)/$(RUN) &
-	# wait for fensterchef to take control
-	sleep 1
-	# make a test window
-	DISPLAY=:$(DISPLAY_NO) xterm
+	DISPLAY=:$(DISPLAY_NO) gdb -ex run ./$(BUILD)/$(RUN)
 
 stop:
 	pkill Xephyr

@@ -20,7 +20,7 @@ static void next_window(void)
     window = g_cur_frame->window;
     next = get_next_hidden_window(window);
     if (next == NULL) {
-        set_notification("No other window",
+        set_notification(UTF8_TEXT("No other window"),
                 g_cur_frame->x + g_cur_frame->w / 2,
                 g_cur_frame->y + g_cur_frame->h / 2);
         return;
@@ -40,7 +40,7 @@ static void prev_window(void)
     window = g_cur_frame->window;
     prev = get_previous_hidden_window(window);
     if (prev == NULL) {
-        set_notification("No other window",
+        set_notification(UTF8_TEXT("No other window"),
                 g_cur_frame->x + g_cur_frame->w / 2,
                 g_cur_frame->y + g_cur_frame->h / 2);
         return;
