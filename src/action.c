@@ -1,7 +1,9 @@
 #include <unistd.h>
 
 #include "action.h"
+#include "fensterchef.h"
 #include "frame.h"
+#include "tilling.h"
 
 static void start_terminal(void)
 {
@@ -15,7 +17,7 @@ static void next_window(void)
     Window *window;
     Window *next;
 
-    window = g_cur_frame->window;
+    window = g_frames[g_cur_frame].window;
     if (window == NULL) {
         return;
     }
@@ -33,7 +35,7 @@ static void next_window(void)
     } while (next->visible);
 
     hide_window(window);
-    g_cur_frame->window = next;
+    g_frames[g_cur_frame].window = next;
     show_window(next);
 }
 
@@ -42,7 +44,7 @@ static void prev_window(void)
     Window *window;
     Window *prev, *prev_prev;
 
-    window = g_cur_frame->window;
+    window = g_frames[g_cur_frame].window;
     if (window == NULL) {
         return;
     }
@@ -62,7 +64,7 @@ static void prev_window(void)
     } while (prev->visible);
 
     hide_window(window);
-    g_cur_frame->window = prev;
+    g_frames[g_cur_frame].window = prev;
     show_window(prev);
 }
 
@@ -77,6 +79,42 @@ void do_action(int action)
         break;
     case ACTION_PREV_WINDOW:
         prev_window();
+        break;
+    case ACTION_SPLIT_HORIZONTALLY:
+        split_horizontally();
+        break;
+    case ACTION_SPLIT_VERTICALLY:
+        split_vertically();
+        break;
+    case ACTION_MOVE_UP:
+        if (g_frames[g_cur_frame].y == 0) {
+            break;
+        }
+        set_focus_frame(get_frame_at_position(
+                    g_frames[g_cur_frame].x, g_frames[g_cur_frame].y - 1));
+        break;
+    case ACTION_MOVE_LEFT:
+        if (g_frames[g_cur_frame].x == 0) {
+            break;
+        }
+        set_focus_frame(get_frame_at_position(
+                    g_frames[g_cur_frame].x - 1, g_frames[g_cur_frame].y));
+        break;
+    case ACTION_MOVE_RIGHT:
+        if (g_frames[g_cur_frame].x + g_frames[g_cur_frame].w ==
+                g_screens[g_screen_no]->width_in_pixels) {
+            break;
+        }
+        set_focus_frame(get_frame_at_position(
+                    g_frames[g_cur_frame].x + g_frames[g_cur_frame].w, g_frames[g_cur_frame].y));
+        break;
+    case ACTION_MOVE_DOWN:
+        if (g_frames[g_cur_frame].y + g_frames[g_cur_frame].h ==
+                g_screens[g_screen_no]->height_in_pixels) {
+            break;
+        }
+        set_focus_frame(get_frame_at_position(
+                    g_frames[g_cur_frame].x, g_frames[g_cur_frame].y + g_frames[g_cur_frame].h));
         break;
     }
 }

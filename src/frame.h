@@ -24,7 +24,9 @@ typedef struct window {
 /* the first window in the linked list */
 extern Window *g_first_window;
 
-typedef struct frame {
+#define WINDOW_SENTINEL ((Window*) -1)
+
+struct frame {
     /* the window inside the frame, may be NULL */
     Window *window;
     /* coordinates and size of the frame */
@@ -32,21 +34,22 @@ typedef struct frame {
     int32_t y;
     int32_t w;
     int32_t h;
-    /* the next frame in the linked list */
-    struct frame *next;
-} Frame;
+};
 
-/* the first frame in the linked list */
-extern Frame *g_first_frame;
+typedef uint32_t Frame;
+
+/* list of frames */
+extern struct frame *g_frames;
+extern Frame g_frame_count;
 /* the currently selected/focused frame */
-extern Frame *g_cur_frame;
+extern Frame g_cur_frame;
 
 /* create a window struct and add it to the window list,
  * this also assigns the next id */
 Window *create_window(xcb_window_t xcb_window);
 
 /* get the frame this window is contained in, may return NULL */
-Frame *get_frame_of_window(Window *window);
+Frame get_frame_of_window(Window *window);
 
 /* shows the window by mapping and sizing it */
 void show_window(Window *window);
@@ -62,16 +65,19 @@ void set_focus_window(Window *window);
 
 /* create a frame at given coordinates that contains a window (`win` may be 0)
  * and attach it to the linked list */
-Frame *create_frame(Window *window, int32_t x, int32_t y, int32_t w, int32_t h);
+Frame create_frame(Window *window, int32_t x, int32_t y, int32_t w, int32_t h);
 
 /* remove a frame from the screen and hide the inner window, this
  * returns 1 when the given frame is the last frame */
-int remove_frame(Frame *frame);
+int remove_frame(Frame frame);
+
+/* Get a frame at given position. */
+Frame get_frame_at_position(int32_t x, int32_t y);
 
 /* set the frame in focus, this also focuses the inner window if it exists */
-void set_focus_frame(Frame *frame);
+void set_focus_frame(Frame frame);
 
 /* reload the frame to apply changes with xcb */
-void reload_frame(Frame *frame);
+void reload_frame(Frame frame);
 
 #endif

@@ -103,16 +103,12 @@ void accept_new_window(xcb_window_t win)
     Window *window;
 
     window = create_window(win);
-    if (g_cur_frame->window != NULL) {
-        hide_window(g_cur_frame->window);
+    if (g_frames[g_cur_frame].window != NULL) {
+        hide_window(g_frames[g_cur_frame].window);
     }
-    g_cur_frame->window = window;
+    g_frames[g_cur_frame].window = window;
     show_window(window);
     set_focus_window(window);
-
-    //########################## FUER DEBUGGING ##########################
-    //split_vertically();
-    split_horizontally();
 }
 
 /* declare this, it is implemented in event.c */
