@@ -5,7 +5,9 @@
 
 #ifdef DEBUG
 
-#define LOG(fp, fmt, ...) fprintf((fp), (fmt), ##__VA_ARGS__)
+extern FILE *g_log_file;
+
+#define LOG(fmt, ...) fprintf(g_log_file, (fmt), ##__VA_ARGS__); fflush(g_log_file)
 
 /* Log an event to a file.  */
 void log_event(xcb_generic_event_t *event, FILE *fp);

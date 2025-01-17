@@ -54,8 +54,45 @@ Window *create_window(xcb_window_t xcb_window)
     xcb_change_window_attributes_checked(g_dpy, xcb_window,
         XCB_CW_EVENT_MASK, g_values);
 
-    LOG(stderr, "created new window %p\n", (void*) next);
+    LOG("created new window %p\n", (void*) next);
     return next;
+}
+
+/* Destroys given window and removes it from the window linked list. */
+void destroy_window(Window *window)
+{
+    Window *prev;
+
+    if (window == g_first_window) {
+        g_first_window = window->next;
+    } else {
+        prev = g_first_window;
+        while (prev->next != window) {
+            prev = prev->next;
+        }
+        prev->next = window->next;
+    }
+
+    LOG("destroyed window %p\n", (void*) window);
+
+    free(window);
+}
+
+/* Get the window before this window in the linked list. */
+Window *get_previous_window(Window *window)
+{
+    Window *prev;
+
+    if (window == NULL) {
+        return NULL;
+    }
+
+    for (prev = g_first_window; prev->next != window; prev = prev->next) {
+        if (prev->next == NULL) {
+            break;
+        }
+    }
+    return prev;
 }
 
 /* Get the internal window that has the associated xcb window. */
@@ -67,6 +104,7 @@ Window *get_window_of_xcb_window(xcb_window_t xcb_window)
             return window;
         }
     }
+    LOG("xcb window %" PRId32 " is not managed\n", xcb_window);
     return NULL;
 }
 
@@ -87,7 +125,7 @@ void show_window(Window *window)
     Frame *frame;
 
     if (window->visible) {
-        LOG(stderr, "tried to show %p but it is already visible\n", (void*) window);
+        LOG("tried to show %p but it is already visible\n", (void*) window);
         return;
     }
 
@@ -106,7 +144,7 @@ void show_window(Window *window)
 
     window->visible = 1;
 
-    LOG(stderr, "showing window %p\n", (void*) window);
+    LOG("showing window %p\n", (void*) window);
 }
 
 /* Hide the window by unmapping it. */
@@ -116,7 +154,7 @@ void hide_window(Window *window)
 
     window->visible = 0;
 
-    LOG(stderr, "hiding window %p\n", (void*) window);
+    LOG("hiding window %p\n", (void*) window);
 }
 
 /* Get the currently focused window. */
@@ -147,7 +185,7 @@ void set_focus_window(Window *window)
     xcb_set_input_focus(g_dpy, XCB_INPUT_FOCUS_POINTER_ROOT, window->xcb_window,
             XCB_CURRENT_TIME);
 
-    LOG(stderr, "focus change from %p to %p\n", (void*) old_focus, (void*) window);
+    LOG("focus change from %p to %p\n", (void*) old_focus, (void*) window);
 }
 
 /* Get a window that is not shown but in the window list coming after
@@ -176,45 +214,22 @@ Window *get_next_hidden_window(Window *window)
 
 /* Get a window that is not shown but in the window list coming before
  * the given window. */
-Window *get_prev_hidden_window(Window *window)
+Window *get_previous_hidden_window(Window *window)
 {
-    Window *prev, *prev_prev;
+    Window *prev;
 
     if (window == NULL) {
         return NULL;
     }
     prev = window;
     do {
-        for (prev_prev = g_first_window; prev_prev->next != prev; ) {
-            if (prev_prev->next == NULL) {
-                break;
-            }
-            prev_prev = prev_prev->next;
-        }
-        prev = prev_prev;
+        prev = get_previous_window(prev);
         if (window == prev) {
             return NULL;
         }
     } while (prev->visible);
 
     return prev;
-}
-
-/* Destroys given window and removes it from the window linked list. */
-void destroy_window(Window *window)
-{
-    Window *prev;
-
-    if (window == g_first_window) {
-        g_first_window = window->next;
-    } else {
-        for (prev = g_first_window; prev->next != window; ) {
-            prev = prev->next;
-        }
-        prev->next = window->next;
-    }
-
-    free(window);
 }
 
 /* Create a frame at given coordinates that contains a window
@@ -242,7 +257,7 @@ Frame *create_frame(Window *window, int32_t x, int32_t y, int32_t w, int32_t h)
         last->next = next;
     }
 
-    LOG(stderr, "frame %p created at %" PRId32 ",%" PRId32 ":%" PRId32 "x%" PRId32,
+    LOG("frame %p created at %" PRId32 ",%" PRId32 ":%" PRId32 "x%" PRId32 "\n",
             (void*) next, x, y, w, h);
     return next;
 }
@@ -253,7 +268,7 @@ int remove_frame(Frame *frame)
     Frame *prev;
 
     if (g_first_frame->next == NULL) {
-        LOG(stderr, "attempted to remove the only frame %p\n", (void*) frame);
+        LOG("attempted to remove the only frame %p\n", (void*) frame);
         return 1;
     }
 
@@ -268,7 +283,7 @@ int remove_frame(Frame *frame)
 
     hide_window(frame->window);
 
-    LOG(stderr, "frame %p was removed\n", (void*) frame);
+    LOG("frame %p was removed\n", (void*) frame);
 
     free(frame);
     return 0;
@@ -282,5 +297,5 @@ void set_focus_frame(Frame *frame)
     }
     g_cur_frame = frame;
 
-    LOG(stderr, "frame %p was focused\n", (void*) frame);
+    LOG("frame %p was focused\n", (void*) frame);
 }
