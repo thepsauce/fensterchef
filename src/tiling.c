@@ -64,6 +64,10 @@ void split_frame(Frame split_from, int is_split_vert)
         reload_frame(left);
     }
 
+    set_notification(UTF8_TEXT("Current frame"),
+            g_frames[g_cur_frame].x + g_frames[g_cur_frame].width / 2,
+            g_frames[g_cur_frame].y + g_frames[g_cur_frame].height / 2);
+
     LOG("split %" PRId32 "[%" PRId32 ", %" PRId32 "]\n",
             split_from, left, right);
 }
@@ -103,13 +107,20 @@ void resize_frame(Frame frame, int32_t x, int32_t y,
     }
 }
 
-static void shift_frames_up(Frame first, uint32_t decrement)
+/* Shifting frames up is a system to get all nodes up one layer in the tree.
+ * For each node, it decrements its children by twice the amount it got
+ * decremented themself.
+ *
+ * Using the shifts assures that frames that are in the upper layer are set
+ * first, this is done in `remove_leaf_frame()`.
+ */
+static void shift_frames_up(Frame first, uint32_t decrement, uint32_t *shifts)
 {
-    g_frames[first - decrement] = g_frames[first];
-    g_frames[first].window = WINDOW_SENTINEL;
+    shifts[first] = decrement;
     if (IS_FRAME_VALID(RIGHT_FRAME(first))) {
-        shift_frames_up(LEFT_FRAME(first), decrement * 2);
-        shift_frames_up(RIGHT_FRAME(first), decrement * 2);
+        decrement *= 2;
+        shift_frames_up(LEFT_FRAME(first), decrement, shifts);
+        shift_frames_up(RIGHT_FRAME(first), decrement, shifts);
     }
 }
 
@@ -119,6 +130,7 @@ int remove_leaf_frame(Frame frame)
     Frame       parent, left, right;
     int32_t     center_x, center_y;
     int32_t     parent_x, parent_y, parent_width, parent_height;
+    uint32_t    *shifts;
 
     if (frame == 0) {
         LOG("attempted to remove the root frame\n");
@@ -143,11 +155,20 @@ int remove_leaf_frame(Frame frame)
 
     left = LEFT_FRAME(parent);
     right = RIGHT_FRAME(parent);
+
+    shifts = xcalloc(g_frame_capacity, sizeof(*shifts));
     if (left == frame) {
-        shift_frames_up(right, right - parent);
+        shift_frames_up(right, right - parent, shifts);
     } else if (right == frame) {
-        shift_frames_up(left, left - parent);
+        shift_frames_up(left, left - parent, shifts);
     }
+    for (uint32_t i = 0; i < g_frame_capacity; i++) {
+        if (shifts[i] > 0) {
+            g_frames[i - shifts[i]] = g_frames[i];
+            g_frames[i].window = WINDOW_SENTINEL;
+        }
+    }
+    free(shifts);
 
     resize_frame(parent, parent_x, parent_y, parent_width, parent_height);
 
