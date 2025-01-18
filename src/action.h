@@ -9,6 +9,8 @@ enum {
     /* go to the previous window in the window list */
     ACTION_PREV_WINDOW,
     /* ... */
+    ACTION_REMOVE_FRAME,
+    /* ... */
     ACTION_SPLIT_HORIZONTALLY,
     /* ... */
     ACTION_SPLIT_VERTICALLY,
@@ -20,9 +22,11 @@ enum {
     ACTION_MOVE_RIGHT,
     /* ... */
     ACTION_MOVE_DOWN,
+    /* show the interactive window list */
+    ACTION_SHOW_WINDOW_LIST,
 };
 
-/* do the given action, codes are above */
+/* Do the given action, the action codes are `ACTION_*`. */
 void do_action(int action);
 
 #endif

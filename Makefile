@@ -1,10 +1,10 @@
 # Compiler flags
-DEBUG_FLAGS := -DDEBUG -g -fsanitize=address
+DEBUG_FLAGS := -DDEBUG -DLOG_FILE=\"/tmp/fensterchef-log.txt\" -g -fsanitize=address
 C_FLAGS := -Wall -Wextra -Wpedantic -Werror
 RELEASE_FLAGS := -O3
 
 # Libs
-C_LIBS := $(shell pkg-config --libs xcb xcb-icccm xcb-keysyms)
+C_LIBS := $(shell pkg-config --libs xcb xcb-icccm xcb-keysyms xcb-event xcb-render xcb-renderutil freetype2 fontconfig)
 
 # Input
 SRC := src
@@ -45,15 +45,13 @@ build: $(BUILD)/$(RUN)
 test: build
 	./$(BUILD)/$(RUN)
 
+DISPLAY_NO := 8
+
 run: build
-	Xephyr -br -ac -noreset -screen 800x600 :8 &
+	Xephyr -br -ac -noreset -screen 800x600 :$(DISPLAY_NO) &
 	# wait for x server to start
 	sleep 1
-	DISPLAY=:8 ./$(BUILD)/$(RUN) &
-	# wait for fensterchef to take control
-	sleep 1
-	# make a test window
-	DISPLAY=:8 xterm &
+	DISPLAY=:$(DISPLAY_NO) gdb -ex run ./$(BUILD)/$(RUN)
 
 stop:
 	pkill Xephyr

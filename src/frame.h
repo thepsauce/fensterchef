@@ -8,6 +8,12 @@
 /* the number the first window gets assigned */
 #define FIRST_WINDOW_NUMBER 1
 
+/* an invalid window pointer */
+#define WINDOW_SENTINEL ((Window*) -1)
+
+/* A window is a wrapper around and xcb window, it is always part of a global
+ * linked list and has a unique id.
+ */
 typedef struct window {
     /* the actual X window */
     xcb_window_t xcb_window;
@@ -22,62 +28,144 @@ typedef struct window {
 } Window;
 
 /* the first window in the linked list */
-extern Window *g_first_window;
+extern Window       *g_first_window;
 
-#define WINDOW_SENTINEL ((Window*) -1)
+#define PARENT_FRAME(frame) (((frame)-1)/2)
+#define LEFT_FRAME(frame) ((frame)*2+1)
+#define RIGHT_FRAME(frame) ((frame)*2+2)
 
+#define IS_FRAME_VALID(frame) \
+    ((frame) < g_frame_capacity && \
+      g_frames[frame].window != WINDOW_SENTINEL)
+
+/* A frame is a rectangular region on the screen that may or may not
+ * contain a window.
+ * Frames can be split into smaller sub frames and are the driving
+ * force of the tiling layout.
+ */
 struct frame {
-    /* the window inside the frame, may be NULL */
+    /* the window inside the frame, may be NULL or
+     * WINDOW_SENTINEL to signal an unused frame */
     Window *window;
     /* coordinates and size of the frame */
     int32_t x;
     int32_t y;
-    int32_t w;
-    int32_t h;
+    uint32_t width;
+    uint32_t height;
 };
 
 typedef uint32_t Frame;
 
+/* This is how frames are organize in the array g_frames:
+ *    0         1               2
+ * [ Frame, Frame * 2 + 1, Frame * 2 + 2 ]
+ *
+ * 0  1    2    3  4  5      6           7
+ * [ X, X, Frame, ., ., ., Frame * 2, Frame * 2 + 1 ]
+ *
+ * NOTE: The array has gaps and such gaps are indicated with their window
+ * being set to WINDOW_SENTINEL.
+ *
+ * It is guaranteed that there is always at least one frame (the root frame).
+ */
+
 /* list of frames */
 extern struct frame *g_frames;
-extern Frame g_frame_count;
+/* the number of allocated frames in g_frames */
+extern Frame        g_frame_capacity;
 /* the currently selected/focused frame */
-extern Frame g_cur_frame;
+extern Frame        g_cur_frame;
 
-/* create a window struct and add it to the window list,
- * this also assigns the next id */
+/* Create a window struct and add it to the window list,
+ * this also assigns the next id. */
 Window *create_window(xcb_window_t xcb_window);
 
-/* get the frame this window is contained in, may return NULL */
+/* Destroy given window and removes it from the window linked list.
+ * This does NOT destroy the underlying xcb window.
+ */
+void destroy_window(Window *window);
+
+/* Get the window before this window in the linked list.
+ * This function WRAPS around so
+ *  `get_previous_window(g_first_window)` returns the last window.
+ *
+ * @window may be NULL, then NULL is also returned.
+ */
+Window *get_previous_window(Window *window);
+
+/* Get the internal window that has the associated xcb window.
+ *
+ * @return NULL when none has this xcb window.
+ */
+Window *get_window_of_xcb_window(xcb_window_t xcb_window);
+
+/* Get the frame this window is contained in.
+ *
+ * @return NULL when the window is not in any frame.
+ */
 Frame get_frame_of_window(Window *window);
 
-/* shows the window by mapping and sizing it */
+/* Show the window by mapping and sizing it. */
 void show_window(Window *window);
 
-/* hides the window by unmapping it */
+/* Hide the window by unmapping it. */
 void hide_window(Window *window);
 
-/* gets the currently focused window */
+/* Get the currently focused window.
+ *
+ * @return NULL when the root has focus.
+ */
 Window *get_focus_window(void);
 
-/* set the window that is in focus */
+/* Set the window that is in focus. */
 void set_focus_window(Window *window);
 
-/* create a frame at given coordinates that contains a window (`win` may be 0)
- * and attach it to the linked list */
-Frame create_frame(Window *window, int32_t x, int32_t y, int32_t w, int32_t h);
+/* Get a window that is not shown but in the window list coming after
+ * the given window or NULL when there is none.
+ *
+ * @window may be NULL.
+ * @return NULL iff there is no hidden window.
+ */
+Window *get_next_hidden_window(Window *window);
 
-/* remove a frame from the screen and hide the inner window, this
- * returns 1 when the given frame is the last frame */
-int remove_frame(Frame frame);
+/* Get a window that is not shown but in the window list coming before
+ * the given window.
+ *
+ * @window may be NULL.
+ * @return NULL iff there is no hidden window.
+ */
+Window *get_previous_hidden_window(Window *window);
+
+/* Split a frame horizontally or vertically. 
+ * Set @is_split_vert to 1 for a vertical split and 0 for a horizontal split.
+ */
+void split_frame(Frame split_from, int is_split_vert);
+
+/* Remove a frame from the screen and hide the inner window.
+ *
+ * This frame must have NO children.
+ *
+ * @return 1 when the given frame is the last frame, otherwise 0.
+ */
+int remove_leaf_frame(Frame frame);
+
+/* Set the frame in focus, this also focuses the inner window if it exists. */
+void set_focus_frame(Frame frame);
+
+/* Checks if the given point is within the given frame.
+ * @return 1 if the point is inside the frame, 0 otherwise */
+int is_point_in_frame(Frame frame, int32_t x, int32_t y);
 
 /* Get a frame at given position. */
 Frame get_frame_at_position(int32_t x, int32_t y);
 
-/* set the frame in focus, this also focuses the inner window if it exists */
+/* Set the frame in focus, this also focuses the inner window if it exists. */
 void set_focus_frame(Frame frame);
 
-/* reload the frame to apply changes with xcb */
+/* Repositions the underlying window to fit within the frame.
+ *
+ * @frame may be NULL, then nothing happens.
+ */
 void reload_frame(Frame frame);
 
 #endif

@@ -3,19 +3,21 @@
 #include "fensterchef.h"
 #include "frame.h"
 #include "util.h"
+#include "log.h"
 #include "xalloc.h"
 
 /* the first window in the linked list */
-Window *g_first_window;
+Window          *g_first_window;
 
 /* list of frames */
-struct frame *g_frames;
-Frame g_frame_count;
+struct frame    *g_frames;
+/* the number of allocated frames */
+Frame           g_frame_capacity;
 /* the currently selected/focused frame */
-Frame g_cur_frame;
+Frame           g_cur_frame;
 
-/* create a window struct and add it to the window list,
- * this also assigns the next id */
+/* Create a window struct and add it to the window list,
+ * this also assigns the next id. */
 Window *create_window(xcb_window_t xcb_window)
 {
     Window      *next;
@@ -50,18 +52,69 @@ Window *create_window(xcb_window_t xcb_window)
         last->next = next;
     }
 
-    g_values[0] = XCB_EVENT_MASK_ENTER_WINDOW | XCB_EVENT_MASK_FOCUS_CHANGE;
+    g_values[0] = XCB_EVENT_MASK_PROPERTY_CHANGE | XCB_EVENT_MASK_ENTER_WINDOW |
+        XCB_EVENT_MASK_FOCUS_CHANGE;
     xcb_change_window_attributes_checked(g_dpy, xcb_window,
         XCB_CW_EVENT_MASK, g_values);
 
-    LOG(stderr, "created new window %p\n", (void*) next);
+    LOG("created new window %p\n", (void*) next);
     return next;
 }
 
-/* get the frame this window is contained in, may return NULL */
+/* Destroys given window and removes it from the window linked list. */
+void destroy_window(Window *window)
+{
+    Window *prev;
+
+    if (window == g_first_window) {
+        g_first_window = window->next;
+    } else {
+        prev = g_first_window;
+        while (prev->next != window) {
+            prev = prev->next;
+        }
+        prev->next = window->next;
+    }
+
+    LOG("destroyed window %p\n", (void*) window);
+
+    free(window);
+}
+
+/* Get the window before this window in the linked list. */
+Window *get_previous_window(Window *window)
+{
+    Window *prev;
+
+    if (window == NULL) {
+        return NULL;
+    }
+
+    for (prev = g_first_window; prev->next != window; prev = prev->next) {
+        if (prev->next == NULL) {
+            break;
+        }
+    }
+    return prev;
+}
+
+/* Get the internal window that has the associated xcb window. */
+Window *get_window_of_xcb_window(xcb_window_t xcb_window)
+{
+    for (Window *window = g_first_window; window != NULL;
+            window = window->next) {
+        if (window->xcb_window == xcb_window) {
+            return window;
+        }
+    }
+    LOG("xcb window %" PRId32 " is not managed\n", xcb_window);
+    return NULL;
+}
+
+/* Get the frame this window is contained in. */
 Frame get_frame_of_window(Window *window)
 {
-    for (Frame frame = 0; frame < g_frame_count; frame++) {
+    for (Frame frame = 0; frame < g_frame_capacity; frame++) {
         if (g_frames[frame].window == window){ 
             return frame;
         }
@@ -69,45 +122,47 @@ Frame get_frame_of_window(Window *window)
     return (Frame) -1;
 }
 
-/* shows the window by mapping and sizing it */
+/* Show the window by mapping and sizing it. */
 void show_window(Window *window)
 {
     Frame frame;
 
+    frame = get_frame_of_window(window);
+
     if (window->visible) {
-        LOG(stderr, "tried to show %p but it is already visible\n", (void*) window);
+        LOG("tried to show %p but it is already visible\n", (void*) window);
         return;
     }
 
-    frame = get_frame_of_window(window);
-
     xcb_map_window(g_dpy, window->xcb_window);
 
-    g_values[0] = g_frames[frame].x;
-    g_values[1] = g_frames[frame].y;
-    g_values[2] = g_frames[frame].w;
-    g_values[3] = g_frames[frame].h;
-    g_values[4] = 0;
-    xcb_configure_window(g_dpy, window->xcb_window,
-        XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y | XCB_CONFIG_WINDOW_WIDTH |
-        XCB_CONFIG_WINDOW_HEIGHT | XCB_CONFIG_WINDOW_BORDER_WIDTH, g_values);
+    if (frame != (Frame) -1) {
+        g_values[0] = g_frames[frame].x;
+        g_values[1] = g_frames[frame].y;
+        g_values[2] = g_frames[frame].width;
+        g_values[3] = g_frames[frame].height;
+        g_values[4] = 0;
+        xcb_configure_window(g_dpy, window->xcb_window,
+            XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y | XCB_CONFIG_WINDOW_WIDTH |
+            XCB_CONFIG_WINDOW_HEIGHT | XCB_CONFIG_WINDOW_BORDER_WIDTH, g_values);
+    }
 
     window->visible = 1;
 
-    LOG(stderr, "showing window %p\n", (void*) window);
+    LOG("showing window %p\n", (void*) window);
 }
 
-/* hides the window by unmapping it */
+/* Hide the window by unmapping it. */
 void hide_window(Window *window)
 {
     xcb_unmap_window(g_dpy, window->xcb_window);
 
     window->visible = 0;
 
-    LOG(stderr, "hiding window %p\n", (void*) window);
+    LOG("hiding window %p\n", (void*) window);
 }
 
-/* gets the currently focused window */
+/* Get the currently focused window. */
 Window *get_focus_window(void)
 {
     for (Window *w = g_first_window; w != NULL; w = w->next) {
@@ -118,7 +173,7 @@ Window *get_focus_window(void)
     return NULL;
 }
 
-/* set the window that is in focus */
+/* Set the window that is in focus. */
 void set_focus_window(Window *window)
 {
     Window *old_focus;
@@ -135,63 +190,87 @@ void set_focus_window(Window *window)
     xcb_set_input_focus(g_dpy, XCB_INPUT_FOCUS_POINTER_ROOT, window->xcb_window,
             XCB_CURRENT_TIME);
 
-    LOG(stderr, "focus change from %p to %p\n", (void*) old_focus, (void*) window);
+    LOG("focus change from %p to %p\n", (void*) old_focus, (void*) window);
 }
 
-/* create a frame at given coordinates that contains a window (`win` may be 0)
- * and attach it to the linked list */
-Frame create_frame(Window *window, int32_t x, int32_t y, int32_t w, int32_t h)
+/* Get a window that is not shown but in the window list coming after
+ * the given window. */
+Window *get_next_hidden_window(Window *window)
 {
-    struct frame    *next;
-    Frame           frame;
+    Window *next;
 
-    RESIZE(g_frames, g_frame_count + 1);
-
-    frame = g_frame_count++;
-
-    next = &g_frames[frame];
-    next->window = window;
-    next->x = x;
-    next->y = y;
-    next->w = w;
-    next->h = h;
-
-    LOG(stderr, "frame %" PRId32 " created at %" PRId32 ",%" PRId32 ":%" PRId32 "x%" PRId32,
-            frame, x, y, w, h);
-    return frame;
-}
-
-/* remove a frame from the screen and hide the inner window, this
- * returns 1 when the given frame is the last frame */
-int remove_frame(Frame frame)
-{
-    if (g_frame_count == 0) {
-        LOG(stderr, "attempted to remove the only frame %" PRId32 "\n", frame);
-        return 1;
+    if (window == NULL) {
+        return NULL;
     }
+    next = window;
+    do {
+        if (next->next == NULL) {
+            next = g_first_window;
+        } else {
+            next = next->next;
+        }
+        if (window == next) {
+            return NULL;
+        }
+    } while (next->visible);
 
-    g_frames[frame].window = WINDOW_SENTINEL;
-
-    hide_window(g_frames[frame].window);
-
-    LOG(stderr, "frame %" PRId32 "was removed\n", frame);
-    return 0;
+    return next;
 }
 
-/* Get a frame at given position. */
+/* Get a window that is not shown but in the window list coming before
+ * the given window. */
+Window *get_previous_hidden_window(Window *window)
+{
+    Window *prev;
+
+    if (window == NULL) {
+        return NULL;
+    }
+    prev = window;
+    do {
+        prev = get_previous_window(prev);
+        if (window == prev) {
+            return NULL;
+        }
+    } while (prev->visible);
+
+    return prev;
+}
+
+/* Check if the given point is within the given frame. */
+int is_point_in_frame(Frame frame, int32_t x, int32_t y)
+{
+    return x >= g_frames[frame].x && y >= g_frames[frame].y &&
+        (uint32_t) (x - g_frames[frame].x) < g_frames[frame].width &&
+        (uint32_t) (y - g_frames[frame].y) < g_frames[frame].height;
+}
+
+/* Get the frame at given position.
+ * 
+ * This recursively traverses the tree array.
+ */
 Frame get_frame_at_position(int32_t x, int32_t y)
 {
-    for (Frame frame = 0; frame < g_frame_count; frame++) {
-        if (x >= g_frames[frame].x && y >= g_frames[frame].y &&
-                x < g_frames[frame].x + g_frames[frame].w &&
-                y < g_frames[frame].y + g_frames[frame].h) {
-            return frame;
+    Frame frame = 0, left, right;
+
+    while (1) {
+        left = LEFT_FRAME(frame);
+        right = RIGHT_FRAME(frame);
+        if (IS_FRAME_VALID(left) && is_point_in_frame(left, x, y)) {
+            frame = left;
+            continue;
         }
+        if (IS_FRAME_VALID(right) && is_point_in_frame(right, x, y)) {
+            frame = right;
+            continue;
+        }
+        break;
     }
-    return (Frame) -1;
+    return frame == 0 ? (is_point_in_frame(frame, x, y) ? 0 : (Frame) -1) :
+        frame;
 }
 
-/* set the frame in focus, this also focuses the inner window if it exists */
+/* Set the frame in focus, this also focuses the inner window if it exists. */
 void set_focus_frame(Frame frame)
 {
     if (g_frames[frame].window != NULL) {
@@ -199,39 +278,23 @@ void set_focus_frame(Frame frame)
     }
     g_cur_frame = frame;
 
-    LOG(stderr, "frame %" PRId32 "was focused\n", frame);
+    set_notification(UTF8_TEXT("Current frame"),
+            g_frames[g_cur_frame].x + g_frames[g_cur_frame].width / 2,
+            g_frames[g_cur_frame].y + g_frames[g_cur_frame].height / 2);
+
+    LOG("frame %" PRId32 " was focused\n", frame);
 }
 
-/* assign a window to an frame without window */
-Frame assign_window_to_empty_frame(Frame frame, Window *window) {
-    
-    g_frames[frame].window = window;
-
-    xcb_map_window(g_dpy, window->xcb_window);
-
-    g_values[0] = g_frames[frame].x;
-    g_values[1] = g_frames[frame].y;
-    g_values[2] = g_frames[frame].w;
-    g_values[3] = g_frames[frame].h;
-    g_values[4] = 0;
-    xcb_configure_window(g_dpy, window->xcb_window,
-        XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y | XCB_CONFIG_WINDOW_WIDTH |
-        XCB_CONFIG_WINDOW_HEIGHT | XCB_CONFIG_WINDOW_BORDER_WIDTH, g_values);
-
-    window->visible = 1;
-    
-    return frame;
-}
-
-void reload_frame(Frame frame) {
-    if (g_frames[frame].window != NULL && g_frames[frame].window->visible) {
+/* Repositions the underlying window to fit within the frame. */
+void reload_frame(Frame frame)
+{
+    if (g_frames[frame].window != NULL) {
         g_values[0] = g_frames[frame].x;
         g_values[1] = g_frames[frame].y;
-        g_values[2] = g_frames[frame].w;
-        g_values[3] = g_frames[frame].h;
+        g_values[2] = g_frames[frame].width;
+        g_values[3] = g_frames[frame].height;
         g_values[4] = 0;
         xcb_configure_window(g_dpy, g_frames[frame].window->xcb_window,
-            XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y | XCB_CONFIG_WINDOW_WIDTH |
-            XCB_CONFIG_WINDOW_HEIGHT | XCB_CONFIG_WINDOW_BORDER_WIDTH, g_values);
+                XCB_CONFIG_SIZE, g_values);
     }
 }

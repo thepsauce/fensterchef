@@ -1,12 +1,16 @@
 #ifdef DEBUG
 
-#include <stdio.h>
 #include <inttypes.h>
+#include <stdio.h>
+#include <xcb/xcb_event.h>
 
 #include "fensterchef.h"
+#include "log.h"
 #include "util.h"
 
-void log_modifiers(uint32_t mask, FILE *fp)
+FILE *g_log_file;
+
+static void log_modifiers(uint32_t mask, FILE *fp)
 {
     const char *modifiers[] = {
             "Shift", "Lock", "Ctrl", "Alt",
@@ -26,45 +30,6 @@ void log_modifiers(uint32_t mask, FILE *fp)
         }
     }
 }
-
-static const char *event_strings[] = {
-    [0] = "NULL-0",
-    [1] = "NULL-1",
-    [XCB_KEY_PRESS] = "KEY_PRESS",
-    [XCB_KEY_RELEASE] = "KEY_RELEASE",
-    [XCB_BUTTON_PRESS] = "BUTTON_PRESS",
-    [XCB_BUTTON_RELEASE] = "BUTTON_RELEASE",
-    [XCB_MOTION_NOTIFY] = "MOTION_NOTIFY",
-    [XCB_ENTER_NOTIFY] = "ENTER_NOTIFY",
-    [XCB_LEAVE_NOTIFY] = "LEAVE_NOTIFY",
-    [XCB_FOCUS_IN] = "FOCUS_IN",
-    [XCB_FOCUS_OUT] = "FOCUS_OUT",
-    [XCB_KEYMAP_NOTIFY] = "KEYMAP_NOTIFY",
-    [XCB_EXPOSE] = "EXPOSE",
-    [XCB_GRAPHICS_EXPOSURE] = "GRAPHICS_EXPOSURE",
-    [XCB_NO_EXPOSURE] = "NO_EXPOSURE",
-    [XCB_VISIBILITY_NOTIFY] = "VISIBILITY_NOTIFY",
-    [XCB_CREATE_NOTIFY] = "CREATE_NOTIFY",
-    [XCB_DESTROY_NOTIFY] = "DESTROY_NOTIFY",
-    [XCB_UNMAP_NOTIFY] = "UNMAP_NOTIFY",
-    [XCB_MAP_NOTIFY] = "MAP_NOTIFY",
-    [XCB_MAP_REQUEST] = "MAP_REQUEST",
-    [XCB_REPARENT_NOTIFY] = "REPARENT_NOTIFY",
-    [XCB_CONFIGURE_NOTIFY] = "CONFIGURE_NOTIFY",
-    [XCB_CONFIGURE_REQUEST] = "CONFIGURE_REQUEST",
-    [XCB_GRAVITY_NOTIFY] = "GRAVITY_NOTIFY",
-    [XCB_RESIZE_REQUEST] = "RESIZE_REQUEST",
-    [XCB_CIRCULATE_NOTIFY] = "CIRCULATE_NOTIFY",
-    [XCB_CIRCULATE_REQUEST] = "CIRCULATE_REQUEST",
-    [XCB_PROPERTY_NOTIFY] = "PROPERTY_NOTIFY",
-    [XCB_SELECTION_CLEAR] = "SELECTION_CLEAR",
-    [XCB_SELECTION_REQUEST] = "SELECTION_REQUEST",
-    [XCB_SELECTION_NOTIFY] = "SELECTION_NOTIFY",
-    [XCB_COLORMAP_NOTIFY] = "COLORMAP_NOTIFY",
-    [XCB_CLIENT_MESSAGE] = "CLIENT_MESSAGE",
-    [XCB_MAPPING_NOTIFY] = "MAPPING_NOTIFY",
-    [XCB_GE_GENERIC] = "GE_GENERIC",
-};
 
 static const char *generic_event_strings[] = {
     [XCB_REQUEST] = "REQUEST",
@@ -86,6 +51,7 @@ static const char *generic_event_strings[] = {
     [XCB_IMPLEMENTATION] = "IMPLEMENTATION",
 };
 
+/* Log an event to a file.  */
 void log_event(xcb_generic_event_t *ev, FILE *fp)
 {
     uint8_t                         ev_type;
@@ -121,11 +87,7 @@ void log_event(xcb_generic_event_t *ev, FILE *fp)
     xcb_ge_generic_event_t          *gen;
 
     ev_type = (ev->response_type & ~0x80);
-    if (ev_type >= SIZE(event_strings)) {
-        fprintf(fp, "UNKNOWN_EVENT[%" PRIu8 "]", ev_type);
-        return;
-    }
-    fputs(event_strings[ev_type], fp);
+    fputs(xcb_event_get_label(ev_type), fp);
     if (ev_type == XCB_GE_GENERIC) {
         gen = (xcb_ge_generic_event_t*) ev;
         if (gen->extension >= SIZE(generic_event_strings)) {
@@ -446,6 +408,23 @@ XCB_SET_MODIFIER_MAPPING 118
 XCB_GET_MODIFIER_MAPPING 119
 XCB_NO_OPERATION 127
 */
+
+/* Log the screens information to a file. */
+void log_screens(FILE *fp)
+{
+    xcb_screen_t            *screen;
+
+    fprintf(fp, "Have %u screen(s):\n", g_screen_count);
+    for (uint32_t i = 0; i < g_screen_count; i++) {
+        screen = g_screens[i];
+        fprintf(fp, "Screen %u ; %u:\n", i, screen->root);
+        fprintf(fp, "  width.........: %u\n", screen->width_in_pixels);
+        fprintf(fp, "  height........: %u\n", screen->height_in_pixels);
+        fprintf(fp, "  white pixel...: %u\n", screen->white_pixel);
+        fprintf(fp, "  black pixel...: %u\n", screen->black_pixel);
+        fprintf(fp, "\n");
+    }
+}
 
 #else
 

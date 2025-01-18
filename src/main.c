@@ -1,27 +1,30 @@
+#include <stdlib.h>
+
 #include "fensterchef.h"
 #include "frame.h"
+#include "log.h"
 
 int main(void)
 {
-    init_connection();
-    init_screens();
-    if (setup_keys() != 0) {
-        close_connection();
-        return 1;
-    }
-    if (g_screen_count > 0) {
-        /* take the first screen */
-        g_screen_no = 0;
-        create_frame(NULL, 0, 0, g_screens[g_screen_no]->width_in_pixels,
-                g_screens[g_screen_no]->height_in_pixels);
-        g_running = !take_control();
+    xcb_generic_event_t *event;
+
+    if (init_fensterchef() != 0 ||
+            setup_keys() != 0) {
+        quit_fensterchef(1);
     }
 
+    g_running = 1;
     while (g_running) {
-        handle_event();
-        xcb_flush(g_dpy);
+        if (xcb_connection_has_error(g_dpy) > 0) {
+            quit_fensterchef(1);
+        }
+        event = xcb_wait_for_event(g_dpy);
+        if (event != NULL) {
+            handle_event(event);
+            free(event);
+            xcb_flush(g_dpy);
+        }
     }
 
-    close_connection();
-    return 0;
+    quit_fensterchef(0);
 }
