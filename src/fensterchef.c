@@ -246,7 +246,16 @@ int init_fensterchef(void)
             g_atoms[NET_SUPPORTED], XCB_ATOM_ATOM, 32,
             ATOM_COUNT - FIRST_NET_ATOM, &g_atoms[FIRST_NET_ATOM]);
 
-    create_frame(NULL, 0, 0, screen->width_in_pixels, screen->height_in_pixels);
+    g_frame_capacity = 10;
+    g_frames = xmalloc(sizeof(*g_frames) * g_frame_capacity);
+    for (Frame f = 1; f < g_frame_capacity; f++) {
+        g_frames[f].window = WINDOW_SENTINEL;
+    }
+    g_frames[0].window = NULL;
+    g_frames[0].x = 0;
+    g_frames[0].y = 0;
+    g_frames[0].width = screen->width_in_pixels;
+    g_frames[0].height = screen->height_in_pixels;
 
     g_values[0] = ROOT_EVENT_MASK;
     error = xcb_request_check(g_dpy,
@@ -349,10 +358,10 @@ void accept_new_window(xcb_window_t win)
     Window *window;
 
     window = create_window(win);
-    if (g_cur_frame->window != NULL) {
-        hide_window(g_cur_frame->window);
+    if (g_frames[g_cur_frame].window != NULL) {
+        hide_window(g_frames[g_cur_frame].window);
     }
-    g_cur_frame->window = window;
+    g_frames[g_cur_frame].window = window;
     show_window(window);
     set_focus_window(window);
 }
@@ -362,7 +371,7 @@ void handle_event(xcb_generic_event_t *event)
 {
     xcb_configure_request_event_t   *request_event;
     Window                          *window;
-    Frame                           *frame;
+    Frame                           frame;
 
 #ifdef DEBUG
     log_event(event, g_log_file);
@@ -381,7 +390,7 @@ void handle_event(xcb_generic_event_t *event)
             window->visible = 0;
             frame = get_frame_of_window(window);
             window = get_next_hidden_window(window);
-            frame->window = window;
+            g_frames[frame].window = window;
             if (window != NULL) {
                 show_window(window);
                 set_focus_window(window);
