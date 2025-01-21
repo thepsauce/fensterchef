@@ -131,7 +131,7 @@ void log_event(xcb_generic_event_t *ev, FILE *fp)
     case XCB_FOCUS_IN:
     case XCB_FOCUS_OUT:
         fi = (xcb_focus_in_event_t*) ev;
-        fprintf(fp, "mode=%" PRIu8 ", detail=%" PRIu8, fi->mode, fi->detail);
+        fprintf(fp, "mode=%" PRIu8 ", detail=%" PRIu8 ", event=%" PRIu32, fi->mode, fi->detail, fi->event);
         break;
 
     case XCB_KEYMAP_NOTIFY:

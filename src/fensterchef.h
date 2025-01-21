@@ -15,8 +15,7 @@
 #define XCB_CONFIG_SIZE (XCB_CONFIG_WINDOW_X | \
                          XCB_CONFIG_WINDOW_Y | \
                          XCB_CONFIG_WINDOW_WIDTH | \
-                         XCB_CONFIG_WINDOW_HEIGHT | \
-                         XCB_CONFIG_WINDOW_BORDER_WIDTH)
+                         XCB_CONFIG_WINDOW_HEIGHT)
 
 /* padding used for internal popup windows */
 #define WINDOW_PADDING 6
@@ -60,6 +59,8 @@ extern struct font {
 extern uint32_t             g_values[6];
 
 enum {
+    UTF8_STRING,
+
     WM_PROTOCOLS,
     WM_DELETE_WINDOW,
 

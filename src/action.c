@@ -12,44 +12,17 @@ static void start_terminal(void)
     }
 }
 
-static void next_window(void)
+static void set_active_window(Window *window)
 {
-    Window *window;
-    Window *next;
-
-    window = g_frames[g_cur_frame].window;
-    next = get_next_hidden_window(window);
-    if (next == NULL) {
+    if (window == NULL) {
         set_notification(UTF8_TEXT("No other window"),
                 g_frames[g_cur_frame].x + g_frames[g_cur_frame].width / 2,
                 g_frames[g_cur_frame].y + g_frames[g_cur_frame].height / 2);
         return;
     }
 
-    hide_window(window);
-    g_frames[g_cur_frame].window = next;
-    show_window(next);
-    set_focus_window(next);
-}
-
-static void prev_window(void)
-{
-    Window *window;
-    Window *prev;
-
-    window = g_frames[g_cur_frame].window;
-    prev = get_previous_hidden_window(window);
-    if (prev == NULL) {
-        set_notification(UTF8_TEXT("No other window"),
-                g_frames[g_cur_frame].x + g_frames[g_cur_frame].width / 2,
-                g_frames[g_cur_frame].y + g_frames[g_cur_frame].height / 2);
-        return;
-    }
-
-    hide_window(window);
-    g_frames[g_cur_frame].window = prev;
-    show_window(prev);
-    set_focus_window(prev);
+    set_window_state(window, WINDOW_STATE_SHOWN, 1);
+    set_focus_window(window);
 }
 
 /* Do the given action, the action codes are `ACTION_*`. */
@@ -64,11 +37,12 @@ void do_action(int action)
         break;
 
     case ACTION_NEXT_WINDOW:
-        next_window();
+        set_active_window(get_next_hidden_window(g_frames[g_cur_frame].window));
         break;
 
     case ACTION_PREV_WINDOW:
-        prev_window();
+        set_active_window(
+                get_previous_hidden_window(g_frames[g_cur_frame].window));
         break;
 
     case ACTION_REMOVE_FRAME:
@@ -76,6 +50,43 @@ void do_action(int action)
             set_notification(UTF8_TEXT("Can not remove the last frame"),
                 g_frames[g_cur_frame].x + g_frames[g_cur_frame].width / 2,
                 g_frames[g_cur_frame].y + g_frames[g_cur_frame].height / 2);
+        }
+        break;
+
+    case ACTION_CHANGE_WINDOW_STATE:
+        window = get_focus_window();
+        if (window == NULL) {
+            break;
+        }
+        set_window_state(window, window->state == WINDOW_STATE_SHOWN ?
+                WINDOW_STATE_POPUP : WINDOW_STATE_SHOWN, 1);
+        break;
+
+    case ACTION_CHANGE_FOCUS:
+        window = get_focus_window();
+        if (window == NULL) {
+            break;
+        }
+        if (window->state == WINDOW_STATE_POPUP) {
+            if (g_frames[g_cur_frame].window != NULL) {
+                set_focus_window(g_frames[g_cur_frame].window);
+            } else {
+                for (frame = 0; frame < g_frame_capacity; frame++) {
+                    if (g_frames[frame].window == NULL ||
+                            g_frames[frame].window == WINDOW_SENTINEL) {
+                        continue;
+                    }
+                    set_focus_frame(frame);
+                }
+            }
+        } else {
+            for (Window *w = g_first_window; w != NULL; w = w->next) {
+                if (w == window || w->state != WINDOW_STATE_POPUP) {
+                    continue;
+                }
+                set_focus_window(w);
+                break;
+            }
         }
         break;
 
@@ -123,14 +134,22 @@ void do_action(int action)
     case ACTION_SHOW_WINDOW_LIST:
         window = select_window_from_list();
         if (window != NULL) {
-            if (!window->visible) {
-                if (g_frames[g_cur_frame].window != NULL) {
-                    hide_window(g_frames[g_cur_frame].window);
-                }
-                g_frames[g_cur_frame].window = window;
-                show_window(window);
+            switch (window->state) {
+            case WINDOW_STATE_HIDDEN:
+                set_window_state(window, WINDOW_STATE_SHOWN, 1);
+                set_focus_window(window);
+                break;
+            case WINDOW_STATE_SHOWN:
+                set_focus_frame(get_frame_of_window(window));
+                break;
+            case WINDOW_STATE_POPUP:
+                /* TODO: figure this out */
+                g_values[0] = XCB_STACK_MODE_ABOVE;
+                xcb_configure_window(g_dpy, window->xcb_window,
+                    XCB_CONFIG_WINDOW_STACK_MODE, g_values);
+                set_focus_window(window);
+                break;
             }
-            set_focus_window(window);
         }
         break;
     }

@@ -73,7 +73,7 @@ int set_font(const FcChar8 *query)
         fc_pixel_size.u.d = 12;
     }
 
-    if (FT_Set_Char_Size(face, 0, (fc_pixel_size.u.d / (96.0 / 72.0)) * 64,
+    if (FT_Set_Char_Size(face, 0, fc_pixel_size.u.d * 72 / 96 * 64,
                 96, 96) != FT_Err_Ok) {
         LOG("could not set the character size\n");
     }

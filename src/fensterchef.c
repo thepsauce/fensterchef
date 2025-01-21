@@ -5,10 +5,11 @@
 #include <string.h>
 #include <unistd.h>
 
+#include <X11/keysym.h>
 #include <xcb/xcb_atom.h>
 #include <xcb/xcb_renderutil.h>
 #include <xcb/xcb_keysyms.h>
-#include <X11/keysym.h>
+#include <xcb/xcb_icccm.h>
 
 #include "fensterchef.h"
 #include "log.h"
@@ -23,7 +24,6 @@
                           * ConfigureNotify */ \
                          XCB_EVENT_MASK_STRUCTURE_NOTIFY | \
                          XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY | \
-                         XCB_EVENT_MASK_POINTER_MOTION | \
                          XCB_EVENT_MASK_PROPERTY_CHANGE | \
                          XCB_EVENT_MASK_FOCUS_CHANGE | \
                          XCB_EVENT_MASK_ENTER_WINDOW)
@@ -50,6 +50,8 @@ struct font         g_font;
 uint32_t            g_values[6];
 
 const char          *g_atom_names[ATOM_COUNT] = {
+    [UTF8_STRING]       = "UTF8_STRING",
+
     [WM_PROTOCOLS]      = "WM_PROTOCOLS",
     [WM_DELETE_WINDOW]  = "WM_DELETE_WINDOW",
 
@@ -295,6 +297,10 @@ int init_fensterchef(void)
         return 1;
     }
 
+    xcb_grab_button(g_dpy, 0, screen->root, XCB_EVENT_MASK_BUTTON_PRESS |
+            XCB_EVENT_MASK_BUTTON_RELEASE, XCB_GRAB_MODE_ASYNC,
+            XCB_GRAB_MODE_ASYNC, screen->root, XCB_NONE, 1, XCB_MOD_MASK_1);
+
     signal(SIGALRM, alarm_handler);
 
     return 0;
@@ -333,7 +339,8 @@ void set_notification(const FcChar8 *msg, int32_t x, int32_t y)
     g_values[4] = 1;
     g_values[5] = XCB_STACK_MODE_ABOVE;
     xcb_configure_window(g_dpy, g_notification_window,
-            XCB_CONFIG_SIZE | XCB_CONFIG_WINDOW_STACK_MODE, g_values);
+            XCB_CONFIG_SIZE | XCB_CONFIG_WINDOW_BORDER_WIDTH |
+            XCB_CONFIG_WINDOW_STACK_MODE, g_values);
 
     xcb_map_window(g_dpy, g_notification_window);
 
@@ -352,26 +359,20 @@ void set_notification(const FcChar8 *msg, int32_t x, int32_t y)
     alarm(3);
 }
 
-/* Handle the mapping of a new window. */
-void accept_new_window(xcb_window_t win)
-{
-    Window *window;
-
-    window = create_window(win);
-    if (g_frames[g_cur_frame].window != NULL) {
-        hide_window(g_frames[g_cur_frame].window);
-    }
-    g_frames[g_cur_frame].window = window;
-    show_window(window);
-    set_focus_window(window);
-}
-
 /* Handle the given xcb event. */
 void handle_event(xcb_generic_event_t *event)
 {
+    /* this is used for moving a popup window */
+    static int16_t                  old_x, old_y;
+    static xcb_window_t             move_window;
+
+    xcb_window_t                    xcb_window;
     xcb_configure_request_event_t   *request_event;
+    xcb_property_notify_event_t     *notify_event;
+    xcb_button_press_event_t        *button_event;
+    xcb_motion_notify_event_t       *motion_event;
+    xcb_get_geometry_reply_t        *geometry;
     Window                          *window;
-    Frame                           frame;
 
 #ifdef DEBUG
     log_event(event, g_log_file);
@@ -380,21 +381,75 @@ void handle_event(xcb_generic_event_t *event)
 
     switch ((event->response_type & ~0x80)) {
     case XCB_MAP_REQUEST:
-        accept_new_window(((xcb_map_request_event_t*) event)->window);
+        xcb_window = ((xcb_map_request_event_t*) event)->window;
+        window = get_window_of_xcb_window(xcb_window);
+        if (window != NULL) {
+            break;
+        }
+        window = create_window(xcb_window);
+        set_focus_window(window);
+        break;
+
+    case XCB_BUTTON_PRESS:
+        button_event = (xcb_button_press_event_t*) event;
+        move_window = button_event->child;
+        window = get_window_of_xcb_window(move_window);
+        if (window == NULL || window->state != WINDOW_STATE_POPUP) {
+            break;
+        }
+        old_x = button_event->root_x;
+        old_y = button_event->root_y;
+        xcb_grab_pointer(g_dpy, 0, g_screens[g_screen_no]->root,
+                XCB_EVENT_MASK_BUTTON_RELEASE | XCB_EVENT_MASK_BUTTON_MOTION,
+                XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC, g_screens[g_screen_no]->root,
+                XCB_NONE, XCB_CURRENT_TIME);
+        break;
+
+    case XCB_MOTION_NOTIFY:
+        motion_event = (xcb_motion_notify_event_t*) event;
+        geometry = xcb_get_geometry_reply(g_dpy,
+                xcb_get_geometry(g_dpy, move_window), NULL);
+        if (geometry == NULL) {
+            xcb_ungrab_pointer(g_dpy, XCB_CURRENT_TIME);
+            break;
+        }
+        g_values[0] = geometry->x + (motion_event->root_x - old_x);
+        g_values[1] = geometry->y + (motion_event->root_y - old_y);
+        old_x = motion_event->root_x;
+        old_y = motion_event->root_y;
+        xcb_configure_window(g_dpy, move_window, XCB_CONFIG_WINDOW_X |
+                XCB_CONFIG_WINDOW_Y, g_values);
+        break;
+
+    case XCB_BUTTON_RELEASE:
+        xcb_ungrab_pointer(g_dpy, XCB_CURRENT_TIME);
+        break;
+
+    case XCB_PROPERTY_NOTIFY:
+        notify_event = (xcb_property_notify_event_t*) event;
+        window = get_window_of_xcb_window(notify_event->window);
+        if (window == NULL) {
+            LOG("property change of unmanaged window: %" PRId32 "\n",
+                    notify_event->window);
+            break;
+        }
+        if (notify_event->atom == XCB_ATOM_WM_NAME) {
+            update_window_name(window);
+        } else if (notify_event->atom == XCB_ATOM_WM_NORMAL_HINTS) {
+            update_window_size_hints(window);
+        }
+        if (window->state == WINDOW_STATE_SHOWN && predict_popup(window)) {
+            set_window_state(window, WINDOW_STATE_POPUP, 0);
+        } else if (window->state == WINDOW_STATE_POPUP) {
+            set_window_state(window, WINDOW_STATE_SHOWN, 0);
+        }
         break;
 
     case XCB_UNMAP_NOTIFY:
         window = get_window_of_xcb_window(
                 ((xcb_unmap_notify_event_t*) event)->window);
-        if (window != NULL && window->visible) {
-            window->visible = 0;
-            frame = get_frame_of_window(window);
-            window = get_next_hidden_window(window);
-            g_frames[frame].window = window;
-            if (window != NULL) {
-                show_window(window);
-                set_focus_window(window);
-            }
+        if (window != NULL) {
+            set_window_state(window, WINDOW_STATE_HIDDEN, 1);
         }
         break;
 
@@ -414,10 +469,7 @@ void handle_event(xcb_generic_event_t *event)
         g_values[3] = request_event->height;
         g_values[4] = request_event->border_width;
         xcb_configure_window(g_dpy, request_event->window,
-                XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y |
-                XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT |
-                XCB_CONFIG_WINDOW_BORDER_WIDTH,
-                g_values);
+                XCB_CONFIG_SIZE | XCB_CONFIG_WINDOW_BORDER_WIDTH, g_values);
         break;
 
     case XCB_KEY_PRESS:

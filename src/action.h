@@ -8,6 +8,10 @@ enum {
     ACTION_NEXT_WINDOW,
     /* go to the previous window in the window list */
     ACTION_PREV_WINDOW,
+    /* changes a popup window to a tiling window and vise versa */
+    ACTION_CHANGE_WINDOW_STATE,
+    /* changes from focusing a popup window to focusing a tiling window */
+    ACTION_CHANGE_FOCUS,
     /* ... */
     ACTION_REMOVE_FRAME,
     /* ... */
