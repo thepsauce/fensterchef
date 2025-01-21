@@ -1,8 +1,10 @@
+#include <ctype.h>
 #include <inttypes.h>
 #include <stdlib.h>
 #include <string.h>
-#include <xcb/xcb_keysyms.h>
+
 #include <X11/keysym.h>
+#include <xcb/xcb_keysyms.h>
 
 #include "fensterchef.h"
 #include "log.h"
@@ -10,50 +12,27 @@
 
 static int render_window_list(Window *selected)
 {
-    uint32_t                    window_count, i;
-    struct tile {
-        xcb_get_property_cookie_t cookie;
-        FcChar8 buf[256];
-    }                           *titles = NULL;
-    xcb_get_property_reply_t    *reply;
+    uint32_t                    window_count;
+    FcChar8                     *marker_char;
     struct text_measure         tm;
-    uint32_t                    max_width = 0;
+    uint32_t                    max_width;
     xcb_screen_t                *screen;
     xcb_rectangle_t             rect;
     xcb_render_color_t          bg_color;
     xcb_render_picture_t        pen;
 
     window_count = 0;
+    tm.ascent = 12;
+    tm.descent = -4;
+    max_width = 0;
     for (Window *w = g_first_window; w != NULL; w = w->next) {
         window_count++;
+        measure_text(w->short_title, strlen((char*) w->short_title), &tm);
+        max_width = MAX(max_width, tm.total_width);
     }
 
     if (window_count == 0) {
         return 1;
-    }
-
-    RESIZE(titles, window_count);
-
-    i = 0;
-    for (Window *w = g_first_window; w != NULL; w = w->next, i++) {
-        titles[i].cookie = xcb_get_property(g_dpy, 0, w->xcb_window,
-                XCB_ATOM_WM_NAME, XCB_ATOM_STRING, 0,
-                (sizeof(titles[0].buf) >> 2) + 1);
-    }
-
-    i = 0;
-    tm.ascent = 12;
-    tm.descent = -4;
-    for (Window *w = g_first_window; w != NULL; w = w->next, i++) {
-        reply = xcb_get_property_reply(g_dpy, titles[i].cookie, NULL);
-        snprintf((char*) titles[i].buf, sizeof(titles[i].buf),
-                "%" PRId32 "%c%.*s",
-                w->number, w->focused ? '*' : w->visible ? '+' : '-',
-                reply == NULL ? 0 : xcb_get_property_value_length(reply),
-                reply == NULL ? "" : (char*) xcb_get_property_value(reply));
-        free(reply);
-        measure_text(titles[i].buf, strlen((char*) titles[i].buf), &tm);
-        max_width = MAX(max_width, tm.total_width);
     }
 
     screen = g_screens[g_screen_no];
@@ -66,17 +45,17 @@ static int render_window_list(Window *selected)
     g_values[4] = 1;
     g_values[5] = XCB_STACK_MODE_ABOVE;
     xcb_configure_window(g_dpy, g_window_list_window,
-            XCB_CONFIG_SIZE | XCB_CONFIG_WINDOW_STACK_MODE, g_values);
+            XCB_CONFIG_SIZE | XCB_CONFIG_WINDOW_BORDER_WIDTH |
+            XCB_CONFIG_WINDOW_STACK_MODE, g_values);
 
     xcb_set_input_focus(g_dpy, XCB_INPUT_FOCUS_POINTER_ROOT,
             g_window_list_window, XCB_CURRENT_TIME);
 
-    i = 0;
     rect.x = 0;
     rect.y = 0;
     rect.width = max_width + WINDOW_PADDING / 2;
     rect.height = tm.ascent - tm.descent + WINDOW_PADDING;
-    for (Window *w = g_first_window; w != NULL; w = w->next, i++) {
+    for (Window *w = g_first_window; w != NULL; w = w->next) {
         bg_color.alpha = 0xff00;
         if (w == selected) {
             pen = g_stock_objects[STOCK_WHITE_PEN];
@@ -89,8 +68,16 @@ static int render_window_list(Window *selected)
             bg_color.green = 0xff00;
             bg_color.blue = 0xff00;
         }
-        draw_text(g_window_list_window, titles[i].buf,
-                strlen((char*) titles[i].buf), bg_color, &rect,
+        marker_char = w->short_title;
+        while (isdigit(marker_char[0])) {
+            marker_char++;
+        }
+        marker_char[0] = w->state == WINDOW_STATE_POPUP && w->focused ? '#' :
+                w->focused ? '*' :
+                w->state == WINDOW_STATE_POPUP ? '=' :
+                w->state == WINDOW_STATE_SHOWN ? '+' : '-',
+        draw_text(g_window_list_window, w->short_title,
+                strlen((char*) w->short_title), bg_color, &rect,
                 pen, WINDOW_PADDING / 2,
                 rect.y + tm.ascent + WINDOW_PADDING / 2);
         rect.y += rect.height;
@@ -98,11 +85,13 @@ static int render_window_list(Window *selected)
     return 0;
 }
 
-static inline Window *handle_window_list_events(Window *selected)
+static inline Window *handle_window_list_events(Window *selected,
+        Window **p_old_focus)
 {
     xcb_generic_event_t             *event;
     xcb_key_press_event_t           *key_press;
     xcb_keysym_t                    keysym;
+    Window                          *window;
 
     while (xcb_connection_has_error(g_dpy) == 0) {
         event = xcb_wait_for_event(g_dpy);
@@ -156,6 +145,29 @@ static inline Window *handle_window_list_events(Window *selected)
                 /* TODO: mouse support */
                 break;
 
+            case XCB_DESTROY_NOTIFY:
+                window = get_window_of_xcb_window(
+                        ((xcb_unmap_notify_event_t*) event)->window);
+                if (window != NULL) {
+                    if (window == *p_old_focus) {
+                        *p_old_focus = NULL;
+                    }
+
+                    if (window == selected) {
+                        selected = selected->next;
+                        if (selected == NULL) {
+                            selected = g_first_window;
+                        }
+                        if (selected == NULL) {
+                            destroy_window(window);
+                            return NULL;
+                        }
+                    }
+
+                    destroy_window(window);
+                }
+                break;
+
             default:
                 handle_event(event);
             }
@@ -186,14 +198,23 @@ Window *select_window_from_list(void)
     xcb_map_window(g_dpy, g_window_list_window);
 
     window = get_focus_window();
+    if (window == NULL) {
+        if (g_frames[g_cur_frame].window == NULL) {
+            window = g_first_window;
+        } else {
+            window = g_frames[g_cur_frame].window;
+        }
+    }
 
     old_focus = window;
 
     render_window_list(window);
 
-    window = handle_window_list_events(window);
+    window = handle_window_list_events(window, &old_focus);
 
     if (old_focus != NULL) {
+        old_focus->focused = 1;
+
         xcb_set_input_focus(g_dpy, XCB_INPUT_FOCUS_POINTER_ROOT,
                 old_focus->xcb_window, XCB_CURRENT_TIME);
     }

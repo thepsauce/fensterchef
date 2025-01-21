@@ -9,10 +9,17 @@
 #include "log.h"
 #include "util.h"
 
+/* TODO: For advanced tiling.
+ * 1. Multi monitor support.
+ * 2. Frame resizing.
+ */
+
 /* Split a frame horizontally or vertically. */
 void split_frame(Frame split_from, int is_split_vert)
 {
-    Frame           left, right;
+    Frame   left, right;
+    Frame   next_cur_frame;
+    Window  *window;
 
     left = LEFT_FRAME(split_from);
     right = RIGHT_FRAME(split_from);
@@ -50,15 +57,21 @@ void split_frame(Frame split_from, int is_split_vert)
     }
 
     g_frames[left].window = g_frames[split_from].window;
+    g_frames[right].window = NULL;
     g_frames[split_from].window = NULL;
     if (split_from == g_cur_frame) {
-        g_cur_frame = left;
+        next_cur_frame = left;
+    } else {
+        next_cur_frame = g_cur_frame;
     }
 
-    g_frames[right].window = get_next_hidden_window(g_frames[left].window);
-    if (g_frames[right].window != NULL) {
-        show_window(g_frames[right].window);
+    g_cur_frame = right;
+    window = get_next_hidden_window(g_frames[left].window);
+    if (window != NULL) {
+        set_window_state(window, WINDOW_STATE_SHOWN, 1);
     }
+
+    g_cur_frame = next_cur_frame;
 
     if (g_frames[left].window != NULL) {
         reload_frame(left);
@@ -143,7 +156,7 @@ int remove_leaf_frame(Frame frame)
     center_y = g_frames[parent].y + g_frames[parent].height / 2;
 
     if (g_frames[frame].window != NULL) {
-        hide_window(g_frames[frame].window);
+        set_window_state(g_frames[frame].window, WINDOW_STATE_HIDDEN, 1);
     }
     g_frames[frame].window = WINDOW_SENTINEL;
 
@@ -172,8 +185,8 @@ int remove_leaf_frame(Frame frame)
 
     resize_frame(parent, parent_x, parent_y, parent_width, parent_height);
 
-    set_focus_frame(get_frame_at_position(center_x, center_y));
-
     LOG("frame %" PRId32 " was removed\n", frame);
+
+    set_focus_frame(get_frame_at_position(center_x, center_y));
     return 0;
 }
