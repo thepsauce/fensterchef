@@ -83,5 +83,5 @@ void handle_key_press(xcb_key_press_event_t *event)
             return;
         }
     }
-    LOG("trash keybind: %d\n", keysym);
+    ERR("trash keybind: %d\n", keysym);
 }

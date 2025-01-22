@@ -103,7 +103,7 @@ static int init_stock_objects(void)
                 screen->root,
                 XCB_GC_FOREGROUND | XCB_GC_BACKGROUND, g_values));
     if (error != NULL) {
-        LOG("could not create graphics context for notifications: %d\n",
+        ERR("could not create graphics context for notifications: %d\n",
                 error->error_code);
         return 1;
     }
@@ -115,7 +115,7 @@ static int init_stock_objects(void)
                 screen->root,
                 XCB_GC_FOREGROUND | XCB_GC_BACKGROUND, g_values));
     if (error != NULL) {
-        LOG("could not create inverted graphics context for notifications: %d\n",
+        ERR("could not create inverted graphics context for notifications: %d\n",
                 error->error_code);
         return 1;
     }
@@ -191,13 +191,17 @@ int init_fensterchef(void)
 
     g_dpy = xcb_connect(NULL, NULL);
     if (xcb_connection_has_error(g_dpy) > 0) {
-        LOG("could not create xcb connection\n");
+        ERR("could not create xcb connection\n");
         fclose(g_log_file);
         exit(1);
     }
 
+#ifdef DEBUG
+    log_screens();
+#endif
+
     if (FcInit() == FcFalse) {
-        LOG("could not initialize fontconfig\n");
+        ERR("could not initialize fontconfig\n");
         xcb_disconnect(g_dpy);
         fclose(g_log_file);
         exit(1);
@@ -205,7 +209,7 @@ int init_fensterchef(void)
 
     ft_error = FT_Init_FreeType(&g_font.library);
     if (ft_error != FT_Err_Ok) {
-        LOG("could not initialize freetype: 0x%x\n", ft_error);
+        ERR("could not initialize freetype: 0x%x\n", ft_error);
         FcFini();
         xcb_disconnect(g_dpy);
         fclose(g_log_file);
@@ -264,7 +268,7 @@ int init_fensterchef(void)
             xcb_change_window_attributes_checked(g_dpy, screen->root,
                 XCB_CW_EVENT_MASK, g_values));
     if (error != NULL) {
-        LOG("could not change root window mask: %d\n", error->error_code);
+        ERR("could not change root window mask: %d\n", error->error_code);
         return 1;
     }
 
@@ -280,7 +284,7 @@ int init_fensterchef(void)
                 XCB_WINDOW_CLASS_COPY_FROM_PARENT, XCB_COPY_FROM_PARENT,
                 XCB_CW_BORDER_PIXEL, g_values));
     if (error != NULL) {
-        LOG("could not create notification window: %d\n", error->error_code);
+        ERR("could not create notification window: %d\n", error->error_code);
         return 1;
     }
 
@@ -375,8 +379,7 @@ void handle_event(xcb_generic_event_t *event)
     Window                          *window;
 
 #ifdef DEBUG
-    log_event(event, g_log_file);
-    fputc('\n', g_log_file);
+    log_event(event);
 #endif
 
     switch ((event->response_type & ~0x80)) {
