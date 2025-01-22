@@ -26,7 +26,7 @@ int set_font(const FcChar8 *query)
 
     status = FcConfigSubstitute(NULL, fc_finding_pattern, FcMatchPattern);
     if (status == FcFalse) {
-        LOG("could not substitute font pattern\n");
+        ERR("could not substitute font pattern\n");
         return 1;
     }
     FcDefaultSubstitute(fc_finding_pattern);
@@ -36,12 +36,12 @@ int set_font(const FcChar8 *query)
     FcPatternDestroy(fc_finding_pattern);
 
     if (result == FcResultNoMatch) {
-        LOG("could not match the font\n");
+        ERR("could not match the font\n");
         return 1;
     }
 
     if (FcPatternGet(pattern, FC_FILE, 0, &fc_file) != FcResultMatch) {
-        LOG("could not not get the font file\n");
+        ERR("could not not get the font file\n");
         FcPatternDestroy(pattern);
         return 1;
     }
@@ -54,7 +54,7 @@ int set_font(const FcChar8 *query)
     ft_error = FT_New_Face(g_font.library, (const char*) fc_file.u.s, fc_index.u.i,
             &face);
     if (ft_error != FT_Err_Ok) {
-        LOG("could not not create the new freetype face: %d\n", ft_error);
+        ERR("could not not create the new freetype face: %d\n", ft_error);
         FcPatternDestroy(pattern);
         return 1;
     }
@@ -75,12 +75,12 @@ int set_font(const FcChar8 *query)
 
     if (FT_Set_Char_Size(face, 0, fc_pixel_size.u.d * 72 / 96 * 64,
                 96, 96) != FT_Err_Ok) {
-        LOG("could not set the character size\n");
+        ERR("could not set the character size\n");
     }
 
     fmt_reply = xcb_render_util_query_formats(g_dpy);
     if (fmt_reply == NULL) {
-        LOG("could not query for formats\n");
+        ERR("could not query for formats\n");
         goto err;
     }
 
@@ -88,7 +88,7 @@ int set_font(const FcChar8 *query)
             XCB_PICT_STANDARD_A_8);
 
     if (a8_format == NULL) {
-        LOG("could not get the a8 standard format\n");
+        ERR("could not get the a8 standard format\n");
         goto err;
     }
 
@@ -97,7 +97,7 @@ int set_font(const FcChar8 *query)
                 xcb_render_create_glyph_set_checked(g_dpy,
                     glyphset,
                     a8_format->id)) != NULL) {
-        LOG("could not create the glyphset\n");
+        ERR("could not create the glyphset\n");
         goto err;
     }
 
@@ -127,7 +127,7 @@ xcb_render_picture_t create_pen(xcb_render_color_t color)
     fmt = xcb_render_util_find_standard_format(fmt_reply,
             XCB_PICT_STANDARD_ARGB_32);
 
-    root = g_screens[g_screen_no]->root;
+    root = SCREEN(g_screen_no)->root;
 
     pixmap = xcb_generate_id(g_dpy);
     xcb_create_pixmap(g_dpy, 32, pixmap, root, 1, 1);
@@ -195,7 +195,7 @@ void draw_text(xcb_drawable_t xcb_drawable, const FcChar8 *utf8, uint32_t len,
         error = xcb_request_check(g_dpy, xcb_render_add_glyphs_checked(g_dpy,
             g_font.glyphs, 1, &uc, &ginfo, stride * ginfo.height, tmp_bitmap));
         if (error != NULL) {
-            LOG("error adding glyph: %d\n", error->error_code);
+            ERR("error adding glyph: %d\n", error->error_code);
         }
 
         free(tmp_bitmap);
@@ -215,7 +215,7 @@ void draw_text(xcb_drawable_t xcb_drawable, const FcChar8 *utf8, uint32_t len,
                 xcb_drawable, fmt->id,
                 XCB_RENDER_CP_POLY_MODE | XCB_RENDER_CP_POLY_EDGE, g_values));
      if (error != NULL) {
-        LOG("could not create picture: %d\n", error->error_code);
+        ERR("could not create picture: %d\n", error->error_code);
         return;
     }
 

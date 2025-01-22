@@ -7,9 +7,9 @@
 
 #include <X11/keysym.h>
 #include <xcb/xcb_atom.h>
-#include <xcb/xcb_renderutil.h>
-#include <xcb/xcb_keysyms.h>
 #include <xcb/xcb_icccm.h>
+#include <xcb/xcb_keysyms.h>
+#include <xcb/xcb_renderutil.h>
 
 #include "fensterchef.h"
 #include "log.h"
@@ -29,46 +29,31 @@
                          XCB_EVENT_MASK_ENTER_WINDOW)
 
 /* xcb server connection */
-xcb_connection_t    *g_dpy;
+xcb_connection_t        *g_dpy;
 
-/* screens */
-xcb_screen_t        **g_screens;
-uint32_t            g_screen_count;
+/* ewmh information */
+xcb_ewmh_connection_t   g_ewmh;
+
 /* the screen being used */
-uint32_t            g_screen_no;
+uint32_t                g_screen_no;
 
 /* 1 while the window manager is running */
-int                 g_running;
+unsigned                g_running;
 
 /* graphis objects with the id referring to the xcb id */
-uint32_t            g_stock_objects[STOCK_COUNT];
+uint32_t                g_stock_objects[STOCK_COUNT];
 
 /* the currently used font information */
-struct font         g_font;
+struct font             g_font;
 
 /* general purpose values */
-uint32_t            g_values[6];
-
-const char          *g_atom_names[ATOM_COUNT] = {
-    [UTF8_STRING]       = "UTF8_STRING",
-
-    [WM_PROTOCOLS]      = "WM_PROTOCOLS",
-    [WM_DELETE_WINDOW]  = "WM_DELETE_WINDOW",
-
-    [NET_SUPPORTED]     = "NET_SUPPORED",
-    [NET_FULLSCREEN]    = "NET_FULLSCREEN",
-    [NET_WM_STATE]      = "NET_WM_STATE",
-    [NET_ACTIVE]        = "NET_ACTIVE",
-};
-
-/* all interned atoms */
-xcb_atom_t          g_atoms[ATOM_COUNT];
+uint32_t                g_values[6];
 
 /* user notification window */
-xcb_window_t        g_notification_window;
+xcb_window_t            g_notification_window;
 
 /* list of windows */
-xcb_window_t        g_window_list_window;
+xcb_window_t            g_window_list_window;
 
 /* Handle an incoming alarm. */
 static void alarm_handler(int sig)
@@ -94,7 +79,7 @@ static int init_stock_objects(void)
         g_stock_objects[i] = xcb_generate_id(g_dpy);
     }
 
-    screen = g_screens[g_screen_no];
+    screen = SCREEN(g_screen_no);
 
     g_values[0] = screen->black_pixel;
     g_values[1] = screen->white_pixel;
@@ -103,7 +88,7 @@ static int init_stock_objects(void)
                 screen->root,
                 XCB_GC_FOREGROUND | XCB_GC_BACKGROUND, g_values));
     if (error != NULL) {
-        LOG("could not create graphics context for notifications: %d\n",
+        ERR("could not create graphics context for notifications: %d\n",
                 error->error_code);
         return 1;
     }
@@ -115,7 +100,7 @@ static int init_stock_objects(void)
                 screen->root,
                 XCB_GC_FOREGROUND | XCB_GC_BACKGROUND, g_values));
     if (error != NULL) {
-        LOG("could not create inverted graphics context for notifications: %d\n",
+        ERR("could not create inverted graphics context for notifications: %d\n",
                 error->error_code);
         return 1;
     }
@@ -125,7 +110,7 @@ static int init_stock_objects(void)
     fmt = xcb_render_util_find_standard_format(fmt_reply,
             XCB_PICT_STANDARD_ARGB_32);
 
-    root = g_screens[g_screen_no]->root;
+    root = screen->root;
 
     /* create white pen */
     pixmap = xcb_generate_id(g_dpy);
@@ -173,12 +158,10 @@ static int init_stock_objects(void)
 /* Initialize most of fensterchef data and set root window flags. */
 int init_fensterchef(void)
 {
-    FT_Error                                    ft_error;
-    xcb_screen_iterator_t                       iter;
-    xcb_screen_t                                *screen;
-    xcb_generic_error_t                         *error;
-    xcb_intern_atom_cookie_t                    cookies[ATOM_COUNT];
-    xcb_intern_atom_reply_t                     *reply;
+    xcb_intern_atom_cookie_t    *cookies;
+    FT_Error                    ft_error;
+    xcb_screen_t                *screen;
+    xcb_generic_error_t         *error;
 
     if ((void*) LOG_FILE == (void*) stderr) {
         g_log_file = stderr;
@@ -191,13 +174,24 @@ int init_fensterchef(void)
 
     g_dpy = xcb_connect(NULL, NULL);
     if (xcb_connection_has_error(g_dpy) > 0) {
-        LOG("could not create xcb connection\n");
+        ERR("could not create xcb connection\n");
         fclose(g_log_file);
         exit(1);
     }
 
+    cookies = xcb_ewmh_init_atoms(g_dpy, &g_ewmh);
+    if (!xcb_ewmh_init_atoms_replies(&g_ewmh, cookies, NULL)) {
+        ERR("could not set up ewmh\n");
+        fclose(g_log_file);
+        exit(1);
+    }
+
+#ifdef DEBUG
+    log_screens();
+#endif
+
     if (FcInit() == FcFalse) {
-        LOG("could not initialize fontconfig\n");
+        ERR("could not initialize fontconfig\n");
         xcb_disconnect(g_dpy);
         fclose(g_log_file);
         exit(1);
@@ -205,48 +199,15 @@ int init_fensterchef(void)
 
     ft_error = FT_Init_FreeType(&g_font.library);
     if (ft_error != FT_Err_Ok) {
-        LOG("could not initialize freetype: 0x%x\n", ft_error);
+        ERR("could not initialize freetype: 0x%x\n", ft_error);
         FcFini();
         xcb_disconnect(g_dpy);
         fclose(g_log_file);
         exit(1);
     }
 
-    iter = xcb_setup_roots_iterator(xcb_get_setup(g_dpy));
-    RESIZE(g_screens, iter.rem);
-    g_screen_count = 0;
-    for (; iter.rem > 0; xcb_screen_next(&iter)) {
-        g_screens[g_screen_count++] = iter.data;
-    }
-
-    if (g_screen_count == 0) {
-        LOG("no screens to attach to\n");
-        return 1;
-    }
-
     g_screen_no = 0;
-    screen = g_screens[g_screen_no];
-
-    for (uint32_t i = 0; i < ATOM_COUNT; i++) {
-        cookies[i] = xcb_intern_atom(g_dpy, 0,
-                strlen(g_atom_names[i]), g_atom_names[i]);
-    }
-
-    for (uint32_t i = 0; i < ATOM_COUNT; i++) {
-        reply = xcb_intern_atom_reply(g_dpy, cookies[i], NULL);
-        if (reply == NULL) {
-            LOG("failed interning %s\n", g_atom_names[i]);
-        } else {
-            LOG("interned atom %s : %" PRId32 "\n", g_atom_names[i],
-                    reply->atom);
-            g_atoms[i] = reply->atom;
-            free(reply);
-        }
-    }
-
-    xcb_change_property(g_dpy, XCB_PROP_MODE_REPLACE, screen->root,
-            g_atoms[NET_SUPPORTED], XCB_ATOM_ATOM, 32,
-            ATOM_COUNT - FIRST_NET_ATOM, &g_atoms[FIRST_NET_ATOM]);
+    screen = SCREEN(g_screen_no);
 
     g_frame_capacity = 10;
     g_frames = xmalloc(sizeof(*g_frames) * g_frame_capacity);
@@ -264,7 +225,7 @@ int init_fensterchef(void)
             xcb_change_window_attributes_checked(g_dpy, screen->root,
                 XCB_CW_EVENT_MASK, g_values));
     if (error != NULL) {
-        LOG("could not change root window mask: %d\n", error->error_code);
+        ERR("could not change root window mask: %d\n", error->error_code);
         return 1;
     }
 
@@ -280,13 +241,13 @@ int init_fensterchef(void)
                 XCB_WINDOW_CLASS_COPY_FROM_PARENT, XCB_COPY_FROM_PARENT,
                 XCB_CW_BORDER_PIXEL, g_values));
     if (error != NULL) {
-        LOG("could not create notification window: %d\n", error->error_code);
+        ERR("could not create notification window: %d\n", error->error_code);
         return 1;
     }
 
     g_window_list_window = xcb_generate_id(g_dpy);
     g_values[0] = 0x000000;
-    g_values[1] = XCB_EVENT_MASK_KEY_PRESS | XCB_EVENT_MASK_BUTTON_PRESS;
+    g_values[1] = XCB_EVENT_MASK_KEY_PRESS;
     error = xcb_request_check(g_dpy, xcb_create_window_checked(g_dpy,
                 XCB_COPY_FROM_PARENT, g_window_list_window,
                 screen->root, -1, -1, 1, 1, 0,
@@ -375,8 +336,7 @@ void handle_event(xcb_generic_event_t *event)
     Window                          *window;
 
 #ifdef DEBUG
-    log_event(event, g_log_file);
-    fputc('\n', g_log_file);
+    log_event(event);
 #endif
 
     switch ((event->response_type & ~0x80)) {
@@ -399,9 +359,10 @@ void handle_event(xcb_generic_event_t *event)
         }
         old_x = button_event->root_x;
         old_y = button_event->root_y;
-        xcb_grab_pointer(g_dpy, 0, g_screens[g_screen_no]->root,
+        xcb_window = SCREEN(g_screen_no)->root;
+        xcb_grab_pointer(g_dpy, 0, xcb_window,
                 XCB_EVENT_MASK_BUTTON_RELEASE | XCB_EVENT_MASK_BUTTON_MOTION,
-                XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC, g_screens[g_screen_no]->root,
+                XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC, xcb_window,
                 XCB_NONE, XCB_CURRENT_TIME);
         break;
 
@@ -438,11 +399,7 @@ void handle_event(xcb_generic_event_t *event)
         } else if (notify_event->atom == XCB_ATOM_WM_NORMAL_HINTS) {
             update_window_size_hints(window);
         }
-        if (window->state == WINDOW_STATE_SHOWN && predict_popup(window)) {
-            set_window_state(window, WINDOW_STATE_POPUP, 0);
-        } else if (window->state == WINDOW_STATE_POPUP) {
-            set_window_state(window, WINDOW_STATE_SHOWN, 0);
-        }
+        set_window_state(window, predict_window_state(window), 0);
         break;
 
     case XCB_UNMAP_NOTIFY:

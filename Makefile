@@ -1,10 +1,10 @@
 # Compiler flags
 DEBUG_FLAGS := -DDEBUG -DLOG_FILE=\"/tmp/fensterchef-log.txt\" -g -fsanitize=address
-C_FLAGS := -Wall -Wextra -Wpedantic -Werror
+C_FLAGS := -Wall -Wextra -Wpedantic -Werror -Wno-format-zero-length
 RELEASE_FLAGS := -O3
 
 # Libs
-C_LIBS := $(shell pkg-config --libs xcb xcb-icccm xcb-keysyms xcb-event xcb-render xcb-renderutil freetype2 fontconfig)
+C_LIBS := $(shell pkg-config --libs xcb xcb-ewmh xcb-icccm xcb-keysyms xcb-event xcb-render xcb-renderutil freetype2 fontconfig)
 
 # Input
 SRC := src

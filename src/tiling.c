@@ -143,6 +143,7 @@ int remove_leaf_frame(Frame frame)
     Frame       parent, left, right;
     int32_t     center_x, center_y;
     int32_t     parent_x, parent_y, parent_width, parent_height;
+    Window      *hide_window;
     uint32_t    *shifts;
 
     if (frame == 0) {
@@ -152,19 +153,17 @@ int remove_leaf_frame(Frame frame)
 
     parent = PARENT_FRAME(frame);
 
-    center_x = g_frames[parent].x + g_frames[parent].width / 2;
-    center_y = g_frames[parent].y + g_frames[parent].height / 2;
-
-    if (g_frames[frame].window != NULL) {
-        set_window_state(g_frames[frame].window, WINDOW_STATE_HIDDEN, 1);
-    }
-    g_frames[frame].window = WINDOW_SENTINEL;
-
     /* preserve parent size */
     parent_x = g_frames[parent].x;
     parent_y = g_frames[parent].y;
     parent_width = g_frames[parent].width;
     parent_height = g_frames[parent].height;
+
+    center_x = parent_x + parent_width / 2;
+    center_y = parent_y + parent_height / 2;
+
+    hide_window = g_frames[frame].window;
+    g_frames[frame].window = WINDOW_SENTINEL;
 
     left = LEFT_FRAME(parent);
     right = RIGHT_FRAME(parent);
@@ -186,6 +185,12 @@ int remove_leaf_frame(Frame frame)
     resize_frame(parent, parent_x, parent_y, parent_width, parent_height);
 
     LOG("frame %" PRId32 " was removed\n", frame);
+
+    if (hide_window != NULL) {
+        hide_window->state = WINDOW_STATE_HIDDEN;
+        hide_window->focused = 0;
+        xcb_unmap_window(g_dpy, hide_window->xcb_window);
+    }
 
     set_focus_frame(get_frame_at_position(center_x, center_y));
     return 0;

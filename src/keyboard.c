@@ -21,6 +21,8 @@ static struct {
         ACTION_CHANGE_WINDOW_STATE },
     { XCB_MOD_MASK_1, XK_space, ACTION_CHANGE_FOCUS },
 
+    { XCB_MOD_MASK_1, XK_f, ACTION_TOGGLE_FULLSCREEN },
+
     { XCB_MOD_MASK_1, XK_v, ACTION_SPLIT_HORIZONTALLY },
     { XCB_MOD_MASK_1, XK_s, ACTION_SPLIT_VERTICALLY },
 
@@ -55,7 +57,7 @@ int setup_keys(void)
     if (keysyms == NULL) {
         return 1;
     }
-    screen = g_screens[g_screen_no];
+    screen = SCREEN(g_screen_no);
     xcb_ungrab_key(g_dpy, XCB_GRAB_ANY, screen->root, XCB_MOD_MASK_ANY);
     for (uint32_t i = 0; i < SIZE(key_binds); i++) {
         keycode = get_keycodes(key_binds[i].keysym);
@@ -83,5 +85,5 @@ void handle_key_press(xcb_key_press_event_t *event)
             return;
         }
     }
-    LOG("trash keybind: %d\n", keysym);
+    ERR("trash keybind: %d\n", keysym);
 }

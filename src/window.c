@@ -46,11 +46,7 @@ Window *create_window(xcb_window_t xcb_window)
     update_window_name(window);
     update_window_size_hints(window);
 
-    if (predict_popup(window)) {
-        set_window_state(window, WINDOW_STATE_POPUP, 1);
-    } else {
-        set_window_state(window, WINDOW_STATE_SHOWN, 1);
-    }
+    set_window_state(window, predict_window_state(window), 0);
 
     LOG("created new window %" PRIu32 "\n", window->number);
     return window;

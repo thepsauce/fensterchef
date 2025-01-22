@@ -2,8 +2,8 @@
 
 #include "fensterchef.h"
 #include "frame.h"
-#include "util.h"
 #include "log.h"
+#include "util.h"
 #include "xalloc.h"
 
 /* list of frames */

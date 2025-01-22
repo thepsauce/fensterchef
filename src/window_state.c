@@ -1,5 +1,4 @@
 #include <inttypes.h>
-#include <signal.h>
 
 #include "fensterchef.h"
 #include "frame.h"
@@ -15,18 +14,24 @@
 
 static void transition_hidden_shown(Window *window);
 static void transition_hidden_popup(Window *window);
+static void transition_hidden_fullscreen(Window *window);
 
 static void transition_shown_hidden(Window *window);
 static void transition_shown_popup(Window *window);
+static void transition_shown_fullscreen(Window *window);
 
 static void transition_popup_hidden(Window *window);
 static void transition_popup_shown(Window *window);
+static void transition_popup_fullscreen(Window *window);
 
-static void (*transitions[4][4])(Window *window) = {
+static void transition_fullscreen_popup(Window *window);
+
+static void (*transitions[5][5])(Window *window) = {
     [WINDOW_STATE_HIDDEN][WINDOW_STATE_HIDDEN] = NULL,
     [WINDOW_STATE_HIDDEN][WINDOW_STATE_SHOWN] = transition_hidden_shown,
     [WINDOW_STATE_HIDDEN][WINDOW_STATE_POPUP] = transition_hidden_popup,
     [WINDOW_STATE_HIDDEN][WINDOW_STATE_IGNORE] = NULL,
+    [WINDOW_STATE_HIDDEN][WINDOW_STATE_FULLSCREEN] = transition_hidden_fullscreen,
 
     [WINDOW_STATE_SHOWN][WINDOW_STATE_HIDDEN] = transition_shown_hidden,
     [WINDOW_STATE_SHOWN][WINDOW_STATE_SHOWN] = NULL,
@@ -34,6 +39,7 @@ static void (*transitions[4][4])(Window *window) = {
                                             /* same as transition from shown to
                                              * hidden */
     [WINDOW_STATE_SHOWN][WINDOW_STATE_IGNORE] = transition_shown_hidden,
+    [WINDOW_STATE_SHOWN][WINDOW_STATE_FULLSCREEN] = transition_shown_fullscreen,
 
     [WINDOW_STATE_POPUP][WINDOW_STATE_HIDDEN] = transition_popup_hidden,
     [WINDOW_STATE_POPUP][WINDOW_STATE_SHOWN] = transition_popup_shown,
@@ -41,35 +47,43 @@ static void (*transitions[4][4])(Window *window) = {
                                             /* same as transition from popup to
                                              * hidden */
     [WINDOW_STATE_POPUP][WINDOW_STATE_IGNORE] = transition_popup_hidden,
+    [WINDOW_STATE_POPUP][WINDOW_STATE_FULLSCREEN] = transition_popup_fullscreen,
 
     [WINDOW_STATE_IGNORE][WINDOW_STATE_HIDDEN] = NULL,
-                                            /* same as transition from hidden */
+                                            /* same transitions from hidden */
     [WINDOW_STATE_IGNORE][WINDOW_STATE_SHOWN] = transition_hidden_shown,
     [WINDOW_STATE_IGNORE][WINDOW_STATE_POPUP] = transition_hidden_popup,
     [WINDOW_STATE_IGNORE][WINDOW_STATE_IGNORE] = NULL,
+    [WINDOW_STATE_IGNORE][WINDOW_STATE_FULLSCREEN] = transition_hidden_fullscreen,
+
+                                            /* most transitions are the same as
+                                             * for popups */
+    [WINDOW_STATE_FULLSCREEN][WINDOW_STATE_HIDDEN] = transition_popup_hidden,
+    [WINDOW_STATE_FULLSCREEN][WINDOW_STATE_SHOWN] = transition_popup_shown,
+    [WINDOW_STATE_FULLSCREEN][WINDOW_STATE_POPUP] = transition_fullscreen_popup,
+    [WINDOW_STATE_FULLSCREEN][WINDOW_STATE_IGNORE] = transition_popup_hidden,
+    [WINDOW_STATE_FULLSCREEN][WINDOW_STATE_FULLSCREEN] = NULL,
 };
 
-/* Update the short_title of the window according to the X11 name. */
+/* Update the short_title of the window. */
 void update_window_name(Window *window)
 {
-    xcb_get_property_cookie_t   name_cookie;
-    xcb_get_property_reply_t    *name_reply;
+    xcb_get_property_cookie_t           name_cookie;
+    xcb_ewmh_get_utf8_strings_reply_t   data;
 
-    name_cookie = xcb_get_property(g_dpy, 0, window->xcb_window, XCB_ATOM_WM_NAME,
-            UTF8_STRING, 0, (sizeof(window->short_title) >> 2) + 1);
+    name_cookie = xcb_ewmh_get_wm_name(&g_ewmh, window->xcb_window);
 
-    name_reply = xcb_get_property_reply(g_dpy, name_cookie, NULL);
+    xcb_ewmh_get_wm_name_reply(&g_ewmh, name_cookie, &data, NULL);
+
     snprintf((char*) window->short_title, sizeof(window->short_title),
         "%" PRId32 "-%.*s",
             window->number,
-            name_reply == NULL ? 0 :
-                xcb_get_property_value_length(name_reply),
-            name_reply == NULL ? "" :
-                (char*) xcb_get_property_value(name_reply));
-    free(name_reply);
+            (int) MIN(data.strings_len, (uint32_t) INT_MAX), data.strings);
+
+    xcb_ewmh_get_utf8_strings_reply_wipe(&data);
 }
 
-/* Update the size_hints of the window according to the X11 name. */
+/* Update the size_hints of the window. */
 void update_window_size_hints(Window *window)
 {
     xcb_get_property_cookie_t   size_hints_cookie;
@@ -83,20 +97,49 @@ void update_window_size_hints(Window *window)
 }
 
 /* Predicts whether the window should be a popup window. */
-unsigned predict_popup(Window *window)
+unsigned predict_window_state(Window *window)
 {
-    xcb_window_t transient;
+    xcb_window_t                transient;
+    xcb_get_property_cookie_t   state_cookie;
+    xcb_get_property_reply_t    *state_reply;
+    xcb_atom_t                  *atoms;
+    int                         num_atoms;
 
     if (!xcb_icccm_get_wm_transient_for_reply(g_dpy,
             xcb_icccm_get_wm_transient_for_unchecked(g_dpy, window->xcb_window),
             &transient, NULL) || transient == 0) {
-        if (window->size_hints.min_width != 0 && window->size_hints.max_width != 0 &&
-                window->size_hints.min_width == window->size_hints.max_width) {
-            return 1;
+        if ((window->size_hints.flags & (XCB_ICCCM_SIZE_HINT_P_MAX_SIZE |
+                        XCB_ICCCM_SIZE_HINT_P_MIN_SIZE)) ==
+                (XCB_ICCCM_SIZE_HINT_P_MAX_SIZE |
+                        XCB_ICCCM_SIZE_HINT_P_MIN_SIZE)) {
+            if (window->size_hints.min_width == window->size_hints.max_width) {
+                return WINDOW_STATE_POPUP;
+            }
         }
-        return 0;
+
+        state_cookie = xcb_get_property(g_dpy, 0, window->xcb_window,
+                g_ewmh._NET_WM_STATE, XCB_GET_PROPERTY_TYPE_ANY, 0, UINT32_MAX);
+        state_reply = xcb_get_property_reply(g_dpy, state_cookie, NULL);
+        if (state_reply == NULL) {
+            return WINDOW_STATE_SHOWN;
+        }
+
+        atoms = xcb_get_property_value(state_reply);
+        num_atoms = xcb_get_property_value_length(state_reply);
+        if (atoms != NULL && num_atoms > 0) {
+            num_atoms /= state_reply->format / 8;
+            for (int i = 0; i < num_atoms; i++) {
+                if (atoms[i] == g_ewmh._NET_WM_STATE_FULLSCREEN) {
+                    free(state_reply);
+                    return WINDOW_STATE_FULLSCREEN;
+                }
+            }
+        }
+
+        free(state_reply);
+        return WINDOW_STATE_SHOWN;
     }
-    return 1;
+    return WINDOW_STATE_POPUP;
 }
 
 /* Set the window size and position according to the size hints. */
@@ -104,34 +147,42 @@ static void configure_popup_size(Window *window)
 {
     xcb_screen_t *screen;
 
-    screen = g_screens[g_screen_no];
+    screen = SCREEN(g_screen_no);
 
-    if ((window->size_hints.flags & XCB_ICCCM_SIZE_HINT_US_SIZE)) {
-        g_values[2] = window->size_hints.width;
-        g_values[3] = window->size_hints.height;
+    if (window->popup_width == 0) {
+        if ((window->size_hints.flags & XCB_ICCCM_SIZE_HINT_US_SIZE)) {
+            g_values[2] = window->size_hints.width;
+            g_values[3] = window->size_hints.height;
+        } else {
+            g_values[2] = screen->width_in_pixels * 2 / 3;
+            g_values[3] = screen->height_in_pixels * 2 / 3;
+        }
+
+        if ((window->size_hints.flags & XCB_ICCCM_SIZE_HINT_US_POSITION)) {
+            g_values[0] = window->size_hints.x;
+            g_values[1] = window->size_hints.y;
+        } else {
+            g_values[0] = (screen->width_in_pixels - g_values[2]) / 2;
+            g_values[1] = (screen->height_in_pixels - g_values[3]) / 2;
+        }
+
+        if ((window->size_hints.flags & XCB_ICCCM_SIZE_HINT_P_MIN_SIZE)) {
+            g_values[2] = MAX(g_values[2], (uint32_t) window->size_hints.min_width);
+            g_values[3] = MAX(g_values[3],
+                    (uint32_t) window->size_hints.min_height);
+        }
+
+        if ((window->size_hints.flags & XCB_ICCCM_SIZE_HINT_P_MAX_SIZE)) {
+            g_values[2] = MIN(g_values[2], (uint32_t) window->size_hints.max_width);
+            g_values[3] = MIN(g_values[3],
+                    (uint32_t) window->size_hints.max_height);
+        }
+
+        window->popup_width = g_values[2];
+        window->popup_height = g_values[3];
     } else {
-        g_values[2] = screen->width_in_pixels * 2 / 3;
-        g_values[3] = screen->height_in_pixels * 2 / 3;
-    }
-
-    if ((window->size_hints.flags & XCB_ICCCM_SIZE_HINT_US_POSITION)) {
-        g_values[0] = window->size_hints.x;
-        g_values[1] = window->size_hints.y;
-    } else {
-        g_values[0] = (screen->width_in_pixels - g_values[2]) / 2;
-        g_values[1] = (screen->height_in_pixels - g_values[3]) / 2;
-    }
-
-    if ((window->size_hints.flags & XCB_ICCCM_SIZE_HINT_P_MIN_SIZE)) {
-        g_values[2] = MAX(g_values[2], (uint32_t) window->size_hints.min_width);
-        g_values[3] = MAX(g_values[3],
-                (uint32_t) window->size_hints.min_height);
-    }
-
-    if ((window->size_hints.flags & XCB_ICCCM_SIZE_HINT_P_MAX_SIZE)) {
-        g_values[2] = MIN(g_values[2], (uint32_t) window->size_hints.max_width);
-        g_values[3] = MIN(g_values[3],
-                (uint32_t) window->size_hints.max_height);
+        g_values[2] = window->popup_width;
+        g_values[3] = window->popup_width;
     }
 
     if ((window->size_hints.flags & XCB_ICCCM_SIZE_HINT_P_WIN_GRAVITY)) {
@@ -185,6 +236,22 @@ static void configure_popup_size(Window *window)
             XCB_CONFIG_SIZE | XCB_CONFIG_WINDOW_STACK_MODE, g_values);
 }
 
+/* Sets the position and size of the window to fullscreen. */
+static void configure_fullscreen_size(Window *window)
+{
+    xcb_screen_t *screen;
+
+    screen = SCREEN(g_screen_no);
+
+    g_values[0] = 0;
+    g_values[1] = 0;
+    g_values[2] = screen->width_in_pixels;
+    g_values[3] = screen->height_in_pixels;
+    g_values[4] = XCB_STACK_MODE_ABOVE;
+    xcb_configure_window(g_dpy, window->xcb_window,
+            XCB_CONFIG_SIZE | XCB_CONFIG_WINDOW_STACK_MODE, g_values);
+}
+
 static void transition_hidden_shown(Window *window)
 {
     Window *old_window;
@@ -209,6 +276,12 @@ static void transition_hidden_popup(Window *window)
     xcb_map_window(g_dpy, window->xcb_window);
 }
 
+static void transition_hidden_fullscreen(Window *window)
+{
+    configure_fullscreen_size(window);
+    xcb_map_window(g_dpy, window->xcb_window);
+}
+
 static void transition_shown_hidden(Window *window)
 {
     Frame   frame;
@@ -216,9 +289,8 @@ static void transition_shown_hidden(Window *window)
 
     frame = get_frame_of_window(window);
     next = get_next_hidden_window(window);
+    g_frames[frame].window = next;
     if (next != NULL) {
-        g_frames[frame].window = next;
-
         reload_frame(frame);
 
         next->state = WINDOW_STATE_SHOWN;
@@ -255,6 +327,24 @@ static void transition_shown_popup(Window *window)
     configure_popup_size(window);
 }
 
+static void transition_shown_fullscreen(Window *window)
+{
+    Frame   frame;
+    Window  *next;
+
+    frame = get_frame_of_window(window);
+    next = get_next_hidden_window(window);
+    g_frames[frame].window = next;
+    if (next != NULL) {
+        reload_frame(frame);
+
+        next->state = WINDOW_STATE_SHOWN;
+
+        xcb_map_window(g_dpy, next->xcb_window);
+    }
+    configure_fullscreen_size(window);
+}
+
 static void transition_popup_hidden(Window *window)
 {
     xcb_unmap_window(g_dpy, window->xcb_window);
@@ -276,6 +366,16 @@ static void transition_popup_shown(Window *window)
     }
 }
 
+static void transition_popup_fullscreen(Window *window)
+{
+    configure_fullscreen_size(window);
+}
+
+static void transition_fullscreen_popup(Window *window)
+{
+    configure_popup_size(window);
+}
+
 /* Changes the window state to given value and reconfigures the window only
  * if the state changed. */
 void set_window_state(Window *window, unsigned state, unsigned force)
@@ -293,5 +393,6 @@ void set_window_state(Window *window, unsigned state, unsigned force)
     LOG("state of window %" PRIu32 " changed to %u\n",
             window->number, state);
 
+    window->prev_state = window->state;
     window->state = state;
 }
