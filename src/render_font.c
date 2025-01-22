@@ -127,7 +127,7 @@ xcb_render_picture_t create_pen(xcb_render_color_t color)
     fmt = xcb_render_util_find_standard_format(fmt_reply,
             XCB_PICT_STANDARD_ARGB_32);
 
-    root = g_screens[g_screen_no]->root;
+    root = SCREEN(g_screen_no)->root;
 
     pixmap = xcb_generate_id(g_dpy);
     xcb_create_pixmap(g_dpy, 32, pixmap, root, 1, 1);

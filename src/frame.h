@@ -14,12 +14,14 @@
 /* an invalid window pointer */
 #define WINDOW_SENTINEL ((Window*) -1)
 
+/* all possible window states */
 #define WINDOW_STATE_HIDDEN 0
 #define WINDOW_STATE_SHOWN 1
 #define WINDOW_STATE_POPUP 2
 #define WINDOW_STATE_IGNORE 3
+#define WINDOW_STATE_FULLSCREEN 4
 
-/* A window is a wrapper around and xcb window, it is always part of a global
+/* A window is a wrapper around an xcb window, it is always part of a global
  * linked list and has a unique id.
  *
  * A window may be in different states:
@@ -36,8 +38,13 @@ typedef struct window {
     xcb_size_hints_t size_hints;
     /* short window title */
     FcChar8 short_title[256];
-    /* if the window is visible, hidden, a popup or ignored */
-    unsigned state : 2;
+    /* saved window when it was in popup state */
+    uint32_t popup_width;
+    uint32_t popup_height;
+    /* the window state, one of WINDOW_STATE_* */
+    unsigned state : 3;
+    /* the previous window state */
+    unsigned prev_state : 3;
     /* if the user forced this window to be a certain state */
     unsigned forced_state : 1;
     /* if the window has focus */
@@ -161,17 +168,18 @@ Window *get_previous_hidden_window(Window *window);
 
 /* -- Implemented in popup.c -- */
 
-/* Update the short_title of the window according to the X11 name.
+/* Update the short_title of the window.
  */
 void update_window_name(Window *window);
 
-/* Update the size_hints of the window according to the X11 name.
+/* Update the size_hints of the window.
  */
 void update_window_size_hints(Window *window);
 
-/* Predicts whether the window should be a popup window.
+/* Predicts what state the window is expected to be in based on the X11
+ * properties.
  */
-unsigned predict_popup(Window *window);
+unsigned predict_window_state(Window *window);
 
 /* Changes the state to given value and reconfigures the window.
  *
@@ -200,6 +208,7 @@ int remove_leaf_frame(Frame frame);
 void set_focus_frame(Frame frame);
 
 /* Checks if the given point is within the given frame.
+ *
  * @return 1 if the point is inside the frame, 0 otherwise */
 int is_point_in_frame(Frame frame, int32_t x, int32_t y);
 

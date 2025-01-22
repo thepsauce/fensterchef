@@ -4,8 +4,9 @@
 #include <fontconfig/fontconfig.h>
 #include <freetype2/freetype/freetype.h>
 
-#include <xcb/xcb.h>
 #include <xcb/render.h>
+#include <xcb/xcb.h>
+#include <xcb/xcb_ewmh.h>
 
 #include <stdio.h>
 
@@ -22,17 +23,19 @@
 
 #define UTF8_TEXT(text) ((FcChar8*) (text))
 
-/* xcb server connection */
-extern xcb_connection_t     *g_dpy;
+#define SCREEN(no) (g_ewmh.screens[no])
 
-/* screens */
-extern xcb_screen_t         **g_screens;
-extern uint32_t             g_screen_count;
+/* xcb server connection */
+extern xcb_connection_t         *g_dpy;
+
+/* ewmh information */
+extern xcb_ewmh_connection_t    g_ewmh;
+
 /* the screen being used */
-extern uint32_t             g_screen_no;
+extern uint32_t                 g_screen_no;
 
 /* 1 while the window manager is running */
-extern int                  g_running;
+extern unsigned                 g_running;
 
 enum {
     STOCK_WHITE_PEN,
@@ -43,7 +46,7 @@ enum {
 };
 
 /* graphis objects with the id referring to the xcb id */
-extern uint32_t             g_stock_objects[STOCK_COUNT];
+extern uint32_t                 g_stock_objects[STOCK_COUNT];
 
 /* the currently used font information */
 extern struct font {
@@ -53,40 +56,16 @@ extern struct font {
     FT_Face face;
     /* the glyphset containing cached glyphs */
     xcb_render_glyphset_t glyphs;
-}                           g_font;
+}                               g_font;
 
 /* general purpose values */
-extern uint32_t             g_values[6];
-
-enum {
-    UTF8_STRING,
-
-    WM_PROTOCOLS,
-    WM_DELETE_WINDOW,
-
-    FIRST_NET_ATOM,
-    NET_SUPPORTED = FIRST_NET_ATOM,
-    NET_FULLSCREEN,
-    NET_WM_STATE,
-    NET_ACTIVE,
-
-    ATOM_COUNT,
-};
-
-/* string names of the atoms */
-extern const char           *g_atom_names[ATOM_COUNT];
-
-/* all interned atoms */
-extern xcb_atom_t           g_atoms[ATOM_COUNT];
+extern uint32_t                 g_values[6];
 
 /* user notification window */
-extern xcb_window_t         g_notification_window;
+extern xcb_window_t             g_notification_window;
 
 /* list of windows */
-extern xcb_window_t         g_window_list_window;
-
-/* Initialize the screens. */
-void init_screens(void);
+extern xcb_window_t             g_window_list_window;
 
 /* Initialize most of fensterchef data and set root window flags. */
 int init_fensterchef(void);

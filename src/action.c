@@ -90,6 +90,15 @@ void do_action(int action)
         }
         break;
 
+    case ACTION_TOGGLE_FULLSCREEN:
+        window = get_focus_window();
+        if (window != NULL) {
+            /* TODO: maybe use saved old state? */
+            set_window_state(window, window->state == WINDOW_STATE_FULLSCREEN ?
+                    WINDOW_STATE_POPUP : WINDOW_STATE_FULLSCREEN, 1);
+        }
+        break;
+
     case ACTION_SPLIT_HORIZONTALLY:
         split_frame(g_cur_frame, 0);
         break;
@@ -143,7 +152,7 @@ void do_action(int action)
                 set_focus_frame(get_frame_of_window(window));
                 break;
             case WINDOW_STATE_POPUP:
-                /* TODO: figure this out */
+            case WINDOW_STATE_FULLSCREEN:
                 g_values[0] = XCB_STACK_MODE_ABOVE;
                 xcb_configure_window(g_dpy, window->xcb_window,
                     XCB_CONFIG_WINDOW_STACK_MODE, g_values);

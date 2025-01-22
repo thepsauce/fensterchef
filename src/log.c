@@ -417,9 +417,9 @@ void log_screens(void)
     xcb_screen_t            *screen;
 
     LOG("");
-    fprintf(g_log_file, "Have %u screen(s):\n", g_screen_count);
-    for (int i = 0; i < g_screen_count; i++) {
-        screen = g_screens[i];
+    fprintf(g_log_file, "Have %u screen(s):\n", g_ewmh.nb_screens);
+    for (int i = 0; i < g_ewmh.nb_screens; i++) {
+        screen = SCREEN(i);
         fprintf(g_log_file, "Screen %u ; %u:\n", i, screen->root);
         fprintf(g_log_file, "  width.........: %u\n", screen->width_in_pixels);
         fprintf(g_log_file, "  height........: %u\n", screen->height_in_pixels);

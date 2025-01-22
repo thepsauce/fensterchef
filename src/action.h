@@ -12,6 +12,8 @@ enum {
     ACTION_CHANGE_WINDOW_STATE,
     /* changes from focusing a popup window to focusing a tiling window */
     ACTION_CHANGE_FOCUS,
+    /* toggles the fullscreen state of the currently focused window */
+    ACTION_TOGGLE_FULLSCREEN,
     /* ... */
     ACTION_REMOVE_FRAME,
     /* ... */

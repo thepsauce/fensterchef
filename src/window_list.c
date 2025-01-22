@@ -35,7 +35,7 @@ static int render_window_list(Window *selected)
         return 1;
     }
 
-    screen = g_screens[g_screen_no];
+    screen = SCREEN(g_screen_no);
     /* TODO: show window on current monitor */
     g_values[0] = screen->width_in_pixels - max_width -
         WINDOW_PADDING / 2;
@@ -68,14 +68,18 @@ static int render_window_list(Window *selected)
             bg_color.green = 0xff00;
             bg_color.blue = 0xff00;
         }
+
         marker_char = w->short_title;
         while (isdigit(marker_char[0])) {
             marker_char++;
         }
-        marker_char[0] = w->state == WINDOW_STATE_POPUP && w->focused ? '#' :
+        marker_char[0] = w->state == WINDOW_STATE_POPUP ?
+                    (w->focused ? '#' : '=') :
+                w->state == WINDOW_STATE_FULLSCREEN ?
+                    (w->focused ? '@' : 'F') :
                 w->focused ? '*' :
-                w->state == WINDOW_STATE_POPUP ? '=' :
                 w->state == WINDOW_STATE_SHOWN ? '+' : '-',
+
         draw_text(g_window_list_window, w->short_title,
                 strlen((char*) w->short_title), bg_color, &rect,
                 pen, WINDOW_PADDING / 2,
@@ -141,10 +145,6 @@ static inline Window *handle_window_list_events(Window *selected,
                 }
                 break;
 
-            case XCB_BUTTON_PRESS:
-                /* TODO: mouse support */
-                break;
-
             case XCB_DESTROY_NOTIFY:
                 window = get_window_of_xcb_window(
                         ((xcb_unmap_notify_event_t*) event)->window);
@@ -188,7 +188,7 @@ Window *select_window_from_list(void)
     Window                          *old_focus;
     Window                          *window;
 
-    screen = g_screens[g_screen_no];
+    screen = SCREEN(g_screen_no);
     if (g_first_window == NULL) {
         set_notification((FcChar8*) "No managed windows",
                 screen->width_in_pixels / 2, screen->height_in_pixels / 2);
