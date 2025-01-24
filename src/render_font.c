@@ -5,6 +5,48 @@
 #include "utf8.h"
 #include "xalloc.h"
 
+struct font {
+    FT_Library library;
+    FT_Face face;
+    xcb_render_glyphset_t glyphset;
+} font;
+
+/* Free all data used by the font besides the FT library handle. */
+static void free_font(void)
+{
+    FT_Done_Face(font.face);
+    xcb_render_free_glyph_set(g_dpy, font.glyphset);
+}
+
+/* Initializes all parts needed for drawing fonts. */
+int init_font_drawing(void)
+{
+    FT_Error error;
+
+    error = FT_Init_FreeType(&font.library);
+    if (error != 0) {
+        ERR("could not initialize freetype: %u\n", error);
+        return 1;
+    }
+
+    if (FcInit() == FcFalse) {
+        ERR("could not initialize freetype: %u\n", error);
+        FT_Done_FreeType(font.library);
+        return 1;
+    }
+
+    return 0;
+}
+
+/* Frees all resources associated to font rendering. */
+void deinit_font_drawing(void)
+{
+    free_font();
+    FT_Done_FreeType(font.library);
+    FcFini();
+}
+
+/* This sets the globally used font for rendering. */
 int set_font(const FcChar8 *query)
 {
     FcBool      status;
@@ -51,7 +93,7 @@ int set_font(const FcChar8 *query)
         fc_index.u.i = 0;
     }
 
-    ft_error = FT_New_Face(g_font.library, (const char*) fc_file.u.s, fc_index.u.i,
+    ft_error = FT_New_Face(font.library, (const char*) fc_file.u.s, fc_index.u.i,
             &face);
     if (ft_error != FT_Err_Ok) {
         ERR("could not not create the new freetype face: %d\n", ft_error);
@@ -103,8 +145,8 @@ int set_font(const FcChar8 *query)
 
     LOG("switched to font '%s'\n", (char*) query);
 
-    g_font.face = face;
-    g_font.glyphs = glyphset;
+    font.face = face;
+    font.glyphset = glyphset;
     return 0;
 
 err:
@@ -148,6 +190,7 @@ xcb_render_picture_t create_pen(xcb_render_color_t color)
     return picture;
 }
 
+/* This draws text to a given drawable using the current font. */
 void draw_text(xcb_drawable_t xcb_drawable, const FcChar8 *utf8, uint32_t len,
         xcb_render_color_t background_color, xcb_rectangle_t *rect,
         xcb_render_picture_t foreground, int32_t x, int32_t y)
@@ -170,19 +213,19 @@ void draw_text(xcb_drawable_t xcb_drawable, const FcChar8 *utf8, uint32_t len,
         U8_NEXT(utf8, i, len, uc);
         num_glyphs++;
         /* TODO: give font multiple faces */
-        if (FT_Load_Char(g_font.face, uc, FT_LOAD_RENDER |
+        if (FT_Load_Char(font.face, uc, FT_LOAD_RENDER |
                 FT_LOAD_FORCE_AUTOHINT) != 0) {
             continue;
         }
 
-        bitmap = &g_font.face->glyph->bitmap;
+        bitmap = &font.face->glyph->bitmap;
 
-        ginfo.x = -g_font.face->glyph->bitmap_left;
-        ginfo.y = g_font.face->glyph->bitmap_top;
+        ginfo.x = -font.face->glyph->bitmap_left;
+        ginfo.y = font.face->glyph->bitmap_top;
         ginfo.width = bitmap->width;
         ginfo.height = bitmap->rows;
-        ginfo.x_off = g_font.face->glyph->advance.x / 64;
-        ginfo.y_off = g_font.face->glyph->advance.y / 64;
+        ginfo.x_off = font.face->glyph->advance.x / 64;
+        ginfo.y_off = font.face->glyph->advance.y / 64;
 
         stride = (ginfo.width + 3) & ~3;
         tmp_bitmap = calloc(stride * ginfo.height, sizeof(*tmp_bitmap));
@@ -193,7 +236,7 @@ void draw_text(xcb_drawable_t xcb_drawable, const FcChar8 *utf8, uint32_t len,
         }
 
         error = xcb_request_check(g_dpy, xcb_render_add_glyphs_checked(g_dpy,
-            g_font.glyphs, 1, &uc, &ginfo, stride * ginfo.height, tmp_bitmap));
+            font.glyphset, 1, &uc, &ginfo, stride * ginfo.height, tmp_bitmap));
         if (error != NULL) {
             ERR("error adding glyph: %d\n", error->error_code);
         }
@@ -226,7 +269,7 @@ void draw_text(xcb_drawable_t xcb_drawable, const FcChar8 *utf8, uint32_t len,
          glyphs[num_glyphs++] = uc;
      }
 
-    text_stream = xcb_render_util_composite_text_stream(g_font.glyphs, num_glyphs,
+    text_stream = xcb_render_util_composite_text_stream(font.glyphset, num_glyphs,
             0);
 
     if (rect != NULL) {
@@ -243,19 +286,19 @@ void draw_text(xcb_drawable_t xcb_drawable, const FcChar8 *utf8, uint32_t len,
     xcb_render_free_picture(g_dpy, picture);
 }
 
+/* Measure a text that has no new lines. */
 void measure_text(const FcChar8 *utf8, uint32_t len, struct text_measure *tm)
 {
     uint32_t uc;
 
-    tm->ascent = g_font.face->size->metrics.ascender / 64;
-    tm->descent = g_font.face->size->metrics.descender / 64;
+    tm->ascent = font.face->size->metrics.ascender / 64;
+    tm->descent = font.face->size->metrics.descender / 64;
     tm->total_width = 0;
     for (uint32_t i = 0; i < len; ) {
         U8_NEXT(utf8, i, len, uc);
         /* TODO: give font multiple faces */
-        if (FT_Load_Char(g_font.face, uc, FT_LOAD_RENDER |
-                FT_LOAD_FORCE_AUTOHINT) == 0) {
-            tm->total_width += g_font.face->glyph->advance.x / 64;
+        if (FT_Load_Char(font.face, uc, FT_LOAD_DEFAULT) == 0) {
+            tm->total_width += font.face->glyph->advance.x / 64;
         }
     }
 }

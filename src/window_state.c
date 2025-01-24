@@ -5,10 +5,10 @@
 #include "log.h"
 #include "util.h"
 
-/* The whole purpose of this file is to detect if a window is a popup window
- * and handle a case where a window changes from its window state.
+/* The whole purpose of this file is to detect the initial state of a window
+ * and to handle a case where a window changes its window state.
  *
- * Since a change from one state to another one depends on the previous state,
+ * Since a change from one state to another depends on the previous state,
  * the transition system was created with function pointers.
  */
 

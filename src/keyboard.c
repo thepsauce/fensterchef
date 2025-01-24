@@ -6,6 +6,11 @@
 #include "log.h"
 #include "util.h"
 
+/* This file handles translation of keysyms to keycodes and vise versa.
+ *
+ * It also handles keybinds.
+ */
+
 static struct {
     int mod;
     xcb_keysym_t keysym;
@@ -32,21 +37,38 @@ static struct {
     { XCB_MOD_MASK_1, XK_j, ACTION_MOVE_DOWN },
 
     { XCB_MOD_MASK_1, XK_w, ACTION_SHOW_WINDOW_LIST },
+
+    { XCB_MOD_MASK_1 | XCB_MOD_MASK_SHIFT, XK_e,
+        ACTION_QUIT_WM },
 };
 
+/* symbol translation table */
 static xcb_key_symbols_t *keysyms;
 
+/* Get a keysym from a keycode. */
 xcb_keysym_t get_keysym(xcb_keycode_t keycode)
 {
     return xcb_key_symbols_get_keysym(keysyms, keycode, 0);
 }
 
+/* Get a list of keycodes from a keysym.
+ * The caller needs to free this list.
+ */
 xcb_keycode_t *get_keycodes(xcb_keysym_t keysym)
 {
     return xcb_key_symbols_get_keycode(keysyms, keysym);
 }
 
-/* Grab the keybinds so we receive the keypress events for them. */
+/* Grab the keybinds so we receive the keypress events for them.
+ *
+ * One difficulty is that a single keysym can correspond to multiple keycodes,
+ * but this can be handled easily by iterating over all keycodes and grabbing
+ * them all.
+ *
+ * Note that first xcb_ungrab_key() is called to get rid of any previous key
+ * grabs because we want them all for ourselves. Calling xcb_grab_key() on an
+ * already grabbed key leads to an access error.
+ */
 int setup_keys(void)
 {
     xcb_screen_t    *screen;
@@ -72,18 +94,19 @@ int setup_keys(void)
     return 0;
 }
 
-/* Handle a key press event. */
-void handle_key_press(xcb_key_press_event_t *event)
+/* Get an action code from a key press event. This checks the pressed
+ * key and the key modifiers to get a binded action.
+ */
+action_t get_action_bind(xcb_key_press_event_t *event)
 {
     xcb_keysym_t keysym;
 
     keysym = get_keysym(event->detail);
     for (uint32_t i = 0; i < SIZE(key_binds); i++) {
         if (keysym == key_binds[i].keysym && key_binds[i].mod == event->state) {
-            LOG("triggered keybind: %d\n", key_binds[i].action);
-            do_action(key_binds[i].action);
-            return;
+            return key_binds[i].action;
         }
     }
-    ERR("trash keybind: %d\n", keysym);
+    LOG("trash keybind: %d\n", keysym);
+    return ACTION_NULL;
 }

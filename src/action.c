@@ -5,6 +5,8 @@
 #include "frame.h"
 #include "log.h"
 
+/* Start a terminal.
+ */
 static void start_terminal(void)
 {
     if (fork() == 0) {
@@ -12,6 +14,10 @@ static void start_terminal(void)
     }
 }
 
+/* Show the given window and focus it.
+ *
+ * @window can be NULL to emit a message to the user.
+ */
 static void set_active_window(Window *window)
 {
     if (window == NULL) {
@@ -26,12 +32,16 @@ static void set_active_window(Window *window)
 }
 
 /* Do the given action, the action codes are `ACTION_*`. */
-void do_action(int action)
+void do_action(action_t action)
 {
     Window  *window;
     Frame   frame;
 
     switch (action) {
+    case ACTION_NULL:
+        ERR("tried to do NULL action\n");
+        break;
+
     case ACTION_START_TERMINAL:
         start_terminal();
         break;
@@ -160,6 +170,10 @@ void do_action(int action)
                 break;
             }
         }
+        break;
+
+    case ACTION_QUIT_WM:
+        quit_fensterchef(0);
         break;
     }
 }

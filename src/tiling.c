@@ -14,7 +14,11 @@
  * 2. Frame resizing.
  */
 
-/* Split a frame horizontally or vertically. */
+/* Split a frame horizontally or vertically.
+ *
+ * This cuts she @split_from frame in half and places the next window
+ * inside the formed gap. If there is no next window, a gap simply remains.
+ */
 void split_frame(Frame split_from, int is_split_vert)
 {
     Frame   left, right;
@@ -89,7 +93,9 @@ void split_frame(Frame split_from, int is_split_vert)
  *
  * This first checks if the sub frames are in a left and right 
  * orientation (horizontal split) or up and down orientation
- * (vertical split).
+ * (vertical split) and then resizes the children appropiately.
+ *
+ * TODO: keep ratio when resizing?
  */
 void resize_frame(Frame frame, int32_t x, int32_t y,
         uint32_t width, uint32_t height)

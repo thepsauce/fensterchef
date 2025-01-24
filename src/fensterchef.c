@@ -43,9 +43,6 @@ unsigned                g_running;
 /* graphis objects with the id referring to the xcb id */
 uint32_t                g_stock_objects[STOCK_COUNT];
 
-/* the currently used font information */
-struct font             g_font;
-
 /* general purpose values */
 uint32_t                g_values[6];
 
@@ -64,6 +61,7 @@ static void alarm_handler(int sig)
     xcb_flush(g_dpy);
 }
 
+/* Initialize graphical objects like pens and drawing contexts. */
 static int init_stock_objects(void)
 {
     xcb_screen_t                                *screen;
@@ -155,11 +153,20 @@ static int init_stock_objects(void)
     return 0;
 }
 
-/* Initialize most of fensterchef data and set root window flags. */
+/* Initialize most of fensterchef data and set root window flags.
+ *
+ * This opens the logging file, opens the xcb connection, initializes ewmh
+ * which also initializes the screens.
+ *
+ * Next, the root window mask is changed to allow substructure redirecting
+ * needed to receive map requests and destroy notifications and such.
+ *
+ * After that, the font drawing and the initial font are initialized and the
+ * graphical objects, also called stock objects.
+ */
 int init_fensterchef(void)
 {
     xcb_intern_atom_cookie_t    *cookies;
-    FT_Error                    ft_error;
     xcb_screen_t                *screen;
     xcb_generic_error_t         *error;
 
@@ -190,22 +197,6 @@ int init_fensterchef(void)
     log_screens();
 #endif
 
-    if (FcInit() == FcFalse) {
-        ERR("could not initialize fontconfig\n");
-        xcb_disconnect(g_dpy);
-        fclose(g_log_file);
-        exit(1);
-    }
-
-    ft_error = FT_Init_FreeType(&g_font.library);
-    if (ft_error != FT_Err_Ok) {
-        ERR("could not initialize freetype: 0x%x\n", ft_error);
-        FcFini();
-        xcb_disconnect(g_dpy);
-        fclose(g_log_file);
-        exit(1);
-    }
-
     g_screen_no = 0;
     screen = SCREEN(g_screen_no);
 
@@ -228,6 +219,8 @@ int init_fensterchef(void)
         ERR("could not change root window mask: %d\n", error->error_code);
         return 1;
     }
+
+    init_font_drawing();
 
     set_font(NULL);
 
@@ -270,8 +263,8 @@ int init_fensterchef(void)
 void quit_fensterchef(int exit_code)
 {
     LOG("quitting fensterchef with exit code: %d\n", exit_code);
-    FT_Done_FreeType(g_font.library);
-    FcFini();
+    /* TODO: maybe free all resources to show we care? */
+    deinit_font_drawing();
     xcb_disconnect(g_dpy);
     fclose(g_log_file);
     exit(exit_code);
@@ -317,126 +310,5 @@ void set_notification(const FcChar8 *msg, int32_t x, int32_t y)
             g_stock_objects[STOCK_BLACK_PEN], WINDOW_PADDING / 2,
             tm.ascent + WINDOW_PADDING / 2);
 
-    alarm(3);
-}
-
-/* Handle the given xcb event. */
-void handle_event(xcb_generic_event_t *event)
-{
-    /* this is used for moving a popup window */
-    static int16_t                  old_x, old_y;
-    static xcb_window_t             move_window;
-
-    xcb_window_t                    xcb_window;
-    xcb_configure_request_event_t   *request_event;
-    xcb_property_notify_event_t     *notify_event;
-    xcb_button_press_event_t        *button_event;
-    xcb_motion_notify_event_t       *motion_event;
-    xcb_get_geometry_reply_t        *geometry;
-    Window                          *window;
-
-#ifdef DEBUG
-    log_event(event);
-#endif
-
-    switch ((event->response_type & ~0x80)) {
-    case XCB_MAP_REQUEST:
-        xcb_window = ((xcb_map_request_event_t*) event)->window;
-        window = get_window_of_xcb_window(xcb_window);
-        if (window != NULL) {
-            break;
-        }
-        window = create_window(xcb_window);
-        set_focus_window(window);
-        break;
-
-    case XCB_BUTTON_PRESS:
-        button_event = (xcb_button_press_event_t*) event;
-        move_window = button_event->child;
-        window = get_window_of_xcb_window(move_window);
-        if (window == NULL || window->state != WINDOW_STATE_POPUP) {
-            break;
-        }
-        old_x = button_event->root_x;
-        old_y = button_event->root_y;
-        xcb_window = SCREEN(g_screen_no)->root;
-        xcb_grab_pointer(g_dpy, 0, xcb_window,
-                XCB_EVENT_MASK_BUTTON_RELEASE | XCB_EVENT_MASK_BUTTON_MOTION,
-                XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC, xcb_window,
-                XCB_NONE, XCB_CURRENT_TIME);
-        break;
-
-    case XCB_MOTION_NOTIFY:
-        motion_event = (xcb_motion_notify_event_t*) event;
-        geometry = xcb_get_geometry_reply(g_dpy,
-                xcb_get_geometry(g_dpy, move_window), NULL);
-        if (geometry == NULL) {
-            xcb_ungrab_pointer(g_dpy, XCB_CURRENT_TIME);
-            break;
-        }
-        g_values[0] = geometry->x + (motion_event->root_x - old_x);
-        g_values[1] = geometry->y + (motion_event->root_y - old_y);
-        old_x = motion_event->root_x;
-        old_y = motion_event->root_y;
-        xcb_configure_window(g_dpy, move_window, XCB_CONFIG_WINDOW_X |
-                XCB_CONFIG_WINDOW_Y, g_values);
-        break;
-
-    case XCB_BUTTON_RELEASE:
-        xcb_ungrab_pointer(g_dpy, XCB_CURRENT_TIME);
-        break;
-
-    case XCB_PROPERTY_NOTIFY:
-        notify_event = (xcb_property_notify_event_t*) event;
-        window = get_window_of_xcb_window(notify_event->window);
-        if (window == NULL) {
-            LOG("property change of unmanaged window: %" PRId32 "\n",
-                    notify_event->window);
-            break;
-        }
-        if (notify_event->atom == XCB_ATOM_WM_NAME) {
-            update_window_name(window);
-        } else if (notify_event->atom == XCB_ATOM_WM_NORMAL_HINTS) {
-            update_window_size_hints(window);
-        }
-        set_window_state(window, predict_window_state(window), 0);
-        break;
-
-    case XCB_UNMAP_NOTIFY:
-        window = get_window_of_xcb_window(
-                ((xcb_unmap_notify_event_t*) event)->window);
-        if (window != NULL) {
-            set_window_state(window, WINDOW_STATE_HIDDEN, 1);
-        }
-        break;
-
-    case XCB_DESTROY_NOTIFY:
-        window = get_window_of_xcb_window(
-                ((xcb_unmap_notify_event_t*) event)->window);
-        if (window != NULL) {
-            destroy_window(window);
-        }
-        break;
-
-    case XCB_CONFIGURE_REQUEST:
-        request_event = (xcb_configure_request_event_t*) event;
-        g_values[0] = request_event->x;
-        g_values[1] = request_event->y;
-        g_values[2] = request_event->width;
-        g_values[3] = request_event->height;
-        g_values[4] = request_event->border_width;
-        xcb_configure_window(g_dpy, request_event->window,
-                XCB_CONFIG_SIZE | XCB_CONFIG_WINDOW_BORDER_WIDTH, g_values);
-        break;
-
-    case XCB_KEY_PRESS:
-        handle_key_press((xcb_key_press_event_t*) event);
-        break;
-    }
-}
-
-/* Close the connection to the xcb server. */
-void close_connection(void)
-{
-    xcb_disconnect(g_dpy);
+    alarm(NOTIFICATION_DURATION);
 }

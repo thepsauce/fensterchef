@@ -30,6 +30,7 @@
  * POPUP: The window is a popup window, it may or may not be visible.
  * IGNORE: The window was once registered by the WM but the user decided to
  *      ignore it. It does not appear when cycling through windows.
+ * FULLSCREEN: The window covers the entire screen.
  */
 typedef struct window {
     /* the actual X window */
@@ -60,10 +61,16 @@ typedef struct window {
  */
 extern Window       *g_first_window;
 
+/* Get the parent frame of a child frame. */
 #define PARENT_FRAME(frame) (((frame)-1)/2)
+
+/* Get the left child of a parent frame. */
 #define LEFT_FRAME(frame) ((frame)*2+1)
+
+/* Get the right child of a parent frame. */
 #define RIGHT_FRAME(frame) ((frame)*2+2)
 
+/* Hheck if a given frame index is valid. */
 #define IS_FRAME_VALID(frame) \
     ((frame) < g_frame_capacity && \
       g_frames[frame].window != WINDOW_SENTINEL)
@@ -85,6 +92,7 @@ struct frame {
     uint32_t height;
 };
 
+/* a frame is accessed by an index in the frames array */
 typedef uint32_t Frame;
 
 /* This is how frames are organize in the array g_frames:
@@ -166,7 +174,7 @@ Window *get_next_hidden_window(Window *window);
  */
 Window *get_previous_hidden_window(Window *window);
 
-/* -- Implemented in popup.c -- */
+/* -- Implemented in window_state.c -- */
 
 /* Update the short_title of the window.
  */
@@ -176,12 +184,12 @@ void update_window_name(Window *window);
  */
 void update_window_size_hints(Window *window);
 
-/* Predicts what state the window is expected to be in based on the X11
+/* Predict what state the window is expected to be in based on the X11
  * properties.
  */
 unsigned predict_window_state(Window *window);
 
-/* Changes the state to given value and reconfigures the window.
+/* Change the state to given value and reconfigures the window.
  *
  * @force is used to force the change of the window state.
  */
@@ -207,7 +215,7 @@ int remove_leaf_frame(Frame frame);
 /* Set the frame in focus, this also focuses the inner window if it exists. */
 void set_focus_frame(Frame frame);
 
-/* Checks if the given point is within the given frame.
+/* Check if the given point is within the given frame.
  *
  * @return 1 if the point is inside the frame, 0 otherwise */
 int is_point_in_frame(Frame frame, int32_t x, int32_t y);
@@ -218,7 +226,7 @@ Frame get_frame_at_position(int32_t x, int32_t y);
 /* Set the frame in focus, this also focuses the inner window if it exists. */
 void set_focus_frame(Frame frame);
 
-/* Repositions the underlying window to fit within the frame.
+/* Reposition the underlying window to fit within the frame.
  *
  * @frame may be NULL, then nothing happens.
  */

@@ -4,6 +4,14 @@
 #include "frame.h"
 #include "log.h"
 
+/* FENSTERCHEF
+ *
+ * First, fensterchef is initialized, see init_fensterchef() for details and the
+ * keyboard is setup (see setup_keys()).
+ *
+ * Then the main event loop runs, waiting for every xcb event and letting them
+ * be handled by handle_event().
+ */
 int main(void)
 {
     xcb_generic_event_t *event;
