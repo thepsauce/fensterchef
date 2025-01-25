@@ -3,6 +3,8 @@
 
 #include "action.h"
 #include "fensterchef.h"
+#include "keybind.h"
+#include "keymap.h"
 #include "log.h"
 #include "util.h"
 
@@ -42,23 +44,6 @@ static struct {
         ACTION_QUIT_WM },
 };
 
-/* symbol translation table */
-static xcb_key_symbols_t *keysyms;
-
-/* Get a keysym from a keycode. */
-xcb_keysym_t get_keysym(xcb_keycode_t keycode)
-{
-    return xcb_key_symbols_get_keysym(keysyms, keycode, 0);
-}
-
-/* Get a list of keycodes from a keysym.
- * The caller needs to free this list.
- */
-xcb_keycode_t *get_keycodes(xcb_keysym_t keysym)
-{
-    return xcb_key_symbols_get_keycode(keysyms, keysym);
-}
-
 /* Grab the keybinds so we receive the keypress events for them.
  *
  * One difficulty is that a single keysym can correspond to multiple keycodes,
@@ -69,16 +54,12 @@ xcb_keycode_t *get_keycodes(xcb_keysym_t keysym)
  * grabs because we want them all for ourselves. Calling xcb_grab_key() on an
  * already grabbed key leads to an access error.
  */
-int setup_keys(void)
+int init_keybinds(void)
 {
     xcb_screen_t    *screen;
     xcb_keycode_t   *keycode;
     const uint32_t  modifiers[] = { 0, XCB_MOD_MASK_LOCK };
 
-    keysyms = xcb_key_symbols_alloc(g_dpy);
-    if (keysyms == NULL) {
-        return 1;
-    }
     screen = SCREEN(g_screen_no);
     xcb_ungrab_key(g_dpy, XCB_GRAB_ANY, screen->root, XCB_MOD_MASK_ANY);
     for (uint32_t i = 0; i < SIZE(key_binds); i++) {

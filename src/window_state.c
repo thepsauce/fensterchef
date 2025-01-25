@@ -65,37 +65,6 @@ static void (*transitions[5][5])(Window *window) = {
     [WINDOW_STATE_FULLSCREEN][WINDOW_STATE_FULLSCREEN] = NULL,
 };
 
-/* Update the short_title of the window. */
-void update_window_name(Window *window)
-{
-    xcb_get_property_cookie_t           name_cookie;
-    xcb_ewmh_get_utf8_strings_reply_t   data;
-
-    name_cookie = xcb_ewmh_get_wm_name(&g_ewmh, window->xcb_window);
-
-    xcb_ewmh_get_wm_name_reply(&g_ewmh, name_cookie, &data, NULL);
-
-    snprintf((char*) window->short_title, sizeof(window->short_title),
-        "%" PRId32 "-%.*s",
-            window->number,
-            (int) MIN(data.strings_len, (uint32_t) INT_MAX), data.strings);
-
-    xcb_ewmh_get_utf8_strings_reply_wipe(&data);
-}
-
-/* Update the size_hints of the window. */
-void update_window_size_hints(Window *window)
-{
-    xcb_get_property_cookie_t   size_hints_cookie;
-
-    size_hints_cookie = xcb_icccm_get_wm_size_hints(g_dpy, window->xcb_window,
-            XCB_ATOM_WM_NORMAL_HINTS);
-    if (!xcb_icccm_get_wm_size_hints_reply(g_dpy, size_hints_cookie,
-                &window->size_hints, NULL)) {
-        memset(&window->size_hints, 0, sizeof(window->size_hints));
-    }
-}
-
 /* Predicts whether the window should be a popup window. */
 unsigned predict_window_state(Window *window)
 {

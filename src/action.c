@@ -4,6 +4,8 @@
 #include "fensterchef.h"
 #include "frame.h"
 #include "log.h"
+#include "tiling.h"
+#include "window_list.h"
 
 /* Start a terminal.
  */
@@ -28,7 +30,7 @@ static void set_active_window(Window *window)
     }
 
     set_window_state(window, WINDOW_STATE_SHOWN, 1);
-    set_focus_window(window);
+    (void) set_focus_window(window);
 }
 
 /* Do the given action, the action codes are `ACTION_*`. */
@@ -79,7 +81,7 @@ void do_action(action_t action)
         }
         if (window->state == WINDOW_STATE_POPUP) {
             if (g_frames[g_cur_frame].window != NULL) {
-                set_focus_window(g_frames[g_cur_frame].window);
+                set_focus_frame(g_cur_frame);
             } else {
                 for (frame = 0; frame < g_frame_capacity; frame++) {
                     if (g_frames[frame].window == NULL ||
@@ -91,11 +93,10 @@ void do_action(action_t action)
             }
         } else {
             for (Window *w = g_first_window; w != NULL; w = w->next) {
-                if (w == window || w->state != WINDOW_STATE_POPUP) {
-                    continue;
+                if (w != window && w->state == WINDOW_STATE_POPUP &&
+                        set_focus_window(w) == 0) {
+                    break;
                 }
-                set_focus_window(w);
-                break;
             }
         }
         break;
@@ -120,7 +121,7 @@ void do_action(action_t action)
     case ACTION_MOVE_UP:
         frame = get_frame_at_position(g_frames[g_cur_frame].x,
                 g_frames[g_cur_frame].y - 1);
-        if (frame != (Frame) -1) {
+        if (frame != FRAME_SENTINEL) {
             set_focus_frame(frame);
         }
         break;
@@ -128,7 +129,7 @@ void do_action(action_t action)
     case ACTION_MOVE_LEFT:
         frame = get_frame_at_position(g_frames[g_cur_frame].x - 1,
                 g_frames[g_cur_frame].y);
-        if (frame != (Frame) -1) {
+        if (frame != FRAME_SENTINEL) {
             set_focus_frame(frame);
         }
         break;
@@ -137,7 +138,7 @@ void do_action(action_t action)
         frame = get_frame_at_position(
                     g_frames[g_cur_frame].x + g_frames[g_cur_frame].width,
                     g_frames[g_cur_frame].y);
-        if (frame != (Frame) -1) {
+        if (frame != FRAME_SENTINEL) {
             set_focus_frame(frame);
         }
         break;
@@ -145,7 +146,7 @@ void do_action(action_t action)
     case ACTION_MOVE_DOWN:
         frame = get_frame_at_position(g_frames[g_cur_frame].x,
                     g_frames[g_cur_frame].y + g_frames[g_cur_frame].height);
-        if (frame != (Frame) -1) {
+        if (frame != FRAME_SENTINEL) {
             set_focus_frame(frame);
         }
         break;

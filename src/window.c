@@ -2,17 +2,20 @@
 
 #include "fensterchef.h"
 #include "log.h"
+#include "util.h"
 #include "xalloc.h"
 
-/* the first window in the linked list */
-Window          *g_first_window;
+/* the first window in the linked list, the list is sorted increasingly
+ * with respect to the window number
+ */
+Window *g_first_window;
 
 /* Create a window struct and add it to the window list,
  * this also assigns the next id. */
 Window *create_window(xcb_window_t xcb_window)
 {
-    Window      *window;
-    Window      *last;
+    Window *window;
+    Window *last;
 
     window = xcalloc(1, sizeof(*window));
     window->xcb_window = xcb_window;
@@ -72,6 +75,49 @@ void destroy_window(Window *window)
     free(window);
 }
 
+/* Update the short_title of the window. */
+void update_window_name(Window *window)
+{
+    xcb_get_property_cookie_t           name_cookie;
+    xcb_ewmh_get_utf8_strings_reply_t   data;
+
+    name_cookie = xcb_ewmh_get_wm_name(&g_ewmh, window->xcb_window);
+
+    xcb_ewmh_get_wm_name_reply(&g_ewmh, name_cookie, &data, NULL);
+
+    snprintf((char*) window->short_title, sizeof(window->short_title),
+        "%" PRId32 "-%.*s",
+            window->number,
+            (int) MIN(data.strings_len, (uint32_t) INT_MAX), data.strings);
+
+    xcb_ewmh_get_utf8_strings_reply_wipe(&data);
+}
+
+/* Update the size_hints of the window. */
+void update_window_size_hints(Window *window)
+{
+    xcb_get_property_cookie_t size_hints_cookie;
+
+    size_hints_cookie = xcb_icccm_get_wm_size_hints(g_dpy, window->xcb_window,
+            XCB_ATOM_WM_NORMAL_HINTS);
+    if (!xcb_icccm_get_wm_size_hints_reply(g_dpy, size_hints_cookie,
+                &window->size_hints, NULL)) {
+        window->size_hints.flags = 0;
+    }
+}
+
+/* Update the wm_hints of the window. */
+void update_window_wm_hints(Window *window)
+{
+    xcb_get_property_cookie_t wm_hints_cookie;
+
+    wm_hints_cookie = xcb_icccm_get_wm_hints(g_dpy, window->xcb_window);
+    if (!xcb_icccm_get_wm_hints_reply(g_dpy, wm_hints_cookie,
+                &window->wm_hints, NULL)) {
+        window->wm_hints.flags = 0;
+    }
+}
+
 /* Get the window before this window in the linked list. */
 Window *get_previous_window(Window *window)
 {
@@ -129,9 +175,14 @@ Window *get_focus_window(void)
 }
 
 /* Set the window that is in focus. */
-void set_focus_window(Window *window)
+int set_focus_window(Window *window)
 {
     Window *old_focus;
+
+    if ((window->wm_hints.flags & XCB_ICCCM_WM_HINT_INPUT) &&
+            window->wm_hints.input == 0) {
+        return 1;
+    }
 
     old_focus = get_focus_window();
     if (old_focus != NULL) {
@@ -142,6 +193,7 @@ void set_focus_window(Window *window)
 
     xcb_set_input_focus(g_dpy, XCB_INPUT_FOCUS_POINTER_ROOT, window->xcb_window,
             XCB_CURRENT_TIME);
+    return 0;
 }
 
 /* Gives any window different from given window focus. */

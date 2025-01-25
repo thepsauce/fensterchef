@@ -2,6 +2,7 @@
 
 #include "fensterchef.h"
 #include "log.h"
+#include "render_font.h"
 #include "utf8.h"
 #include "xalloc.h"
 

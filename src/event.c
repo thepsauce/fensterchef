@@ -2,6 +2,7 @@
 
 #include "action.h"
 #include "fensterchef.h"
+#include "keybind.h"
 #include "log.h"
 
 /* This file handles all kinds of xcb events.
@@ -107,7 +108,8 @@ static void handle_button_release(xcb_button_release_event_t *event)
 }
 
 /* Property notifications are sent when a window atom changes, this can
- * be many atoms, but the main ones handled are WM_NAME, WM_SIZE_HINTS.
+ * be many atoms, but the main ones handled are WM_NAME, WM_SIZE_HINTS,
+ * WM_HINTS.
  *
  * TODO: make special handling for WM_NORMAL_HINTS just like with WM_NAME
  * for fullscreen.
@@ -122,15 +124,18 @@ static void handle_property_notify(xcb_property_notify_event_t *event)
                 event->window);
         return;
     }
+
     if (event->atom == XCB_ATOM_WM_NAME) {
         update_window_name(window);
     } else if (event->atom == XCB_ATOM_WM_SIZE_HINTS) {
         update_window_size_hints(window);
+    } else if (event->atom == XCB_ATOM_WM_HINTS) {
+        update_window_wm_hints(window);
     }
     set_window_state(window, predict_window_state(window), 0);
 }
 
-/* Unmap notifications are sent when a window decided wanted to not be seen
+/* Unmap notifications are sent after a window decided it wanted to not be seen
  * anymore.
  */
 void handle_unmap_notify(xcb_unmap_notify_event_t *event)
@@ -143,8 +148,8 @@ void handle_unmap_notify(xcb_unmap_notify_event_t *event)
     }
 }
 
-/* Destroy notifications are sent when a window leaves the X server,
- * good bye to that window!
+/* Destroy notifications are sent when a window leaves the X server.
+ * Good bye to that window!
  */
 static void handle_destroy_notify(xcb_destroy_notify_event_t *event)
 {

@@ -1,8 +1,4 @@
 #include <inttypes.h>
-#include <stdint.h>
-
-#include <unistd.h>
-#include <signal.h>
 
 #include "fensterchef.h"
 #include "frame.h"
@@ -14,9 +10,21 @@
  * 2. Frame resizing.
  */
 
+/* Grows the frame array so that the frame index fits in the array. */
+void make_frame_index_valid(Frame frame)
+{
+    if (frame >= g_frame_capacity) {
+        RESIZE(g_frames, frame + 1);
+        for (; g_frame_capacity < frame; g_frame_capacity++) {
+            g_frames[g_frame_capacity].window = WINDOW_SENTINEL;
+        }
+        g_frame_capacity++;
+    }
+}
+
 /* Split a frame horizontally or vertically.
  *
- * This cuts she @split_from frame in half and places the next window
+ * This cuts the @split_from frame in half and places the next window
  * inside the formed gap. If there is no next window, a gap simply remains.
  */
 void split_frame(Frame split_from, int is_split_vert)
@@ -28,13 +36,7 @@ void split_frame(Frame split_from, int is_split_vert)
     left = LEFT_FRAME(split_from);
     right = RIGHT_FRAME(split_from);
 
-    if (right >= g_frame_capacity) {
-        RESIZE(g_frames, right + 1);
-        for (Frame f = g_frame_capacity; f < left; f++) {
-            g_frames[f].window = WINDOW_SENTINEL;
-        }
-        g_frame_capacity = right + 1;
-    }
+    make_frame_index_valid(right);
 
     if (is_split_vert) {
         g_frames[left].y = g_frames[split_from].y;
@@ -69,61 +71,20 @@ void split_frame(Frame split_from, int is_split_vert)
         next_cur_frame = g_cur_frame;
     }
 
-    g_cur_frame = right;
     window = get_next_hidden_window(g_frames[left].window);
     if (window != NULL) {
+        g_cur_frame = right;
         set_window_state(window, WINDOW_STATE_SHOWN, 1);
     }
-
-    g_cur_frame = next_cur_frame;
 
     if (g_frames[left].window != NULL) {
         reload_frame(left);
     }
 
-    set_notification(UTF8_TEXT("Current frame"),
-            g_frames[g_cur_frame].x + g_frames[g_cur_frame].width / 2,
-            g_frames[g_cur_frame].y + g_frames[g_cur_frame].height / 2);
+    set_focus_frame(next_cur_frame);
 
     LOG("split %" PRId32 "[%" PRId32 ", %" PRId32 "]\n",
             split_from, left, right);
-}
-
-/* Set the size of a frame, this also resize the inner windows.
- *
- * This first checks if the sub frames are in a left and right 
- * orientation (horizontal split) or up and down orientation
- * (vertical split) and then resizes the children appropiately.
- *
- * TODO: keep ratio when resizing?
- */
-void resize_frame(Frame frame, int32_t x, int32_t y,
-        uint32_t width, uint32_t height)
-{
-    Frame left, right;
-
-    g_frames[frame].x = x;
-    g_frames[frame].y = y;
-    g_frames[frame].width = width;
-    g_frames[frame].height = height;
-    reload_frame(frame);
-
-    left = LEFT_FRAME(frame);
-    right = RIGHT_FRAME(frame);
-
-    if (!IS_FRAME_VALID(left)) {
-        return;
-    }
-
-    if (g_frames[left].x != g_frames[right].x) {
-        resize_frame(left, x, y, width / 2, height);
-        resize_frame(right, x + g_frames[left].width, y,
-                width - g_frames[left].width, height);
-    } else {
-        resize_frame(left, x, y, width, height / 2);
-        resize_frame(right, x, y + g_frames[left].height, width,
-                height - g_frames[left].height);
-    }
 }
 
 /* Shifting frames up is a system to get all nodes up one layer in the tree.

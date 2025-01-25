@@ -1,7 +1,10 @@
 #include <stdlib.h>
 
+#include "event.h"
 #include "fensterchef.h"
 #include "frame.h"
+#include "keybind.h"
+#include "keymap.h"
 #include "log.h"
 
 /* FENSTERCHEF
@@ -17,7 +20,8 @@ int main(void)
     xcb_generic_event_t *event;
 
     if (init_fensterchef() != 0 ||
-            setup_keys() != 0) {
+            init_keymap() != 0 ||
+            init_keybinds() != 0) {
         quit_fensterchef(1);
     }
 

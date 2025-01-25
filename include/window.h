@@ -1,12 +1,12 @@
-#ifndef FRAME_H
-#define FRAME_H
+#ifndef WINDOW_H
+#define WINDOW_H
 
 #include <stdint.h>
 
-#include <fontconfig/fontconfig.h>
+#include <fontconfig/fontconfig.h> // FcChar8
 
-#include <xcb/xcb.h>
-#include <xcb/xcb_icccm.h>
+#include <xcb/xcb.h> // xcb_window_t
+#include <xcb/xcb_icccm.h> // xcb_size_hints_t, xcb_icccm_wm_hints_t
 
 /* the number the first window gets assigned */
 #define FIRST_WINDOW_NUMBER 1
@@ -37,9 +37,11 @@ typedef struct window {
     xcb_window_t xcb_window;
     /* xcb size hints of the window */
     xcb_size_hints_t size_hints;
+    /* special window manager hints */
+    xcb_icccm_wm_hints_t wm_hints;
     /* short window title */
     FcChar8 short_title[256];
-    /* saved window when it was in popup state */
+    /* size when the window was in popup state */
     uint32_t popup_width;
     uint32_t popup_height;
     /* the window state, one of WINDOW_STATE_* */
@@ -59,63 +61,7 @@ typedef struct window {
 /* the first window in the linked list, the list is sorted increasingly
  * with respect to the window number
  */
-extern Window       *g_first_window;
-
-/* Get the parent frame of a child frame. */
-#define PARENT_FRAME(frame) (((frame)-1)/2)
-
-/* Get the left child of a parent frame. */
-#define LEFT_FRAME(frame) ((frame)*2+1)
-
-/* Get the right child of a parent frame. */
-#define RIGHT_FRAME(frame) ((frame)*2+2)
-
-/* Hheck if a given frame index is valid. */
-#define IS_FRAME_VALID(frame) \
-    ((frame) < g_frame_capacity && \
-      g_frames[frame].window != WINDOW_SENTINEL)
-
-/* A frame is a rectangular region on the screen that may or may not
- * contain a window.
- *
- * Frames can be split into smaller sub frames and are the driving
- * force of the tiling layout.
- */
-struct frame {
-    /* the window inside the frame, may be NULL or
-     * WINDOW_SENTINEL to signal an unused frame */
-    Window *window;
-    /* coordinates and size of the frame */
-    int32_t x;
-    int32_t y;
-    uint32_t width;
-    uint32_t height;
-};
-
-/* a frame is accessed by an index in the frames array */
-typedef uint32_t Frame;
-
-/* This is how frames are organize in the array g_frames:
- *    0         1               2
- * [ Frame, Frame * 2 + 1, Frame * 2 + 2 ]
- *
- * 0  1    2    3  4  5      6           7
- * [ X, X, Frame, ., ., ., Frame * 2, Frame * 2 + 1 ]
- *
- * NOTE: The array has gaps and such gaps are indicated with their window
- * being set to WINDOW_SENTINEL.
- *
- * It is guaranteed that there is always at least one frame (the root frame).
- */
-
-/* list of frames */
-extern struct frame *g_frames;
-/* the number of allocated frames in g_frames */
-extern Frame        g_frame_capacity;
-/* the currently selected/focused frame */
-extern Frame        g_cur_frame;
-
-/* -- Implemented in window.c -- */
+extern Window *g_first_window;
 
 /* Create a window struct and add it to the window list,
  * this also assigns the next id. */
@@ -125,6 +71,15 @@ Window *create_window(xcb_window_t xcb_window);
  * This does NOT destroy the underlying xcb window.
  */
 void destroy_window(Window *window);
+
+/* Update the short_title of the window. */
+void update_window_name(Window *window);
+
+/* Update the size_hints of the window. */
+void update_window_size_hints(Window *window);
+
+/* Update the wm_hints of the window. */
+void update_window_wm_hints(Window *window);
 
 /* Get the window before this window in the linked list.
  * This function WRAPS around so
@@ -152,8 +107,11 @@ Frame get_frame_of_window(Window *window);
  */
 Window *get_focus_window(void);
 
-/* Set the window that is in focus. */
-void set_focus_window(Window *window);
+/* Set the window that is in focus.
+ *
+ * @return 1 if the window does not accept focus, 0 otherwise.
+ */
+int set_focus_window(Window *window);
 
 /* Gives any window different from given window focus. */
 void give_someone_else_focus(Window *window);
@@ -176,14 +134,6 @@ Window *get_previous_hidden_window(Window *window);
 
 /* -- Implemented in window_state.c -- */
 
-/* Update the short_title of the window.
- */
-void update_window_name(Window *window);
-
-/* Update the size_hints of the window.
- */
-void update_window_size_hints(Window *window);
-
 /* Predict what state the window is expected to be in based on the X11
  * properties.
  */
@@ -194,42 +144,5 @@ unsigned predict_window_state(Window *window);
  * @force is used to force the change of the window state.
  */
 void set_window_state(Window *window, unsigned state, unsigned force);
-
-/* -- Implemented in tiling.c -- */
-
-/* Split a frame horizontally or vertically. 
- * Set @is_split_vert to 1 for a vertical split and 0 for a horizontal split.
- */
-void split_frame(Frame split_from, int is_split_vert);
-
-/* Remove a frame from the screen and hide the inner window.
- *
- * This frame must have NO children.
- *
- * @return 1 when the given frame is the last frame, otherwise 0.
- */
-int remove_leaf_frame(Frame frame);
-
-/* -- Implemented in frame.c -- */
-
-/* Set the frame in focus, this also focuses the inner window if it exists. */
-void set_focus_frame(Frame frame);
-
-/* Check if the given point is within the given frame.
- *
- * @return 1 if the point is inside the frame, 0 otherwise */
-int is_point_in_frame(Frame frame, int32_t x, int32_t y);
-
-/* Get a frame at given position. */
-Frame get_frame_at_position(int32_t x, int32_t y);
-
-/* Set the frame in focus, this also focuses the inner window if it exists. */
-void set_focus_frame(Frame frame);
-
-/* Reposition the underlying window to fit within the frame.
- *
- * @frame may be NULL, then nothing happens.
- */
-void reload_frame(Frame frame);
 
 #endif

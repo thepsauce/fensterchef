@@ -46,11 +46,53 @@ Frame get_frame_at_position(int32_t x, int32_t y)
         frame;
 }
 
+/* Set the size of a frame, this also resize the inner windows.
+ *
+ * This first checks if the sub frames are in a left and right 
+ * orientation (horizontal split) or up and down orientation
+ * (vertical split) and then resizes the children appropiately.
+ *
+ * TODO: keep ratio when resizing?
+ */
+void resize_frame(Frame frame, int32_t x, int32_t y,
+        uint32_t width, uint32_t height)
+{
+    Frame left, right;
+
+    g_frames[frame].x = x;
+    g_frames[frame].y = y;
+    g_frames[frame].width = width;
+    g_frames[frame].height = height;
+    reload_frame(frame);
+
+    left = LEFT_FRAME(frame);
+    right = RIGHT_FRAME(frame);
+
+    if (!IS_FRAME_VALID(left)) {
+        return;
+    }
+
+    if (g_frames[left].x != g_frames[right].x) {
+        resize_frame(left, x, y, width / 2, height);
+        resize_frame(right, x + g_frames[left].width, y,
+                width - g_frames[left].width, height);
+    } else {
+        resize_frame(left, x, y, width, height / 2);
+        resize_frame(right, x, y + g_frames[left].height, width,
+                height - g_frames[left].height);
+    }
+}
+
 /* Set the frame in focus, this also focuses the inner window if it exists. */
 void set_focus_frame(Frame frame)
 {
-    if (g_frames[frame].window != NULL) {
-        set_focus_window(g_frames[frame].window);
+    if (g_frames[frame].window == NULL ||
+            set_focus_window(g_frames[frame].window) != 0) {
+        /* setting focus to the root essentially removes focus from all other
+         * windows
+         */
+        xcb_set_input_focus(g_dpy, XCB_INPUT_FOCUS_POINTER_ROOT,
+                SCREEN(g_screen_no)->root, XCB_CURRENT_TIME);
     }
     g_cur_frame = frame;
 

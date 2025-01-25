@@ -6,8 +6,11 @@
 #include <X11/keysym.h>
 #include <xcb/xcb_keysyms.h>
 
+#include "event.h"
 #include "fensterchef.h"
+#include "keymap.h"
 #include "log.h"
+#include "render_font.h"
 #include "util.h"
 
 /* Render the window list.

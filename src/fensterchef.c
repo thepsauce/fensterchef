@@ -14,6 +14,7 @@
 #include "fensterchef.h"
 #include "log.h"
 #include "util.h"
+#include "render_font.h"
 #include "xalloc.h"
 
 /* event mask for the root window */
