@@ -58,7 +58,8 @@ typedef struct window {
     Position position;
     Size size;
 
-    /* size when the window was in popup state */
+    /* position and size when the window was in popup state */
+    Position popup_position;
     Size popup_size;
 
     /* the window state */

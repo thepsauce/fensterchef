@@ -197,4 +197,6 @@ void do_action(action_t action)
         quit_fensterchef(0);
         break;
     }
+
+    LOG("performed action: %u\n", action);
 }

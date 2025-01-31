@@ -84,7 +84,11 @@ void update_window_name(Window *window)
 
     name_cookie = xcb_ewmh_get_wm_name(&g_ewmh, window->xcb_window);
 
-    xcb_ewmh_get_wm_name_reply(&g_ewmh, name_cookie, &data, NULL);
+    if (!xcb_ewmh_get_wm_name_reply(&g_ewmh, name_cookie, &data, NULL)) {
+        snprintf((char*) window->short_title, sizeof(window->short_title),
+                "%" PRId32 "-", window->number);
+        return;
+    }
 
     snprintf((char*) window->short_title, sizeof(window->short_title),
         "%" PRId32 "-%.*s",

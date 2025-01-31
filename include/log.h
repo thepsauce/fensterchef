@@ -22,7 +22,6 @@ extern FILE *g_log_file;
     fputs(buf, g_log_file); \
     fprintf(g_log_file, "(%s:%d) ", __FILE__, __LINE__); \
     fprintf(g_log_file, (fmt), ##__VA_ARGS__); \
-    fflush(g_log_file); \
 } while (0)
 
 /* Log a formatted message to the log file with error indication. */
@@ -36,13 +35,14 @@ extern FILE *g_log_file;
     fputs(buf, g_log_file); \
     fprintf(g_log_file, "(%s:%d) ERR ", __FILE__, __LINE__); \
     fprintf(g_log_file, (fmt), ##__VA_ARGS__); \
-    fflush(g_log_file); \
 } while (0)
 
 /* Log an event to the log file.  */
 void log_event(xcb_generic_event_t *event);
 
-/* Log an xcb error to the log file. */
+/* Log an xcb error to the log file with additional output formatting and new
+ * line.
+ */
 void log_error(xcb_generic_error_t *error, const char *fmt, ...);
 
 /* Log the screen information to the log file. */
@@ -50,7 +50,9 @@ void log_screen(void);
 
 #else
 
-#define LOG(fmt, ...)
+#define LOG(...)
+#define ERR(...)
+
 #define log_event(...)
 #define log_error(...)
 #define log_screen(...)

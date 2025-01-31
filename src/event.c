@@ -168,10 +168,10 @@ static void handle_destroy_notify(xcb_destroy_notify_event_t *event)
  */
 void handle_key_press(xcb_key_press_event_t *event)
 {
-    int action;
+    action_t action;
 
     action = get_action_bind(event);
-    if (action != -1) {
+    if (action != ACTION_NULL) {
         do_action(action);
     }
 }
