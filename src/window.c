@@ -48,6 +48,7 @@ Window *create_window(xcb_window_t xcb_window)
 
     update_window_name(window);
     update_window_size_hints(window);
+    update_window_wm_hints(window);
 
     set_window_state(window, predict_window_state(window), 0);
 
@@ -118,6 +119,30 @@ void update_window_wm_hints(Window *window)
     }
 }
 
+/* Set the position and size of a window. */
+void set_window_size(Window *window, int32_t x, int32_t y, uint32_t width,
+        uint32_t height)
+{
+    window->x = x;
+    window->y = y;
+    window->width = width;
+    window->height = height;
+
+    g_values[0] = x;
+    g_values[1] = y;
+    g_values[2] = width;
+    g_values[3] = height;
+    xcb_configure_window(g_dpy, window->xcb_window, XCB_CONFIG_SIZE, g_values);
+}
+
+/* Put the window on top of all other windows. */
+void set_window_above(Window *window)
+{
+    g_values[0] = XCB_STACK_MODE_ABOVE;
+    xcb_configure_window(g_dpy, window->xcb_window,
+            XCB_CONFIG_WINDOW_STACK_MODE, g_values);
+}
+
 /* Get the window before this window in the linked list. */
 Window *get_previous_window(Window *window)
 {
@@ -146,21 +171,6 @@ Window *get_window_of_xcb_window(xcb_window_t xcb_window)
     }
     LOG("xcb window %" PRIu32 " is not managed\n", xcb_window);
     return NULL;
-}
-
-/* Get the frame this window is contained in. */
-Frame get_frame_of_window(Window *window)
-{
-    if (window->state != WINDOW_STATE_SHOWN) {
-        return (Frame) -1;
-    }
-
-    for (Frame frame = 0; frame < g_frame_capacity; frame++) {
-        if (g_frames[frame].window == window) {
-            return frame;
-        }
-    }
-    return (Frame) -1;
 }
 
 /* Get the currently focused window. */
@@ -263,4 +273,19 @@ Window *get_previous_hidden_window(Window *window)
     } while (prev->state != WINDOW_STATE_HIDDEN);
 
     return prev;
+}
+
+/* Puts a window into a frame and matches its size. */
+void link_window_and_frame(Window *window, Frame *frame)
+{
+    if (window->frame != NULL) {
+        window->frame->window = NULL;
+    }
+    if (frame->window != NULL) {
+        frame->window->frame = NULL;
+    }
+
+    window->frame = frame;
+    frame->window = window;
+    set_window_size(window, frame->x, frame->y, frame->width, frame->height);
 }

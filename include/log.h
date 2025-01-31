@@ -5,7 +5,9 @@
 
 #ifdef DEBUG
 
+#include <stdio.h>
 #include <time.h>
+#include <xcb/xcb_event.h>
 
 extern FILE *g_log_file;
 
@@ -40,12 +42,18 @@ extern FILE *g_log_file;
 /* Log an event to the log file.  */
 void log_event(xcb_generic_event_t *event);
 
-/* Log the screens information to the log file. */
-void log_screens(void);
+/* Log an xcb error to the log file. */
+void log_error(xcb_generic_error_t *error);
+
+/* Log the screen information to the log file. */
+void log_screen(void);
 
 #else
 
 #define LOG(fmt, ...)
+#define log_event(...)
+#define log_error(...)
+#define log_screen(...)
 
 #endif // DEBUG
 

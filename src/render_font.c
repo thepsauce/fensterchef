@@ -156,11 +156,11 @@ err:
     return 1;
 }
 
-xcb_render_picture_t create_pen(xcb_render_color_t color)
+/* Creates a pixmap with width and height set to 1. */
+xcb_render_picture_t create_pen(xcb_window_t root, xcb_render_color_t color)
 {
     xcb_render_pictforminfo_t                   *fmt;
     const xcb_render_query_pict_formats_reply_t *fmt_reply;
-    xcb_drawable_t                              root;
     xcb_pixmap_t                                pixmap;
     xcb_render_picture_t                        picture;
     xcb_rectangle_t                             rect;
@@ -169,8 +169,6 @@ xcb_render_picture_t create_pen(xcb_render_color_t color)
 
     fmt = xcb_render_util_find_standard_format(fmt_reply,
             XCB_PICT_STANDARD_ARGB_32);
-
-    root = SCREEN(g_screen_no)->root;
 
     pixmap = xcb_generate_id(g_dpy);
     xcb_create_pixmap(g_dpy, 32, pixmap, root, 1, 1);

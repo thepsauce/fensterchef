@@ -6,6 +6,7 @@
 #include "keybind.h"
 #include "keymap.h"
 #include "log.h"
+#include "screen.h"
 #include "util.h"
 
 /* This file handles translation of keysyms to keycodes and vise versa.
@@ -54,25 +55,24 @@ static struct {
  * grabs because we want them all for ourselves. Calling xcb_grab_key() on an
  * already grabbed key leads to an access error.
  */
-int init_keybinds(void)
+void init_keybinds(void)
 {
-    xcb_screen_t    *screen;
-    xcb_keycode_t   *keycode;
-    const uint32_t  modifiers[] = { 0, XCB_MOD_MASK_LOCK };
+    xcb_window_t root;
+    xcb_keycode_t *keycode;
+    const uint32_t modifiers[] = { 0, XCB_MOD_MASK_LOCK };
 
-    screen = SCREEN(g_screen_no);
-    xcb_ungrab_key(g_dpy, XCB_GRAB_ANY, screen->root, XCB_MOD_MASK_ANY);
+    root = g_screen->xcb_screen->root;
+    xcb_ungrab_key(g_dpy, XCB_GRAB_ANY, root, XCB_MOD_MASK_ANY);
     for (uint32_t i = 0; i < SIZE(key_binds); i++) {
         keycode = get_keycodes(key_binds[i].keysym);
         for (uint32_t k = 0; keycode[k] != XCB_NO_SYMBOL; k++) {
             for (uint32_t m = 0; m < SIZE(modifiers); m++) {
-                xcb_grab_key(g_dpy, 1, screen->root, key_binds[i].mod | modifiers[m],
+                xcb_grab_key(g_dpy, 1, root, key_binds[i].mod | modifiers[m],
                         keycode[k], XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC);
             }
         }
         free(keycode);
     }
-    return 0;
 }
 
 /* Get an action code from a key press event. This checks the pressed

@@ -25,7 +25,7 @@ void deinit_font_drawing(void);
 int set_font(const FcChar8 *query);
 
 /* Creates a pixmap with width and height set to 1. */
-xcb_pixmap_t create_pen(xcb_render_color_t color);
+xcb_pixmap_t create_pen(xcb_window_t root, xcb_render_color_t color);
 
 /* This draws text to a given drawable using the current font. */
 void draw_text(xcb_drawable_t xcb_drawable, const FcChar8 *utf8, uint32_t len,

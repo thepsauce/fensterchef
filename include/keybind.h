@@ -4,7 +4,7 @@
 #include <xcb/xcb.h>
 
 /* Grab all keys so we receive the keypress events for them. */
-int init_keybinds(void);
+void init_keybinds(void);
 
 /* Get an action code from a key press event (keybind).
  *

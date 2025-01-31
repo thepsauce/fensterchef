@@ -1,9 +1,11 @@
 #include <inttypes.h>
+#include <xcb/randr.h>
 
 #include "action.h"
 #include "fensterchef.h"
 #include "keybind.h"
 #include "log.h"
+#include "screen.h"
 
 /* This file handles all kinds of xcb events.
  *
@@ -14,6 +16,9 @@
  * NOTIFICATIONS: What is notified ALREADY happened, there is nothing
  * to do now but to take note of it.
  */
+
+/* this is the first index of a randr event */
+uint8_t randr_event_base;
 
 /* this is used for moving a popup window */
 static struct {
@@ -50,7 +55,6 @@ static void handle_button_press(xcb_button_press_event_t *event)
 {
     xcb_get_geometry_reply_t    *geometry;
     Window                      *window;
-    xcb_window_t                root;
 
     window = get_window_of_xcb_window(event->child);
     if (window == NULL || window->state != WINDOW_STATE_POPUP) {
@@ -70,10 +74,9 @@ static void handle_button_press(xcb_button_press_event_t *event)
 
     selected_window.xcb_window = event->child;
 
-    root = SCREEN(g_screen_no)->root;
-    xcb_grab_pointer(g_dpy, 0, root,
+    xcb_grab_pointer(g_dpy, 0, event->root,
             XCB_EVENT_MASK_BUTTON_RELEASE | XCB_EVENT_MASK_BUTTON_MOTION,
-            XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC, root,
+            XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC, event->root,
             XCB_NONE, XCB_CURRENT_TIME);
 }
 
@@ -82,7 +85,7 @@ static void handle_button_press(xcb_button_press_event_t *event)
  */
 static void handle_motion_notify(xcb_motion_notify_event_t *event)
 {
-    xcb_get_geometry_reply_t        *geometry;
+    xcb_get_geometry_reply_t *geometry;
 
     geometry = xcb_get_geometry_reply(g_dpy,
             xcb_get_geometry(g_dpy, selected_window.xcb_window), NULL);
@@ -162,7 +165,7 @@ static void handle_destroy_notify(xcb_destroy_notify_event_t *event)
 }
 
 /* Key press events are sent when a GRABBED key is triggered, keys were
- * grabbed at the start in setup_keys() using xcb_grab_key().
+ * grabbed at the start in init_keybinds() using xcb_grab_key().
  */
 void handle_key_press(xcb_key_press_event_t *event)
 {
@@ -184,6 +187,13 @@ void handle_key_press(xcb_key_press_event_t *event)
  */
 void handle_configure_request(xcb_configure_request_event_t *event)
 {
+    Window *window;
+
+    window = get_window_of_xcb_window(event->window);
+    if (window != NULL) {
+        return;
+    }
+
     g_values[0] = event->x;
     g_values[1] = event->y;
     g_values[2] = event->width;
@@ -191,6 +201,15 @@ void handle_configure_request(xcb_configure_request_event_t *event)
     g_values[4] = event->border_width;
     xcb_configure_window(g_dpy, event->window,
             XCB_CONFIG_SIZE | XCB_CONFIG_WINDOW_BORDER_WIDTH, g_values);
+}
+
+/* Screen change notifications are sent when the screen configurations is
+ * changed, this can include position, size etc.
+ */
+void handle_screen_change(xcb_randr_screen_change_notify_event_t *event)
+{
+    (void) event;
+    merge_monitors(query_monitors());
 }
 
 /* Handle the given xcb event.
@@ -201,11 +220,19 @@ void handle_configure_request(xcb_configure_request_event_t *event)
  */
 void handle_event(xcb_generic_event_t *event)
 {
-#ifdef DEBUG
-    log_event(event);
-#endif
+    uint8_t type;
 
-    switch ((event->response_type & ~0x80)) {
+    type = (event->response_type & ~0x80);
+
+    if (type >= randr_event_base) {
+        /* TODO: there are more randr events? */
+        handle_screen_change((xcb_randr_screen_change_notify_event_t*) event);
+        return;
+    }
+
+    log_event(event);
+
+    switch (type) {
     case XCB_MAP_REQUEST:
         handle_map_request((xcb_map_request_event_t*) event);
         break;

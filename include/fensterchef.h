@@ -30,42 +30,17 @@
 /* cast to FcChar8* which represents a utf8 string */
 #define UTF8_TEXT(text) ((FcChar8*) (text))
 
-/* get the screen at given index */
-#define SCREEN(no) (g_ewmh.screens[no])
-
 /* xcb server connection */
 extern xcb_connection_t         *g_dpy;
 
 /* ewmh information */
 extern xcb_ewmh_connection_t    g_ewmh;
 
-/* the screen being used */
-extern uint32_t                 g_screen_no;
-
 /* 1 while the window manager is running */
 extern unsigned                 g_running;
 
-/* stock object indexes */
-enum {
-    STOCK_WHITE_PEN,
-    STOCK_BLACK_PEN,
-    STOCK_GC,
-    STOCK_INVERTED_GC,
-
-    STOCK_COUNT,
-};
-
-/* graphis objects with the id referring to the xcb id */
-extern uint32_t                 g_stock_objects[STOCK_COUNT];
-
 /* general purpose values */
 extern uint32_t                 g_values[6];
-
-/* user notification window */
-extern xcb_window_t             g_notification_window;
-
-/* list of windows */
-extern xcb_window_t             g_window_list_window;
 
 /* Initialize most of fensterchef data and set root window flags. */
 int init_fensterchef(void);

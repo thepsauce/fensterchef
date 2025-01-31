@@ -11,9 +11,6 @@
 /* the number the first window gets assigned */
 #define FIRST_WINDOW_NUMBER 1
 
-/* an invalid window pointer */
-#define WINDOW_SENTINEL ((Window*) -1)
-
 /* all possible window states */
 #define WINDOW_STATE_HIDDEN 0
 #define WINDOW_STATE_SHOWN 1
@@ -30,30 +27,44 @@
  * POPUP: The window is a popup window, it may or may not be visible.
  * IGNORE: The window was once registered by the WM but the user decided to
  *      ignore it. It does not appear when cycling through windows.
- * FULLSCREEN: The window covers the entire screen.
+ * FULLSCREEN: The window covers an entire monitor.
  */
 typedef struct window {
     /* the actual X window */
     xcb_window_t xcb_window;
+
+    /* frame this window is contained in */
+    struct frame *frame;
+
     /* xcb size hints of the window */
     xcb_size_hints_t size_hints;
     /* special window manager hints */
     xcb_icccm_wm_hints_t wm_hints;
     /* short window title */
     FcChar8 short_title[256];
+
+    /* current window position and size */
+    int32_t x;
+    int32_t y;
+    uint32_t width;
+    uint32_t height;
+
     /* size when the window was in popup state */
     uint32_t popup_width;
     uint32_t popup_height;
+
     /* the window state, one of WINDOW_STATE_* */
     unsigned state : 3;
     /* the previous window state */
     unsigned prev_state : 3;
-    /* if the user forced this window to be a certain state */
+    /* if the window was forced to be a certain state */
     unsigned forced_state : 1;
     /* if the window has focus */
     unsigned focused : 1;
+
     /* the id of this window */
     uint32_t number;
+
     /* the next window in the linked list */
     struct window *next;
 } Window;
@@ -81,6 +92,13 @@ void update_window_size_hints(Window *window);
 /* Update the wm_hints of the window. */
 void update_window_wm_hints(Window *window);
 
+/* Set the position and size of a window. */
+void set_window_size(Window *window, int32_t x, int32_t y, uint32_t width,
+        uint32_t height);
+
+/* Put the window on top of all other windows. */
+void set_window_above(Window *window);
+
 /* Get the window before this window in the linked list.
  * This function WRAPS around so
  *  `get_previous_window(g_first_window)` returns the last window.
@@ -99,7 +117,7 @@ Window *get_window_of_xcb_window(xcb_window_t xcb_window);
  *
  * @return NULL when the window is not in any frame.
  */
-Frame get_frame_of_window(Window *window);
+Frame *get_frame_of_window(const Window *window);
 
 /* Get the currently focused window.
  *
@@ -131,6 +149,13 @@ Window *get_next_hidden_window(Window *window);
  * @return NULL iff there is no hidden window.
  */
 Window *get_previous_hidden_window(Window *window);
+
+/* Puts a window into a frame and matches its size.
+ *
+ * This also disconnects the frame of the window AND the window of the frame
+ * from their respective frame and window which makes this a very safe function.
+ */
+void link_window_and_frame(Window *window, Frame *frame);
 
 /* -- Implemented in window_state.c -- */
 
