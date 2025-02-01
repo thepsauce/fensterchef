@@ -16,13 +16,6 @@
 
 /* Render the window list.
  *
- * First, this measures the maximum length a title needs and then configures
- * the window size to fit that and focuses the window.
- *
- * Lastly, the titles are drawn by first replacing the indicator character
- * within the short title of the window and then rendering that text.
- * The selected window is highlighted with inverted colors.
- *
  * TODO: add scrolling
  */
 static int render_window_list(Window *selected)
@@ -36,6 +29,7 @@ static int render_window_list(Window *selected)
     xcb_render_color_t       bg_color;
     xcb_render_picture_t     pen;
 
+    /* measure the maximum needed width */
     window_count = 0;
     tm.ascent = 12;
     tm.descent = -4;
@@ -103,6 +97,7 @@ static int render_window_list(Window *selected)
     return 0;
 }
 
+/* Handle all incoming xcb events for the window list. */
 static inline Window *handle_window_list_events(Window *selected,
         Window **p_old_focus)
 {
@@ -179,6 +174,7 @@ static inline Window *handle_window_list_events(Window *selected,
                     }
                     if (selected == NULL) {
                         destroy_window(window);
+                        free(event);
                         return NULL;
                     }
                 }

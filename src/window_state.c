@@ -383,28 +383,15 @@ void set_window_state(Window *window, unsigned state, unsigned force)
         return;
     }
 
-<<<<<<< HEAD
+    LOG("transition window state of %" PRIu32 " from %u to %u (%s)\n",
+            window->number, window->state.current, state,
+            force ? "forced" : "not forced");
+
     window->state.is_forced = force;
     if (transitions[window->state.current][state] != NULL) {
         transitions[window->state.current][state](window);
     }
 
-    LOG("state of window %" PRIu32 " changed to %u\n",
-            window->number, state);
-
     window->state.previous = window->state.current;
     window->state.current = state;
-=======
-    LOG("transition window state of %" PRIu32 " from %u to %u (%s)\n",
-            window->number, window->state, state,
-            force ? "forced" : "not forced");
-
-    window->forced_state = force;
-    if (transitions[window->state][state] != NULL) {
-        transitions[window->state][state](window);
-    }
-
-    window->prev_state = window->state;
-    window->state = state;
->>>>>>> 0467d2f (verbesser logging)
 }

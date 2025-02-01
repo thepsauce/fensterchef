@@ -13,9 +13,11 @@
 #include "screen.h"
 #include "util.h"
 
+/* all modifier masks that have no meaning to us */
 #define IGNORE_MODIFIER_MASK \
     (XCB_MOD_MASK_LOCK|XCB_MOD_MASK_2|XCB_MOD_MASK_3|XCB_MOD_MASK_5)
 
+/* the main modifier key */
 #define MOD_KEY XCB_MOD_MASK_4
 
 /* all keybinds */
@@ -28,8 +30,6 @@ static struct {
     action_t action;
 } key_binds[] = {
     { MOD_KEY, XK_Return, ACTION_START_TERMINAL },
-
-    { MOD_KEY, XK_m, _ACTION_START_MENU },
 
     { MOD_KEY, XK_n, ACTION_NEXT_WINDOW },
     { MOD_KEY, XK_p, ACTION_PREV_WINDOW },

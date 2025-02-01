@@ -227,7 +227,7 @@ void handle_event(xcb_generic_event_t *event)
     type = (event->response_type & ~0x80);
 
     if (type >= randr_event_base) {
-        /* TODO: there are more randr events? */
+        /* TODO: there are more randr events? what do they mean? */
         handle_screen_change((xcb_randr_screen_change_notify_event_t*) event);
         return;
     }

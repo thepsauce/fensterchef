@@ -7,7 +7,6 @@ typedef enum {
     ACTION_NULL,
     /* open a terminal window */
     ACTION_START_TERMINAL,
-    _ACTION_START_MENU,
     /* go to the next window in the window list */
     ACTION_NEXT_WINDOW,
     /* go to the previous window in the window list */

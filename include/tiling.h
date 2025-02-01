@@ -3,11 +3,6 @@
 
 #include "frame.h"
 
-/* the frames the user abandoned, for example by disconnecting a monitor */
-extern Frame **g_abandoned_frames;
-/* the number of frames abandoned */
-extern uint32_t g_abandoned_frame_count;
-
 /* Split a frame horizontally or vertically. 
  *
  * The frame @split_from must have NO children.
@@ -22,8 +17,7 @@ void split_frame(Frame *split_from, int is_split_vert);
  */
 int remove_frame(Frame *frame);
 
-/* Destroy a frame and all child frames and hide all inner windows.
- */
+/* Destroy a frame and all child frames and hide all inner windows. */
 void abandon_frame(Frame *frame);
 
 #endif
