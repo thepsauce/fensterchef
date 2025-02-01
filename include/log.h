@@ -43,7 +43,7 @@ extern FILE *g_log_file;
 void log_event(xcb_generic_event_t *event);
 
 /* Log an xcb error to the log file. */
-void log_error(xcb_generic_error_t *error);
+void log_error(xcb_generic_error_t *error, const char *fmt, ...);
 
 /* Log the screen information to the log file. */
 void log_screen(void);

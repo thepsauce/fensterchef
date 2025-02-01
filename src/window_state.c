@@ -119,10 +119,10 @@ static void configure_popup_size(Window *window)
     int32_t x, y;
     uint32_t width, height;
 
-    monitor = get_monitor_from_rectangle(window->x, window->y,
-            window->width, window->height);
+    monitor = get_monitor_from_rectangle(window->position.x, window->position.y,
+            window->size.width, window->size.height);
 
-    if (window->popup_width == 0) {
+    if (window->popup_size.width == 0) {
         if ((window->size_hints.flags & XCB_ICCCM_SIZE_HINT_US_SIZE)) {
             width = window->size_hints.width;
             height = window->size_hints.height;
@@ -151,11 +151,11 @@ static void configure_popup_size(Window *window)
                     (uint32_t) window->size_hints.max_height);
         }
 
-        window->popup_width = width;
-        window->popup_height = height;
+        window->popup_size.width = width;
+        window->popup_size.height = height;
     } else {
-        width = window->popup_width;
-        height = window->popup_width;
+        width = window->popup_size.width;
+        height = window->popup_size.height;
     }
 
     if ((window->size_hints.flags & XCB_ICCCM_SIZE_HINT_P_WIN_GRAVITY)) {
@@ -212,8 +212,8 @@ static void configure_fullscreen_size(Window *window)
 {
     Monitor *monitor;
 
-    monitor = get_monitor_from_rectangle(window->x, window->y,
-            window->width, window->height);
+    monitor = get_monitor_from_rectangle(window->position.x, window->position.y,
+            window->size.width, window->size.height);
     set_window_size(window, monitor->frame->x, monitor->frame->y,
             monitor->frame->width, monitor->frame->height);
     set_window_above(window);
@@ -223,9 +223,9 @@ static void configure_fullscreen_size(Window *window)
 static void quick_hide(Window *window)
 {
     xcb_unmap_window(g_dpy, window->xcb_window);
-    window->prev_state = window->state;
-    window->state = WINDOW_STATE_HIDDEN;
-    window->forced_state = 1;
+    window->state.previous = window->state.current;
+    window->state.current = WINDOW_STATE_HIDDEN;
+    window->state.is_forced = 1;
 }
 
 static void transition_hidden_shown(Window *window)
@@ -282,7 +282,7 @@ static void transition_shown_hidden(Window *window)
     if (next != NULL) {
         link_window_and_frame(next, window->frame);
 
-        next->state = WINDOW_STATE_SHOWN;
+        next->state.current = WINDOW_STATE_SHOWN;
 
         xcb_map_window(g_dpy, next->xcb_window);
 
@@ -309,7 +309,7 @@ static void transition_shown_popup(Window *window)
     if (next != NULL) {
         link_window_and_frame(next, window->frame);
 
-        next->state = WINDOW_STATE_SHOWN;
+        next->state.current = WINDOW_STATE_SHOWN;
 
         xcb_map_window(g_dpy, next->xcb_window);
     } else {
@@ -328,7 +328,7 @@ static void transition_shown_fullscreen(Window *window)
     if (next != NULL) {
         link_window_and_frame(next, window->frame);
 
-        next->state = WINDOW_STATE_SHOWN;
+        next->state.current = WINDOW_STATE_SHOWN;
 
         xcb_map_window(g_dpy, next->xcb_window);
     } else {
@@ -374,19 +374,19 @@ static void transition_fullscreen_popup(Window *window)
  * if the state changed. */
 void set_window_state(Window *window, unsigned state, unsigned force)
 {
-    if (window->state == state ||
-            (window->forced_state && !force)) {
+    if (window->state.current == state ||
+            (window->state.is_forced && !force)) {
         return;
     }
 
-    window->forced_state = force;
-    if (transitions[window->state][state] != NULL) {
-        transitions[window->state][state](window);
+    window->state.is_forced = force;
+    if (transitions[window->state.current][state] != NULL) {
+        transitions[window->state.current][state](window);
     }
 
     LOG("state of window %" PRIu32 " changed to %u\n",
             window->number, state);
 
-    window->prev_state = window->state;
-    window->state = state;
+    window->state.previous = window->state.current;
+    window->state.current = state;
 }

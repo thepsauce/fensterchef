@@ -6,6 +6,7 @@
 #include "keybind.h"
 #include "log.h"
 #include "screen.h"
+#include "util.h"
 
 /* This file handles all kinds of xcb events.
  *
@@ -23,11 +24,9 @@ uint8_t randr_event_base;
 /* this is used for moving a popup window */
 static struct {
     /* the initial position of the moved window (for ESCAPE cancellation) */
-    int16_t start_x;
-    int16_t start_y;
+    Position start;
     /* previous mouse position, needed to compute the mouse motion */
-    int16_t old_mouse_x;
-    int16_t old_mouse_y;
+    Position old_mouse;
     /* the window that is being moved */
     xcb_window_t xcb_window;
 } selected_window;
@@ -57,7 +56,7 @@ static void handle_button_press(xcb_button_press_event_t *event)
     Window                      *window;
 
     window = get_window_of_xcb_window(event->child);
-    if (window == NULL || window->state != WINDOW_STATE_POPUP) {
+    if (window == NULL || window->state.current != WINDOW_STATE_POPUP) {
         return;
     }
 
@@ -66,11 +65,11 @@ static void handle_button_press(xcb_button_press_event_t *event)
     if (geometry == NULL) {
         return;
     }
-    selected_window.start_x = event->root_y;
-    selected_window.start_y = event->root_y;
+    selected_window.start.x = event->root_y;
+    selected_window.start.y = event->root_y;
 
-    selected_window.old_mouse_x = event->root_x;
-    selected_window.old_mouse_y = event->root_y;
+    selected_window.old_mouse.x = event->root_x;
+    selected_window.old_mouse.y = event->root_y;
 
     selected_window.xcb_window = event->child;
 
@@ -93,10 +92,10 @@ static void handle_motion_notify(xcb_motion_notify_event_t *event)
         xcb_ungrab_pointer(g_dpy, XCB_CURRENT_TIME);
         return;
     }
-    g_values[0] = geometry->x + (event->root_x - selected_window.old_mouse_x);
-    g_values[1] = geometry->y + (event->root_y - selected_window.old_mouse_y);
-    selected_window.old_mouse_x = event->root_x;
-    selected_window.old_mouse_y = event->root_y;
+    g_values[0] = geometry->x + (event->root_x - selected_window.old_mouse.x);
+    g_values[1] = geometry->y + (event->root_y - selected_window.old_mouse.y);
+    selected_window.old_mouse.x = event->root_x;
+    selected_window.old_mouse.y = event->root_y;
     xcb_configure_window(g_dpy, selected_window.xcb_window,
             XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y, g_values);
 }
@@ -254,23 +253,6 @@ void handle_event(xcb_generic_event_t *event)
     case XCB_DESTROY_NOTIFY:
         handle_destroy_notify((xcb_destroy_notify_event_t*) event);
         break;
-    /*case XCB_FOCUS_IN:
-        window = get_window_of_xcb_window(
-                ((xcb_focus_in_event_t*) event)->event);
-        if (window != NULL) {
-            LOG("setting focus of window %" PRIu32 " to 1\n", window->number);
-            window->focused = 1;
-        }
-        break;
-
-    case XCB_FOCUS_OUT:
-        window = get_window_of_xcb_window(
-                ((xcb_focus_out_event_t*) event)->event);
-        if (window != NULL) {
-            LOG("setting focus of window %" PRIu32 " to 0\n", window->number);
-            window->focused = 0;
-        }
-        break;*/
     case XCB_CONFIGURE_REQUEST:
         handle_configure_request((xcb_configure_request_event_t*) event);
         break;

@@ -91,7 +91,8 @@ static void unmap_and_destroy_recursively(Frame *frame)
         unmap_and_destroy_recursively(frame->left);
         unmap_and_destroy_recursively(frame->right);
     } else if (frame->window != NULL) {
-        frame->window->state = WINDOW_STATE_HIDDEN;
+        frame->window->state.previous = frame->window->state.current;
+        frame->window->state.current = WINDOW_STATE_HIDDEN;
         frame->window->focused = 0;
         frame->window->frame = NULL;
         xcb_unmap_window(g_dpy, frame->window->xcb_window);

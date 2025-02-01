@@ -1,3 +1,8 @@
+/* This file handles translation of keysyms to keycodes and vise versa.
+ *
+ * It also handles keybinds.
+ */
+
 #include <xcb/xcb_keysyms.h>
 #include <X11/keysym.h>
 
@@ -9,15 +14,17 @@
 #include "screen.h"
 #include "util.h"
 
-/* This file handles translation of keysyms to keycodes and vise versa.
- *
- * It also handles keybinds.
- */
+#define IGNORE_MODIFIER_MASK \
+    (XCB_MOD_MASK_LOCK|XCB_MOD_MASK_2|XCB_MOD_MASK_3|XCB_MOD_MASK_5)
 
+/* all keybinds */
 static struct {
-    int mod;
+    /* the key modifier */
+    uint16_t modifier;
+    /* the key symbol */
     xcb_keysym_t keysym;
-    int action;
+    /* the action to execute */
+    action_t action;
 } key_binds[] = {
     { XCB_MOD_MASK_1, XK_Return, ACTION_START_TERMINAL },
     { XCB_MOD_MASK_1, XK_n, ACTION_NEXT_WINDOW },
@@ -45,49 +52,75 @@ static struct {
         ACTION_QUIT_WM },
 };
 
-/* Grab the keybinds so we receive the keypress events for them.
- *
- * One difficulty is that a single keysym can correspond to multiple keycodes,
- * but this can be handled easily by iterating over all keycodes and grabbing
- * them all.
- *
- * Note that first xcb_ungrab_key() is called to get rid of any previous key
- * grabs because we want them all for ourselves. Calling xcb_grab_key() on an
- * already grabbed key leads to an access error.
- */
+/* Grab the keybinds so we receive the keypress events for them. */
 void init_keybinds(void)
 {
     xcb_window_t root;
     xcb_keycode_t *keycode;
-    const uint32_t modifiers[] = { 0, XCB_MOD_MASK_LOCK };
+    uint16_t ignore_modifiers[] = {
+        XCB_MOD_MASK_LOCK, XCB_MOD_MASK_2, XCB_MOD_MASK_3, XCB_MOD_MASK_5
+    };
+    uint16_t modifiers;
 
     root = g_screen->xcb_screen->root;
+
+    /* remove all previously grabbed keys so that we can overwrite them */
     xcb_ungrab_key(g_dpy, XCB_GRAB_ANY, root, XCB_MOD_MASK_ANY);
+
     for (uint32_t i = 0; i < SIZE(key_binds); i++) {
+        /* go over all keycodes of a specific key symbol and grab them with
+         * needed modifiers
+         */
         keycode = get_keycodes(key_binds[i].keysym);
-        for (uint32_t k = 0; keycode[k] != XCB_NO_SYMBOL; k++) {
-            for (uint32_t m = 0; m < SIZE(modifiers); m++) {
-                xcb_grab_key(g_dpy, 1, root, key_binds[i].mod | modifiers[m],
-                        keycode[k], XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC);
+        for (uint32_t j = 0; keycode[j] != XCB_NO_SYMBOL; j++) {
+            /* use every possible combination of modifiers we do not care about
+             * so that when the user has CAPS LOCK for example, it does not mess
+             * with keybinds.
+             */
+            for (uint32_t k = 0; k < (1 << SIZE(ignore_modifiers)); k++) {
+
+                modifiers = key_binds[i].modifier;
+
+                for (uint32_t l = 0, b = 1; l < SIZE(ignore_modifiers);
+                        l++, b <<= 1) {
+                    if ((k & b)) {
+                        modifiers |= ignore_modifiers[l];
+                    }
+                }
+
+                xcb_grab_key(g_dpy,
+                        1, /* 1 means we specify a specific window for grabbing */
+                        root, /* this is the window we grab the key for */
+                        modifiers, keycode[j],
+                        /* the ASYNC constants are so that event processing
+                         * continues normally, otherwise we would need to issue
+                         * an AllowEvents request each time we receive KeyPress
+                         * events
+                         */
+                        XCB_GRAB_MODE_ASYNC,
+                        XCB_GRAB_MODE_ASYNC);
             }
         }
         free(keycode);
     }
 }
 
-/* Get an action code from a key press event. This checks the pressed
- * key and the key modifiers to get a binded action.
- */
+/* Get an action code from a key press event. */
 action_t get_action_bind(xcb_key_press_event_t *event)
 {
     xcb_keysym_t keysym;
+    uint16_t modifiers;
 
+    /* find a matching key bind (the keysym AND modifier must match up) */
     keysym = get_keysym(event->detail);
+    modifiers = (event->state & ~IGNORE_MODIFIER_MASK);
     for (uint32_t i = 0; i < SIZE(key_binds); i++) {
-        if (keysym == key_binds[i].keysym && key_binds[i].mod == event->state) {
+        if (keysym == key_binds[i].keysym &&
+                key_binds[i].modifier == modifiers) {
             return key_binds[i].action;
         }
     }
+
     LOG("trash keybind: %d\n", keysym);
     return ACTION_NULL;
 }

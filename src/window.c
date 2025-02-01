@@ -123,10 +123,10 @@ void update_window_wm_hints(Window *window)
 void set_window_size(Window *window, int32_t x, int32_t y, uint32_t width,
         uint32_t height)
 {
-    window->x = x;
-    window->y = y;
-    window->width = width;
-    window->height = height;
+    window->position.x = x;
+    window->position.y = y;
+    window->size.width = width;
+    window->size.height = height;
 
     g_values[0] = x;
     g_values[1] = y;
@@ -222,8 +222,8 @@ void give_someone_else_focus(Window *window)
         if (other == window) {
             return;
         }
-    } while (other->state != WINDOW_STATE_SHOWN &&
-            other->state != WINDOW_STATE_POPUP);
+    } while (other->state.current != WINDOW_STATE_SHOWN &&
+            other->state.current != WINDOW_STATE_POPUP);
 
     other->focused = 1;
 
@@ -250,7 +250,7 @@ Window *get_next_hidden_window(Window *window)
         if (window == next) {
             return NULL;
         }
-    } while (next->state != WINDOW_STATE_HIDDEN);
+    } while (next->state.current != WINDOW_STATE_HIDDEN);
 
     return next;
 }
@@ -259,20 +259,21 @@ Window *get_next_hidden_window(Window *window)
  * the given window. */
 Window *get_previous_hidden_window(Window *window)
 {
-    Window *prev;
+    Window *previous;
 
     if (window == NULL) {
         return NULL;
     }
-    prev = window;
+
+    previous = window;
     do {
-        prev = get_previous_window(prev);
-        if (window == prev) {
+        previous = get_previous_window(previous);
+        if (window == previous) {
             return NULL;
         }
-    } while (prev->state != WINDOW_STATE_HIDDEN);
+    } while (previous->state.current != WINDOW_STATE_HIDDEN);
 
-    return prev;
+    return previous;
 }
 
 /* Puts a window into a frame and matches its size. */

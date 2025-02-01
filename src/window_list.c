@@ -87,12 +87,12 @@ static int render_window_list(Window *selected)
         while (isdigit(marker_char[0])) {
             marker_char++;
         }
-        marker_char[0] = w->state == WINDOW_STATE_POPUP ?
+        marker_char[0] = w->state.current == WINDOW_STATE_POPUP ?
                     (w->focused ? '#' : '=') :
-                w->state == WINDOW_STATE_FULLSCREEN ?
+                w->state.current == WINDOW_STATE_FULLSCREEN ?
                     (w->focused ? '@' : 'F') :
                 w->focused ? '*' :
-                w->state == WINDOW_STATE_SHOWN ? '+' : '-',
+                w->state.current == WINDOW_STATE_SHOWN ? '+' : '-',
 
         draw_text(g_screen->window_list_window, w->short_title,
                 strlen((char*) w->short_title), bg_color, &rect,

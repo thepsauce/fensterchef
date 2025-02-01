@@ -11,14 +11,14 @@ typedef enum {
     ACTION_NEXT_WINDOW,
     /* go to the previous window in the window list */
     ACTION_PREV_WINDOW,
+    /* remove the current frame */
+    ACTION_REMOVE_FRAME,
     /* changes a popup window to a tiling window and vise versa */
     ACTION_CHANGE_WINDOW_STATE,
     /* changes from focusing a popup window to focusing a tiling window */
     ACTION_CHANGE_FOCUS,
     /* toggles the fullscreen state of the currently focused window */
     ACTION_TOGGLE_FULLSCREEN,
-    /* remove the current frame */
-    ACTION_REMOVE_FRAME,
     /* split the current frame horizontally */
     ACTION_SPLIT_HORIZONTALLY,
     /* split the current frame vertically */

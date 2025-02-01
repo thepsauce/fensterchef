@@ -18,10 +18,7 @@ int is_point_in_frame(const Frame *frame, int32_t x, int32_t y)
         (uint32_t) (y - frame->y) < frame->height;
 }
 
-/* Get the frame at given position.
- * 
- * This recursively traverses the frame tree, always cutting the search in half.
- */
+/* Get the frame at given position. */
 Frame *get_frame_at_position(int32_t x, int32_t y)
 {
     Frame *frame;
@@ -30,6 +27,7 @@ Frame *get_frame_at_position(int32_t x, int32_t y)
             monitor = monitor->next) {
         frame = monitor->frame;
         if (is_point_in_frame(frame, x, y)) {
+            /* recursively move into child frame until we are at a leaf */
             while (frame->left != NULL) {
                 if (is_point_in_frame(frame->left, x, y)) {
                     frame = frame->left;
@@ -47,10 +45,6 @@ Frame *get_frame_at_position(int32_t x, int32_t y)
 }
 
 /* Set the size of a frame, this also resize the inner frames and windows.
- *
- * This first checks if the sub frames are in a left and right 
- * orientation (horizontal split) or up and down orientation
- * (vertical split) and then resizes the children appropiately.
  *
  * TODO: keep ratio when resizing?
  */
@@ -70,10 +64,14 @@ void resize_frame(Frame *frame, int32_t x, int32_t y,
     left = frame->left;
     right = frame->right;
 
+    /* check if the frame has children */
     if (left == NULL) {
         return;
     }
 
+    /* check if the split is horizontal or vertical and place the children at
+     * half the area
+     */
     if (left->x != right->x) {
         resize_frame(left, x, y, width / 2, height);
         resize_frame(right, x + left->width, y,

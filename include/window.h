@@ -8,6 +8,8 @@
 #include <xcb/xcb.h> // xcb_window_t
 #include <xcb/xcb_icccm.h> // xcb_size_hints_t, xcb_icccm_wm_hints_t
 
+#include "util.h"
+
 /* the number the first window gets assigned */
 #define FIRST_WINDOW_NUMBER 1
 
@@ -17,6 +19,15 @@
 #define WINDOW_STATE_POPUP 2
 #define WINDOW_STATE_IGNORE 3
 #define WINDOW_STATE_FULLSCREEN 4
+
+typedef struct window_state {
+    /* the current window state */
+    unsigned current : 3;
+    /* the previous window state */
+    unsigned previous : 3;
+    /* if the window was forced to be a certain state */
+    unsigned is_forced : 1;
+} WindowState;
 
 /* A window is a wrapper around an xcb window, it is always part of a global
  * linked list and has a unique id.
@@ -44,21 +55,15 @@ typedef struct window {
     FcChar8 short_title[256];
 
     /* current window position and size */
-    int32_t x;
-    int32_t y;
-    uint32_t width;
-    uint32_t height;
+    Position position;
+    Size size;
 
     /* size when the window was in popup state */
-    uint32_t popup_width;
-    uint32_t popup_height;
+    Size popup_size;
 
-    /* the window state, one of WINDOW_STATE_* */
-    unsigned state : 3;
-    /* the previous window state */
-    unsigned prev_state : 3;
-    /* if the window was forced to be a certain state */
-    unsigned forced_state : 1;
+    /* the window state */
+    WindowState state;
+
     /* if the window has focus */
     unsigned focused : 1;
 
