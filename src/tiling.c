@@ -5,6 +5,11 @@
 #include "tiling.h"
 #include "util.h"
 
+/* the frames the user abandoned, for example by disconnecting a monitor */
+Frame **g_abandoned_frames;
+/* the number of frames abandoned */
+uint32_t g_abandoned_frame_count;
+
 /* TODO: For advanced tiling.
  * 1. Multi monitor support.
  * 2. Frame resizing.
@@ -144,5 +149,7 @@ int remove_frame(Frame *frame)
  */
 void abandon_frame(Frame *frame)
 {
+    RESIZE(g_abandoned_frames, g_abandoned_frame_count + 1);
+    g_abandoned_frames[g_abandoned_frame_count++] = frame;
     unmap_and_destroy_recursively(frame);
 }

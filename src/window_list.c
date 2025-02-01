@@ -27,14 +27,14 @@
  */
 static int render_window_list(Window *selected)
 {
-    uint32_t             window_count;
-    FcChar8              *marker_char;
-    struct text_measure  tm;
-    uint32_t             max_width;
-    struct frame         *root_frame;
-    xcb_rectangle_t      rect;
-    xcb_render_color_t   bg_color;
-    xcb_render_picture_t pen;
+    uint32_t                 window_count;
+    FcChar8                  *marker_char;
+    struct text_measure      tm;
+    uint32_t                 max_width;
+    struct frame             *primary_frame;
+    xcb_rectangle_t          rect;
+    xcb_render_color_t       bg_color;
+    xcb_render_picture_t     pen;
 
     window_count = 0;
     tm.ascent = 12;
@@ -50,10 +50,10 @@ static int render_window_list(Window *selected)
         return 1;
     }
 
-    root_frame = get_root_frame(g_cur_frame);
-    g_values[0] = root_frame->x + root_frame->width - max_width -
+    primary_frame = get_primary_monitor()->frame;
+    g_values[0] = primary_frame->x + primary_frame->width - max_width -
         WINDOW_PADDING / 2;
-    g_values[1] = root_frame->y;
+    g_values[1] = primary_frame->y;
     g_values[2] = max_width + WINDOW_PADDING / 2;
     g_values[3] = window_count * (tm.ascent - tm.descent + WINDOW_PADDING);
     g_values[4] = 1;

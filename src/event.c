@@ -172,7 +172,10 @@ void handle_key_press(xcb_key_press_event_t *event)
 
     action = get_action_bind(event);
     if (action != ACTION_NULL) {
+        LOG("performing action: %u\n", action);
         do_action(action);
+    } else {
+        LOG("trash key: %d\n", event->detail);
     }
 }
 

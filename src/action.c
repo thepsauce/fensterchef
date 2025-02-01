@@ -12,7 +12,7 @@
 static void start_terminal(void)
 {
     if (fork() == 0) {
-        execl("/usr/bin/xterm", "/usr/bin/xterm", NULL);
+        execl("/usr/local/bin/st", "/usr/local/bin/st", NULL);
     }
 }
 
@@ -95,6 +95,12 @@ void do_action(action_t action)
     /* open a terminal window */
     case ACTION_START_TERMINAL:
         start_terminal();
+        break;
+
+    case _ACTION_START_MENU:
+        if (fork() == 0) {
+            execl("/usr/bin/bash", "/usr/bin/bash", "-c", "menu.sh", NULL);
+        }
         break;
 
     /* go to the next window in the window list */
@@ -197,6 +203,4 @@ void do_action(action_t action)
         quit_fensterchef(0);
         break;
     }
-
-    LOG("performed action: %u\n", action);
 }

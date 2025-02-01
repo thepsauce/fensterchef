@@ -24,6 +24,10 @@ extern FILE *g_log_file;
     fprintf(g_log_file, (fmt), ##__VA_ARGS__); \
 } while (0)
 
+#define LOG_ADDITIONAL(fmt, ...) do { \
+    fprintf(g_log_file, (fmt), ##__VA_ARGS__); \
+} while (0)
+
 /* Log a formatted message to the log file with error indication. */
 #define ERR(fmt, ...) do { \
     char buf[64]; \
@@ -51,6 +55,7 @@ void log_screen(void);
 #else
 
 #define LOG(...)
+#define LOG_ADDITONAL(...)
 #define ERR(...)
 
 #define log_event(...)
