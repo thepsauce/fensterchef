@@ -1,6 +1,6 @@
 # Compiler flags
 DEBUG_FLAGS := -DDEBUG -DLOG_FILE=\"/tmp/fensterchef-log.txt\" -g -fsanitize=address -pg
-C_FLAGS := -Iinclude -Wall -Wextra -Wpedantic -Werror -Wno-format-zero-length
+C_FLAGS := -Iinclude $(shell pkg-config --cflags freetype2 fontconfig) -Wall -Wextra -Wpedantic -Werror -Wno-format-zero-length
 RELEASE_FLAGS := -O3
 
 # Libs
