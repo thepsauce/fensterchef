@@ -17,8 +17,7 @@ void split_frame(Frame *split_from, int is_split_vert);
  */
 int remove_frame(Frame *frame);
 
-/* Destroy a frame and all child frames and hide all inner windows.
- */
+/* Destroy a frame and all child frames and hide all inner windows. */
 void abandon_frame(Frame *frame);
 
 #endif

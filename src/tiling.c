@@ -5,11 +5,6 @@
 #include "tiling.h"
 #include "util.h"
 
-/* TODO: For advanced tiling.
- * 1. Multi monitor support.
- * 2. Frame resizing.
- */
-
 /* Split a frame horizontally or vertically.
  *
  * This cuts the @split_from frame in half and places the next window
@@ -140,8 +135,7 @@ int remove_frame(Frame *frame)
     return 0;
 }
 
-/* Destroy a frame and all child frames and hide all inner windows.
- */
+/* Destroy a frame and all child frames and hide all inner windows. */
 void abandon_frame(Frame *frame)
 {
     unmap_and_destroy_recursively(frame);

@@ -131,6 +131,16 @@ static void configure_popup_size(Window *window)
             height = monitor->frame->height * 2 / 3;
         }
 
+        if ((window->size_hints.flags & XCB_ICCCM_SIZE_HINT_P_MIN_SIZE)) {
+            width = MAX(width, (uint32_t) window->size_hints.min_width);
+            height = MAX(height, (uint32_t) window->size_hints.min_height);
+        }
+
+        if ((window->size_hints.flags & XCB_ICCCM_SIZE_HINT_P_MAX_SIZE)) {
+            width = MIN(width, (uint32_t) window->size_hints.max_width);
+            height = MIN(height, (uint32_t) window->size_hints.max_height);
+        }
+
         if ((window->size_hints.flags & XCB_ICCCM_SIZE_HINT_US_POSITION)) {
             x = window->size_hints.x;
             y = window->size_hints.y;
@@ -139,21 +149,13 @@ static void configure_popup_size(Window *window)
             y = (monitor->frame->height - height) / 2;
         }
 
-        if ((window->size_hints.flags & XCB_ICCCM_SIZE_HINT_P_MIN_SIZE)) {
-            width = MAX(g_values[2], (uint32_t) window->size_hints.min_width);
-            height = MAX(height,
-                    (uint32_t) window->size_hints.min_height);
-        }
-
-        if ((window->size_hints.flags & XCB_ICCCM_SIZE_HINT_P_MAX_SIZE)) {
-            width = MIN(g_values[2], (uint32_t) window->size_hints.max_width);
-            height = MIN(height,
-                    (uint32_t) window->size_hints.max_height);
-        }
-
+        window->popup_position.x = x;
+        window->popup_position.y = y;
         window->popup_size.width = width;
         window->popup_size.height = height;
     } else {
+        x = window->popup_position.x;
+        y = window->popup_position.y;
         width = window->popup_size.width;
         height = window->popup_size.height;
     }
@@ -204,7 +206,6 @@ static void configure_popup_size(Window *window)
     }
 
     set_window_size(window, x, y, width, height);
-    set_window_above(window);
 }
 
 /* Sets the position and size of the window to fullscreen. */
@@ -216,7 +217,6 @@ static void configure_fullscreen_size(Window *window)
             window->size.width, window->size.height);
     set_window_size(window, monitor->frame->x, monitor->frame->y,
             monitor->frame->width, monitor->frame->height);
-    set_window_above(window);
 }
 
 /* Unmaps a window and sets it to hidden without any state transitioning. */
@@ -318,6 +318,7 @@ static void transition_shown_popup(Window *window)
     }
 
     configure_popup_size(window);
+    set_window_above(window);
 }
 
 static void transition_shown_fullscreen(Window *window)
@@ -337,6 +338,7 @@ static void transition_shown_fullscreen(Window *window)
     }
 
     configure_fullscreen_size(window);
+    set_window_above(window);
 }
 
 static void transition_popup_hidden(Window *window)
@@ -363,11 +365,13 @@ static void transition_popup_shown(Window *window)
 static void transition_popup_fullscreen(Window *window)
 {
     configure_fullscreen_size(window);
+    set_window_above(window);
 }
 
 static void transition_fullscreen_popup(Window *window)
 {
     configure_popup_size(window);
+    set_window_above(window);
 }
 
 /* Changes the window state to given value and reconfigures the window only
@@ -379,13 +383,14 @@ void set_window_state(Window *window, unsigned state, unsigned force)
         return;
     }
 
+    LOG("transition window state of %" PRIu32 " from %u to %u (%s)\n",
+            window->number, window->state.current, state,
+            force ? "forced" : "not forced");
+
     window->state.is_forced = force;
     if (transitions[window->state.current][state] != NULL) {
         transitions[window->state.current][state](window);
     }
-
-    LOG("state of window %" PRIu32 " changed to %u\n",
-            window->number, state);
 
     window->state.previous = window->state.current;
     window->state.current = state;

@@ -168,11 +168,14 @@ static void handle_destroy_notify(xcb_destroy_notify_event_t *event)
  */
 void handle_key_press(xcb_key_press_event_t *event)
 {
-    int action;
+    action_t action;
 
     action = get_action_bind(event);
-    if (action != -1) {
+    if (action != ACTION_NULL) {
+        LOG("performing action: %u\n", action);
         do_action(action);
+    } else {
+        LOG("trash key: %d\n", event->detail);
     }
 }
 
@@ -224,7 +227,7 @@ void handle_event(xcb_generic_event_t *event)
     type = (event->response_type & ~0x80);
 
     if (type >= randr_event_base) {
-        /* TODO: there are more randr events? */
+        /* TODO: there are more randr events? what do they mean? */
         handle_screen_change((xcb_randr_screen_change_notify_event_t*) event);
         return;
     }

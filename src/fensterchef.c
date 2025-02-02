@@ -49,6 +49,7 @@ int init_fensterchef(void)
 {
     xcb_intern_atom_cookie_t    *cookies;
 
+#ifdef DEBUG
     if ((void*) LOG_FILE == (void*) stderr) {
         g_log_file = stderr;
     } else {
@@ -57,18 +58,24 @@ int init_fensterchef(void)
             g_log_file = stderr;
         }
     }
+    setbuf(g_log_file, NULL);
+#endif
 
     g_dpy = xcb_connect(NULL, NULL);
     if (xcb_connection_has_error(g_dpy) > 0) {
         ERR("could not create xcb connection\n");
+#ifdef DEBUG
         fclose(g_log_file);
+#endif
         exit(1);
     }
 
     cookies = xcb_ewmh_init_atoms(g_dpy, &g_ewmh);
     if (!xcb_ewmh_init_atoms_replies(&g_ewmh, cookies, NULL)) {
         ERR("could not set up ewmh\n");
+#ifdef DEBUG
         fclose(g_log_file);
+#endif
         exit(1);
     }
 
@@ -87,7 +94,9 @@ void quit_fensterchef(int exit_code)
     /* TODO: maybe free all resources to show we care? */
     deinit_font_drawing();
     xcb_disconnect(g_dpy);
+#ifdef DEBUG
     fclose(g_log_file);
+#endif
     exit(exit_code);
 }
 

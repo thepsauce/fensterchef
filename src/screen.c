@@ -25,6 +25,7 @@
 /* if randr is enabled for usage */
 static unsigned randr_enabled = 0;
 
+/* the actively used screen */
 Screen *g_screen;
 
 /* Initializes the stock_objects array with graphical objects. */
@@ -51,8 +52,7 @@ static inline int init_stock_objects(void)
                 root,
                 XCB_GC_FOREGROUND | XCB_GC_BACKGROUND, g_values));
     if (error != NULL) {
-        ERR("could not create graphics context for notifications: %d\n",
-                error->error_code);
+        log_error(error, "could not create graphics context for notifications: ");
         return 1;
     }
 
@@ -63,8 +63,7 @@ static inline int init_stock_objects(void)
                 root,
                 XCB_GC_FOREGROUND | XCB_GC_BACKGROUND, g_values));
     if (error != NULL) {
-        ERR("could not create inverted graphics context for notifications: %d\n",
-                error->error_code);
+        log_error(error, "could not create inverted graphics context for notifications: ");
         return 1;
     }
 
@@ -179,6 +178,7 @@ int init_screen(xcb_screen_t *xcb_screen)
         return 1;
     }
 
+    /* grabs ALT+Button for moving popup windows */
     xcb_grab_button(g_dpy, 0, root, XCB_EVENT_MASK_BUTTON_PRESS |
             XCB_EVENT_MASK_BUTTON_RELEASE, XCB_GRAB_MODE_ASYNC,
             XCB_GRAB_MODE_ASYNC, root, XCB_NONE, 1, XCB_MOD_MASK_1);
@@ -426,6 +426,7 @@ void merge_monitors(Monitor *monitors)
         monitors->frame->height = g_screen->xcb_screen->height_in_pixels;
     }
 
+    /* copy frames from the old monitors to the new ones with same name */
     for (Monitor *monitor = monitors; monitor != NULL;
             monitor = monitor->next) {
         named_monitor = get_monitor_by_name(g_screen->monitor,
@@ -442,10 +443,12 @@ void merge_monitors(Monitor *monitors)
         }
     }
 
+    /* for the remaining monitors try to find any monitors to take the frames */
     for (Monitor *monitor = g_screen->monitor; monitor != NULL;
             monitor = next_monitor) {
         next_monitor = monitor->next;
         if (monitor->frame != NULL) {
+            /* find a free monitor */
             for (other = monitors; other != NULL; other = other->next) {
                 if (other->is_free) {
                     break;
@@ -457,6 +460,8 @@ void merge_monitors(Monitor *monitors)
                 other->frame = monitor->frame;
                 monitor->frame = NULL;
             }
+
+            /* abandon the frame if there is no monitor that can take it */
             if (other == NULL) {
                 if (g_cur_frame == monitor->frame) {
                     g_cur_frame = NULL;

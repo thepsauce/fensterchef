@@ -10,12 +10,15 @@
 #include "fensterchef.h"
 #include "keybind.h"
 #include "keymap.h"
-#include "log.h"
 #include "screen.h"
 #include "util.h"
 
+/* all modifier masks that have no meaning to us */
 #define IGNORE_MODIFIER_MASK \
     (XCB_MOD_MASK_LOCK|XCB_MOD_MASK_2|XCB_MOD_MASK_3|XCB_MOD_MASK_5)
+
+/* the main modifier key */
+#define MOD_KEY XCB_MOD_MASK_4
 
 /* all keybinds */
 static struct {
@@ -26,30 +29,29 @@ static struct {
     /* the action to execute */
     action_t action;
 } key_binds[] = {
-    { XCB_MOD_MASK_1, XK_Return, ACTION_START_TERMINAL },
-    { XCB_MOD_MASK_1, XK_n, ACTION_NEXT_WINDOW },
-    { XCB_MOD_MASK_1, XK_p, ACTION_PREV_WINDOW },
+    { MOD_KEY, XK_Return, ACTION_START_TERMINAL },
 
-    { XCB_MOD_MASK_1, XK_r, ACTION_REMOVE_FRAME },
+    { MOD_KEY, XK_n, ACTION_NEXT_WINDOW },
+    { MOD_KEY, XK_p, ACTION_PREV_WINDOW },
 
-    { XCB_MOD_MASK_1 | XCB_MOD_MASK_SHIFT, XK_space,
-        ACTION_CHANGE_WINDOW_STATE },
-    { XCB_MOD_MASK_1, XK_space, ACTION_CHANGE_FOCUS },
+    { MOD_KEY, XK_r, ACTION_REMOVE_FRAME },
 
-    { XCB_MOD_MASK_1, XK_f, ACTION_TOGGLE_FULLSCREEN },
+    { MOD_KEY | XCB_MOD_MASK_SHIFT, XK_space, ACTION_CHANGE_WINDOW_STATE },
+    { MOD_KEY, XK_space, ACTION_CHANGE_FOCUS },
 
-    { XCB_MOD_MASK_1, XK_v, ACTION_SPLIT_HORIZONTALLY },
-    { XCB_MOD_MASK_1, XK_s, ACTION_SPLIT_VERTICALLY },
+    { MOD_KEY, XK_f, ACTION_TOGGLE_FULLSCREEN },
 
-    { XCB_MOD_MASK_1, XK_k, ACTION_MOVE_UP },
-    { XCB_MOD_MASK_1, XK_h, ACTION_MOVE_LEFT },
-    { XCB_MOD_MASK_1, XK_l, ACTION_MOVE_RIGHT },
-    { XCB_MOD_MASK_1, XK_j, ACTION_MOVE_DOWN },
+    { MOD_KEY, XK_v, ACTION_SPLIT_HORIZONTALLY },
+    { MOD_KEY, XK_s, ACTION_SPLIT_VERTICALLY },
 
-    { XCB_MOD_MASK_1, XK_w, ACTION_SHOW_WINDOW_LIST },
+    { MOD_KEY, XK_k, ACTION_MOVE_UP },
+    { MOD_KEY, XK_h, ACTION_MOVE_LEFT },
+    { MOD_KEY, XK_l, ACTION_MOVE_RIGHT },
+    { MOD_KEY, XK_j, ACTION_MOVE_DOWN },
 
-    { XCB_MOD_MASK_1 | XCB_MOD_MASK_SHIFT, XK_e,
-        ACTION_QUIT_WM },
+    { MOD_KEY, XK_w, ACTION_SHOW_WINDOW_LIST },
+
+    { MOD_KEY | XCB_MOD_MASK_SHIFT, XK_e, ACTION_QUIT_WM },
 };
 
 /* Grab the keybinds so we receive the keypress events for them. */
@@ -120,7 +122,5 @@ action_t get_action_bind(xcb_key_press_event_t *event)
             return key_binds[i].action;
         }
     }
-
-    LOG("trash keybind: %d\n", keysym);
     return ACTION_NULL;
 }

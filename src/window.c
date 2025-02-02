@@ -52,7 +52,7 @@ Window *create_window(xcb_window_t xcb_window)
 
     set_window_state(window, predict_window_state(window), 0);
 
-    LOG("created new window %" PRIu32 "\n", window->number);
+    LOG("created new window: %s\n", window->short_title);
     return window;
 }
 
@@ -84,10 +84,14 @@ void update_window_name(Window *window)
 
     name_cookie = xcb_ewmh_get_wm_name(&g_ewmh, window->xcb_window);
 
-    xcb_ewmh_get_wm_name_reply(&g_ewmh, name_cookie, &data, NULL);
+    if (!xcb_ewmh_get_wm_name_reply(&g_ewmh, name_cookie, &data, NULL)) {
+        snprintf((char*) window->short_title, sizeof(window->short_title),
+                "%" PRId32 "_", window->number);
+        return;
+    }
 
     snprintf((char*) window->short_title, sizeof(window->short_title),
-        "%" PRId32 "-%.*s",
+        "%" PRId32 "_%.*s",
             window->number,
             (int) MIN(data.strings_len, (uint32_t) INT_MAX), data.strings);
 
@@ -123,6 +127,9 @@ void update_window_wm_hints(Window *window)
 void set_window_size(Window *window, int32_t x, int32_t y, uint32_t width,
         uint32_t height)
 {
+    LOG("configuring size of window %" PRIu32 " to: %" PRId32 ", %" PRId32 ", %" PRIu32 ", %" PRIu32 "\n",
+            window->number, x, y, width, height);
+
     window->position.x = x;
     window->position.y = y;
     window->size.width = width;
@@ -138,6 +145,8 @@ void set_window_size(Window *window, int32_t x, int32_t y, uint32_t width,
 /* Put the window on top of all other windows. */
 void set_window_above(Window *window)
 {
+    LOG("setting window %" PRIu32 " above all other windows\n", window->number);
+
     g_values[0] = XCB_STACK_MODE_ABOVE;
     xcb_configure_window(g_dpy, window->xcb_window,
             XCB_CONFIG_WINDOW_STACK_MODE, g_values);
@@ -189,8 +198,11 @@ int set_focus_window(Window *window)
 {
     Window *old_focus;
 
+    LOG("trying to change focus to %" PRIu32, window->number);
+
     if ((window->wm_hints.flags & XCB_ICCCM_WM_HINT_INPUT) &&
             window->wm_hints.input == 0) {
+        LOG_ADDITIONAL(", but the window does not accept focus\n");
         return 1;
     }
 
@@ -200,6 +212,8 @@ int set_focus_window(Window *window)
     }
 
     window->focused = 1;
+
+    LOG_ADDITIONAL(" and succeeded\n");
 
     xcb_set_input_focus(g_dpy, XCB_INPUT_FOCUS_POINTER_ROOT, window->xcb_window,
             XCB_CURRENT_TIME);
@@ -211,10 +225,14 @@ void give_someone_else_focus(Window *window)
 {
     Window *other;
 
+    /* TODO: when the window is a popup window, focus the window below it,
+     * when it is a tiling window, JUST GET RID OF THIS FUNCTION
+     */
     window->focused = 0;
     /* TODO: use a focus stack? */
+    other = window;
     do {
-        if (window->next == NULL) {
+        if (other->next == NULL) {
             other = g_first_window;
         } else {
             other = window->next;
@@ -225,10 +243,13 @@ void give_someone_else_focus(Window *window)
     } while (other->state.current != WINDOW_STATE_SHOWN &&
             other->state.current != WINDOW_STATE_POPUP);
 
-    other->focused = 1;
-
-    xcb_set_input_focus(g_dpy, XCB_INPUT_FOCUS_POINTER_ROOT, window->xcb_window,
-            XCB_CURRENT_TIME);
+    if (other->frame != NULL) {
+        set_focus_frame(other->frame);
+    } else {
+        other->focused = 1;
+        xcb_set_input_focus(g_dpy, XCB_INPUT_FOCUS_POINTER_ROOT,
+                window->xcb_window, XCB_CURRENT_TIME);
+    }
 }
 
 /* Get a window that is not shown but in the window list coming after
