@@ -46,13 +46,11 @@ Window *create_window(xcb_window_t xcb_window)
     xcb_configure_window(g_dpy, xcb_window, XCB_CONFIG_WINDOW_BORDER_WIDTH,
             g_values);
 
-    update_window_name(window);
-    update_window_size_hints(window);
-    update_window_wm_hints(window);
+    update_all_window_properties(window);
 
     set_window_state(window, predict_window_state(window), 0);
 
-    LOG("created new window: %s\n", window->short_title);
+    LOG("created new window: %s\n", window->properties.short_name);
     return window;
 }
 
@@ -74,53 +72,6 @@ void destroy_window(Window *window)
     LOG("destroyed window %" PRIu32 "\n", window->number);
 
     free(window);
-}
-
-/* Update the short_title of the window. */
-void update_window_name(Window *window)
-{
-    xcb_get_property_cookie_t           name_cookie;
-    xcb_ewmh_get_utf8_strings_reply_t   data;
-
-    name_cookie = xcb_ewmh_get_wm_name(&g_ewmh, window->xcb_window);
-
-    if (!xcb_ewmh_get_wm_name_reply(&g_ewmh, name_cookie, &data, NULL)) {
-        snprintf((char*) window->short_title, sizeof(window->short_title),
-                "%" PRId32 "_", window->number);
-        return;
-    }
-
-    snprintf((char*) window->short_title, sizeof(window->short_title),
-        "%" PRId32 "_%.*s",
-            window->number,
-            (int) MIN(data.strings_len, (uint32_t) INT_MAX), data.strings);
-
-    xcb_ewmh_get_utf8_strings_reply_wipe(&data);
-}
-
-/* Update the size_hints of the window. */
-void update_window_size_hints(Window *window)
-{
-    xcb_get_property_cookie_t size_hints_cookie;
-
-    size_hints_cookie = xcb_icccm_get_wm_size_hints(g_dpy, window->xcb_window,
-            XCB_ATOM_WM_NORMAL_HINTS);
-    if (!xcb_icccm_get_wm_size_hints_reply(g_dpy, size_hints_cookie,
-                &window->size_hints, NULL)) {
-        window->size_hints.flags = 0;
-    }
-}
-
-/* Update the wm_hints of the window. */
-void update_window_wm_hints(Window *window)
-{
-    xcb_get_property_cookie_t wm_hints_cookie;
-
-    wm_hints_cookie = xcb_icccm_get_wm_hints(g_dpy, window->xcb_window);
-    if (!xcb_icccm_get_wm_hints_reply(g_dpy, wm_hints_cookie,
-                &window->wm_hints, NULL)) {
-        window->wm_hints.flags = 0;
-    }
 }
 
 /* Set the position and size of a window. */
@@ -200,8 +151,8 @@ int set_focus_window(Window *window)
 
     LOG("trying to change focus to %" PRIu32, window->number);
 
-    if ((window->wm_hints.flags & XCB_ICCCM_WM_HINT_INPUT) &&
-            window->wm_hints.input == 0) {
+    if ((window->properties.hints.flags & XCB_ICCCM_WM_HINT_INPUT) &&
+            window->properties.hints.input == 0) {
         LOG_ADDITIONAL(", but the window does not accept focus\n");
         return 1;
     }

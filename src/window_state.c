@@ -69,47 +69,24 @@ static void (*transitions[5][5])(Window *window) = {
 /* Predicts whether the window should be a popup window. */
 unsigned predict_window_state(Window *window)
 {
-    xcb_window_t                transient;
-    xcb_get_property_cookie_t   state_cookie;
-    xcb_get_property_reply_t    *state_reply;
-    xcb_atom_t                  *atoms;
-    int                         num_atoms;
-
-    if (!xcb_icccm_get_wm_transient_for_reply(g_dpy,
-            xcb_icccm_get_wm_transient_for_unchecked(g_dpy, window->xcb_window),
-            &transient, NULL) || transient == 0) {
-        if ((window->size_hints.flags & (XCB_ICCCM_SIZE_HINT_P_MAX_SIZE |
-                        XCB_ICCCM_SIZE_HINT_P_MIN_SIZE)) ==
-                (XCB_ICCCM_SIZE_HINT_P_MAX_SIZE |
-                        XCB_ICCCM_SIZE_HINT_P_MIN_SIZE)) {
-            if (window->size_hints.min_width == window->size_hints.max_width) {
-                return WINDOW_STATE_POPUP;
-            }
-        }
-
-        state_cookie = xcb_get_property(g_dpy, 0, window->xcb_window,
-                g_ewmh._NET_WM_STATE, XCB_GET_PROPERTY_TYPE_ANY, 0, UINT32_MAX);
-        state_reply = xcb_get_property_reply(g_dpy, state_cookie, NULL);
-        if (state_reply == NULL) {
-            return WINDOW_STATE_SHOWN;
-        }
-
-        atoms = xcb_get_property_value(state_reply);
-        num_atoms = xcb_get_property_value_length(state_reply);
-        if (atoms != NULL && num_atoms > 0) {
-            num_atoms /= state_reply->format / 8;
-            for (int i = 0; i < num_atoms; i++) {
-                if (atoms[i] == g_ewmh._NET_WM_STATE_FULLSCREEN) {
-                    free(state_reply);
-                    return WINDOW_STATE_FULLSCREEN;
-                }
-            }
-        }
-
-        free(state_reply);
-        return WINDOW_STATE_SHOWN;
+    if (window->properties.is_fullscreen) {
+        return WINDOW_STATE_FULLSCREEN;
     }
-    return WINDOW_STATE_POPUP;
+
+    if (window->properties.is_transient) {
+        return WINDOW_STATE_POPUP;
+    }
+
+    /* assumption: popup windows are not resizable in at least one direction */
+    if ((window->properties.size_hints.flags & (XCB_ICCCM_SIZE_HINT_P_MAX_SIZE |
+                    XCB_ICCCM_SIZE_HINT_P_MIN_SIZE)) ==
+            (XCB_ICCCM_SIZE_HINT_P_MAX_SIZE |
+                    XCB_ICCCM_SIZE_HINT_P_MIN_SIZE) &&
+            window->properties.size_hints.min_width == window->properties.size_hints.max_width) {
+        return WINDOW_STATE_POPUP;
+    }
+
+    return WINDOW_STATE_SHOWN;
 }
 
 /* Set the window size and position according to the size hints. */
@@ -123,27 +100,27 @@ static void configure_popup_size(Window *window)
             window->size.width, window->size.height);
 
     if (window->popup_size.width == 0) {
-        if ((window->size_hints.flags & XCB_ICCCM_SIZE_HINT_US_SIZE)) {
-            width = window->size_hints.width;
-            height = window->size_hints.height;
+        if ((window->properties.size_hints.flags & XCB_ICCCM_SIZE_HINT_US_SIZE)) {
+            width = window->properties.size_hints.width;
+            height = window->properties.size_hints.height;
         } else {
             width = monitor->frame->width * 2 / 3;
             height = monitor->frame->height * 2 / 3;
         }
 
-        if ((window->size_hints.flags & XCB_ICCCM_SIZE_HINT_P_MIN_SIZE)) {
-            width = MAX(width, (uint32_t) window->size_hints.min_width);
-            height = MAX(height, (uint32_t) window->size_hints.min_height);
+        if ((window->properties.size_hints.flags & XCB_ICCCM_SIZE_HINT_P_MIN_SIZE)) {
+            width = MAX(width, (uint32_t) window->properties.size_hints.min_width);
+            height = MAX(height, (uint32_t) window->properties.size_hints.min_height);
         }
 
-        if ((window->size_hints.flags & XCB_ICCCM_SIZE_HINT_P_MAX_SIZE)) {
-            width = MIN(width, (uint32_t) window->size_hints.max_width);
-            height = MIN(height, (uint32_t) window->size_hints.max_height);
+        if ((window->properties.size_hints.flags & XCB_ICCCM_SIZE_HINT_P_MAX_SIZE)) {
+            width = MIN(width, (uint32_t) window->properties.size_hints.max_width);
+            height = MIN(height, (uint32_t) window->properties.size_hints.max_height);
         }
 
-        if ((window->size_hints.flags & XCB_ICCCM_SIZE_HINT_US_POSITION)) {
-            x = window->size_hints.x;
-            y = window->size_hints.y;
+        if ((window->properties.size_hints.flags & XCB_ICCCM_SIZE_HINT_US_POSITION)) {
+            x = window->properties.size_hints.x;
+            y = window->properties.size_hints.y;
         } else {
             x = (monitor->frame->width - width) / 2;
             y = (monitor->frame->height - height) / 2;
@@ -160,8 +137,8 @@ static void configure_popup_size(Window *window)
         height = window->popup_size.height;
     }
 
-    if ((window->size_hints.flags & XCB_ICCCM_SIZE_HINT_P_WIN_GRAVITY)) {
-        switch (window->size_hints.win_gravity) {
+    if ((window->properties.size_hints.flags & XCB_ICCCM_SIZE_HINT_P_WIN_GRAVITY)) {
+        switch (window->properties.size_hints.win_gravity) {
         case XCB_GRAVITY_NORTH_WEST:
             x = monitor->frame->width - width;
             y = 0;

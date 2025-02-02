@@ -36,7 +36,8 @@ static int render_window_list(Window *selected)
     max_width = 0;
     for (Window *w = g_first_window; w != NULL; w = w->next) {
         window_count++;
-        measure_text(w->short_title, strlen((char*) w->short_title), &tm);
+        measure_text(w->properties.short_name,
+                strlen((char*) w->properties.short_name), &tm);
         max_width = MAX(max_width, tm.total_width);
     }
 
@@ -77,7 +78,7 @@ static int render_window_list(Window *selected)
             bg_color.blue = 0xff00;
         }
 
-        marker_char = w->short_title;
+        marker_char = w->properties.short_name;
         while (isdigit(marker_char[0])) {
             marker_char++;
         }
@@ -88,8 +89,8 @@ static int render_window_list(Window *selected)
                 w->focused ? '*' :
                 w->state.current == WINDOW_STATE_SHOWN ? '+' : '-',
 
-        draw_text(g_screen->window_list_window, w->short_title,
-                strlen((char*) w->short_title), bg_color, &rect,
+        draw_text(g_screen->window_list_window, w->properties.short_name,
+                strlen((char*) w->properties.short_name), bg_color, &rect,
                 pen, WINDOW_PADDING / 2,
                 rect.y + tm.ascent + WINDOW_PADDING / 2);
         rect.y += rect.height;

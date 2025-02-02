@@ -3,9 +3,6 @@
 
 #include <xcb/xcb.h>
 
-/* forward declaration */
-struct window;
-
 /* Frames are used to partition a monitor into multiple rectangular regions.
  *
  * When a frame has one child, it must have a second one, so either BOTH left

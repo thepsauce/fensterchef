@@ -112,9 +112,6 @@ static void handle_button_release(xcb_button_release_event_t *event)
 /* Property notifications are sent when a window atom changes, this can
  * be many atoms, but the main ones handled are WM_NAME, WM_SIZE_HINTS,
  * WM_HINTS.
- *
- * TODO: make special handling for WM_NORMAL_HINTS just like with WM_NAME
- * for fullscreen.
  */
 static void handle_property_notify(xcb_property_notify_event_t *event)
 {
@@ -128,12 +125,20 @@ static void handle_property_notify(xcb_property_notify_event_t *event)
     }
 
     if (event->atom == XCB_ATOM_WM_NAME) {
-        update_window_name(window);
+        update_window_property(window, WINDOW_PROPERTY_NAME);
     } else if (event->atom == XCB_ATOM_WM_SIZE_HINTS) {
-        update_window_size_hints(window);
+        update_window_property(window, WINDOW_PROPERTY_SIZE_HINTS);
     } else if (event->atom == XCB_ATOM_WM_HINTS) {
-        update_window_wm_hints(window);
+        update_window_property(window, WINDOW_PROPERTY_HINTS);
+    } else if (event->atom == g_ewmh._NET_WM_STRUT ||
+            event->atom == g_ewmh._NET_WM_STRUT_PARTIAL) {
+        update_window_property(window, WINDOW_PROPERTY_STRUT);
+    } else if (event->atom == g_ewmh._NET_WM_STATE) {
+        update_window_property(window, WINDOW_PROPERTY_FULLSCREEN);
+    } else if (event->atom == XCB_ATOM_WM_TRANSIENT_FOR) {
+        update_window_property(window, WINDOW_PROPERTY_TRANSIENT);
     }
+
     set_window_state(window, predict_window_state(window), 0);
 }
 
