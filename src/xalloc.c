@@ -1,9 +1,9 @@
-#include "xalloc.h"
-
 #include <errno.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
+
+#include "xalloc.h"
 
 void *xmalloc(size_t size)
 {

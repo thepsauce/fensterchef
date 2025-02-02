@@ -3,12 +3,13 @@
 #include "fensterchef.h"
 #include "frame.h"
 #include "log.h"
+#include "screen.h"
 #include "util.h"
 
-/* The whole purpose of this file is to detect if a window is a popup window
- * and handle a case where a window changes from its window state.
+/* The whole purpose of this file is to detect the initial state of a window
+ * and to handle a case where a window changes its window state.
  *
- * Since a change from one state to another one depends on the previous state,
+ * Since a change from one state to another depends on the previous state,
  * the transition system was created with function pointers.
  */
 
@@ -65,37 +66,6 @@ static void (*transitions[5][5])(Window *window) = {
     [WINDOW_STATE_FULLSCREEN][WINDOW_STATE_FULLSCREEN] = NULL,
 };
 
-/* Update the short_title of the window. */
-void update_window_name(Window *window)
-{
-    xcb_get_property_cookie_t           name_cookie;
-    xcb_ewmh_get_utf8_strings_reply_t   data;
-
-    name_cookie = xcb_ewmh_get_wm_name(&g_ewmh, window->xcb_window);
-
-    xcb_ewmh_get_wm_name_reply(&g_ewmh, name_cookie, &data, NULL);
-
-    snprintf((char*) window->short_title, sizeof(window->short_title),
-        "%" PRId32 "-%.*s",
-            window->number,
-            (int) MIN(data.strings_len, (uint32_t) INT_MAX), data.strings);
-
-    xcb_ewmh_get_utf8_strings_reply_wipe(&data);
-}
-
-/* Update the size_hints of the window. */
-void update_window_size_hints(Window *window)
-{
-    xcb_get_property_cookie_t   size_hints_cookie;
-
-    size_hints_cookie = xcb_icccm_get_wm_size_hints(g_dpy, window->xcb_window,
-            XCB_ATOM_WM_NORMAL_HINTS);
-    if (!xcb_icccm_get_wm_size_hints_reply(g_dpy, size_hints_cookie,
-                &window->size_hints, NULL)) {
-        memset(&window->size_hints, 0, sizeof(window->size_hints));
-    }
-}
-
 /* Predicts whether the window should be a popup window. */
 unsigned predict_window_state(Window *window)
 {
@@ -145,155 +115,174 @@ unsigned predict_window_state(Window *window)
 /* Set the window size and position according to the size hints. */
 static void configure_popup_size(Window *window)
 {
-    xcb_screen_t *screen;
+    Monitor *monitor;
+    int32_t x, y;
+    uint32_t width, height;
 
-    screen = SCREEN(g_screen_no);
+    monitor = get_monitor_from_rectangle(window->position.x, window->position.y,
+            window->size.width, window->size.height);
 
-    if (window->popup_width == 0) {
+    if (window->popup_size.width == 0) {
         if ((window->size_hints.flags & XCB_ICCCM_SIZE_HINT_US_SIZE)) {
-            g_values[2] = window->size_hints.width;
-            g_values[3] = window->size_hints.height;
+            width = window->size_hints.width;
+            height = window->size_hints.height;
         } else {
-            g_values[2] = screen->width_in_pixels * 2 / 3;
-            g_values[3] = screen->height_in_pixels * 2 / 3;
+            width = monitor->frame->width * 2 / 3;
+            height = monitor->frame->height * 2 / 3;
         }
 
         if ((window->size_hints.flags & XCB_ICCCM_SIZE_HINT_US_POSITION)) {
-            g_values[0] = window->size_hints.x;
-            g_values[1] = window->size_hints.y;
+            x = window->size_hints.x;
+            y = window->size_hints.y;
         } else {
-            g_values[0] = (screen->width_in_pixels - g_values[2]) / 2;
-            g_values[1] = (screen->height_in_pixels - g_values[3]) / 2;
+            x = (monitor->frame->width - width) / 2;
+            y = (monitor->frame->height - height) / 2;
         }
 
         if ((window->size_hints.flags & XCB_ICCCM_SIZE_HINT_P_MIN_SIZE)) {
-            g_values[2] = MAX(g_values[2], (uint32_t) window->size_hints.min_width);
-            g_values[3] = MAX(g_values[3],
+            width = MAX(g_values[2], (uint32_t) window->size_hints.min_width);
+            height = MAX(height,
                     (uint32_t) window->size_hints.min_height);
         }
 
         if ((window->size_hints.flags & XCB_ICCCM_SIZE_HINT_P_MAX_SIZE)) {
-            g_values[2] = MIN(g_values[2], (uint32_t) window->size_hints.max_width);
-            g_values[3] = MIN(g_values[3],
+            width = MIN(g_values[2], (uint32_t) window->size_hints.max_width);
+            height = MIN(height,
                     (uint32_t) window->size_hints.max_height);
         }
 
-        window->popup_width = g_values[2];
-        window->popup_height = g_values[3];
+        window->popup_size.width = width;
+        window->popup_size.height = height;
     } else {
-        g_values[2] = window->popup_width;
-        g_values[3] = window->popup_width;
+        width = window->popup_size.width;
+        height = window->popup_size.height;
     }
 
     if ((window->size_hints.flags & XCB_ICCCM_SIZE_HINT_P_WIN_GRAVITY)) {
         switch (window->size_hints.win_gravity) {
         case XCB_GRAVITY_NORTH_WEST:
-            g_values[0] = screen->width_in_pixels - g_values[2];
-            g_values[1] = 0;
+            x = monitor->frame->width - width;
+            y = 0;
             break;
 
         case XCB_GRAVITY_NORTH:
-            g_values[1] = 0;
+            y = 0;
             break;
 
         case XCB_GRAVITY_NORTH_EAST:
-            g_values[0] = 0;
-            g_values[1] = 0;
+            x = 0;
+            y = 0;
             break;
         
         case XCB_GRAVITY_WEST:
-            g_values[0] = screen->width_in_pixels - g_values[2];
+            x = monitor->frame->width - width;
             break;
 
         case XCB_GRAVITY_CENTER:
-            g_values[0] = (screen->width_in_pixels - g_values[2]) / 2;
-            g_values[1] = (screen->height_in_pixels - g_values[3]) / 2;
+            x = (monitor->frame->width - width) / 2;
+            y = (monitor->frame->height - height) / 2;
             break;
 
         case XCB_GRAVITY_EAST:
-            g_values[0] = 0;
+            x = 0;
             break;
 
         case XCB_GRAVITY_SOUTH_WEST:
-            g_values[0] = screen->width_in_pixels - g_values[2];
-            g_values[1] = screen->height_in_pixels - g_values[3];
+            x = monitor->frame->width - width;
+            y = monitor->frame->height - height;
             break;
 
         case XCB_GRAVITY_SOUTH:
-            g_values[1] = screen->height_in_pixels - g_values[3];
+            y = monitor->frame->height - height;
             break;
 
         case XCB_GRAVITY_SOUTH_EAST:
-            g_values[0] = 0;
-            g_values[1] = screen->height_in_pixels - g_values[3];
+            x = 0;
+            y = monitor->frame->width - height;
             break;
         }
     }
 
-    g_values[4] = XCB_STACK_MODE_ABOVE;
-
-    xcb_configure_window(g_dpy, window->xcb_window,
-            XCB_CONFIG_SIZE | XCB_CONFIG_WINDOW_STACK_MODE, g_values);
+    set_window_size(window, x, y, width, height);
+    set_window_above(window);
 }
 
 /* Sets the position and size of the window to fullscreen. */
 static void configure_fullscreen_size(Window *window)
 {
-    xcb_screen_t *screen;
+    Monitor *monitor;
 
-    screen = SCREEN(g_screen_no);
+    monitor = get_monitor_from_rectangle(window->position.x, window->position.y,
+            window->size.width, window->size.height);
+    set_window_size(window, monitor->frame->x, monitor->frame->y,
+            monitor->frame->width, monitor->frame->height);
+    set_window_above(window);
+}
 
-    g_values[0] = 0;
-    g_values[1] = 0;
-    g_values[2] = screen->width_in_pixels;
-    g_values[3] = screen->height_in_pixels;
-    g_values[4] = XCB_STACK_MODE_ABOVE;
-    xcb_configure_window(g_dpy, window->xcb_window,
-            XCB_CONFIG_SIZE | XCB_CONFIG_WINDOW_STACK_MODE, g_values);
+/* Unmaps a window and sets it to hidden without any state transitioning. */
+static void quick_hide(Window *window)
+{
+    xcb_unmap_window(g_dpy, window->xcb_window);
+    window->state.previous = window->state.current;
+    window->state.current = WINDOW_STATE_HIDDEN;
+    window->state.is_forced = 1;
 }
 
 static void transition_hidden_shown(Window *window)
 {
     Window *old_window;
 
-    old_window = g_frames[g_cur_frame].window;
-    g_frames[g_cur_frame].window = window;
+    old_window = g_cur_frame->window;
 
-    reload_frame(g_cur_frame);
+    /* mechanism for off screen frames (not yet used) */
+    if (window->frame != NULL) {
+        window->frame->window = NULL;
+    }
+
+    link_window_and_frame(window, g_cur_frame);
 
     xcb_map_window(g_dpy, window->xcb_window);
 
-    if (old_window != NULL) {
-        xcb_unmap_window(g_dpy, old_window->xcb_window);
+    set_focus_window(window);
 
-        old_window->state = WINDOW_STATE_HIDDEN;
+    if (old_window != NULL) {
+        quick_hide(old_window);
     }
 }
 
 static void transition_hidden_popup(Window *window)
 {
+    /* mechanism for off screen frames (not yet used) */
+    if (window->frame != NULL) {
+        window->frame->window = NULL;
+        window->frame = NULL;
+    }
+
     configure_popup_size(window);
     xcb_map_window(g_dpy, window->xcb_window);
 }
 
 static void transition_hidden_fullscreen(Window *window)
 {
+    /* mechanism for off screen frames (not yet used) */
+    if (window->frame != NULL) {
+        window->frame->window = NULL;
+        window->frame = NULL;
+    }
+
     configure_fullscreen_size(window);
     xcb_map_window(g_dpy, window->xcb_window);
 }
 
 static void transition_shown_hidden(Window *window)
 {
-    Frame   frame;
-    Window  *next;
+    Window *next;
 
-    frame = get_frame_of_window(window);
     next = get_next_hidden_window(window);
-    g_frames[frame].window = next;
     if (next != NULL) {
-        reload_frame(frame);
+        link_window_and_frame(next, window->frame);
 
-        next->state = WINDOW_STATE_SHOWN;
+        next->state.current = WINDOW_STATE_SHOWN;
 
         xcb_map_window(g_dpy, next->xcb_window);
 
@@ -305,43 +294,48 @@ static void transition_shown_hidden(Window *window)
         }
     } else if (window->focused) {
         give_someone_else_focus(window);
+        window->frame->window = NULL;
+        window->frame = NULL;
     }
+
     xcb_unmap_window(g_dpy, window->xcb_window);
 }
 
 static void transition_shown_popup(Window *window)
 {
-    Frame   frame;
-    Window  *next;
+    Window *next;
 
-    frame = get_frame_of_window(window);
     next = get_next_hidden_window(window);
-    g_frames[frame].window = next;
     if (next != NULL) {
-        reload_frame(frame);
+        link_window_and_frame(next, window->frame);
 
-        next->state = WINDOW_STATE_SHOWN;
+        next->state.current = WINDOW_STATE_SHOWN;
 
         xcb_map_window(g_dpy, next->xcb_window);
+    } else {
+        window->frame->window = NULL;
+        window->frame = NULL;
     }
+
     configure_popup_size(window);
 }
 
 static void transition_shown_fullscreen(Window *window)
 {
-    Frame   frame;
-    Window  *next;
+    Window *next;
 
-    frame = get_frame_of_window(window);
     next = get_next_hidden_window(window);
-    g_frames[frame].window = next;
     if (next != NULL) {
-        reload_frame(frame);
+        link_window_and_frame(next, window->frame);
 
-        next->state = WINDOW_STATE_SHOWN;
+        next->state.current = WINDOW_STATE_SHOWN;
 
         xcb_map_window(g_dpy, next->xcb_window);
+    } else {
+        window->frame->window = NULL;
+        window->frame = NULL;
     }
+
     configure_fullscreen_size(window);
 }
 
@@ -355,14 +349,14 @@ static void transition_popup_shown(Window *window)
 {
     Window *old_window;
 
-    old_window = g_frames[g_cur_frame].window;
-    g_frames[g_cur_frame].window = window;
-    reload_frame(g_cur_frame);
+    old_window = g_cur_frame->window;
+
+    link_window_and_frame(window, g_cur_frame);
+
+    set_focus_window(window);
 
     if (old_window != NULL) {
-        xcb_unmap_window(g_dpy, old_window->xcb_window);
-
-        old_window->state = WINDOW_STATE_HIDDEN;
+        quick_hide(old_window);
     }
 }
 
@@ -380,19 +374,19 @@ static void transition_fullscreen_popup(Window *window)
  * if the state changed. */
 void set_window_state(Window *window, unsigned state, unsigned force)
 {
-    if (window->state == state ||
-            (window->forced_state && !force)) {
+    if (window->state.current == state ||
+            (window->state.is_forced && !force)) {
         return;
     }
 
-    window->forced_state = force;
-    if (transitions[window->state][state] != NULL) {
-        transitions[window->state][state](window);
+    window->state.is_forced = force;
+    if (transitions[window->state.current][state] != NULL) {
+        transitions[window->state.current][state](window);
     }
 
     LOG("state of window %" PRIu32 " changed to %u\n",
             window->number, state);
 
-    window->prev_state = window->state;
-    window->state = state;
+    window->state.previous = window->state.current;
+    window->state.current = state;
 }

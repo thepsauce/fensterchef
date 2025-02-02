@@ -1,6 +1,8 @@
 #ifndef UTIL_H
 #define UTIL_H
 
+#include <stdint.h>
+
 #include "xalloc.h"
 
 /* Check if given character is the start of an identifier. */
@@ -56,5 +58,15 @@
 /* Check if the addition overflows and store the result in @c. */
 #define OVERFLOW_ADD(a, b, c) \
     __builtin_add_overflow((a), (b), &(c))
+
+typedef struct position {
+    int32_t x;
+    int32_t y;
+} Position;
+
+typedef struct size {
+    uint32_t width;
+    uint32_t height;
+} Size;
 
 #endif
