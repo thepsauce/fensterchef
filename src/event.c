@@ -45,6 +45,10 @@ static void handle_map_request(xcb_map_request_event_t *event)
     }
     window = create_window(event->window);
     set_focus_window(window);
+    if (window->properties.has_strut ||
+            window->properties.has_strut_partial) {
+        reconfigure_monitor_frame_sizes();
+    }
 }
 
 /* Button press events are sent when the mouse is pressed together with
@@ -140,6 +144,11 @@ static void handle_property_notify(xcb_property_notify_event_t *event)
     }
 
     set_window_state(window, predict_window_state(window), 0);
+
+    if (window->properties.has_strut ||
+            window->properties.has_strut_partial) {
+        reconfigure_monitor_frame_sizes();
+    }
 }
 
 /* Unmap notifications are sent after a window decided it wanted to not be seen
@@ -152,6 +161,10 @@ void handle_unmap_notify(xcb_unmap_notify_event_t *event)
     window = get_window_of_xcb_window(event->window);
     if (window != NULL) {
         set_window_state(window, WINDOW_STATE_HIDDEN, 1);
+        if (window->properties.has_strut ||
+                window->properties.has_strut_partial) {
+            reconfigure_monitor_frame_sizes();
+        }
     }
 }
 

@@ -100,7 +100,7 @@ static void configure_popup_size(Window *window)
             window->size.width, window->size.height);
 
     if (window->popup_size.width == 0) {
-        if ((window->properties.size_hints.flags & XCB_ICCCM_SIZE_HINT_US_SIZE)) {
+        if ((window->properties.size_hints.flags & XCB_ICCCM_SIZE_HINT_P_SIZE)) {
             width = window->properties.size_hints.width;
             height = window->properties.size_hints.height;
         } else {
@@ -118,7 +118,7 @@ static void configure_popup_size(Window *window)
             height = MIN(height, (uint32_t) window->properties.size_hints.max_height);
         }
 
-        if ((window->properties.size_hints.flags & XCB_ICCCM_SIZE_HINT_US_POSITION)) {
+        if ((window->properties.size_hints.flags & XCB_ICCCM_SIZE_HINT_P_POSITION)) {
             x = window->properties.size_hints.x;
             y = window->properties.size_hints.y;
         } else {

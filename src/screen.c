@@ -408,6 +408,52 @@ Monitor *query_monitors(void)
     return first_monitor;
 }
 
+/* Updates the struts of all monitors and then correctly sizes the frame. */
+void reconfigure_monitor_frame_sizes(void)
+{
+    Monitor *monitor;
+
+    /* reset all extents */
+    for (monitor = g_screen->monitor; monitor != NULL;
+            monitor = monitor->next) {
+        monitor->struts.left = 0;
+        monitor->struts.top = 0;
+        monitor->struts.right = 0;
+        monitor->struts.bottom = 0;
+    }
+
+    /* work out the new extents based on the window defined extents */
+    for (Window *window = g_first_window; window != NULL;
+            window = window->next) {
+        if (window->state.current == WINDOW_STATE_HIDDEN ||
+                window->state.current == WINDOW_STATE_IGNORE) {
+            continue;
+        }
+        monitor = get_monitor_from_rectangle(window->position.x,
+                window->position.y, window->size.width, window->size.height);
+        monitor->struts.left =
+            MAX(monitor->struts.left, window->properties.struts.left);
+        monitor->struts.top =
+            MAX(monitor->struts.top, window->properties.struts.top);
+        monitor->struts.right =
+            MAX(monitor->struts.right, window->properties.struts.right);
+        monitor->struts.bottom =
+            MAX(monitor->struts.bottom, window->properties.struts.bottom);
+    }
+
+    /* resize all frames to their according size */
+    for (monitor = g_screen->monitor; monitor != NULL;
+            monitor = monitor->next) {
+        resize_frame(monitor->frame,
+                monitor->frame->x + monitor->struts.left,
+                monitor->frame->y + monitor->struts.top,
+                monitor->frame->width - monitor->struts.right -
+                    monitor->struts.left,
+                monitor->frame->height - monitor->struts.bottom -
+                    monitor->struts.top);
+    }
+}
+
 /* Merges given monitor linked list into the screen.
  *
  * The main purpose of this function is to essentially make the linked in screen
@@ -432,9 +478,11 @@ void merge_monitors(Monitor *monitors)
         named_monitor = get_monitor_by_name(g_screen->monitor,
                 monitor->name, strlen(monitor->name));
         if (named_monitor != NULL) {
-            resize_frame(named_monitor->frame, monitor->frame->x,
-                    monitor->frame->y, monitor->frame->width,
-                    monitor->frame->height);
+            named_monitor->frame->x = monitor->frame->x;
+            named_monitor->frame->y = monitor->frame->y;
+            named_monitor->frame->width = monitor->frame->width;
+            named_monitor->frame->height = monitor->frame->height;
+
             free(monitor->frame);
             monitor->frame = named_monitor->frame;
             named_monitor->frame = NULL;
@@ -450,15 +498,19 @@ void merge_monitors(Monitor *monitors)
         if (monitor->frame != NULL) {
             /* find a free monitor */
             for (other = monitors; other != NULL; other = other->next) {
-                if (other->is_free) {
-                    break;
+                if (!other->is_free) {
+                    continue;
                 }
-                resize_frame(monitor->frame, other->frame->x,
-                        other->frame->y, other->frame->width,
-                        other->frame->height);
+
+                monitor->frame->x = other->frame->x;
+                monitor->frame->y = other->frame->y;
+                monitor->frame->width = other->frame->width;
+                monitor->frame->height = other->frame->height;
+
                 free(other->frame);
                 other->frame = monitor->frame;
                 monitor->frame = NULL;
+                break;
             }
 
             /* abandon the frame if there is no monitor that can take it */
@@ -474,6 +526,8 @@ void merge_monitors(Monitor *monitors)
     }
 
     g_screen->monitor = monitors;
+
+    reconfigure_monitor_frame_sizes();
 
     if (g_cur_frame == NULL) {
         g_cur_frame = get_primary_monitor()->frame;

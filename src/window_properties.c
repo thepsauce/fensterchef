@@ -72,8 +72,8 @@ static void update_window_strut(Window *window)
     /* _NET_WM_STRUT is older than _NET_WM_STRUT_PARTIAL, fall back to it when
      * there is so strut partial
      */
-    strut_cookie = xcb_ewmh_get_strut(&g_ewmh, window->xcb_window);
-    if (xcb_ewmh_get_wm_strut(&g_ewmh, strut_cookie, &struts, NULL)) {
+    strut_cookie = xcb_ewmh_get_wm_strut(&g_ewmh, window->xcb_window);
+    if (xcb_ewmh_get_wm_strut_reply(&g_ewmh, strut_cookie, &struts, NULL)) {
         window->properties.has_strut = 1;
         window->properties.struts.left = struts.left;
         window->properties.struts.top = struts.top;
