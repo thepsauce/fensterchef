@@ -6,14 +6,22 @@
 #include <xcb/xcb_icccm.h> // xcb_size_hints_t, xcb_icccm_wm_hints_t,
                            // xcb_ewmh_wm_struct_partial_t
 
+/* these correspond to X atoms */
 typedef enum window_property {
+    /* WM_NAME */
     WINDOW_PROPERTY_NAME,
+    /* WM_NORMAL_HINTS */
     WINDOW_PROPERTY_SIZE_HINTS,
+    /* WM_HINTS */
     WINDOW_PROPERTY_HINTS,
+    /* WM_STRUT / WM_STRUT_PARTIAL */
     WINDOW_PROPERTY_STRUT,
+    /* WM_STATE -> list of atoms that may contain WM_STATE_FULLSCREEN */
     WINDOW_PROPERTY_FULLSCREEN,
-    WINDOW_PROPERTY_TRANSIENT,
+    /* WM_TRANSIENT_FOR */
+    WINDOW_PROPERTY_TRANSIENT_FOR,
 
+    /* maximum possible value for a window property */
     WINDOW_PROPERTY_MAX,
 } window_property_t;
 
@@ -33,15 +41,18 @@ typedef struct window_properties {
     xcb_icccm_wm_hints_t hints;
     /* window struts (extents) */
     xcb_ewmh_wm_strut_partial_t struts;
-    /* if the window has the strut partial property */
-    unsigned has_strut : 1;
-    /* if the window has the strut partial property */
-    unsigned has_strut_partial : 1;
+    /* the window this window is transient for */
+    xcb_window_t transient_for;
     /* if the window is a fullscreen window */
     unsigned is_fullscreen : 1;
-    /* if the window is a transient window */
-    unsigned is_transient : 1;
 } WindowProperties;
+
+/* Checks if given window has any struts set. */
+static inline unsigned is_strut_empty(xcb_ewmh_wm_strut_partial_t *struts)
+{
+    return struts->left == 0 && struts->top == 0 &&
+        struts->right == 0 && struts->bottom == 0;
+}
 
 /* Update the given property of given window. */
 void update_window_property(Window *window, window_property_t property);

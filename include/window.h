@@ -13,6 +13,10 @@
 /* the number the first window gets assigned */
 #define FIRST_WINDOW_NUMBER 1
 
+/* forward declaration */
+struct frame;
+typedef struct frame Frame;
+
 /* A window is a wrapper around an xcb window, it is always part of a global
  * linked list and has a unique id.
  */
@@ -21,10 +25,13 @@ typedef struct window {
     xcb_window_t xcb_window;
 
     /* frame this window is contained in */
-    struct frame *frame;
+    Frame *frame;
 
     /* the window properties */
     WindowProperties properties;
+
+    /* the window state */
+    WindowState state;
 
     /* current window position and size */
     Position position;
@@ -33,12 +40,6 @@ typedef struct window {
     /* position and size when the window was in popup state */
     Position popup_position;
     Size popup_size;
-
-    /* the window state */
-    WindowState state;
-
-    /* if the window has focus */
-    unsigned focused : 1;
 
     /* the id of this window */
     uint32_t number;

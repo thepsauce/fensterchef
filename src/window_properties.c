@@ -1,4 +1,5 @@
 #include <inttypes.h>
+#include <string.h>
 
 #include "fensterchef.h"
 #include "window.h"
@@ -59,44 +60,37 @@ static void update_window_strut(Window *window)
     xcb_get_property_cookie_t strut_cookie;
     xcb_ewmh_get_extents_reply_t struts;
 
+    memset(&window->properties.struts, 0, sizeof(window->properties.struts));
+
     strut_partial_cookie = xcb_ewmh_get_wm_strut_partial(&g_ewmh,
             window->xcb_window);
     if (xcb_ewmh_get_wm_strut_partial_reply(&g_ewmh, strut_partial_cookie,
                 &window->properties.struts, NULL)) {
-        window->properties.has_strut_partial = 1;
         return;
     }
 
-    window->properties.has_strut_partial = 0;
-
     /* _NET_WM_STRUT is older than _NET_WM_STRUT_PARTIAL, fall back to it when
-     * there is so strut partial
+     * there is no strut partial
      */
     strut_cookie = xcb_ewmh_get_wm_strut(&g_ewmh, window->xcb_window);
     if (xcb_ewmh_get_wm_strut_reply(&g_ewmh, strut_cookie, &struts, NULL)) {
-        window->properties.has_strut = 1;
         window->properties.struts.left = struts.left;
         window->properties.struts.top = struts.top;
         window->properties.struts.right = struts.right;
         window->properties.struts.bottom = struts.bottom;
-    } else {
-        window->properties.has_strut = 0;
     }
 }
 
-/* Update the transient property of the window. */
-static void update_window_transient(Window *window)
+/* Update the transient_for property of the window. */
+static void update_window_transient_for(Window *window)
 {
-    xcb_window_t transient;
-    xcb_get_property_cookie_t transient_cookie;
+    xcb_get_property_cookie_t transient_for_cookie;
 
-    transient_cookie = xcb_icccm_get_wm_transient_for(g_dpy,
+    transient_for_cookie = xcb_icccm_get_wm_transient_for(g_dpy,
             window->xcb_window);
-    if (xcb_icccm_get_wm_transient_for_reply(g_dpy, transient_cookie,
-                &transient, NULL) && transient != 0) {
-        window->properties.is_transient = 1;
-    } else {
-        window->properties.is_transient = 0;
+    if (!xcb_icccm_get_wm_transient_for_reply(g_dpy, transient_for_cookie,
+                &window->properties.transient_for, NULL)) {
+        window->properties.transient_for = 0;
     }
 }
 
@@ -139,7 +133,7 @@ void update_window_property(Window *window, window_property_t property)
         [WINDOW_PROPERTY_HINTS] = update_window_hints,
         [WINDOW_PROPERTY_STRUT] = update_window_strut,
         [WINDOW_PROPERTY_FULLSCREEN] = update_window_fullscreen,
-        [WINDOW_PROPERTY_TRANSIENT] = update_window_transient,
+        [WINDOW_PROPERTY_TRANSIENT_FOR] = update_window_transient_for,
     };
 
     updaters[property](window);

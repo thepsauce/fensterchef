@@ -1,4 +1,5 @@
 #include <inttypes.h>
+
 #include <xcb/randr.h>
 
 #include "action.h"
@@ -7,6 +8,7 @@
 #include "log.h"
 #include "screen.h"
 #include "util.h"
+#include "window.h"
 
 /* This file handles all kinds of xcb events.
  *
@@ -31,6 +33,20 @@ static struct {
     xcb_window_t xcb_window;
 } selected_window;
 
+/* Create notifications are sent when a client creates a window on our
+ * connection.
+ */
+static void handle_create_notify(xcb_create_notify_event_t *event)
+{
+    Window *window;
+
+    window = create_window(event->window);
+    window->position.x = event->x;
+    window->position.y = event->y;
+    window->size.width = event->width;
+    window->size.height = event->height;
+}
+
 /* Map requests are sent when a new window wants to become on screen, this
  * is also where we register new windows and wrap them into the internal
  * Window struct.
@@ -40,13 +56,13 @@ static void handle_map_request(xcb_map_request_event_t *event)
     Window *window;
 
     window = get_window_of_xcb_window(event->window);
-    if (window != NULL) {
+    if (window == NULL) {
+        /* can this case ever happen? */
         return;
     }
-    window = create_window(event->window);
+    show_window(window);
     set_focus_window(window);
-    if (window->properties.has_strut ||
-            window->properties.has_strut_partial) {
+    if (is_strut_empty(&window->properties.struts)) {
         reconfigure_monitor_frame_sizes();
     }
 }
@@ -60,7 +76,7 @@ static void handle_button_press(xcb_button_press_event_t *event)
     Window                      *window;
 
     window = get_window_of_xcb_window(event->child);
-    if (window == NULL || window->state.current != WINDOW_STATE_POPUP) {
+    if (window == NULL || window->state.current_mode != WINDOW_MODE_POPUP) {
         return;
     }
 
@@ -130,7 +146,8 @@ static void handle_property_notify(xcb_property_notify_event_t *event)
 
     if (event->atom == XCB_ATOM_WM_NAME) {
         update_window_property(window, WINDOW_PROPERTY_NAME);
-    } else if (event->atom == XCB_ATOM_WM_SIZE_HINTS) {
+    } else if (event->atom == XCB_ATOM_WM_NORMAL_HINTS ||
+            event->atom == XCB_ATOM_WM_SIZE_HINTS) {
         update_window_property(window, WINDOW_PROPERTY_SIZE_HINTS);
     } else if (event->atom == XCB_ATOM_WM_HINTS) {
         update_window_property(window, WINDOW_PROPERTY_HINTS);
@@ -140,13 +157,15 @@ static void handle_property_notify(xcb_property_notify_event_t *event)
     } else if (event->atom == g_ewmh._NET_WM_STATE) {
         update_window_property(window, WINDOW_PROPERTY_FULLSCREEN);
     } else if (event->atom == XCB_ATOM_WM_TRANSIENT_FOR) {
-        update_window_property(window, WINDOW_PROPERTY_TRANSIENT);
+        update_window_property(window, WINDOW_PROPERTY_TRANSIENT_FOR);
+    } else {
+        /* nothing we know of changed */
+        return;
     }
 
-    set_window_state(window, predict_window_state(window), 0);
+    set_window_mode(window, predict_window_mode(window), 0);
 
-    if (window->properties.has_strut ||
-            window->properties.has_strut_partial) {
+    if (is_strut_empty(&window->properties.struts)) {
         reconfigure_monitor_frame_sizes();
     }
 }
@@ -160,9 +179,8 @@ void handle_unmap_notify(xcb_unmap_notify_event_t *event)
 
     window = get_window_of_xcb_window(event->window);
     if (window != NULL) {
-        set_window_state(window, WINDOW_STATE_HIDDEN, 1);
-        if (window->properties.has_strut ||
-                window->properties.has_strut_partial) {
+        hide_window(window);
+        if (is_strut_empty(&window->properties.struts)) {
             reconfigure_monitor_frame_sizes();
         }
     }
@@ -174,10 +192,15 @@ void handle_unmap_notify(xcb_unmap_notify_event_t *event)
 static void handle_destroy_notify(xcb_destroy_notify_event_t *event)
 {
     Window *window;
+    unsigned has_strut;
 
     window = get_window_of_xcb_window(event->window);
     if (window != NULL) {
+        has_strut = is_strut_empty(&window->properties.struts);
         destroy_window(window);
+        if (has_strut) {
+            reconfigure_monitor_frame_sizes();
+        }
     }
 }
 
@@ -197,30 +220,59 @@ void handle_key_press(xcb_key_press_event_t *event)
     }
 }
 
-/* Little story: When xterm is opened, it waits a few seconds to appear on
- * screen. However, when the window manager answers to xterm's configure
- * request, it opens instantly which induces the TODO: what is xterm really
- * waiting for?
- *
- * Configure requests are not important at all, they should be disregarded
- * for all windows OR properly managed which induces a TODO.
+/* Configure requests are received when a window wants to choose its own
+ * position and size.
  */
 void handle_configure_request(xcb_configure_request_event_t *event)
 {
     Window *window;
+    int value_index;
 
     window = get_window_of_xcb_window(event->window);
-    if (window != NULL) {
+    if (window == NULL) {
         return;
     }
 
-    g_values[0] = event->x;
-    g_values[1] = event->y;
-    g_values[2] = event->width;
-    g_values[3] = event->height;
-    g_values[4] = event->border_width;
-    xcb_configure_window(g_dpy, event->window,
-            XCB_CONFIG_SIZE | XCB_CONFIG_WINDOW_BORDER_WIDTH, g_values);
+    value_index = 0;
+    if ((event->value_mask & XCB_CONFIG_WINDOW_X)) {
+        g_values[value_index++] = event->x;
+    }
+    if ((event->value_mask & XCB_CONFIG_WINDOW_Y)) {
+        g_values[value_index++] = event->y;
+    }
+    if ((event->value_mask & XCB_CONFIG_WINDOW_WIDTH)) {
+        g_values[value_index++] = event->width;
+    }
+    if ((event->value_mask & XCB_CONFIG_WINDOW_HEIGHT)) {
+        g_values[value_index++] = event->height;
+    }
+    if ((event->value_mask & XCB_CONFIG_WINDOW_BORDER_WIDTH)) {
+        g_values[value_index++] = event->border_width;
+    }
+    if ((event->value_mask & XCB_CONFIG_WINDOW_SIBLING)) {
+        g_values[value_index++] = event->sibling;
+    }
+    if ((event->value_mask & XCB_CONFIG_WINDOW_STACK_MODE)) {
+        g_values[value_index++] = event->stack_mode;
+    }
+
+    xcb_configure_window(g_dpy, event->window, event->value_mask, g_values);
+}
+
+/* Configure notifications are sent when a window changed its data. */
+void handle_configure_notify(xcb_configure_notify_event_t *event)
+{
+    Window *window;
+
+    window = get_window_of_xcb_window(event->window);
+    if (window == NULL) {
+        return;
+    }
+
+    window->position.x = event->x;
+    window->position.y = event->y;
+    window->size.width = event->width;
+    window->size.height = event->height;
 }
 
 /* Screen change notifications are sent when the screen configurations is
@@ -253,30 +305,57 @@ void handle_event(xcb_generic_event_t *event)
     log_event(event);
 
     switch (type) {
+    /* a window was created */
+    case XCB_CREATE_NOTIFY:
+        handle_create_notify((xcb_create_notify_event_t*) event);
+        break;
+
+    /* a window wants to appear on the screen */
     case XCB_MAP_REQUEST:
         handle_map_request((xcb_map_request_event_t*) event);
         break;
+
+    /* a mouse button was pressed */
     case XCB_BUTTON_PRESS:
         handle_button_press((xcb_button_press_event_t*) event);
         break;
+
+    /* the mouse was moved */
     case XCB_MOTION_NOTIFY:
         handle_motion_notify((xcb_motion_notify_event_t*) event);
         break;
+
+    /* a mouse button was released */
     case XCB_BUTTON_RELEASE:
         handle_button_release((xcb_button_release_event_t*) event);
         break;
+
+    /* a window changed a property */
     case XCB_PROPERTY_NOTIFY:
         handle_property_notify((xcb_property_notify_event_t*) event);
         break;
+
+    /* a window was removed from the screen */
     case XCB_UNMAP_NOTIFY:
         handle_unmap_notify((xcb_unmap_notify_event_t*) event);
         break;
+
+    /* a window was destroyed */
     case XCB_DESTROY_NOTIFY:
         handle_destroy_notify((xcb_destroy_notify_event_t*) event);
         break;
+
+    /* a window wants to configure itself */
     case XCB_CONFIGURE_REQUEST:
         handle_configure_request((xcb_configure_request_event_t*) event);
         break;
+
+    /* a window was configured */
+    case XCB_CONFIGURE_NOTIFY:
+        handle_configure_notify((xcb_configure_notify_event_t*) event);
+        break;
+
+    /* a key was pressed */
     case XCB_KEY_PRESS:
         handle_key_press((xcb_key_press_event_t*) event);
         break;

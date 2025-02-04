@@ -1,9 +1,11 @@
 #include <inttypes.h>
 
 #include "fensterchef.h"
+#include "frame.h"
 #include "log.h"
 #include "tiling.h"
 #include "util.h"
+#include "window.h"
 
 /* Split a frame horizontally or vertically.
  *
@@ -63,8 +65,10 @@ void split_frame(Frame *split_from, int is_split_vert)
 
     window = get_next_hidden_window(left->window);
     if (window != NULL) {
+        /* show window in the right frame */
+        set_window_mode(window, WINDOW_MODE_TILING, 1);
         g_cur_frame = right;
-        set_window_state(window, WINDOW_STATE_SHOWN, 1);
+        show_window(window);
     }
 
     if (left->window != NULL) {
@@ -86,10 +90,8 @@ static void unmap_and_destroy_recursively(Frame *frame)
         unmap_and_destroy_recursively(frame->left);
         unmap_and_destroy_recursively(frame->right);
     } else if (frame->window != NULL) {
-        frame->window->state.previous = frame->window->state.current;
-        frame->window->state.current = WINDOW_STATE_HIDDEN;
-        frame->window->focused = 0;
         frame->window->frame = NULL;
+        frame->window->state.is_visible = false;
         xcb_unmap_window(g_dpy, frame->window->xcb_window);
     }
     free(frame);

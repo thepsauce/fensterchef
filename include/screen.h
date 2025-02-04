@@ -3,6 +3,8 @@
 
 #include <xcb/randr.h>
 
+#include "util.h" // Position, Size
+
 /* stock object indexes */
 enum {
     STOCK_WHITE_PEN,
@@ -53,6 +55,10 @@ typedef struct monitor {
 
     /* region of the monitor cut off */
     xcb_ewmh_get_extents_reply_t struts;
+
+    /* the position and size of the monitor */
+    Position position;
+    Size size;
 
     /* root frame */
     struct frame *frame;

@@ -29,7 +29,7 @@ static void set_active_window(Window *window)
         return;
     }
 
-    set_window_state(window, WINDOW_STATE_SHOWN, 1);
+    show_window(window);
     (void) set_focus_window(window);
 }
 
@@ -43,11 +43,11 @@ static void change_focus(void)
         return;
     }
 
-    if (window->state.current == WINDOW_STATE_POPUP) {
+    if (window->state.current_mode == WINDOW_MODE_POPUP) {
         set_focus_frame(g_cur_frame);
     } else {
         for (Window *w = g_first_window; w != NULL; w = w->next) {
-            if (w != window && w->state.current == WINDOW_STATE_POPUP &&
+            if (w != window && w->state.current_mode == WINDOW_MODE_POPUP &&
                     set_focus_window(w) == 0) {
                 break;
             }
@@ -65,19 +65,14 @@ static void show_window_list(void)
         return;
     }
 
-    switch (window->state.current) {
-    case WINDOW_STATE_HIDDEN:
-        set_window_state(window, WINDOW_STATE_SHOWN, 1);
-        break;
-    case WINDOW_STATE_SHOWN:
-        set_focus_frame(window->frame);
-        break;
-    case WINDOW_STATE_POPUP:
-    case WINDOW_STATE_FULLSCREEN:
+    set_focus_window(window);
+
+    if (window->state.is_visible) {
         set_window_above(window);
-        set_focus_window(window);
-        break;
+        return;
     }
+
+    show_window(window);
 }
 
 /* Do the given action, the action codes are `ACTION_*`. */
@@ -124,8 +119,8 @@ void do_action(action_t action)
         if (window == NULL) {
             break;
         }
-        set_window_state(window, window->state.current == WINDOW_STATE_SHOWN ?
-                WINDOW_STATE_POPUP : WINDOW_STATE_SHOWN, 1);
+        set_window_mode(window, window->state.current_mode == WINDOW_MODE_TILING ?
+                WINDOW_MODE_POPUP : WINDOW_MODE_TILING, 1);
         break;
 
     /* changes from focusing a popup window to focusing a tiling window */
@@ -137,9 +132,9 @@ void do_action(action_t action)
     case ACTION_TOGGLE_FULLSCREEN:
         window = get_focus_window();
         if (window != NULL) {
-            set_window_state(window,
-                    window->state.current == WINDOW_STATE_FULLSCREEN ?
-                    window->state.previous : WINDOW_STATE_FULLSCREEN, 1);
+            set_window_mode(window,
+                    window->state.current_mode == WINDOW_MODE_FULLSCREEN ?
+                    window->state.previous_mode : WINDOW_MODE_FULLSCREEN, 1);
         }
         break;
 

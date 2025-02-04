@@ -27,7 +27,7 @@ xcb_ewmh_connection_t   g_ewmh;
 unsigned                g_running;
 
 /* general purpose values */
-uint32_t                g_values[6];
+uint32_t                g_values[7];
 
 /* Handle an incoming alarm. */
 static void alarm_handler(int sig)

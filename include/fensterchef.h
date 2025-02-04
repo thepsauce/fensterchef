@@ -2,18 +2,11 @@
 #define FENSTERCHEF_H
 
 #include <fontconfig/fontconfig.h>
-#include <ft2build.h>
-#include FT_FREETYPE_H
 
-#include <xcb/render.h>
 #include <xcb/xcb.h>
 #include <xcb/xcb_ewmh.h>
 
 #include <stdio.h>
-
-#include "action.h"
-#include "frame.h"
-#include "window.h"
 
 /* flag used to configure window position, size and border width */
 #define XCB_CONFIG_SIZE (XCB_CONFIG_WINDOW_X | \
@@ -40,7 +33,7 @@ extern xcb_ewmh_connection_t    g_ewmh;
 extern unsigned                 g_running;
 
 /* general purpose values */
-extern uint32_t                 g_values[6];
+extern uint32_t                 g_values[7];
 
 /* Initialize most of fensterchef data and set root window flags. */
 int init_fensterchef(void);

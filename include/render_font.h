@@ -6,6 +6,7 @@
 #include FT_FREETYPE_H
 
 #include <xcb/xcb.h>
+#include <xcb/render.h>
 
 /* Initializes all parts needed for drawing fonts.
  *

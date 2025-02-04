@@ -5,6 +5,7 @@
 #include "log.h"
 #include "screen.h"
 #include "util.h"
+#include "window.h"
 #include "xalloc.h"
 
 /* the currently selected/focused frame */
@@ -86,8 +87,7 @@ void resize_frame(Frame *frame, int32_t x, int32_t y,
 /* Set the frame in focus, this also focuses the inner window if it exists. */
 void set_focus_frame(Frame *frame)
 {
-    if (frame->window == NULL ||
-            set_focus_window(frame->window) != 0) {
+    if (set_focus_window(frame->window) != 0) {
         /* setting focus to the root essentially removes focus from all other
          * windows
          */

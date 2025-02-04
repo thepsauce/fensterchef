@@ -1,20 +1,15 @@
 #ifndef WINDOW_STATE_H
 #define WINDOW_STATE_H
 
-/* all possible window states */
-#define WINDOW_STATE_HIDDEN 0
-#define WINDOW_STATE_SHOWN 1
-#define WINDOW_STATE_POPUP 2
-#define WINDOW_STATE_IGNORE 3
-#define WINDOW_STATE_FULLSCREEN 4
-
-/* HIDDEN: The window is not shown but would usually go in the tiling layout.
- * SHOWN: The window is part of the current tiling layout.
- * POPUP: The window is a popup window, it may or may not be visible.
- * IGNORE: The window was once registered by the WM but the user decided to
- *      ignore it. It does not appear when cycling through windows.
- * FULLSCREEN: The window covers an entire monitor.
- */
+/* the mode of the window */
+typedef enum window_mode {
+    /* the window is part of the tiling layout (if visible) */
+    WINDOW_MODE_TILING,
+    /* the window is a popup window */
+    WINDOW_MODE_POPUP,
+    /* the window is a fullscreen window */
+    WINDOW_MODE_FULLSCREEN,
+} window_mode_t;
 
 /* forward declaration */
 struct window;
@@ -24,23 +19,33 @@ typedef struct window Window;
  * and how the window should behave.
  */
 typedef struct window_state {
+    /* if the window was ever mapped */
+    unsigned is_mappable : 1;
+    /* if the window is visible (mapped) */
+    unsigned is_visible : 1;
+    /* if the window was forced to be a certain mode */
+    unsigned is_mode_forced : 1;
     /* the current window state */
-    unsigned current : 3;
+    window_mode_t current_mode;
     /* the previous window state */
-    unsigned previous : 3;
-    /* if the window was forced to be a certain state */
-    unsigned is_forced : 1;
+    window_mode_t previous_mode;
 } WindowState;
 
-/* Predict what state the window is expected to be in based on the X11
+/* Predict what mode the window is expected to be in based on the X
  * properties.
  */
-unsigned predict_window_state(Window *window);
+window_mode_t predict_window_mode(Window *window);
 
-/* Change the state to given value and reconfigures the window.
+/* Change the mode to given value and reconfigures the window if it is visible.
  *
- * @force is used to force the change of the window state.
+ * @force_mode is used to force the change of the window mode.
  */
-void set_window_state(Window *window, unsigned state, unsigned force);
+void set_window_mode(Window *window, window_mode_t mode, bool force_mode);
+
+/* Show the window by positioning it and mapping it to the X server. */
+void show_window(Window *window);
+
+/* Hide the window by unmapping it to the X server. */
+void hide_window(Window *window);
 
 #endif

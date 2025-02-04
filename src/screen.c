@@ -1,3 +1,5 @@
+#include <string.h>
+
 #include <xcb/xcb_renderutil.h>
 
 #include "event.h" // randr_event_base
@@ -8,6 +10,7 @@
 #include "screen.h"
 #include "tiling.h"
 #include "util.h"
+#include "window.h"
 #include "xalloc.h"
 
 /* event mask for the root window */
@@ -207,7 +210,6 @@ void init_monitors(void)
     xcb_generic_error_t *error;
     xcb_randr_query_version_cookie_t version_cookie;
     xcb_randr_query_version_reply_t *version;
-    Monitor *monitors;
 
     extension = xcb_get_extension_data(g_dpy, &xcb_randr_id);
     if (!extension->present) {
@@ -235,8 +237,7 @@ void init_monitors(void)
                 XCB_RANDR_NOTIFY_MASK_OUTPUT_PROPERTY);
     }
 
-    monitors = query_monitors();
-    merge_monitors(monitors);
+    merge_monitors(query_monitors());
 }
 
 /* Get a monitor marked as primary or the first monitor if no monitor is marked
@@ -264,12 +265,12 @@ Monitor *get_monitor_from_rectangle(int32_t x, int32_t y,
     for (Monitor *monitor = g_screen->monitor; monitor != NULL;
             monitor = monitor->next) {
         x_overlap = MIN(x + width,
-                monitor->frame->x + monitor->frame->width);
-        x_overlap -= MAX(x, monitor->frame->x);
+                monitor->position.x + monitor->size.width);
+        x_overlap -= MAX(x, monitor->position.x);
 
         y_overlap = MIN(y + height,
-                monitor->frame->y + monitor->frame->height);
-        y_overlap -= MAX(y, monitor->frame->y);
+                monitor->position.y + monitor->size.height);
+        y_overlap -= MAX(y, monitor->position.y);
 
         if (best_monitor == NULL) {
             best_monitor = monitor;
@@ -400,10 +401,10 @@ Monitor *query_monitors(void)
 
         last_monitor->primary = primary_output == outputs[i];
 
-        last_monitor->frame->x = crtc->x;
-        last_monitor->frame->y = crtc->y;
-        last_monitor->frame->width = crtc->width;
-        last_monitor->frame->height = crtc->height;
+        last_monitor->position.x = crtc->x;
+        last_monitor->position.y = crtc->y;
+        last_monitor->size.width = crtc->width;
+        last_monitor->size.height = crtc->height;
     }
     return first_monitor;
 }
@@ -425,8 +426,8 @@ void reconfigure_monitor_frame_sizes(void)
     /* work out the new extents based on the window defined extents */
     for (Window *window = g_first_window; window != NULL;
             window = window->next) {
-        if (window->state.current == WINDOW_STATE_HIDDEN ||
-                window->state.current == WINDOW_STATE_IGNORE) {
+        if (!window->state.is_visible ||
+                is_strut_empty(&window->properties.struts)) {
             continue;
         }
         monitor = get_monitor_from_rectangle(window->position.x,
@@ -445,11 +446,11 @@ void reconfigure_monitor_frame_sizes(void)
     for (monitor = g_screen->monitor; monitor != NULL;
             monitor = monitor->next) {
         resize_frame(monitor->frame,
-                monitor->frame->x + monitor->struts.left,
-                monitor->frame->y + monitor->struts.top,
-                monitor->frame->width - monitor->struts.right -
+                monitor->position.x + monitor->struts.left,
+                monitor->position.y + monitor->struts.top,
+                monitor->size.width - monitor->struts.right -
                     monitor->struts.left,
-                monitor->frame->height - monitor->struts.bottom -
+                monitor->size.height - monitor->struts.bottom -
                     monitor->struts.top);
     }
 }
@@ -468,8 +469,8 @@ void merge_monitors(Monitor *monitors)
 
     if (monitors == NULL) {
         monitors = create_monitor("#Virtual", (uint32_t) -1);
-        monitors->frame->width = g_screen->xcb_screen->width_in_pixels;
-        monitors->frame->height = g_screen->xcb_screen->height_in_pixels;
+        monitors->size.width = g_screen->xcb_screen->width_in_pixels;
+        monitors->size.height = g_screen->xcb_screen->height_in_pixels;
     }
 
     /* copy frames from the old monitors to the new ones with same name */
@@ -478,11 +479,6 @@ void merge_monitors(Monitor *monitors)
         named_monitor = get_monitor_by_name(g_screen->monitor,
                 monitor->name, strlen(monitor->name));
         if (named_monitor != NULL) {
-            named_monitor->frame->x = monitor->frame->x;
-            named_monitor->frame->y = monitor->frame->y;
-            named_monitor->frame->width = monitor->frame->width;
-            named_monitor->frame->height = monitor->frame->height;
-
             free(monitor->frame);
             monitor->frame = named_monitor->frame;
             named_monitor->frame = NULL;
@@ -501,11 +497,6 @@ void merge_monitors(Monitor *monitors)
                 if (!other->is_free) {
                     continue;
                 }
-
-                monitor->frame->x = other->frame->x;
-                monitor->frame->y = other->frame->y;
-                monitor->frame->width = other->frame->width;
-                monitor->frame->height = other->frame->height;
 
                 free(other->frame);
                 other->frame = monitor->frame;
