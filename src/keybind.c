@@ -1,9 +1,7 @@
-/* This file handles translation of keysyms to keycodes and vise versa.
- *
- * It also handles keybinds.
+/* This file's purpose is to grab all keybinds to handle associations between
+ * actions and key presses.
  */
 
-#include <xcb/xcb_keysyms.h>
 #include <X11/keysym.h>
 
 #include "action.h"

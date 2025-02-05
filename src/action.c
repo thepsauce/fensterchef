@@ -65,7 +65,11 @@ static void show_window_list(void)
         return;
     }
 
-    set_focus_window(window);
+    if (window->frame != NULL) {
+        set_focus_frame(window->frame);
+    } else {
+        set_focus_window(window);
+    }
 
     if (window->state.is_visible) {
         set_window_above(window);

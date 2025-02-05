@@ -5,6 +5,7 @@
 #include "action.h"
 #include "fensterchef.h"
 #include "keybind.h"
+#include "keymap.h"
 #include "log.h"
 #include "screen.h"
 #include "util.h"
@@ -284,6 +285,14 @@ void handle_screen_change(xcb_randr_screen_change_notify_event_t *event)
     merge_monitors(query_monitors());
 }
 
+/* Mapping notifications are sent when the modifier keys or keyboard mapping
+ * changes.
+ */
+void handle_mapping_notify(xcb_mapping_notify_event_t *event)
+{
+    refresh_keymap(event);
+}
+
 /* Handle the given xcb event.
  *
  * Descriptions for each event are above each handler.
@@ -358,6 +367,11 @@ void handle_event(xcb_generic_event_t *event)
     /* a key was pressed */
     case XCB_KEY_PRESS:
         handle_key_press((xcb_key_press_event_t*) event);
+        break;
+
+    /* keyboard mapping changed */
+    case XCB_MAPPING_NOTIFY:
+        handle_mapping_notify((xcb_mapping_notify_event_t*) event);
         break;
     }
 }
