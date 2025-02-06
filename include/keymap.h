@@ -7,6 +7,9 @@
 /* Initializes the keymap so the below functions can be used. */
 int init_keymap(void);
 
+/* Refresh the keymap if a mapping notify event arrives. */
+void refresh_keymap(xcb_mapping_notify_event_t *event);
+
 /* Get a keysym from a keycode. */
 xcb_keysym_t get_keysym(xcb_keycode_t keycode);
 
