@@ -4,6 +4,7 @@
 #include "frame.h"
 #include "log.h"
 #include "window.h"
+#include "root_properties.h"
 #include "screen.h"
 #include "xalloc.h"
 
@@ -50,6 +51,7 @@ Window *create_window(xcb_window_t xcb_window)
             g_values);
 
     update_all_window_properties(window);
+    synchronize_all_window_properties(window);
 
     LOG("created new window wrapping %" PRIu32 "\n", xcb_window);
     return window;
@@ -97,11 +99,29 @@ void set_window_size(Window *window, int32_t x, int32_t y, uint32_t width,
 /* Put the window on top of all other windows. */
 void set_window_above(Window *window)
 {
+    Window *above;
+
     LOG("setting window %" PRIu32 " above all other windows\n", window->number);
 
-    g_values[0] = XCB_STACK_MODE_ABOVE;
+    /* desktop windows are always at the bottom */
+    if (does_window_have_type(window, ewmh._NET_WM_WINDOW_TYPE_DESKTOP)) {
+        g_values[0] = XCB_STACK_MODE_BELOW;
+    } else {
+        g_values[0] = XCB_STACK_MODE_ABOVE;
+    }
     xcb_configure_window(g_dpy, window->xcb_window,
             XCB_CONFIG_WINDOW_STACK_MODE, g_values);
+
+    /* put windows that are transient for this window above it */
+    for (above = g_first_window; above != NULL; above = above->next) {
+        if (!above->state.is_visible) {
+            continue;
+        }
+        if (above->properties.transient_for == window->xcb_window) {
+            xcb_configure_window(g_dpy, window->xcb_window,
+                    XCB_CONFIG_WINDOW_STACK_MODE, g_values);
+        }
+    }
 }
 
 /* Get the window before this window in the linked list. */
@@ -144,8 +164,9 @@ Window *get_focus_window(void)
 int set_focus_window(Window *window)
 {
     if (window == NULL) {
-        LOG("focus change to nothing\n");
+        LOG("focus change to root\n");
         focus_window = NULL;
+        synchronize_root_property(ROOT_PROPERTY_ACTIVE_WINDOW);
         return 1;
     }
 
@@ -158,6 +179,7 @@ int set_focus_window(Window *window)
     }
 
     focus_window = window;
+    synchronize_root_property(ROOT_PROPERTY_ACTIVE_WINDOW);
 
     LOG_ADDITIONAL(" and succeeded\n");
 

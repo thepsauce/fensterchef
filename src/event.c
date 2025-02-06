@@ -7,6 +7,7 @@
 #include "keybind.h"
 #include "keymap.h"
 #include "log.h"
+#include "root_properties.h"
 #include "screen.h"
 #include "util.h"
 #include "window.h"
@@ -62,9 +63,13 @@ static void handle_map_request(xcb_map_request_event_t *event)
         return;
     }
     show_window(window);
-    set_focus_window(window);
-    if (is_strut_empty(&window->properties.struts)) {
+    if (!does_window_have_type(window, ewmh._NET_WM_WINDOW_TYPE_DESKTOP) &&
+            !does_window_have_type(window, ewmh._NET_WM_WINDOW_TYPE_DOCK)) {
+        set_focus_window(window);
+    }
+    if (!is_strut_empty(&window->properties.struts)) {
         reconfigure_monitor_frame_sizes();
+        synchronize_root_property(ROOT_PROPERTY_WORK_AREA);
     }
 }
 
@@ -77,7 +82,7 @@ static void handle_button_press(xcb_button_press_event_t *event)
     Window                      *window;
 
     window = get_window_of_xcb_window(event->child);
-    if (window == NULL || window->state.current_mode != WINDOW_MODE_POPUP) {
+    if (window == NULL || window->state.mode != WINDOW_MODE_POPUP) {
         return;
     }
 
@@ -145,29 +150,16 @@ static void handle_property_notify(xcb_property_notify_event_t *event)
         return;
     }
 
-    if (event->atom == XCB_ATOM_WM_NAME) {
-        update_window_property(window, WINDOW_PROPERTY_NAME);
-    } else if (event->atom == XCB_ATOM_WM_NORMAL_HINTS ||
-            event->atom == XCB_ATOM_WM_SIZE_HINTS) {
-        update_window_property(window, WINDOW_PROPERTY_SIZE_HINTS);
-    } else if (event->atom == XCB_ATOM_WM_HINTS) {
-        update_window_property(window, WINDOW_PROPERTY_HINTS);
-    } else if (event->atom == g_ewmh._NET_WM_STRUT ||
-            event->atom == g_ewmh._NET_WM_STRUT_PARTIAL) {
-        update_window_property(window, WINDOW_PROPERTY_STRUT);
-    } else if (event->atom == g_ewmh._NET_WM_STATE) {
-        update_window_property(window, WINDOW_PROPERTY_FULLSCREEN);
-    } else if (event->atom == XCB_ATOM_WM_TRANSIENT_FOR) {
-        update_window_property(window, WINDOW_PROPERTY_TRANSIENT_FOR);
-    } else {
+    if (!update_window_property_by_atom(window, event->atom)) {
         /* nothing we know of changed */
         return;
     }
 
     set_window_mode(window, predict_window_mode(window), 0);
 
-    if (is_strut_empty(&window->properties.struts)) {
+    if (!is_strut_empty(&window->properties.struts)) {
         reconfigure_monitor_frame_sizes();
+        synchronize_root_property(ROOT_PROPERTY_WORK_AREA);
     }
 }
 
@@ -181,8 +173,9 @@ void handle_unmap_notify(xcb_unmap_notify_event_t *event)
     window = get_window_of_xcb_window(event->window);
     if (window != NULL) {
         hide_window(window);
-        if (is_strut_empty(&window->properties.struts)) {
+        if (!is_strut_empty(&window->properties.struts)) {
             reconfigure_monitor_frame_sizes();
+            synchronize_root_property(ROOT_PROPERTY_WORK_AREA);
         }
     }
 }
@@ -197,10 +190,11 @@ static void handle_destroy_notify(xcb_destroy_notify_event_t *event)
 
     window = get_window_of_xcb_window(event->window);
     if (window != NULL) {
-        has_strut = is_strut_empty(&window->properties.struts);
+        has_strut = !is_strut_empty(&window->properties.struts);
         destroy_window(window);
         if (has_strut) {
             reconfigure_monitor_frame_sizes();
+            synchronize_root_property(ROOT_PROPERTY_WORK_AREA);
         }
     }
 }

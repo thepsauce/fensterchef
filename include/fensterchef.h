@@ -9,6 +9,8 @@
 #include <stdbool.h>
 #include <stdio.h>
 
+#define FENSTERCHEF_NAME "fensterchef"
+
 /* flag used to configure window position, size and border width */
 #define XCB_CONFIG_SIZE (XCB_CONFIG_WINDOW_X | \
                          XCB_CONFIG_WINDOW_Y | \
@@ -27,8 +29,8 @@
 /* xcb server connection */
 extern xcb_connection_t         *g_dpy;
 
-/* ewmh information */
-extern xcb_ewmh_connection_t    g_ewmh;
+/* ewmh (extended window manager hints) information */
+extern xcb_ewmh_connection_t    ewmh;
 
 /* 1 while the window manager is running */
 extern bool                     g_running;
@@ -37,7 +39,7 @@ extern bool                     g_running;
 extern uint32_t                 g_values[7];
 
 /* Initialize most of fensterchef data and set root window flags. */
-int init_fensterchef(void);
+int init_fensterchef(int *screen_number);
 
 /* Quit the window manager and clean up resources. */
 void quit_fensterchef(int exit_code);

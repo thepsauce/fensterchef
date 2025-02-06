@@ -38,7 +38,7 @@ static void (*transitions[3][3])(Window *window) = {
 /* Predicts what kind of mode the window should be in. */
 window_mode_t predict_window_mode(Window *window)
 {
-    if (window->properties.is_fullscreen) {
+    if (does_window_have_state(window, ewmh._NET_WM_STATE_FULLSCREEN)) {
         return WINDOW_MODE_FULLSCREEN;
     }
 
@@ -46,12 +46,15 @@ window_mode_t predict_window_mode(Window *window)
         return WINDOW_MODE_POPUP;
     }
 
-    /* assumption: popup windows are not resizable in at least one direction */
-    if ((window->properties.size_hints.flags & (XCB_ICCCM_SIZE_HINT_P_MAX_SIZE |
-                    XCB_ICCCM_SIZE_HINT_P_MIN_SIZE)) ==
-            (XCB_ICCCM_SIZE_HINT_P_MAX_SIZE |
-                    XCB_ICCCM_SIZE_HINT_P_MIN_SIZE) &&
-            window->properties.size_hints.min_width == window->properties.size_hints.max_width) {
+    if (window->properties.number_of_types > 0) {
+        if (window->properties.types[0] == ewmh._NET_WM_WINDOW_TYPE_NORMAL) {
+            return WINDOW_MODE_TILING;
+        }
+        return WINDOW_MODE_POPUP;
+    }
+
+    /* cheat: popup windows have a maximum size */
+    if ((window->properties.size_hints.flags & XCB_ICCCM_SIZE_HINT_P_MAX_SIZE)) {
         return WINDOW_MODE_POPUP;
     }
 
@@ -159,10 +162,20 @@ static void configure_fullscreen_size(Window *window)
 {
     Monitor *monitor;
 
-    monitor = get_monitor_from_rectangle(window->position.x, window->position.y,
-            window->size.width, window->size.height);
-    set_window_size(window, monitor->frame->x, monitor->frame->y,
-            monitor->frame->width, monitor->frame->height);
+    if (window->properties.fullscreen_monitor.top !=
+            window->properties.fullscreen_monitor.bottom) {
+        set_window_size(window, window->properties.fullscreen_monitor.left,
+                window->properties.fullscreen_monitor.top,
+                window->properties.fullscreen_monitor.right -
+                    window->properties.fullscreen_monitor.left,
+                window->properties.fullscreen_monitor.bottom -
+                    window->properties.fullscreen_monitor.left);
+    } else {
+        monitor = get_monitor_from_rectangle(window->position.x,
+                window->position.y, window->size.width, window->size.height);
+        set_window_size(window, monitor->frame->x, monitor->frame->y,
+                monitor->frame->width, monitor->frame->height);
+    }
 }
 
 /* Unmaps a window and sets it to hidden without any mode transitioning. */
@@ -241,25 +254,28 @@ static void transition_fullscreen_popup(Window *window)
  * if the mode changed. */
 void set_window_mode(Window *window, window_mode_t mode, bool force_mode)
 {
-    if (window->state.current_mode == mode ||
+    if (window->state.mode == mode ||
             (window->state.is_mode_forced && !force_mode)) {
         return;
     }
 
     LOG("transition window mode of %" PRIu32 " from %u to %u (%s)\n",
-            window->number, window->state.current_mode, mode,
+            window->number, window->state.mode, mode,
             force_mode ? "forced" : "not forced");
 
     window->state.is_mode_forced = force_mode;
 
     if (window->state.is_visible) {
-        if (transitions[window->state.current_mode][mode] != NULL) {
-            transitions[window->state.current_mode][mode](window);
+        if (transitions[window->state.mode][mode] != NULL) {
+            transitions[window->state.mode][mode](window);
         }
     }
 
-    window->state.previous_mode = window->state.current_mode;
-    window->state.current_mode = mode;
+    window->state.previous_mode = window->state.mode;
+    window->state.mode = mode;
+
+    synchronize_window_property(window,
+            WINDOW_EXTERNAL_PROPERTY_ALLOWED_ACTIONS);
 }
 
 /* Show the window by mapping it to the X server. */
@@ -304,7 +320,7 @@ void show_window(Window *window)
 
     xcb_map_window(g_dpy, window->xcb_window);
 
-    switch (window->state.current_mode) {
+    switch (window->state.mode) {
     /* the window has to become part of the tiling layout */
     case WINDOW_MODE_TILING:
         old_window = g_cur_frame->window;
@@ -324,6 +340,10 @@ void show_window(Window *window)
     case WINDOW_MODE_FULLSCREEN:
         configure_fullscreen_size(window);
         break;
+
+    /* not a real window mode */
+    case WINDOW_MODE_MAX:
+        break;
     }
 }
 
@@ -338,7 +358,7 @@ void hide_window(Window *window)
 
     window->state.is_visible = false;
 
-    switch (window->state.current_mode) {
+    switch (window->state.mode) {
     /* the window is replaced by another window in the tiling layout */
     case WINDOW_MODE_TILING:
         next = get_next_hidden_window(window);
@@ -363,6 +383,10 @@ void hide_window(Window *window)
     case WINDOW_MODE_POPUP:
     case WINDOW_MODE_FULLSCREEN:
         give_someone_else_focus(window);
+        break;
+
+    /* not a real window mode */
+    case WINDOW_MODE_MAX:
         break;
     }
 

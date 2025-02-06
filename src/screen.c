@@ -126,6 +126,21 @@ static inline int create_utility_windows(void)
 
     root = g_screen->xcb_screen->root;
 
+    g_screen->check_window = xcb_generate_id(g_dpy);
+    error = xcb_request_check(g_dpy, xcb_create_window_checked(g_dpy,
+                XCB_COPY_FROM_PARENT, g_screen->check_window,
+                root, -1, -1, 1, 1, 0,
+                XCB_WINDOW_CLASS_COPY_FROM_PARENT, XCB_COPY_FROM_PARENT,
+                0, NULL));
+    if (error != NULL) {
+        log_error(error, "could not create check window: ");
+        return 1;
+    }
+    xcb_ewmh_set_wm_name(&ewmh, g_screen->check_window,
+            strlen(FENSTERCHEF_NAME), FENSTERCHEF_NAME);
+    xcb_ewmh_set_supporting_wm_check(&ewmh, g_screen->check_window,
+            g_screen->check_window);
+
     g_screen->notification_window = xcb_generate_id(g_dpy);
     g_values[0] = 0x000000;
     error = xcb_request_check(g_dpy, xcb_create_window_checked(g_dpy,
@@ -154,13 +169,14 @@ static inline int create_utility_windows(void)
 }
 
 /* Initializes the WM data of the screen. */
-int init_screen(xcb_screen_t *xcb_screen)
+int init_screen(int screen_number)
 {
     xcb_window_t root;
     xcb_generic_error_t *error;
 
     g_screen = xcalloc(1, sizeof(*g_screen));
-    g_screen->xcb_screen = xcb_screen;
+    g_screen->number = screen_number;
+    g_screen->xcb_screen = ewmh.screens[screen_number];
 
     root = g_screen->xcb_screen->root;
 
@@ -185,8 +201,6 @@ int init_screen(xcb_screen_t *xcb_screen)
     xcb_grab_button(g_dpy, 0, root, XCB_EVENT_MASK_BUTTON_PRESS |
             XCB_EVENT_MASK_BUTTON_RELEASE, XCB_GRAB_MODE_ASYNC,
             XCB_GRAB_MODE_ASYNC, root, XCB_NONE, 1, XCB_MOD_MASK_1);
-
-    init_keybinds();
     return 0;
 }
 
@@ -432,14 +446,10 @@ void reconfigure_monitor_frame_sizes(void)
         }
         monitor = get_monitor_from_rectangle(window->position.x,
                 window->position.y, window->size.width, window->size.height);
-        monitor->struts.left =
-            MAX(monitor->struts.left, window->properties.struts.left);
-        monitor->struts.top =
-            MAX(monitor->struts.top, window->properties.struts.top);
-        monitor->struts.right =
-            MAX(monitor->struts.right, window->properties.struts.right);
-        monitor->struts.bottom =
-            MAX(monitor->struts.bottom, window->properties.struts.bottom);
+        monitor->struts.left += window->properties.struts.left;
+        monitor->struts.top += window->properties.struts.top;
+        monitor->struts.right += window->properties.struts.right;
+        monitor->struts.bottom += window->properties.struts.bottom;
     }
 
     /* resize all frames to their according size */

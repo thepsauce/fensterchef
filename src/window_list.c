@@ -93,9 +93,9 @@ static int render_window_list(Window *selected)
             marker_char++;
         }
         marker_char[0] = !w->state.is_visible ? '-' :
-                w->state.current_mode == WINDOW_MODE_POPUP ?
+                w->state.mode == WINDOW_MODE_POPUP ?
                     (w == get_focus_window() ? '#' : '=') :
-                w->state.current_mode == WINDOW_MODE_FULLSCREEN ?
+                w->state.mode == WINDOW_MODE_FULLSCREEN ?
                     (w == get_focus_window() ? '@' : 'F') :
                 w == get_focus_window() ? '*' : '+';
 
