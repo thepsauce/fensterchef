@@ -9,6 +9,7 @@
 enum {
     STOCK_WHITE_PEN,
     STOCK_BLACK_PEN,
+
     STOCK_GC,
     STOCK_INVERTED_GC,
 
@@ -20,15 +21,18 @@ struct monitor;
 
 /* A screen is a user region that can contain multiple monitors. */
 typedef struct screen {
+    /* the screen number */
+    int number;
     /* the underlying xcb screen */
     xcb_screen_t *xcb_screen;
 
     /* graphis objects with the id referring to the xcb id */
     uint32_t stock_objects[STOCK_COUNT];
 
+    /* supporting wm check window */
+    xcb_window_t check_window;
     /* user notification window */
     xcb_window_t notification_window;
-
     /* user window list window */
     xcb_window_t window_list_window;
 
@@ -53,7 +57,7 @@ typedef struct monitor {
     /* temporary flag for merging */
     unsigned is_free : 1;
 
-    /* region of the monitor cut off */
+    /* region of the monitor to cut off */
     xcb_ewmh_get_extents_reply_t struts;
 
     /* the position and size of the monitor */
@@ -68,8 +72,8 @@ typedef struct monitor {
     struct monitor *next;
 } Monitor;
 
-/* Initializes the WM data of the screen. */
-int init_screen(xcb_screen_t *screen);
+/* Initializes the window manager data of the screen. */
+int init_screen(int screen_number);
 
 /* Try to initialize randr for screen and monitor management. */
 void init_monitors(void);

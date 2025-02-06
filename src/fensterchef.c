@@ -21,7 +21,7 @@
 xcb_connection_t        *g_dpy;
 
 /* ewmh information */
-xcb_ewmh_connection_t   g_ewmh;
+xcb_ewmh_connection_t   ewmh;
 
 /* 1 while the window manager is running */
 unsigned                g_running;
@@ -45,9 +45,9 @@ static void alarm_handler(int sig)
  *
  * After that, the font drawing and the initial font are initialized.
  */
-int init_fensterchef(void)
+int init_fensterchef(int *screen_number)
 {
-    xcb_intern_atom_cookie_t    *cookies;
+    xcb_intern_atom_cookie_t *atom_cookies;
 
 #ifdef DEBUG
     if ((void*) LOG_FILE == (void*) stderr) {
@@ -61,7 +61,7 @@ int init_fensterchef(void)
     setbuf(g_log_file, NULL);
 #endif
 
-    g_dpy = xcb_connect(NULL, NULL);
+    g_dpy = xcb_connect(NULL, screen_number);
     if (xcb_connection_has_error(g_dpy) > 0) {
         ERR("could not create xcb connection\n");
 #ifdef DEBUG
@@ -70,8 +70,8 @@ int init_fensterchef(void)
         exit(1);
     }
 
-    cookies = xcb_ewmh_init_atoms(g_dpy, &g_ewmh);
-    if (!xcb_ewmh_init_atoms_replies(&g_ewmh, cookies, NULL)) {
+    atom_cookies = xcb_ewmh_init_atoms(g_dpy, &ewmh);
+    if (!xcb_ewmh_init_atoms_replies(&ewmh, atom_cookies, NULL)) {
         ERR("could not set up ewmh\n");
 #ifdef DEBUG
         fclose(g_log_file);

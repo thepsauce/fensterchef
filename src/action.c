@@ -43,11 +43,11 @@ static void change_focus(void)
         return;
     }
 
-    if (window->state.current_mode == WINDOW_MODE_POPUP) {
+    if (window->state.mode == WINDOW_MODE_POPUP) {
         set_focus_frame(g_cur_frame);
     } else {
         for (Window *w = g_first_window; w != NULL; w = w->next) {
-            if (w != window && w->state.current_mode == WINDOW_MODE_POPUP &&
+            if (w != window && w->state.mode == WINDOW_MODE_POPUP &&
                     set_focus_window(w) == 0) {
                 break;
             }
@@ -123,7 +123,7 @@ void do_action(action_t action)
         if (window == NULL) {
             break;
         }
-        set_window_mode(window, window->state.current_mode == WINDOW_MODE_TILING ?
+        set_window_mode(window, window->state.mode == WINDOW_MODE_TILING ?
                 WINDOW_MODE_POPUP : WINDOW_MODE_TILING, 1);
         break;
 
@@ -137,7 +137,7 @@ void do_action(action_t action)
         window = get_focus_window();
         if (window != NULL) {
             set_window_mode(window,
-                    window->state.current_mode == WINDOW_MODE_FULLSCREEN ?
+                    window->state.mode == WINDOW_MODE_FULLSCREEN ?
                     window->state.previous_mode : WINDOW_MODE_FULLSCREEN, 1);
         }
         break;

@@ -9,6 +9,9 @@ typedef enum window_mode {
     WINDOW_MODE_POPUP,
     /* the window is a fullscreen window */
     WINDOW_MODE_FULLSCREEN,
+
+    /* the maximum value of a window mode */
+    WINDOW_MODE_MAX,
 } window_mode_t;
 
 /* forward declaration */
@@ -25,9 +28,9 @@ typedef struct window_state {
     unsigned is_visible : 1;
     /* if the window was forced to be a certain mode */
     unsigned is_mode_forced : 1;
-    /* the current window state */
-    window_mode_t current_mode;
-    /* the previous window state */
+    /* the current window mode */
+    window_mode_t mode;
+    /* the previous window mode */
     window_mode_t previous_mode;
 } WindowState;
 
