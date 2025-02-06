@@ -106,7 +106,7 @@ static void update_window_fullscreen(Window *window)
             g_ewmh._NET_WM_STATE, XCB_GET_PROPERTY_TYPE_ANY, 0, UINT32_MAX);
     state_reply = xcb_get_property_reply(g_dpy, state_cookie, NULL);
     if (state_reply == NULL) {
-        window->properties.is_fullscreen = 0;
+        window->properties.is_fullscreen = false;
         return;
     }
 
@@ -116,7 +116,7 @@ static void update_window_fullscreen(Window *window)
         num_atoms /= state_reply->format / 8;
         for (int i = 0; i < num_atoms; i++) {
             if (atoms[i] == g_ewmh._NET_WM_STATE_FULLSCREEN) {
-                window->properties.is_fullscreen = 1;
+                window->properties.is_fullscreen = true;
                 break;
             }
         }

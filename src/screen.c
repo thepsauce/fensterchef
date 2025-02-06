@@ -26,7 +26,7 @@
                          XCB_EVENT_MASK_ENTER_WINDOW)
 
 /* if randr is enabled for usage */
-static unsigned randr_enabled = 0;
+static bool randr_enabled = false;
 
 /* the actively used screen */
 Screen *g_screen;
@@ -225,7 +225,7 @@ void init_monitors(void)
     } else {
         free(version);
 
-        randr_enabled = 1;
+        randr_enabled = true;
         randr_event_base = extension->first_event;
     }
 

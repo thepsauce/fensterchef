@@ -6,6 +6,7 @@
 #include <xcb/xcb.h>
 #include <xcb/xcb_ewmh.h>
 
+#include <stdbool.h>
 #include <stdio.h>
 
 /* flag used to configure window position, size and border width */
@@ -30,7 +31,7 @@ extern xcb_connection_t         *g_dpy;
 extern xcb_ewmh_connection_t    g_ewmh;
 
 /* 1 while the window manager is running */
-extern unsigned                 g_running;
+extern bool                     g_running;
 
 /* general purpose values */
 extern uint32_t                 g_values[7];
