@@ -32,8 +32,6 @@ static void synchronize_supported(void)
 
         ewmh._NET_SUPPORTING_WM_CHECK,
 
-        // ewmh._NET_VIRTUAL_ROOTS,
-
         ewmh._NET_SHOWING_DESKTOP,
 
         ewmh._NET_CLOSE_WINDOW,
@@ -82,7 +80,6 @@ static void synchronize_supported(void)
         ewmh._NET_WM_STATE_ABOVE,
         ewmh._NET_WM_STATE_BELOW,
         ewmh._NET_WM_STATE_DEMANDS_ATTENTION,
-        // missing?? ewmh._NET_WM_STATE_FOCUSED,
 
         ewmh._NET_WM_STRUT,
         ewmh._NET_WM_STRUT_PARTIAL,

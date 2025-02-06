@@ -29,7 +29,7 @@
 /* xcb server connection */
 extern xcb_connection_t         *g_dpy;
 
-/* ewmh information */
+/* ewmh (extended window manager hints) information */
 extern xcb_ewmh_connection_t    ewmh;
 
 /* 1 while the window manager is running */
