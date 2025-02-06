@@ -3,56 +3,35 @@
 
 #include <stdint.h>
 
-#include <fontconfig/fontconfig.h> // FcChar8
-
 #include <xcb/xcb.h> // xcb_window_t
-#include <xcb/xcb_icccm.h> // xcb_size_hints_t, xcb_icccm_wm_hints_t
 
 #include "util.h"
+
+#include "window_properties.h"
+#include "window_state.h"
 
 /* the number the first window gets assigned */
 #define FIRST_WINDOW_NUMBER 1
 
-/* all possible window states */
-#define WINDOW_STATE_HIDDEN 0
-#define WINDOW_STATE_SHOWN 1
-#define WINDOW_STATE_POPUP 2
-#define WINDOW_STATE_IGNORE 3
-#define WINDOW_STATE_FULLSCREEN 4
-
-typedef struct window_state {
-    /* the current window state */
-    unsigned current : 3;
-    /* the previous window state */
-    unsigned previous : 3;
-    /* if the window was forced to be a certain state */
-    unsigned is_forced : 1;
-} WindowState;
+/* forward declaration */
+struct frame;
+typedef struct frame Frame;
 
 /* A window is a wrapper around an xcb window, it is always part of a global
  * linked list and has a unique id.
- *
- * A window may be in different states:
- * HIDDEN: The window is not shown but would usually go in the tiling layout.
- * SHOWN: The window is part of the current tiling layout.
- * POPUP: The window is a popup window, it may or may not be visible.
- * IGNORE: The window was once registered by the WM but the user decided to
- *      ignore it. It does not appear when cycling through windows.
- * FULLSCREEN: The window covers an entire monitor.
  */
 typedef struct window {
     /* the actual X window */
     xcb_window_t xcb_window;
 
     /* frame this window is contained in */
-    struct frame *frame;
+    Frame *frame;
 
-    /* xcb size hints of the window */
-    xcb_size_hints_t size_hints;
-    /* special window manager hints */
-    xcb_icccm_wm_hints_t wm_hints;
-    /* short window title */
-    FcChar8 short_title[256];
+    /* the window properties */
+    WindowProperties properties;
+
+    /* the window state */
+    WindowState state;
 
     /* current window position and size */
     Position position;
@@ -61,12 +40,6 @@ typedef struct window {
     /* position and size when the window was in popup state */
     Position popup_position;
     Size popup_size;
-
-    /* the window state */
-    WindowState state;
-
-    /* if the window has focus */
-    unsigned focused : 1;
 
     /* the id of this window */
     uint32_t number;
@@ -88,15 +61,6 @@ Window *create_window(xcb_window_t xcb_window);
  * This does NOT destroy the underlying xcb window.
  */
 void destroy_window(Window *window);
-
-/* Update the short_title of the window. */
-void update_window_name(Window *window);
-
-/* Update the size_hints of the window. */
-void update_window_size_hints(Window *window);
-
-/* Update the wm_hints of the window. */
-void update_window_wm_hints(Window *window);
 
 /* Set the position and size of a window. */
 void set_window_size(Window *window, int32_t x, int32_t y, uint32_t width,
@@ -162,18 +126,5 @@ Window *get_previous_hidden_window(Window *window);
  * from their respective frame and window which makes this a very safe function.
  */
 void link_window_and_frame(Window *window, Frame *frame);
-
-/* -- Implemented in window_state.c -- */
-
-/* Predict what state the window is expected to be in based on the X11
- * properties.
- */
-unsigned predict_window_state(Window *window);
-
-/* Change the state to given value and reconfigures the window.
- *
- * @force is used to force the change of the window state.
- */
-void set_window_state(Window *window, unsigned state, unsigned force);
 
 #endif

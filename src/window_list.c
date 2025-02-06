@@ -8,11 +8,13 @@
 
 #include "event.h"
 #include "fensterchef.h"
+#include "frame.h"
 #include "keymap.h"
 #include "log.h"
 #include "render_font.h"
 #include "screen.h"
 #include "util.h"
+#include "window.h"
 
 /* Render the window list.
  *
@@ -35,8 +37,13 @@ static int render_window_list(Window *selected)
     tm.descent = -4;
     max_width = 0;
     for (Window *w = g_first_window; w != NULL; w = w->next) {
+        if (!w->state.is_mappable) {
+            continue;
+        }
+
         window_count++;
-        measure_text(w->short_title, strlen((char*) w->short_title), &tm);
+        measure_text(w->properties.short_name,
+                strlen((char*) w->properties.short_name), &tm);
         max_width = MAX(max_width, tm.total_width);
     }
 
@@ -64,6 +71,10 @@ static int render_window_list(Window *selected)
     rect.width = max_width + WINDOW_PADDING / 2;
     rect.height = tm.ascent - tm.descent + WINDOW_PADDING;
     for (Window *w = g_first_window; w != NULL; w = w->next) {
+        if (!w->state.is_mappable) {
+            continue;
+        }
+
         bg_color.alpha = 0xff00;
         if (w == selected) {
             pen = g_screen->stock_objects[STOCK_WHITE_PEN];
@@ -77,19 +88,19 @@ static int render_window_list(Window *selected)
             bg_color.blue = 0xff00;
         }
 
-        marker_char = w->short_title;
+        marker_char = w->properties.short_name;
         while (isdigit(marker_char[0])) {
             marker_char++;
         }
-        marker_char[0] = w->state.current == WINDOW_STATE_POPUP ?
-                    (w->focused ? '#' : '=') :
-                w->state.current == WINDOW_STATE_FULLSCREEN ?
-                    (w->focused ? '@' : 'F') :
-                w->focused ? '*' :
-                w->state.current == WINDOW_STATE_SHOWN ? '+' : '-',
+        marker_char[0] = !w->state.is_visible ? '-' :
+                w->state.current_mode == WINDOW_MODE_POPUP ?
+                    (w == get_focus_window() ? '#' : '=') :
+                w->state.current_mode == WINDOW_MODE_FULLSCREEN ?
+                    (w == get_focus_window() ? '@' : 'F') :
+                w == get_focus_window() ? '*' : '+';
 
-        draw_text(g_screen->window_list_window, w->short_title,
-                strlen((char*) w->short_title), bg_color, &rect,
+        draw_text(g_screen->window_list_window, w->properties.short_name,
+                strlen((char*) w->properties.short_name), bg_color, &rect,
                 pen, WINDOW_PADDING / 2,
                 rect.y + tm.ascent + WINDOW_PADDING / 2);
         rect.y += rect.height;
@@ -194,10 +205,16 @@ static inline Window *handle_window_list_events(Window *selected,
 /* Shows a windows list where the user can select a window from. */
 Window *select_window_from_list(void)
 {
-    Window *old_focus;
     Window *window;
+    Window *old_focus;
 
-    if (g_first_window == NULL) {
+    for (window = g_first_window; window != NULL; window = window->next) {
+        if (window->state.is_mappable) {
+            break;
+        }
+    }
+
+    if (window == NULL) {
         set_notification((FcChar8*) "No managed windows",
                 g_screen->xcb_screen->width_in_pixels / 2,
                 g_screen->xcb_screen->height_in_pixels / 2);
@@ -220,10 +237,7 @@ Window *select_window_from_list(void)
     window = handle_window_list_events(window, &old_focus);
 
     if (old_focus != NULL) {
-        old_focus->focused = 1;
-
-        xcb_set_input_focus(g_dpy, XCB_INPUT_FOCUS_POINTER_ROOT,
-                old_focus->xcb_window, XCB_CURRENT_TIME);
+        set_focus_window(old_focus);
     }
 
     xcb_unmap_window(g_dpy, g_screen->window_list_window);

@@ -5,6 +5,7 @@
 #include "log.h"
 #include "screen.h"
 #include "util.h"
+#include "window.h"
 
 /* The whole purpose of this file is to detect the initial state of a window
  * and to handle a case where a window changes its window state.
@@ -13,103 +14,48 @@
  * the transition system was created with function pointers.
  */
 
-static void transition_hidden_shown(Window *window);
-static void transition_hidden_popup(Window *window);
-static void transition_hidden_fullscreen(Window *window);
+static void transition_tiling_popup(Window *window);
+static void transition_tiling_fullscreen(Window *window);
 
-static void transition_shown_hidden(Window *window);
-static void transition_shown_popup(Window *window);
-static void transition_shown_fullscreen(Window *window);
-
-static void transition_popup_hidden(Window *window);
-static void transition_popup_shown(Window *window);
+static void transition_popup_tiling(Window *window);
 static void transition_popup_fullscreen(Window *window);
 
 static void transition_fullscreen_popup(Window *window);
 
-static void (*transitions[5][5])(Window *window) = {
-    [WINDOW_STATE_HIDDEN][WINDOW_STATE_HIDDEN] = NULL,
-    [WINDOW_STATE_HIDDEN][WINDOW_STATE_SHOWN] = transition_hidden_shown,
-    [WINDOW_STATE_HIDDEN][WINDOW_STATE_POPUP] = transition_hidden_popup,
-    [WINDOW_STATE_HIDDEN][WINDOW_STATE_IGNORE] = NULL,
-    [WINDOW_STATE_HIDDEN][WINDOW_STATE_FULLSCREEN] = transition_hidden_fullscreen,
+static void (*transitions[3][3])(Window *window) = {
+    [WINDOW_MODE_TILING][WINDOW_MODE_POPUP] = transition_tiling_popup,
+    [WINDOW_MODE_TILING][WINDOW_MODE_FULLSCREEN] = transition_tiling_fullscreen,
 
-    [WINDOW_STATE_SHOWN][WINDOW_STATE_HIDDEN] = transition_shown_hidden,
-    [WINDOW_STATE_SHOWN][WINDOW_STATE_SHOWN] = NULL,
-    [WINDOW_STATE_SHOWN][WINDOW_STATE_POPUP] = transition_shown_popup,
-                                            /* same as transition from shown to
-                                             * hidden */
-    [WINDOW_STATE_SHOWN][WINDOW_STATE_IGNORE] = transition_shown_hidden,
-    [WINDOW_STATE_SHOWN][WINDOW_STATE_FULLSCREEN] = transition_shown_fullscreen,
+    [WINDOW_MODE_POPUP][WINDOW_MODE_TILING] = transition_popup_tiling,
+    [WINDOW_MODE_POPUP][WINDOW_MODE_FULLSCREEN] = transition_popup_fullscreen,
 
-    [WINDOW_STATE_POPUP][WINDOW_STATE_HIDDEN] = transition_popup_hidden,
-    [WINDOW_STATE_POPUP][WINDOW_STATE_SHOWN] = transition_popup_shown,
-    [WINDOW_STATE_POPUP][WINDOW_STATE_POPUP] = NULL,
-                                            /* same as transition from popup to
-                                             * hidden */
-    [WINDOW_STATE_POPUP][WINDOW_STATE_IGNORE] = transition_popup_hidden,
-    [WINDOW_STATE_POPUP][WINDOW_STATE_FULLSCREEN] = transition_popup_fullscreen,
-
-    [WINDOW_STATE_IGNORE][WINDOW_STATE_HIDDEN] = NULL,
-                                            /* same transitions from hidden */
-    [WINDOW_STATE_IGNORE][WINDOW_STATE_SHOWN] = transition_hidden_shown,
-    [WINDOW_STATE_IGNORE][WINDOW_STATE_POPUP] = transition_hidden_popup,
-    [WINDOW_STATE_IGNORE][WINDOW_STATE_IGNORE] = NULL,
-    [WINDOW_STATE_IGNORE][WINDOW_STATE_FULLSCREEN] = transition_hidden_fullscreen,
-
-                                            /* most transitions are the same as
-                                             * for popups */
-    [WINDOW_STATE_FULLSCREEN][WINDOW_STATE_HIDDEN] = transition_popup_hidden,
-    [WINDOW_STATE_FULLSCREEN][WINDOW_STATE_SHOWN] = transition_popup_shown,
-    [WINDOW_STATE_FULLSCREEN][WINDOW_STATE_POPUP] = transition_fullscreen_popup,
-    [WINDOW_STATE_FULLSCREEN][WINDOW_STATE_IGNORE] = transition_popup_hidden,
-    [WINDOW_STATE_FULLSCREEN][WINDOW_STATE_FULLSCREEN] = NULL,
+                                                /* same as transition popup to
+                                                 * tiling */
+    [WINDOW_MODE_FULLSCREEN][WINDOW_MODE_TILING] = transition_popup_tiling,
+    [WINDOW_MODE_FULLSCREEN][WINDOW_MODE_POPUP] = transition_fullscreen_popup,
 };
 
-/* Predicts whether the window should be a popup window. */
-unsigned predict_window_state(Window *window)
+/* Predicts what kind of mode the window should be in. */
+window_mode_t predict_window_mode(Window *window)
 {
-    xcb_window_t                transient;
-    xcb_get_property_cookie_t   state_cookie;
-    xcb_get_property_reply_t    *state_reply;
-    xcb_atom_t                  *atoms;
-    int                         num_atoms;
-
-    if (!xcb_icccm_get_wm_transient_for_reply(g_dpy,
-            xcb_icccm_get_wm_transient_for_unchecked(g_dpy, window->xcb_window),
-            &transient, NULL) || transient == 0) {
-        if ((window->size_hints.flags & (XCB_ICCCM_SIZE_HINT_P_MAX_SIZE |
-                        XCB_ICCCM_SIZE_HINT_P_MIN_SIZE)) ==
-                (XCB_ICCCM_SIZE_HINT_P_MAX_SIZE |
-                        XCB_ICCCM_SIZE_HINT_P_MIN_SIZE)) {
-            if (window->size_hints.min_width == window->size_hints.max_width) {
-                return WINDOW_STATE_POPUP;
-            }
-        }
-
-        state_cookie = xcb_get_property(g_dpy, 0, window->xcb_window,
-                g_ewmh._NET_WM_STATE, XCB_GET_PROPERTY_TYPE_ANY, 0, UINT32_MAX);
-        state_reply = xcb_get_property_reply(g_dpy, state_cookie, NULL);
-        if (state_reply == NULL) {
-            return WINDOW_STATE_SHOWN;
-        }
-
-        atoms = xcb_get_property_value(state_reply);
-        num_atoms = xcb_get_property_value_length(state_reply);
-        if (atoms != NULL && num_atoms > 0) {
-            num_atoms /= state_reply->format / 8;
-            for (int i = 0; i < num_atoms; i++) {
-                if (atoms[i] == g_ewmh._NET_WM_STATE_FULLSCREEN) {
-                    free(state_reply);
-                    return WINDOW_STATE_FULLSCREEN;
-                }
-            }
-        }
-
-        free(state_reply);
-        return WINDOW_STATE_SHOWN;
+    if (window->properties.is_fullscreen) {
+        return WINDOW_MODE_FULLSCREEN;
     }
-    return WINDOW_STATE_POPUP;
+
+    if (window->properties.transient_for != 0) {
+        return WINDOW_MODE_POPUP;
+    }
+
+    /* assumption: popup windows are not resizable in at least one direction */
+    if ((window->properties.size_hints.flags & (XCB_ICCCM_SIZE_HINT_P_MAX_SIZE |
+                    XCB_ICCCM_SIZE_HINT_P_MIN_SIZE)) ==
+            (XCB_ICCCM_SIZE_HINT_P_MAX_SIZE |
+                    XCB_ICCCM_SIZE_HINT_P_MIN_SIZE) &&
+            window->properties.size_hints.min_width == window->properties.size_hints.max_width) {
+        return WINDOW_MODE_POPUP;
+    }
+
+    return WINDOW_MODE_TILING;
 }
 
 /* Set the window size and position according to the size hints. */
@@ -123,27 +69,27 @@ static void configure_popup_size(Window *window)
             window->size.width, window->size.height);
 
     if (window->popup_size.width == 0) {
-        if ((window->size_hints.flags & XCB_ICCCM_SIZE_HINT_US_SIZE)) {
-            width = window->size_hints.width;
-            height = window->size_hints.height;
+        if ((window->properties.size_hints.flags & XCB_ICCCM_SIZE_HINT_P_SIZE)) {
+            width = window->properties.size_hints.width;
+            height = window->properties.size_hints.height;
         } else {
             width = monitor->frame->width * 2 / 3;
             height = monitor->frame->height * 2 / 3;
         }
 
-        if ((window->size_hints.flags & XCB_ICCCM_SIZE_HINT_P_MIN_SIZE)) {
-            width = MAX(width, (uint32_t) window->size_hints.min_width);
-            height = MAX(height, (uint32_t) window->size_hints.min_height);
+        if ((window->properties.size_hints.flags & XCB_ICCCM_SIZE_HINT_P_MIN_SIZE)) {
+            width = MAX(width, (uint32_t) window->properties.size_hints.min_width);
+            height = MAX(height, (uint32_t) window->properties.size_hints.min_height);
         }
 
-        if ((window->size_hints.flags & XCB_ICCCM_SIZE_HINT_P_MAX_SIZE)) {
-            width = MIN(width, (uint32_t) window->size_hints.max_width);
-            height = MIN(height, (uint32_t) window->size_hints.max_height);
+        if ((window->properties.size_hints.flags & XCB_ICCCM_SIZE_HINT_P_MAX_SIZE)) {
+            width = MIN(width, (uint32_t) window->properties.size_hints.max_width);
+            height = MIN(height, (uint32_t) window->properties.size_hints.max_height);
         }
 
-        if ((window->size_hints.flags & XCB_ICCCM_SIZE_HINT_US_POSITION)) {
-            x = window->size_hints.x;
-            y = window->size_hints.y;
+        if ((window->properties.size_hints.flags & XCB_ICCCM_SIZE_HINT_P_POSITION)) {
+            x = window->properties.size_hints.x;
+            y = window->properties.size_hints.y;
         } else {
             x = (monitor->frame->width - width) / 2;
             y = (monitor->frame->height - height) / 2;
@@ -160,8 +106,8 @@ static void configure_popup_size(Window *window)
         height = window->popup_size.height;
     }
 
-    if ((window->size_hints.flags & XCB_ICCCM_SIZE_HINT_P_WIN_GRAVITY)) {
-        switch (window->size_hints.win_gravity) {
+    if ((window->properties.size_hints.flags & XCB_ICCCM_SIZE_HINT_P_WIN_GRAVITY)) {
+        switch (window->properties.size_hints.win_gravity) {
         case XCB_GRAVITY_NORTH_WEST:
             x = monitor->frame->width - width;
             y = 0;
@@ -219,62 +165,14 @@ static void configure_fullscreen_size(Window *window)
             monitor->frame->width, monitor->frame->height);
 }
 
-/* Unmaps a window and sets it to hidden without any state transitioning. */
+/* Unmaps a window and sets it to hidden without any mode transitioning. */
 static void quick_hide(Window *window)
 {
     xcb_unmap_window(g_dpy, window->xcb_window);
-    window->state.previous = window->state.current;
-    window->state.current = WINDOW_STATE_HIDDEN;
-    window->state.is_forced = 1;
+    window->state.is_visible = false;
 }
 
-static void transition_hidden_shown(Window *window)
-{
-    Window *old_window;
-
-    old_window = g_cur_frame->window;
-
-    /* mechanism for off screen frames (not yet used) */
-    if (window->frame != NULL) {
-        window->frame->window = NULL;
-    }
-
-    link_window_and_frame(window, g_cur_frame);
-
-    xcb_map_window(g_dpy, window->xcb_window);
-
-    set_focus_window(window);
-
-    if (old_window != NULL) {
-        quick_hide(old_window);
-    }
-}
-
-static void transition_hidden_popup(Window *window)
-{
-    /* mechanism for off screen frames (not yet used) */
-    if (window->frame != NULL) {
-        window->frame->window = NULL;
-        window->frame = NULL;
-    }
-
-    configure_popup_size(window);
-    xcb_map_window(g_dpy, window->xcb_window);
-}
-
-static void transition_hidden_fullscreen(Window *window)
-{
-    /* mechanism for off screen frames (not yet used) */
-    if (window->frame != NULL) {
-        window->frame->window = NULL;
-        window->frame = NULL;
-    }
-
-    configure_fullscreen_size(window);
-    xcb_map_window(g_dpy, window->xcb_window);
-}
-
-static void transition_shown_hidden(Window *window)
+static void transition_tiling_popup(Window *window)
 {
     Window *next;
 
@@ -282,34 +180,7 @@ static void transition_shown_hidden(Window *window)
     if (next != NULL) {
         link_window_and_frame(next, window->frame);
 
-        next->state.current = WINDOW_STATE_SHOWN;
-
-        xcb_map_window(g_dpy, next->xcb_window);
-
-        if (window->focused) {
-            window->focused = 0;
-            next->focused = 1;
-            xcb_set_input_focus(g_dpy, XCB_INPUT_FOCUS_POINTER_ROOT,
-                    next->xcb_window, XCB_CURRENT_TIME);
-        }
-    } else if (window->focused) {
-        give_someone_else_focus(window);
-        window->frame->window = NULL;
-        window->frame = NULL;
-    }
-
-    xcb_unmap_window(g_dpy, window->xcb_window);
-}
-
-static void transition_shown_popup(Window *window)
-{
-    Window *next;
-
-    next = get_next_hidden_window(window);
-    if (next != NULL) {
-        link_window_and_frame(next, window->frame);
-
-        next->state.current = WINDOW_STATE_SHOWN;
+        next->state.is_visible = true;
 
         xcb_map_window(g_dpy, next->xcb_window);
     } else {
@@ -321,7 +192,7 @@ static void transition_shown_popup(Window *window)
     set_window_above(window);
 }
 
-static void transition_shown_fullscreen(Window *window)
+static void transition_tiling_fullscreen(Window *window)
 {
     Window *next;
 
@@ -329,7 +200,7 @@ static void transition_shown_fullscreen(Window *window)
     if (next != NULL) {
         link_window_and_frame(next, window->frame);
 
-        next->state.current = WINDOW_STATE_SHOWN;
+        next->state.is_visible = true;
 
         xcb_map_window(g_dpy, next->xcb_window);
     } else {
@@ -341,13 +212,7 @@ static void transition_shown_fullscreen(Window *window)
     set_window_above(window);
 }
 
-static void transition_popup_hidden(Window *window)
-{
-    xcb_unmap_window(g_dpy, window->xcb_window);
-    give_someone_else_focus(window);
-}
-
-static void transition_popup_shown(Window *window)
+static void transition_popup_tiling(Window *window)
 {
     Window *old_window;
 
@@ -365,33 +230,141 @@ static void transition_popup_shown(Window *window)
 static void transition_popup_fullscreen(Window *window)
 {
     configure_fullscreen_size(window);
-    set_window_above(window);
 }
 
 static void transition_fullscreen_popup(Window *window)
 {
     configure_popup_size(window);
-    set_window_above(window);
 }
 
 /* Changes the window state to given value and reconfigures the window only
- * if the state changed. */
-void set_window_state(Window *window, unsigned state, unsigned force)
+ * if the mode changed. */
+void set_window_mode(Window *window, window_mode_t mode, bool force_mode)
 {
-    if (window->state.current == state ||
-            (window->state.is_forced && !force)) {
+    if (window->state.current_mode == mode ||
+            (window->state.is_mode_forced && !force_mode)) {
         return;
     }
 
-    LOG("transition window state of %" PRIu32 " from %u to %u (%s)\n",
-            window->number, window->state.current, state,
-            force ? "forced" : "not forced");
+    LOG("transition window mode of %" PRIu32 " from %u to %u (%s)\n",
+            window->number, window->state.current_mode, mode,
+            force_mode ? "forced" : "not forced");
 
-    window->state.is_forced = force;
-    if (transitions[window->state.current][state] != NULL) {
-        transitions[window->state.current][state](window);
+    window->state.is_mode_forced = force_mode;
+
+    if (window->state.is_visible) {
+        if (transitions[window->state.current_mode][mode] != NULL) {
+            transitions[window->state.current_mode][mode](window);
+        }
     }
 
-    window->state.previous = window->state.current;
-    window->state.current = state;
+    window->state.previous_mode = window->state.current_mode;
+    window->state.current_mode = mode;
+}
+
+/* Show the window by mapping it to the X server. */
+void show_window(Window *window)
+{
+    Window *last, *previous;
+    Window *old_window;
+
+    if (window->state.is_visible) {
+        return;
+    }
+
+    /* assign the first id to the window if it is first mapped */
+    if (!window->state.is_mappable) {
+        for (last = g_first_window; last->next != NULL; last = last->next) {
+            if (last->number + 1 < last->next->number) {
+                break;
+            }
+        }
+        window->number = last->number + 1;
+
+        LOG("assigned id %" PRIu32 " to window wrapping %" PRIu32 "\n",
+                window->number, window->xcb_window);
+
+        if (last != window) {
+            if (window != g_first_window) {
+                previous = get_previous_window(window);
+                previous->next = window->next;
+            } else {
+                g_first_window = window->next;
+            }
+            window->next = last->next;
+            last->next = window;
+        }
+
+        window->state.is_mappable = true;
+    }
+
+    window->state.is_visible = true;
+
+    LOG("showing window with id: %" PRIu32 "\n", window->number);
+
+    xcb_map_window(g_dpy, window->xcb_window);
+
+    switch (window->state.current_mode) {
+    /* the window has to become part of the tiling layout */
+    case WINDOW_MODE_TILING:
+        old_window = g_cur_frame->window;
+        link_window_and_frame(window, g_cur_frame);
+        set_focus_window(window);
+        if (old_window != NULL) {
+            quick_hide(old_window);
+        }
+        break;
+
+    /* the window has to show as popup window */
+    case WINDOW_MODE_POPUP:
+        configure_popup_size(window);
+        break;
+
+    /* the window has to show as fullscreen window */
+    case WINDOW_MODE_FULLSCREEN:
+        configure_fullscreen_size(window);
+        break;
+    }
+}
+
+/* Hide the window by unmapping it from the X server. */
+void hide_window(Window *window)
+{
+    Window *next;
+
+    if (!window->state.is_visible) {
+        return;
+    }
+
+    window->state.is_visible = false;
+
+    switch (window->state.current_mode) {
+    /* the window is replaced by another window in the tiling layout */
+    case WINDOW_MODE_TILING:
+        next = get_next_hidden_window(window);
+        if (next != NULL) {
+            link_window_and_frame(next, window->frame);
+
+            next->state.is_visible = true;
+
+            xcb_map_window(g_dpy, next->xcb_window);
+
+            set_focus_window(window);
+        } else {
+            if (window == get_focus_window()) {
+                give_someone_else_focus(window);
+            }
+            window->frame->window = NULL;
+            window->frame = NULL;
+        }
+        break;
+
+    /* need to do nothing here, just unmap and focus a different window */
+    case WINDOW_MODE_POPUP:
+    case WINDOW_MODE_FULLSCREEN:
+        give_someone_else_focus(window);
+        break;
+    }
+
+    xcb_unmap_window(g_dpy, window->xcb_window);
 }

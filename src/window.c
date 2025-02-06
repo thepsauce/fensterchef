@@ -1,8 +1,10 @@
 #include <inttypes.h>
 
 #include "fensterchef.h"
+#include "frame.h"
 #include "log.h"
-#include "util.h"
+#include "window.h"
+#include "screen.h"
 #include "xalloc.h"
 
 /* the first window in the linked list, the list is sorted increasingly
@@ -10,49 +12,46 @@
  */
 Window *g_first_window;
 
+/* the currently focused window */
+static Window *focus_window;
+
 /* Create a window struct and add it to the window list,
  * this also assigns the next id. */
 Window *create_window(xcb_window_t xcb_window)
 {
     Window *window;
-    Window *last;
+    xcb_get_window_attributes_cookie_t window_attributes_cookie;
+    xcb_get_window_attributes_reply_t *window_attributes;
 
     window = xcalloc(1, sizeof(*window));
     window->xcb_window = xcb_window;
 
-    if (g_first_window == NULL) {
-        g_first_window = window;
-        window->number = FIRST_WINDOW_NUMBER;
-    } else {
-        for (last = g_first_window; last->next != NULL; last = last->next) {
-            if (last->number + 1 != last->next->number) {
-                break;
-            }
-        }
-        window->number = last->number + 1;
+    /* each window starts with id 0, at the beginning of the linked list */
+    window->next = g_first_window;
+    g_first_window = window;
 
-        while (last->next != NULL) {
-            last = last->next;
-        }
-        last->next = window;
+    /* preserve the event mask of our windows */
+    window_attributes_cookie = xcb_get_window_attributes(g_dpy, xcb_window);
+    window_attributes = xcb_get_window_attributes_reply(g_dpy,
+            window_attributes_cookie, NULL);
+    if (window_attributes == NULL) {
+        g_values[0] = 0;
+    } else {
+        g_values[0] = window_attributes->your_event_mask;
+        free(window_attributes);
     }
 
-    g_values[0] = XCB_EVENT_MASK_PROPERTY_CHANGE | XCB_EVENT_MASK_ENTER_WINDOW |
-        XCB_EVENT_MASK_FOCUS_CHANGE;
-    xcb_change_window_attributes_checked(g_dpy, xcb_window,
-        XCB_CW_EVENT_MASK, g_values);
+    g_values[0] |= XCB_EVENT_MASK_PROPERTY_CHANGE | XCB_EVENT_MASK_FOCUS_CHANGE;
+    xcb_change_window_attributes(g_dpy, xcb_window, XCB_CW_EVENT_MASK,
+            g_values);
 
     g_values[0] = 0;
     xcb_configure_window(g_dpy, xcb_window, XCB_CONFIG_WINDOW_BORDER_WIDTH,
             g_values);
 
-    update_window_name(window);
-    update_window_size_hints(window);
-    update_window_wm_hints(window);
+    update_all_window_properties(window);
 
-    set_window_state(window, predict_window_state(window), 0);
-
-    LOG("created new window: %s\n", window->short_title);
+    LOG("created new window wrapping %" PRIu32 "\n", xcb_window);
     return window;
 }
 
@@ -74,53 +73,6 @@ void destroy_window(Window *window)
     LOG("destroyed window %" PRIu32 "\n", window->number);
 
     free(window);
-}
-
-/* Update the short_title of the window. */
-void update_window_name(Window *window)
-{
-    xcb_get_property_cookie_t           name_cookie;
-    xcb_ewmh_get_utf8_strings_reply_t   data;
-
-    name_cookie = xcb_ewmh_get_wm_name(&g_ewmh, window->xcb_window);
-
-    if (!xcb_ewmh_get_wm_name_reply(&g_ewmh, name_cookie, &data, NULL)) {
-        snprintf((char*) window->short_title, sizeof(window->short_title),
-                "%" PRId32 "_", window->number);
-        return;
-    }
-
-    snprintf((char*) window->short_title, sizeof(window->short_title),
-        "%" PRId32 "_%.*s",
-            window->number,
-            (int) MIN(data.strings_len, (uint32_t) INT_MAX), data.strings);
-
-    xcb_ewmh_get_utf8_strings_reply_wipe(&data);
-}
-
-/* Update the size_hints of the window. */
-void update_window_size_hints(Window *window)
-{
-    xcb_get_property_cookie_t size_hints_cookie;
-
-    size_hints_cookie = xcb_icccm_get_wm_size_hints(g_dpy, window->xcb_window,
-            XCB_ATOM_WM_NORMAL_HINTS);
-    if (!xcb_icccm_get_wm_size_hints_reply(g_dpy, size_hints_cookie,
-                &window->size_hints, NULL)) {
-        window->size_hints.flags = 0;
-    }
-}
-
-/* Update the wm_hints of the window. */
-void update_window_wm_hints(Window *window)
-{
-    xcb_get_property_cookie_t wm_hints_cookie;
-
-    wm_hints_cookie = xcb_icccm_get_wm_hints(g_dpy, window->xcb_window);
-    if (!xcb_icccm_get_wm_hints_reply(g_dpy, wm_hints_cookie,
-                &window->wm_hints, NULL)) {
-        window->wm_hints.flags = 0;
-    }
 }
 
 /* Set the position and size of a window. */
@@ -185,33 +137,27 @@ Window *get_window_of_xcb_window(xcb_window_t xcb_window)
 /* Get the currently focused window. */
 Window *get_focus_window(void)
 {
-    for (Window *w = g_first_window; w != NULL; w = w->next) {
-        if (w->focused) {
-            return w;
-        }
-    }
-    return NULL;
+    return focus_window;
 }
 
 /* Set the window that is in focus. */
 int set_focus_window(Window *window)
 {
-    Window *old_focus;
+    if (window == NULL) {
+        LOG("focus change to nothing\n");
+        focus_window = NULL;
+        return 1;
+    }
 
     LOG("trying to change focus to %" PRIu32, window->number);
 
-    if ((window->wm_hints.flags & XCB_ICCCM_WM_HINT_INPUT) &&
-            window->wm_hints.input == 0) {
+    if ((window->properties.hints.flags & XCB_ICCCM_WM_HINT_INPUT) &&
+            window->properties.hints.input == 0) {
         LOG_ADDITIONAL(", but the window does not accept focus\n");
         return 1;
     }
 
-    old_focus = get_focus_window();
-    if (old_focus != NULL) {
-        old_focus->focused = 0;
-    }
-
-    window->focused = 1;
+    focus_window = window;
 
     LOG_ADDITIONAL(" and succeeded\n");
 
@@ -228,7 +174,6 @@ void give_someone_else_focus(Window *window)
     /* TODO: when the window is a popup window, focus the window below it,
      * when it is a tiling window, JUST GET RID OF THIS FUNCTION
      */
-    window->focused = 0;
     /* TODO: use a focus stack? */
     other = window;
     do {
@@ -240,15 +185,12 @@ void give_someone_else_focus(Window *window)
         if (other == window) {
             return;
         }
-    } while (other->state.current != WINDOW_STATE_SHOWN &&
-            other->state.current != WINDOW_STATE_POPUP);
+    } while (other->state.is_visible);
 
     if (other->frame != NULL) {
         set_focus_frame(other->frame);
     } else {
-        other->focused = 1;
-        xcb_set_input_focus(g_dpy, XCB_INPUT_FOCUS_POINTER_ROOT,
-                window->xcb_window, XCB_CURRENT_TIME);
+        set_focus_window(other);
     }
 }
 
@@ -271,7 +213,7 @@ Window *get_next_hidden_window(Window *window)
         if (window == next) {
             return NULL;
         }
-    } while (next->state.current != WINDOW_STATE_HIDDEN);
+    } while (!next->state.is_mappable || next->state.is_visible);
 
     return next;
 }
@@ -292,7 +234,7 @@ Window *get_previous_hidden_window(Window *window)
         if (window == previous) {
             return NULL;
         }
-    } while (previous->state.current != WINDOW_STATE_HIDDEN);
+    } while (!previous->state.is_mappable || previous->state.is_visible);
 
     return previous;
 }

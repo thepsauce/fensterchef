@@ -3,6 +3,8 @@
 
 #include <xcb/xcb.h>
 
+#include "action.h"
+
 /* Grab all keys so we receive the keypress events for them. */
 void init_keybinds(void);
 

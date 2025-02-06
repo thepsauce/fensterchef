@@ -3,6 +3,8 @@
 
 #include <xcb/randr.h>
 
+#include "util.h" // Position, Size
+
 /* stock object indexes */
 enum {
     STOCK_WHITE_PEN,
@@ -51,9 +53,16 @@ typedef struct monitor {
     /* temporary flag for merging */
     unsigned is_free : 1;
 
+    /* region of the monitor cut off */
+    xcb_ewmh_get_extents_reply_t struts;
+
+    /* the position and size of the monitor */
+    Position position;
+    Size size;
+
     /* root frame */
     struct frame *frame;
-    
+
     /* next/prev monitor */
     struct monitor *prev;
     struct monitor *next;
@@ -79,6 +88,9 @@ Monitor *get_monitor_from_rectangle(int32_t x, int32_t y,
  * @return NULL when randr is not supported or when there are no monitors.
  */
 Monitor *query_monitors(void);
+
+/* Updates the struts of all monitors and then correctly sizes the frame. */
+void reconfigure_monitor_frame_sizes(void);
 
 /* Merges given monitor linked list into the screen's monitor list.
  *

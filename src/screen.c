@@ -1,3 +1,5 @@
+#include <string.h>
+
 #include <xcb/xcb_renderutil.h>
 
 #include "event.h" // randr_event_base
@@ -8,6 +10,7 @@
 #include "screen.h"
 #include "tiling.h"
 #include "util.h"
+#include "window.h"
 #include "xalloc.h"
 
 /* event mask for the root window */
@@ -23,7 +26,7 @@
                          XCB_EVENT_MASK_ENTER_WINDOW)
 
 /* if randr is enabled for usage */
-static unsigned randr_enabled = 0;
+static bool randr_enabled = false;
 
 /* the actively used screen */
 Screen *g_screen;
@@ -207,7 +210,6 @@ void init_monitors(void)
     xcb_generic_error_t *error;
     xcb_randr_query_version_cookie_t version_cookie;
     xcb_randr_query_version_reply_t *version;
-    Monitor *monitors;
 
     extension = xcb_get_extension_data(g_dpy, &xcb_randr_id);
     if (!extension->present) {
@@ -223,7 +225,7 @@ void init_monitors(void)
     } else {
         free(version);
 
-        randr_enabled = 1;
+        randr_enabled = true;
         randr_event_base = extension->first_event;
     }
 
@@ -235,8 +237,7 @@ void init_monitors(void)
                 XCB_RANDR_NOTIFY_MASK_OUTPUT_PROPERTY);
     }
 
-    monitors = query_monitors();
-    merge_monitors(monitors);
+    merge_monitors(query_monitors());
 }
 
 /* Get a monitor marked as primary or the first monitor if no monitor is marked
@@ -264,12 +265,12 @@ Monitor *get_monitor_from_rectangle(int32_t x, int32_t y,
     for (Monitor *monitor = g_screen->monitor; monitor != NULL;
             monitor = monitor->next) {
         x_overlap = MIN(x + width,
-                monitor->frame->x + monitor->frame->width);
-        x_overlap -= MAX(x, monitor->frame->x);
+                monitor->position.x + monitor->size.width);
+        x_overlap -= MAX(x, monitor->position.x);
 
         y_overlap = MIN(y + height,
-                monitor->frame->y + monitor->frame->height);
-        y_overlap -= MAX(y, monitor->frame->y);
+                monitor->position.y + monitor->size.height);
+        y_overlap -= MAX(y, monitor->position.y);
 
         if (best_monitor == NULL) {
             best_monitor = monitor;
@@ -400,12 +401,58 @@ Monitor *query_monitors(void)
 
         last_monitor->primary = primary_output == outputs[i];
 
-        last_monitor->frame->x = crtc->x;
-        last_monitor->frame->y = crtc->y;
-        last_monitor->frame->width = crtc->width;
-        last_monitor->frame->height = crtc->height;
+        last_monitor->position.x = crtc->x;
+        last_monitor->position.y = crtc->y;
+        last_monitor->size.width = crtc->width;
+        last_monitor->size.height = crtc->height;
     }
     return first_monitor;
+}
+
+/* Updates the struts of all monitors and then correctly sizes the frame. */
+void reconfigure_monitor_frame_sizes(void)
+{
+    Monitor *monitor;
+
+    /* reset all extents */
+    for (monitor = g_screen->monitor; monitor != NULL;
+            monitor = monitor->next) {
+        monitor->struts.left = 0;
+        monitor->struts.top = 0;
+        monitor->struts.right = 0;
+        monitor->struts.bottom = 0;
+    }
+
+    /* work out the new extents based on the window defined extents */
+    for (Window *window = g_first_window; window != NULL;
+            window = window->next) {
+        if (!window->state.is_visible ||
+                is_strut_empty(&window->properties.struts)) {
+            continue;
+        }
+        monitor = get_monitor_from_rectangle(window->position.x,
+                window->position.y, window->size.width, window->size.height);
+        monitor->struts.left =
+            MAX(monitor->struts.left, window->properties.struts.left);
+        monitor->struts.top =
+            MAX(monitor->struts.top, window->properties.struts.top);
+        monitor->struts.right =
+            MAX(monitor->struts.right, window->properties.struts.right);
+        monitor->struts.bottom =
+            MAX(monitor->struts.bottom, window->properties.struts.bottom);
+    }
+
+    /* resize all frames to their according size */
+    for (monitor = g_screen->monitor; monitor != NULL;
+            monitor = monitor->next) {
+        resize_frame(monitor->frame,
+                monitor->position.x + monitor->struts.left,
+                monitor->position.y + monitor->struts.top,
+                monitor->size.width - monitor->struts.right -
+                    monitor->struts.left,
+                monitor->size.height - monitor->struts.bottom -
+                    monitor->struts.top);
+    }
 }
 
 /* Merges given monitor linked list into the screen.
@@ -422,8 +469,8 @@ void merge_monitors(Monitor *monitors)
 
     if (monitors == NULL) {
         monitors = create_monitor("#Virtual", (uint32_t) -1);
-        monitors->frame->width = g_screen->xcb_screen->width_in_pixels;
-        monitors->frame->height = g_screen->xcb_screen->height_in_pixels;
+        monitors->size.width = g_screen->xcb_screen->width_in_pixels;
+        monitors->size.height = g_screen->xcb_screen->height_in_pixels;
     }
 
     /* copy frames from the old monitors to the new ones with same name */
@@ -432,9 +479,6 @@ void merge_monitors(Monitor *monitors)
         named_monitor = get_monitor_by_name(g_screen->monitor,
                 monitor->name, strlen(monitor->name));
         if (named_monitor != NULL) {
-            resize_frame(named_monitor->frame, monitor->frame->x,
-                    monitor->frame->y, monitor->frame->width,
-                    monitor->frame->height);
             free(monitor->frame);
             monitor->frame = named_monitor->frame;
             named_monitor->frame = NULL;
@@ -450,15 +494,14 @@ void merge_monitors(Monitor *monitors)
         if (monitor->frame != NULL) {
             /* find a free monitor */
             for (other = monitors; other != NULL; other = other->next) {
-                if (other->is_free) {
-                    break;
+                if (!other->is_free) {
+                    continue;
                 }
-                resize_frame(monitor->frame, other->frame->x,
-                        other->frame->y, other->frame->width,
-                        other->frame->height);
+
                 free(other->frame);
                 other->frame = monitor->frame;
                 monitor->frame = NULL;
+                break;
             }
 
             /* abandon the frame if there is no monitor that can take it */
@@ -474,6 +517,8 @@ void merge_monitors(Monitor *monitors)
     }
 
     g_screen->monitor = monitors;
+
+    reconfigure_monitor_frame_sizes();
 
     if (g_cur_frame == NULL) {
         g_cur_frame = get_primary_monitor()->frame;
