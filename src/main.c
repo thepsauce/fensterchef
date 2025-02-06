@@ -26,7 +26,7 @@ int main(void)
     if (init_fensterchef(&screen_number) != 0 ||
             init_keymap() != 0 ||
             init_screen(screen_number) != 0) {
-        quit_fensterchef(1);
+        quit_fensterchef(EXIT_FAILURE);
     }
 
     init_keybinds();
@@ -39,10 +39,10 @@ int main(void)
 
     g_cur_frame = get_primary_monitor()->frame;
 
-    g_running = 1;
+    g_running = true;
     while (g_running) {
         if (xcb_connection_has_error(g_dpy) > 0) {
-            quit_fensterchef(1);
+            quit_fensterchef(EXIT_FAILURE);
         }
         event = xcb_wait_for_event(g_dpy);
         if (event != NULL) {
@@ -52,5 +52,5 @@ int main(void)
         }
     }
 
-    quit_fensterchef(0);
+    quit_fensterchef(EXIT_SUCCESS);
 }

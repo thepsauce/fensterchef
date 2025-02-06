@@ -23,14 +23,14 @@ typedef struct window Window;
  */
 typedef struct window_state {
     /* if the window was ever mapped */
-    unsigned is_mappable : 1;
+    bool is_mappable;
     /* if the window is visible (mapped) */
-    unsigned is_visible : 1;
+    bool is_visible;
     /* if the window was forced to be a certain mode */
-    unsigned is_mode_forced : 1;
-    /* the current window mode */
+    bool is_mode_forced;
+    /* the current window state */
     window_mode_t mode;
-    /* the previous window mode */
+    /* the previous window state */
     window_mode_t previous_mode;
 } WindowState;
 

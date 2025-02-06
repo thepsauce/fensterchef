@@ -1,4 +1,4 @@
-# Fensterchef – The High-Performance Tiling Window Manager for Linux
+# Fensterchef – The X11 Tiling Window Manager for Linux
 
 Fensterchef is a lightweight, lightning-fast window manager for Linux, focused on manual tiling and maximum performance. It gives you full control over your window layout without wasting system resources.
 
