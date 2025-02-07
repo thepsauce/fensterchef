@@ -35,7 +35,7 @@ static struct {
     { MOD_KEY, XK_r, ACTION_REMOVE_FRAME },
 
     { MOD_KEY | XCB_MOD_MASK_SHIFT, XK_space, ACTION_CHANGE_WINDOW_STATE },
-    { MOD_KEY, XK_space, ACTION_CHANGE_FOCUS },
+    { MOD_KEY, XK_space, ACTION_TRAVERSE_FOCUS },
 
     { MOD_KEY, XK_f, ACTION_TOGGLE_FULLSCREEN },
 
@@ -62,10 +62,10 @@ void init_keybinds(void)
     };
     uint16_t modifiers;
 
-    root = g_screen->xcb_screen->root;
+    root = screen->xcb_screen->root;
 
     /* remove all previously grabbed keys so that we can overwrite them */
-    xcb_ungrab_key(g_dpy, XCB_GRAB_ANY, root, XCB_MOD_MASK_ANY);
+    xcb_ungrab_key(connection, XCB_GRAB_ANY, root, XCB_MOD_MASK_ANY);
 
     for (uint32_t i = 0; i < SIZE(key_binds); i++) {
         /* go over all keycodes of a specific key symbol and grab them with
@@ -88,7 +88,7 @@ void init_keybinds(void)
                     }
                 }
 
-                xcb_grab_key(g_dpy,
+                xcb_grab_key(connection,
                         1, /* 1 means we specify a specific window for grabbing */
                         root, /* this is the window we grab the key for */
                         modifiers, keycode[j],

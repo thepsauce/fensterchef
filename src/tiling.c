@@ -12,7 +12,7 @@
  * This cuts the @split_from frame in half and places the next window
  * inside the formed gap. If there is no next window, a gap simply remains.
  */
-void split_frame(Frame *split_from, int is_split_vert)
+void split_frame(Frame *split_from, bool is_split_vert)
 {
     Frame *left, *right;
     Frame *next_cur_frame;
@@ -57,17 +57,17 @@ void split_frame(Frame *split_from, int is_split_vert)
     left->parent = split_from;
     right->parent = split_from;
 
-    if (split_from == g_cur_frame) {
+    if (split_from == focus_frame) {
         next_cur_frame = left;
     } else {
-        next_cur_frame = g_cur_frame;
+        next_cur_frame = focus_frame;
     }
 
     window = get_next_hidden_window(left->window);
     if (window != NULL) {
         /* show window in the right frame */
         set_window_mode(window, WINDOW_MODE_TILING, 1);
-        g_cur_frame = right;
+        focus_frame = right;
         show_window(window);
     }
 
@@ -91,8 +91,7 @@ static void unmap_and_destroy_recursively(Frame *frame)
         unmap_and_destroy_recursively(frame->right);
     } else if (frame->window != NULL) {
         frame->window->frame = NULL;
-        frame->window->state.is_visible = false;
-        xcb_unmap_window(g_dpy, frame->window->xcb_window);
+        hide_window_quickly(frame->window);
     }
     free(frame);
 }
@@ -116,6 +115,9 @@ int remove_frame(Frame *frame)
         other = parent->left;
     }
     parent->window = other->window;
+    if (other->window != NULL) {
+        other->window->frame = parent;
+    }
     parent->left = other->left;
     parent->right = other->right;
     free(other);

@@ -27,16 +27,16 @@
 #define UTF8_TEXT(text) ((FcChar8*) (text))
 
 /* xcb server connection */
-extern xcb_connection_t         *g_dpy;
+extern xcb_connection_t         *connection;
 
 /* ewmh (extended window manager hints) information */
 extern xcb_ewmh_connection_t    ewmh;
 
-/* 1 while the window manager is running */
-extern bool                     g_running;
+/* true while the window manager is running */
+extern bool                     is_fensterchef_running;
 
 /* general purpose values */
-extern uint32_t                 g_values[7];
+extern uint32_t                 general_values[7];
 
 /* Initialize most of fensterchef data and set root window flags. */
 int init_fensterchef(int *screen_number);

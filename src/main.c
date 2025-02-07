@@ -37,18 +37,18 @@ int main(void)
 
     synchronize_all_root_properties();
 
-    g_cur_frame = get_primary_monitor()->frame;
+    focus_frame = get_primary_monitor()->frame;
 
-    g_running = true;
-    while (g_running) {
-        if (xcb_connection_has_error(g_dpy) > 0) {
+    is_fensterchef_running = true;
+    while (is_fensterchef_running) {
+        if (xcb_connection_has_error(connection) > 0) {
             quit_fensterchef(EXIT_FAILURE);
         }
-        event = xcb_wait_for_event(g_dpy);
+        event = xcb_wait_for_event(connection);
         if (event != NULL) {
             handle_event(event);
             free(event);
-            xcb_flush(g_dpy);
+            xcb_flush(connection);
         }
     }
 

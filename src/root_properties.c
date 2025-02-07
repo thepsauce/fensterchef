@@ -93,7 +93,7 @@ static void synchronize_supported(void)
         XCB_ATOM_WM_TRANSIENT_FOR,
     };
 
-    xcb_ewmh_set_supported(&ewmh, g_screen->number, SIZE(supported_atoms),
+    xcb_ewmh_set_supported(&ewmh, screen->number, SIZE(supported_atoms),
             /* xcb_ewmh_set_supported() expects a non const value, however, it
              * is just passed into a function expecting a const value
              */
@@ -112,7 +112,7 @@ static void synchronize_work_area(void)
     top = 0;
     right = 0;
     bottom = 0;
-    for (Window *window = g_first_window; window != NULL;
+    for (Window *window = first_window; window != NULL;
             window = window->next) {
         left += window->properties.struts.left;
         top += window->properties.struts.top;
@@ -121,9 +121,9 @@ static void synchronize_work_area(void)
     }
     geometry.x = left;
     geometry.y = top;
-    geometry.width = g_screen->xcb_screen->width_in_pixels - right - left;
-    geometry.height = g_screen->xcb_screen->height_in_pixels - bottom - top;
-    xcb_ewmh_set_workarea(&ewmh, g_screen->number, 1, &geometry);
+    geometry.width = screen->xcb_screen->width_in_pixels - right - left;
+    geometry.height = screen->xcb_screen->height_in_pixels - bottom - top;
+    xcb_ewmh_set_workarea(&ewmh, screen->number, 1, &geometry);
 }
 
 /* Synchronize a root property with the X property. */
@@ -132,7 +132,6 @@ void synchronize_root_property(root_property_t property)
     static const char *desktop_name = "0: only desktop";
 
     xcb_ewmh_coordinates_t coordinate;
-    Window *focus;
 
     switch (property) {
     /* the supported options of our window manager */
@@ -142,40 +141,39 @@ void synchronize_root_property(root_property_t property)
 
     /* the number of desktops, just set it to 1 */
     case ROOT_PROPERTY_NUMBER_OF_DESKTOPS:
-        xcb_ewmh_set_number_of_desktops(&ewmh, g_screen->number, 1);
+        xcb_ewmh_set_number_of_desktops(&ewmh, screen->number, 1);
         break;
 
     /* the size of a desktop, we do not support large desktops */
     case ROOT_PROPERTY_DESKTOP_GEOMETRY:
-        xcb_ewmh_set_desktop_geometry(&ewmh, g_screen->number,
-                g_screen->xcb_screen->width_in_pixels,
-                g_screen->xcb_screen->height_in_pixels);
+        xcb_ewmh_set_desktop_geometry(&ewmh, screen->number,
+                screen->xcb_screen->width_in_pixels,
+                screen->xcb_screen->height_in_pixels);
         break;
 
     /* viewport of each desktop, just set it to (0, 0) for the only desktop */
     case ROOT_PROPERTY_DESKTOP_VIEWPORT:
         coordinate.x = 0;
         coordinate.y = 0;
-        xcb_ewmh_set_desktop_viewport(&ewmh, g_screen->number, 1,
+        xcb_ewmh_set_desktop_viewport(&ewmh, screen->number, 1,
                 &coordinate);
         break;
 
     /* the currently selected desktop, always 0 */
     case ROOT_PROPERTY_CURRENT_DESKTOP:
-        xcb_ewmh_set_current_desktop(&ewmh, g_screen->number, 0);
+        xcb_ewmh_set_current_desktop(&ewmh, screen->number, 0);
         break;
 
     /* the name of each desktop */
     case ROOT_PROPERTY_DESKTOP_NAMES:
-        xcb_ewmh_set_desktop_names(&ewmh, g_screen->number,
+        xcb_ewmh_set_desktop_names(&ewmh, screen->number,
                 strlen(desktop_name), desktop_name);
         break;
 
     /* the currently active window */
     case ROOT_PROPERTY_ACTIVE_WINDOW:
-        focus = get_focus_window();
-        xcb_ewmh_set_active_window(&ewmh, g_screen->number, focus == NULL ?
-                g_screen->xcb_screen->root : focus->xcb_window);
+        xcb_ewmh_set_active_window(&ewmh, screen->number, focus_window == NULL ?
+                screen->xcb_screen->root : focus_window->xcb_window);
         break;
 
     /* the work area (screen space minus struts) */
@@ -187,8 +185,8 @@ void synchronize_root_property(root_property_t property)
      * mangager
      */
     case ROOT_PROPERTY_SUPPORTING_WM_CHECK:
-        xcb_ewmh_set_supporting_wm_check(&ewmh, g_screen->xcb_screen->root,
-                g_screen->check_window);
+        xcb_ewmh_set_supporting_wm_check(&ewmh, screen->xcb_screen->root,
+                screen->check_window);
         break;
 
     /* not a real property */

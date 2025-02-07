@@ -16,7 +16,7 @@ struct font {
 static void free_font(void)
 {
     FT_Done_Face(font.face);
-    xcb_render_free_glyph_set(g_dpy, font.glyphset);
+    xcb_render_free_glyph_set(connection, font.glyphset);
 }
 
 /* Initializes all parts needed for drawing fonts. */
@@ -94,8 +94,8 @@ int set_font(const FcChar8 *query)
         fc_index.u.i = 0;
     }
 
-    ft_error = FT_New_Face(font.library, (const char*) fc_file.u.s, fc_index.u.i,
-            &face);
+    ft_error = FT_New_Face(font.library, (const char*) fc_file.u.s,
+            fc_index.u.i, &face);
     if (ft_error != FT_Err_Ok) {
         ERR("could not not create the new freetype face: %d\n", ft_error);
         FcPatternDestroy(pattern);
@@ -121,7 +121,7 @@ int set_font(const FcChar8 *query)
         ERR("could not set the character size\n");
     }
 
-    fmt_reply = xcb_render_util_query_formats(g_dpy);
+    fmt_reply = xcb_render_util_query_formats(connection);
     if (fmt_reply == NULL) {
         ERR("could not query for formats\n");
         goto err;
@@ -135,9 +135,9 @@ int set_font(const FcChar8 *query)
         goto err;
     }
 
-    glyphset = xcb_generate_id(g_dpy);
-    if (xcb_request_check(g_dpy,
-                xcb_render_create_glyph_set_checked(g_dpy,
+    glyphset = xcb_generate_id(connection);
+    if (xcb_request_check(connection,
+                xcb_render_create_glyph_set_checked(connection,
                     glyphset,
                     a8_format->id)) != NULL) {
         ERR("could not create the glyphset\n");
@@ -165,27 +165,27 @@ xcb_render_picture_t create_pen(xcb_window_t root, xcb_render_color_t color)
     xcb_render_picture_t                        picture;
     xcb_rectangle_t                             rect;
 
-    fmt_reply = xcb_render_util_query_formats(g_dpy);
+    fmt_reply = xcb_render_util_query_formats(connection);
 
     fmt = xcb_render_util_find_standard_format(fmt_reply,
             XCB_PICT_STANDARD_ARGB_32);
 
-    pixmap = xcb_generate_id(g_dpy);
-    xcb_create_pixmap(g_dpy, 32, pixmap, root, 1, 1);
+    pixmap = xcb_generate_id(connection);
+    xcb_create_pixmap(connection, 32, pixmap, root, 1, 1);
 
-    g_values[0] = XCB_RENDER_REPEAT_NORMAL;
-    picture = xcb_generate_id(g_dpy);
-    xcb_render_create_picture(g_dpy, picture, pixmap, fmt->id,
-            XCB_RENDER_CP_REPEAT, g_values);
+    general_values[0] = XCB_RENDER_REPEAT_NORMAL;
+    picture = xcb_generate_id(connection);
+    xcb_render_create_picture(connection, picture, pixmap, fmt->id,
+            XCB_RENDER_CP_REPEAT, general_values);
 
     rect.x = 0;
     rect.y = 0;
     rect.width = 1;
     rect.height = 1;
-    xcb_render_fill_rectangles(g_dpy, XCB_RENDER_PICT_OP_OVER, picture,
+    xcb_render_fill_rectangles(connection, XCB_RENDER_PICT_OP_OVER, picture,
         color, 1, &rect);
 
-    xcb_free_pixmap(g_dpy, pixmap);
+    xcb_free_pixmap(connection, pixmap);
     return picture;
 }
 
@@ -234,7 +234,8 @@ void draw_text(xcb_drawable_t xcb_drawable, const FcChar8 *utf8, uint32_t len,
                     bitmap->buffer + y * ginfo.width, ginfo.width);
         }
 
-        error = xcb_request_check(g_dpy, xcb_render_add_glyphs_checked(g_dpy,
+        error = xcb_request_check(connection,
+                xcb_render_add_glyphs_checked(connection,
             font.glyphset, 1, &uc, &ginfo, stride * ginfo.height, tmp_bitmap));
         if (error != NULL) {
             ERR("error adding glyph: %d\n", error->error_code);
@@ -242,20 +243,21 @@ void draw_text(xcb_drawable_t xcb_drawable, const FcChar8 *utf8, uint32_t len,
 
         free(tmp_bitmap);
     }
-    xcb_flush(g_dpy);
+    xcb_flush(connection);
 
-    fmt_reply = xcb_render_util_query_formats(g_dpy);
+    fmt_reply = xcb_render_util_query_formats(connection);
 
     fmt = xcb_render_util_find_standard_format(fmt_reply,
             XCB_PICT_STANDARD_RGB_24);
 
-    picture = xcb_generate_id(g_dpy);
-    g_values[0] = XCB_RENDER_POLY_MODE_IMPRECISE;
-    g_values[1] = XCB_RENDER_POLY_EDGE_SMOOTH;
-    error = xcb_request_check(g_dpy,
-                xcb_render_create_picture_checked(g_dpy, picture,
+    picture = xcb_generate_id(connection);
+    general_values[0] = XCB_RENDER_POLY_MODE_IMPRECISE;
+    general_values[1] = XCB_RENDER_POLY_EDGE_SMOOTH;
+    error = xcb_request_check(connection,
+                xcb_render_create_picture_checked(connection, picture,
                 xcb_drawable, fmt->id,
-                XCB_RENDER_CP_POLY_MODE | XCB_RENDER_CP_POLY_EDGE, g_values));
+                XCB_RENDER_CP_POLY_MODE | XCB_RENDER_CP_POLY_EDGE,
+                general_values));
      if (error != NULL) {
         ERR("could not create picture: %d\n", error->error_code);
         return;
@@ -268,21 +270,21 @@ void draw_text(xcb_drawable_t xcb_drawable, const FcChar8 *utf8, uint32_t len,
          glyphs[num_glyphs++] = uc;
      }
 
-    text_stream = xcb_render_util_composite_text_stream(font.glyphset, num_glyphs,
-            0);
+    text_stream = xcb_render_util_composite_text_stream(font.glyphset,
+            num_glyphs, 0);
 
     if (rect != NULL) {
-        xcb_render_fill_rectangles(g_dpy, XCB_RENDER_PICT_OP_OVER, picture,
+        xcb_render_fill_rectangles(connection, XCB_RENDER_PICT_OP_OVER, picture,
             background_color, 1, rect);
     }
     xcb_render_util_glyphs_32(text_stream, x, y, num_glyphs, glyphs);
     free(glyphs);
 
-    xcb_render_util_composite_text(g_dpy, XCB_RENDER_PICT_OP_OVER,
+    xcb_render_util_composite_text(connection, XCB_RENDER_PICT_OP_OVER,
         foreground, picture, 0, 0, 0, text_stream);
 
     xcb_render_util_composite_text_free(text_stream);
-    xcb_render_free_picture(g_dpy, picture);
+    xcb_render_free_picture(connection, picture);
 }
 
 /* Measure a text that has no new lines. */
