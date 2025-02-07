@@ -9,7 +9,7 @@
 #include "xalloc.h"
 
 /* the currently selected/focused frame */
-Frame *g_cur_frame;
+Frame *focus_frame;
 
 /* Check if the given point is within the given frame. */
 int is_point_in_frame(const Frame *frame, int32_t x, int32_t y)
@@ -24,7 +24,7 @@ Frame *get_frame_at_position(int32_t x, int32_t y)
 {
     Frame *frame;
 
-    for (Monitor *monitor = g_screen->monitor; monitor != NULL;
+    for (Monitor *monitor = screen->monitor; monitor != NULL;
             monitor = monitor->next) {
         frame = monitor->frame;
         if (is_point_in_frame(frame, x, y)) {
@@ -75,30 +75,24 @@ void resize_frame(Frame *frame, int32_t x, int32_t y,
      */
     if (left->x != right->x) {
         resize_frame(left, x, y, width / 2, height);
-        resize_frame(right, x + left->width, y,
-                width - left->width, height);
+        resize_frame(right, x + left->width, y, width - left->width, height);
     } else {
         resize_frame(left, x, y, width, height / 2);
-        resize_frame(right, x, y + left->height, width,
-                height - left->height);
+        resize_frame(right, x, y + left->height, width, height - left->height);
     }
 }
 
-/* Set the frame in focus, this also focuses the inner window if it exists. */
+/* Set the frame in focus, this also focuses the inner window if possible. */
 void set_focus_frame(Frame *frame)
 {
-    if (set_focus_window(frame->window) != 0) {
-        /* setting focus to the root essentially removes focus from all other
-         * windows
-         */
-        xcb_set_input_focus(g_dpy, XCB_INPUT_FOCUS_POINTER_ROOT,
-                g_screen->xcb_screen->root, XCB_CURRENT_TIME);
+    if (frame->window != NULL) {
+        set_focus_window(frame->window);
     }
-    g_cur_frame = frame;
+    focus_frame = frame;
 
     set_notification(UTF8_TEXT("Current frame"),
-            g_cur_frame->x + g_cur_frame->width / 2,
-            g_cur_frame->y + g_cur_frame->height / 2);
+            focus_frame->x + focus_frame->width / 2,
+            focus_frame->y + focus_frame->height / 2);
 
     LOG("frame %p was focused\n", (void*) frame);
 }

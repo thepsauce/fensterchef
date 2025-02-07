@@ -41,7 +41,7 @@ typedef struct screen {
 } Screen;
 
 /* the actively used screen */
-extern Screen *g_screen;
+extern Screen *screen;
 
 /* forward declaration */
 struct frame;

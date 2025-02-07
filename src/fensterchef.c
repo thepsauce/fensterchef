@@ -18,24 +18,24 @@
 #include "xalloc.h"
 
 /* xcb server connection */
-xcb_connection_t        *g_dpy;
+xcb_connection_t        *connection;
 
 /* ewmh information */
 xcb_ewmh_connection_t   ewmh;
 
-/* 1 while the window manager is running */
-bool                    g_running;
+/* true while the window manager is running */
+bool                    is_fensterchef_running;
 
 /* general purpose values */
-uint32_t                g_values[7];
+uint32_t                general_values[7];
 
 /* Handle an incoming alarm. */
-static void alarm_handler(int sig)
+static void alarm_handler(int signal)
 {
-    (void) sig;
+    (void) signal;
     LOG("triggered alarm: hiding notification window\n");
-    xcb_unmap_window(g_dpy, g_screen->notification_window);
-    xcb_flush(g_dpy);
+    xcb_unmap_window(connection, screen->notification_window);
+    xcb_flush(connection);
 }
 
 /* Initialize most of fensterchef data and set root window flags.
@@ -51,30 +51,30 @@ int init_fensterchef(int *screen_number)
 
 #ifdef DEBUG
     if ((void*) LOG_FILE == (void*) stderr) {
-        g_log_file = stderr;
+        log_file = stderr;
     } else {
-        g_log_file = fopen(LOG_FILE, "w");
-        if (g_log_file == NULL) {
-            g_log_file = stderr;
+        log_file = fopen(LOG_FILE, "w");
+        if (log_file == NULL) {
+            log_file = stderr;
         }
     }
-    setbuf(g_log_file, NULL);
+    setbuf(log_file, NULL);
 #endif
 
-    g_dpy = xcb_connect(NULL, screen_number);
-    if (xcb_connection_has_error(g_dpy) > 0) {
+    connection = xcb_connect(NULL, screen_number);
+    if (xcb_connection_has_error(connection) > 0) {
         ERR("could not create xcb connection\n");
 #ifdef DEBUG
-        fclose(g_log_file);
+        fclose(log_file);
 #endif
         exit(1);
     }
 
-    atom_cookies = xcb_ewmh_init_atoms(g_dpy, &ewmh);
+    atom_cookies = xcb_ewmh_init_atoms(connection, &ewmh);
     if (!xcb_ewmh_init_atoms_replies(&ewmh, atom_cookies, NULL)) {
         ERR("could not set up ewmh\n");
 #ifdef DEBUG
-        fclose(g_log_file);
+        fclose(log_file);
 #endif
         exit(1);
     }
@@ -93,9 +93,9 @@ void quit_fensterchef(int exit_code)
     LOG("quitting fensterchef with exit code: %d\n", exit_code);
     /* TODO: maybe free all resources to show we care? */
     deinit_font_drawing();
-    xcb_disconnect(g_dpy);
+    xcb_disconnect(connection);
 #ifdef DEBUG
-    fclose(g_log_file);
+    fclose(log_file);
 #endif
     exit(exit_code);
 }
@@ -116,17 +116,17 @@ void set_notification(const FcChar8 *msg, int32_t x, int32_t y)
     x -= tm.total_width / 2;
     y -= (tm.ascent - tm.descent + WINDOW_PADDING) / 2;
 
-    g_values[0] = x;
-    g_values[1] = y;
-    g_values[2] = tm.total_width;
-    g_values[3] = tm.ascent - tm.descent + WINDOW_PADDING;
-    g_values[4] = 1;
-    g_values[5] = XCB_STACK_MODE_ABOVE;
-    xcb_configure_window(g_dpy, g_screen->notification_window,
+    general_values[0] = x;
+    general_values[1] = y;
+    general_values[2] = tm.total_width;
+    general_values[3] = tm.ascent - tm.descent + WINDOW_PADDING;
+    general_values[4] = 1;
+    general_values[5] = XCB_STACK_MODE_ABOVE;
+    xcb_configure_window(connection, screen->notification_window,
             XCB_CONFIG_SIZE | XCB_CONFIG_WINDOW_BORDER_WIDTH |
-            XCB_CONFIG_WINDOW_STACK_MODE, g_values);
+            XCB_CONFIG_WINDOW_STACK_MODE, general_values);
 
-    xcb_map_window(g_dpy, g_screen->notification_window);
+    xcb_map_window(connection, screen->notification_window);
 
     rect.x = 0;
     rect.y = 0;
@@ -136,8 +136,8 @@ void set_notification(const FcChar8 *msg, int32_t x, int32_t y)
     color.red = 0xff00;
     color.green = 0xff00;
     color.blue = 0xff00;
-    draw_text(g_screen->notification_window, msg, msg_len, color, &rect,
-            g_screen->stock_objects[STOCK_BLACK_PEN], WINDOW_PADDING / 2,
+    draw_text(screen->notification_window, msg, msg_len, color, &rect,
+            screen->stock_objects[STOCK_BLACK_PEN], WINDOW_PADDING / 2,
             tm.ascent + WINDOW_PADDING / 2);
 
     alarm(NOTIFICATION_DURATION);

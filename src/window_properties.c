@@ -45,9 +45,8 @@ static void update_window_size_hints(Window *window)
 {
     xcb_get_property_cookie_t size_hints_cookie;
 
-    size_hints_cookie = xcb_icccm_get_wm_size_hints(g_dpy, window->xcb_window,
-            XCB_ATOM_WM_NORMAL_HINTS);
-    if (!xcb_icccm_get_wm_size_hints_reply(g_dpy, size_hints_cookie,
+    size_hints_cookie = xcb_icccm_get_wm_normal_hints(connection, window->xcb_window);
+    if (!xcb_icccm_get_wm_size_hints_reply(connection, size_hints_cookie,
                 &window->properties.size_hints, NULL)) {
         window->properties.size_hints.flags = 0;
     }
@@ -58,8 +57,8 @@ static void update_window_hints(Window *window)
 {
     xcb_get_property_cookie_t hints_cookie;
 
-    hints_cookie = xcb_icccm_get_wm_hints(g_dpy, window->xcb_window);
-    if (!xcb_icccm_get_wm_hints_reply(g_dpy, hints_cookie,
+    hints_cookie = xcb_icccm_get_wm_hints(connection, window->xcb_window);
+    if (!xcb_icccm_get_wm_hints_reply(connection, hints_cookie,
                 &window->properties.hints, NULL)) {
         window->properties.hints.flags = 0;
     }
@@ -140,9 +139,9 @@ static void update_window_transient_for(Window *window)
 {
     xcb_get_property_cookie_t transient_for_cookie;
 
-    transient_for_cookie = xcb_icccm_get_wm_transient_for(g_dpy,
+    transient_for_cookie = xcb_icccm_get_wm_transient_for(connection,
             window->xcb_window);
-    if (!xcb_icccm_get_wm_transient_for_reply(g_dpy, transient_for_cookie,
+    if (!xcb_icccm_get_wm_transient_for_reply(connection, transient_for_cookie,
                 &window->properties.transient_for, NULL)) {
         window->properties.transient_for = 0;
     }
@@ -166,9 +165,9 @@ static void update_window_protocols(Window *window)
     xcb_get_property_cookie_t protocols_cookie;
     xcb_icccm_get_wm_protocols_reply_t protocols;
 
-    protocols_cookie = xcb_icccm_get_wm_protocols(g_dpy, window->xcb_window,
+    protocols_cookie = xcb_icccm_get_wm_protocols(connection, window->xcb_window,
             ewmh.WM_PROTOCOLS);
-    if (!xcb_icccm_get_wm_protocols_reply(g_dpy, protocols_cookie, &protocols,
+    if (!xcb_icccm_get_wm_protocols_reply(connection, protocols_cookie, &protocols,
                 NULL)) {
         window->properties.protocols = NULL;
         window->properties.number_of_protocols = 0;

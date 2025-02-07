@@ -5,11 +5,9 @@
 
 /* Split a frame horizontally or vertically. 
  *
- * The frame @split_from must have NO children.
- *
- * @is_split_vert 1 for a vertical split and 0 for a horizontal split.
+ * @is_split_vert true for a vertical split and false for a horizontal split.
  */
-void split_frame(Frame *split_from, int is_split_vert);
+void split_frame(Frame *split_from, bool is_split_vert);
 
 /* Remove a frame from the screen and hide the inner windows.
  *

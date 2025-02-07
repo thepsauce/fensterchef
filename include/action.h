@@ -15,8 +15,8 @@ typedef enum {
     ACTION_REMOVE_FRAME,
     /* changes a popup window to a tiling window and vise versa */
     ACTION_CHANGE_WINDOW_STATE,
-    /* changes from focusing a popup window to focusing a tiling window */
-    ACTION_CHANGE_FOCUS,
+    /* changes the window that was in focus before the current one */
+    ACTION_TRAVERSE_FOCUS,
     /* toggles the fullscreen state of the currently focused window */
     ACTION_TOGGLE_FULLSCREEN,
     /* split the current frame horizontally */

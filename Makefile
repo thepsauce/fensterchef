@@ -22,6 +22,10 @@ OBJECTS := $(patsubst $(SRC)/%.c,$(BUILD)/%.o,$(SOURCES))
 # Get dependencies
 DEPENDENCIES := $(patsubst %.o,%.d,$(OBJECTS))
 
+# Sandbox parameters
+SANDBOX_DISPLAY := 8
+SANDBOX := Xephyr :$(SANDBOX_DISPLAY) +extension RANDR -br -ac -noreset -screen 800x600
+
 .PHONY: default
 default: build
 
@@ -38,24 +42,15 @@ $(BUILD)/$(RUN): $(OBJECTS)
 	gcc $(DEBUG_FLAGS) $(C_FLAGS) $(OBJECTS) -o $@ $(C_LIBS)
 
 # Functions
-.PHONY: build test test-multi stop release clean
+.PHONY: build sandbox stop release clean
 
 build: $(BUILD)/$(RUN)
 
-DISPLAY_NO := 8
-XEPHYR := Xephyr :$(DISPLAY_NO) +extension RANDR -br -ac -noreset -screen 800x600
-
-test: build
-	$(XEPHYR) &
+sandbox: build
+	$(SANDBOX) &
 	# wait for x server to start
 	sleep 1
-	DISPLAY=:$(DISPLAY_NO) gdb -ex run ./$(BUILD)/$(RUN)
-
-test-multi: build
-	$(XEPHYR) -screen 800x600+800+0 &
-	# wait for x server to start
-	sleep 1
-	DISPLAY=:$(DISPLAY_NO) gdb -ex run ./$(BUILD)/$(RUN)
+	DISPLAY=:$(SANDBOX_DISPLAY) gdb -ex run ./$(BUILD)/$(RUN)
 
 stop:
 	pkill Xephyr

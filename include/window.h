@@ -44,6 +44,17 @@ typedef struct window {
     /* the id of this window */
     uint32_t number;
 
+    /* the focus chain is a linked list containing only visible windows and
+     * their relative time when they were focused; the focus chain is cyclic,
+     * meaning that all windows within the focus chain have a next_focus and
+     * previous_focus
+     */
+
+    /* the previous window in the focus chain */
+    struct window *previous_focus;
+    /* the next window in the focus chain */
+    struct window *next_focus;
+
     /* the next window in the linked list */
     struct window *next;
 } Window;
@@ -51,7 +62,10 @@ typedef struct window {
 /* the first window in the linked list, the list is sorted increasingly
  * with respect to the window number
  */
-extern Window *g_first_window;
+extern Window *first_window;
+
+/* the currently focused window */
+extern Window *focus_window;
 
 /* Create a window struct and add it to the window list,
  * this also assigns the next id. */
@@ -89,20 +103,22 @@ Window *get_window_of_xcb_window(xcb_window_t xcb_window);
  */
 Frame *get_frame_of_window(const Window *window);
 
-/* Get the currently focused window.
- *
- * @return NULL when the root has focus.
- */
-Window *get_focus_window(void);
+/* Removes a window from the focus list. */
+void unlink_window_from_focus_list(Window *window);
 
-/* Set the window that is in focus.
- *
- * @return 1 if the window does not accept focus, 0 otherwise.
- */
-int set_focus_window(Window *window);
+/* Check if the window accepts input focus. */
+bool does_window_accept_focus(Window *window);
 
-/* Gives any window different from given window focus. */
-void give_someone_else_focus(Window *window);
+/* Set the window that is in focus. */
+void set_focus_window(Window *window);
+
+/* Focuses the window before or after the currently focused window. */
+void traverse_focus_chain(int direction);
+
+/* Focuses the window guaranteed but also focuse the frame of the window if it
+ * has one.
+ */
+void set_focus_window_with_frame(Window *window);
 
 /* Get a window that is not shown but in the window list coming after
  * the given window or NULL when there is none.

@@ -4,6 +4,7 @@
 
 #include "action.h"
 #include "fensterchef.h"
+#include "frame.h"
 #include "keybind.h"
 #include "keymap.h"
 #include "log.h"
@@ -67,10 +68,6 @@ static void handle_map_request(xcb_map_request_event_t *event)
             !does_window_have_type(window, ewmh._NET_WM_WINDOW_TYPE_DOCK)) {
         set_focus_window(window);
     }
-    if (!is_strut_empty(&window->properties.struts)) {
-        reconfigure_monitor_frame_sizes();
-        synchronize_root_property(ROOT_PROPERTY_WORK_AREA);
-    }
 }
 
 /* Button press events are sent when the mouse is pressed together with
@@ -78,19 +75,13 @@ static void handle_map_request(xcb_map_request_event_t *event)
  */
 static void handle_button_press(xcb_button_press_event_t *event)
 {
-    xcb_get_geometry_reply_t    *geometry;
-    Window                      *window;
+    Window *window;
 
     window = get_window_of_xcb_window(event->child);
     if (window == NULL || window->state.mode != WINDOW_MODE_POPUP) {
         return;
     }
 
-    geometry = xcb_get_geometry_reply(g_dpy,
-            xcb_get_geometry(g_dpy, event->child), NULL);
-    if (geometry == NULL) {
-        return;
-    }
     selected_window.start.x = event->root_y;
     selected_window.start.y = event->root_y;
 
@@ -99,7 +90,7 @@ static void handle_button_press(xcb_button_press_event_t *event)
 
     selected_window.xcb_window = event->child;
 
-    xcb_grab_pointer(g_dpy, 0, event->root,
+    xcb_grab_pointer(connection, 0, event->root,
             XCB_EVENT_MASK_BUTTON_RELEASE | XCB_EVENT_MASK_BUTTON_MOTION,
             XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC, event->root,
             XCB_NONE, XCB_CURRENT_TIME);
@@ -112,18 +103,19 @@ static void handle_motion_notify(xcb_motion_notify_event_t *event)
 {
     xcb_get_geometry_reply_t *geometry;
 
-    geometry = xcb_get_geometry_reply(g_dpy,
-            xcb_get_geometry(g_dpy, selected_window.xcb_window), NULL);
+    geometry = xcb_get_geometry_reply(connection,
+            xcb_get_geometry(connection, selected_window.xcb_window), NULL);
     if (geometry == NULL) {
-        xcb_ungrab_pointer(g_dpy, XCB_CURRENT_TIME);
+        xcb_ungrab_pointer(connection, XCB_CURRENT_TIME);
+        selected_window.xcb_window = XCB_NONE;
         return;
     }
-    g_values[0] = geometry->x + (event->root_x - selected_window.old_mouse.x);
-    g_values[1] = geometry->y + (event->root_y - selected_window.old_mouse.y);
+    general_values[0] = geometry->x + (event->root_x - selected_window.old_mouse.x);
+    general_values[1] = geometry->y + (event->root_y - selected_window.old_mouse.y);
     selected_window.old_mouse.x = event->root_x;
     selected_window.old_mouse.y = event->root_y;
-    xcb_configure_window(g_dpy, selected_window.xcb_window,
-            XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y, g_values);
+    xcb_configure_window(connection, selected_window.xcb_window,
+            XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y, general_values);
 }
 
 /* Button releases are only sent when we grabbed them. This only happens
@@ -132,7 +124,8 @@ static void handle_motion_notify(xcb_motion_notify_event_t *event)
 static void handle_button_release(xcb_button_release_event_t *event)
 {
     (void) event;
-    xcb_ungrab_pointer(g_dpy, XCB_CURRENT_TIME);
+    xcb_ungrab_pointer(connection, XCB_CURRENT_TIME);
+    selected_window.xcb_window = XCB_NONE;
 }
 
 /* Property notifications are sent when a window atom changes, this can
@@ -145,8 +138,9 @@ static void handle_property_notify(xcb_property_notify_event_t *event)
 
     window = get_window_of_xcb_window(event->window);
     if (window == NULL) {
-        LOG("property change of unmanaged window: %" PRId32 "\n",
-                event->window);
+        if (event->window != screen->xcb_screen->root) {
+            LOG("property change of unmanaged window: %" PRId32 "\n", event->window);
+        }
         return;
     }
 
@@ -157,7 +151,7 @@ static void handle_property_notify(xcb_property_notify_event_t *event)
 
     set_window_mode(window, predict_window_mode(window), 0);
 
-    if (!is_strut_empty(&window->properties.struts)) {
+    if (window->state.is_visible && !is_strut_empty(&window->properties.struts)) {
         reconfigure_monitor_frame_sizes();
         synchronize_root_property(ROOT_PROPERTY_WORK_AREA);
     }
@@ -170,13 +164,14 @@ void handle_unmap_notify(xcb_unmap_notify_event_t *event)
 {
     Window *window;
 
+    if (event->window == selected_window.xcb_window) {
+        xcb_ungrab_pointer(connection, XCB_CURRENT_TIME);
+        selected_window.xcb_window = XCB_NONE;
+    }
+
     window = get_window_of_xcb_window(event->window);
     if (window != NULL) {
         hide_window(window);
-        if (!is_strut_empty(&window->properties.struts)) {
-            reconfigure_monitor_frame_sizes();
-            synchronize_root_property(ROOT_PROPERTY_WORK_AREA);
-        }
     }
 }
 
@@ -186,16 +181,10 @@ void handle_unmap_notify(xcb_unmap_notify_event_t *event)
 static void handle_destroy_notify(xcb_destroy_notify_event_t *event)
 {
     Window *window;
-    unsigned has_strut;
 
     window = get_window_of_xcb_window(event->window);
     if (window != NULL) {
-        has_strut = !is_strut_empty(&window->properties.struts);
         destroy_window(window);
-        if (has_strut) {
-            reconfigure_monitor_frame_sizes();
-            synchronize_root_property(ROOT_PROPERTY_WORK_AREA);
-        }
     }
 }
 
@@ -230,28 +219,28 @@ void handle_configure_request(xcb_configure_request_event_t *event)
 
     value_index = 0;
     if ((event->value_mask & XCB_CONFIG_WINDOW_X)) {
-        g_values[value_index++] = event->x;
+        general_values[value_index++] = event->x;
     }
     if ((event->value_mask & XCB_CONFIG_WINDOW_Y)) {
-        g_values[value_index++] = event->y;
+        general_values[value_index++] = event->y;
     }
     if ((event->value_mask & XCB_CONFIG_WINDOW_WIDTH)) {
-        g_values[value_index++] = event->width;
+        general_values[value_index++] = event->width;
     }
     if ((event->value_mask & XCB_CONFIG_WINDOW_HEIGHT)) {
-        g_values[value_index++] = event->height;
+        general_values[value_index++] = event->height;
     }
     if ((event->value_mask & XCB_CONFIG_WINDOW_BORDER_WIDTH)) {
-        g_values[value_index++] = event->border_width;
+        general_values[value_index++] = event->border_width;
     }
     if ((event->value_mask & XCB_CONFIG_WINDOW_SIBLING)) {
-        g_values[value_index++] = event->sibling;
+        general_values[value_index++] = event->sibling;
     }
     if ((event->value_mask & XCB_CONFIG_WINDOW_STACK_MODE)) {
-        g_values[value_index++] = event->stack_mode;
+        general_values[value_index++] = event->stack_mode;
     }
 
-    xcb_configure_window(g_dpy, event->window, event->value_mask, g_values);
+    xcb_configure_window(connection, event->window, event->value_mask, general_values);
 }
 
 /* Configure notifications are sent when a window changed its data. */
@@ -287,11 +276,27 @@ void handle_mapping_notify(xcb_mapping_notify_event_t *event)
     refresh_keymap(event);
 }
 
+/* Focus in events are sent when a window received focus. */
+void handle_focus_in(xcb_focus_in_event_t *event)
+{
+    Window *window;
+
+    /* TODO: describe this */
+    if (event->mode != XCB_NOTIFY_MODE_NORMAL ||
+            event->detail == XCB_NOTIFY_DETAIL_POINTER) {
+        return;
+    }
+
+    window = get_window_of_xcb_window(event->event);
+    if (window == NULL || window == focus_window) {
+        return;
+    }
+    set_focus_window_with_frame(window);
+}
+
 /* Handle the given xcb event.
  *
  * Descriptions for each event are above each handler.
- *
- * TODO: What is the best way to handle focus in/out events?
  */
 void handle_event(xcb_generic_event_t *event)
 {
@@ -316,6 +321,11 @@ void handle_event(xcb_generic_event_t *event)
     /* a window wants to appear on the screen */
     case XCB_MAP_REQUEST:
         handle_map_request((xcb_map_request_event_t*) event);
+        break;
+
+    /* a window was focused */
+    case XCB_FOCUS_IN:
+        handle_focus_in((xcb_focus_in_event_t*) event);
         break;
 
     /* a mouse button was pressed */

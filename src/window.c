@@ -11,10 +11,10 @@
 /* the first window in the linked list, the list is sorted increasingly
  * with respect to the window number
  */
-Window *g_first_window;
+Window *first_window;
 
 /* the currently focused window */
-static Window *focus_window;
+Window *focus_window;
 
 /* Create a window struct and add it to the window list,
  * this also assigns the next id. */
@@ -28,27 +28,29 @@ Window *create_window(xcb_window_t xcb_window)
     window->xcb_window = xcb_window;
 
     /* each window starts with id 0, at the beginning of the linked list */
-    window->next = g_first_window;
-    g_first_window = window;
+    window->next = first_window;
+    first_window = window;
 
     /* preserve the event mask of our windows */
-    window_attributes_cookie = xcb_get_window_attributes(g_dpy, xcb_window);
-    window_attributes = xcb_get_window_attributes_reply(g_dpy,
+    window_attributes_cookie = xcb_get_window_attributes(connection,
+            xcb_window);
+    window_attributes = xcb_get_window_attributes_reply(connection,
             window_attributes_cookie, NULL);
     if (window_attributes == NULL) {
-        g_values[0] = 0;
+        general_values[0] = 0;
     } else {
-        g_values[0] = window_attributes->your_event_mask;
+        general_values[0] = window_attributes->your_event_mask;
         free(window_attributes);
     }
 
-    g_values[0] |= XCB_EVENT_MASK_PROPERTY_CHANGE | XCB_EVENT_MASK_FOCUS_CHANGE;
-    xcb_change_window_attributes(g_dpy, xcb_window, XCB_CW_EVENT_MASK,
-            g_values);
+    general_values[0] |= XCB_EVENT_MASK_PROPERTY_CHANGE |
+        XCB_EVENT_MASK_FOCUS_CHANGE;
+    xcb_change_window_attributes(connection, xcb_window, XCB_CW_EVENT_MASK,
+            general_values);
 
-    g_values[0] = 0;
-    xcb_configure_window(g_dpy, xcb_window, XCB_CONFIG_WINDOW_BORDER_WIDTH,
-            g_values);
+    general_values[0] = 0;
+    xcb_configure_window(connection, xcb_window, XCB_CONFIG_WINDOW_BORDER_WIDTH,
+            general_values);
 
     update_all_window_properties(window);
     synchronize_all_window_properties(window);
@@ -60,16 +62,19 @@ Window *create_window(xcb_window_t xcb_window)
 /* Destroys given window and removes it from the window linked list. */
 void destroy_window(Window *window)
 {
-    Window *prev;
+    Window *previous;
 
-    if (window == g_first_window) {
-        g_first_window = window->next;
+    hide_window_quickly(window);
+
+    /* remove window from window linked list */
+    if (window == first_window) {
+        first_window = window->next;
     } else {
-        prev = g_first_window;
-        while (prev->next != window) {
-            prev = prev->next;
+        previous = first_window;
+        while (previous->next != window) {
+            previous = previous->next;
         }
-        prev->next = window->next;
+        previous->next = window->next;
     }
 
     LOG("destroyed window %" PRIu32 "\n", window->number);
@@ -81,7 +86,8 @@ void destroy_window(Window *window)
 void set_window_size(Window *window, int32_t x, int32_t y, uint32_t width,
         uint32_t height)
 {
-    LOG("configuring size of window %" PRIu32 " to: %" PRId32 ", %" PRId32 ", %" PRIu32 ", %" PRIu32 "\n",
+    LOG("configuring size of window %" PRIu32
+            " to: %" PRId32 ", %" PRId32 ", %" PRIu32 ", %" PRIu32 "\n",
             window->number, x, y, width, height);
 
     window->position.x = x;
@@ -89,11 +95,12 @@ void set_window_size(Window *window, int32_t x, int32_t y, uint32_t width,
     window->size.width = width;
     window->size.height = height;
 
-    g_values[0] = x;
-    g_values[1] = y;
-    g_values[2] = width;
-    g_values[3] = height;
-    xcb_configure_window(g_dpy, window->xcb_window, XCB_CONFIG_SIZE, g_values);
+    general_values[0] = x;
+    general_values[1] = y;
+    general_values[2] = width;
+    general_values[3] = height;
+    xcb_configure_window(connection, window->xcb_window, XCB_CONFIG_SIZE,
+            general_values);
 }
 
 /* Put the window on top of all other windows. */
@@ -105,21 +112,21 @@ void set_window_above(Window *window)
 
     /* desktop windows are always at the bottom */
     if (does_window_have_type(window, ewmh._NET_WM_WINDOW_TYPE_DESKTOP)) {
-        g_values[0] = XCB_STACK_MODE_BELOW;
+        general_values[0] = XCB_STACK_MODE_BELOW;
     } else {
-        g_values[0] = XCB_STACK_MODE_ABOVE;
+        general_values[0] = XCB_STACK_MODE_ABOVE;
     }
-    xcb_configure_window(g_dpy, window->xcb_window,
-            XCB_CONFIG_WINDOW_STACK_MODE, g_values);
+    xcb_configure_window(connection, window->xcb_window,
+            XCB_CONFIG_WINDOW_STACK_MODE, general_values);
 
     /* put windows that are transient for this window above it */
-    for (above = g_first_window; above != NULL; above = above->next) {
+    for (above = first_window; above != NULL; above = above->next) {
         if (!above->state.is_visible) {
             continue;
         }
         if (above->properties.transient_for == window->xcb_window) {
-            xcb_configure_window(g_dpy, window->xcb_window,
-                    XCB_CONFIG_WINDOW_STACK_MODE, g_values);
+            xcb_configure_window(connection, window->xcb_window,
+                    XCB_CONFIG_WINDOW_STACK_MODE, general_values);
         }
     }
 }
@@ -133,7 +140,7 @@ Window *get_previous_window(Window *window)
         return NULL;
     }
 
-    for (prev = g_first_window; prev->next != window; prev = prev->next) {
+    for (prev = first_window; prev->next != window; prev = prev->next) {
         if (prev->next == NULL) {
             break;
         }
@@ -144,75 +151,122 @@ Window *get_previous_window(Window *window)
 /* Get the internal window that has the associated xcb window. */
 Window *get_window_of_xcb_window(xcb_window_t xcb_window)
 {
-    for (Window *window = g_first_window; window != NULL;
+    for (Window *window = first_window; window != NULL;
             window = window->next) {
         if (window->xcb_window == xcb_window) {
             return window;
         }
     }
-    LOG("xcb window %" PRIu32 " is not managed\n", xcb_window);
+#ifdef DEBUG
+    /* omit log message for the root window */
+    if (xcb_window != screen->xcb_screen->root) {
+        LOG("xcb window %" PRIu32 " is not managed\n", xcb_window);
+    }
+#endif
     return NULL;
 }
 
-/* Get the currently focused window. */
-Window *get_focus_window(void)
+/* Removes a window from the focus list. */
+void unlink_window_from_focus_list(Window *window)
 {
-    return focus_window;
+    if (window->previous_focus == window) {
+         focus_window = NULL;
+    }
+
+    if (window->previous_focus != NULL) {
+        window->previous_focus->next_focus = window->next_focus;
+    }
+    if (window->next_focus != NULL) {
+        window->next_focus->previous_focus = window->previous_focus;
+    }
+    window->previous_focus = NULL;
+    window->next_focus = NULL;
+}
+
+/* Check if the window accepts input focus. */
+bool does_window_accept_focus(Window *window)
+{
+    return !(window->properties.hints.flags & XCB_ICCCM_WM_HINT_INPUT) ||
+            window->properties.hints.input != 0;
 }
 
 /* Set the window that is in focus. */
-int set_focus_window(Window *window)
+void set_focus_window(Window *window)
 {
-    if (window == NULL) {
-        LOG("focus change to root\n");
-        focus_window = NULL;
-        synchronize_root_property(ROOT_PROPERTY_ACTIVE_WINDOW);
-        return 1;
+    if (!does_window_accept_focus(window)) {
+        return;
     }
 
-    LOG("trying to change focus to %" PRIu32, window->number);
+    if (window == focus_window) {
+        LOG("window %" PRIu32 " is already focused\n", window->number);
+        return;
+    }
 
-    if ((window->properties.hints.flags & XCB_ICCCM_WM_HINT_INPUT) &&
-            window->properties.hints.input == 0) {
-        LOG_ADDITIONAL(", but the window does not accept focus\n");
-        return 1;
+    if (focus_window != NULL) {
+        unlink_window_from_focus_list(window);
+
+        /* relink window into focus list */
+        if (focus_window->next_focus != NULL) {
+            focus_window->next_focus->previous_focus = window;
+        }
+        window->previous_focus = focus_window;
+        window->next_focus = focus_window->next_focus;
+        focus_window->next_focus = window;
+    } else {
+        window->previous_focus = window;
+        window->next_focus = window;
     }
 
     focus_window = window;
     synchronize_root_property(ROOT_PROPERTY_ACTIVE_WINDOW);
 
-    LOG_ADDITIONAL(" and succeeded\n");
+    LOG("changed focus to %" PRIu32 "\n", window->number);
 
-    xcb_set_input_focus(g_dpy, XCB_INPUT_FOCUS_POINTER_ROOT, window->xcb_window,
-            XCB_CURRENT_TIME);
-    return 0;
+    xcb_set_input_focus(connection, XCB_INPUT_FOCUS_POINTER_ROOT,
+            window->xcb_window, XCB_CURRENT_TIME);
 }
 
-/* Gives any window different from given window focus. */
-void give_someone_else_focus(Window *window)
+/* Focuses the window before or after the currently focused window. */
+void traverse_focus_chain(int direction)
 {
-    Window *other;
+    Window *window;
 
-    /* TODO: when the window is a popup window, focus the window below it,
-     * when it is a tiling window, JUST GET RID OF THIS FUNCTION
-     */
-    /* TODO: use a focus stack? */
-    other = window;
-    do {
-        if (other->next == NULL) {
-            other = g_first_window;
-        } else {
-            other = window->next;
-        }
-        if (other == window) {
-            return;
-        }
-    } while (other->state.is_visible);
+    if (focus_window == NULL) {
+        return;
+    }
 
-    if (other->frame != NULL) {
-        set_focus_frame(other->frame);
+    if (direction < 0) {
+        window = focus_window->previous_focus;
     } else {
-        set_focus_window(other);
+        window = focus_window->next_focus;
+    }
+    
+    if (focus_window == window) {
+        return;
+    }
+
+    focus_window = window;
+    synchronize_root_property(ROOT_PROPERTY_ACTIVE_WINDOW);
+
+    LOG("changed focus to %" PRIu32 "\n", window->number);
+
+    xcb_set_input_focus(connection, XCB_INPUT_FOCUS_POINTER_ROOT,
+            window->xcb_window, XCB_CURRENT_TIME);
+
+    if (focus_window->frame != NULL) {
+        set_focus_frame(focus_window->frame);
+    }
+}
+
+/* Focuses the window guaranteed but also focuse the frame of the window if it
+ * has one.
+ */
+void set_focus_window_with_frame(Window *window)
+{
+    if (window->frame != NULL) {
+        set_focus_frame(window->frame);
+    } else {
+        set_focus_window(window);
     }
 }
 
@@ -228,14 +282,14 @@ Window *get_next_hidden_window(Window *window)
     next = window;
     do {
         if (next->next == NULL) {
-            next = g_first_window;
+            next = first_window;
         } else {
             next = next->next;
         }
         if (window == next) {
             return NULL;
         }
-    } while (!next->state.is_mappable || next->state.is_visible);
+    } while (!next->state.was_ever_mapped || next->state.is_visible);
 
     return next;
 }
@@ -256,7 +310,7 @@ Window *get_previous_hidden_window(Window *window)
         if (window == previous) {
             return NULL;
         }
-    } while (!previous->state.is_mappable || previous->state.is_visible);
+    } while (!previous->state.was_ever_mapped || previous->state.is_visible);
 
     return previous;
 }

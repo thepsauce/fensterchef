@@ -23,7 +23,7 @@ typedef struct window Window;
  */
 typedef struct window_state {
     /* if the window was ever mapped */
-    bool is_mappable;
+    bool was_ever_mapped;
     /* if the window is visible (mapped) */
     bool is_visible;
     /* if the window was forced to be a certain mode */
@@ -45,10 +45,26 @@ window_mode_t predict_window_mode(Window *window);
  */
 void set_window_mode(Window *window, window_mode_t mode, bool force_mode);
 
+/* Show given window but do not assign an id and no size configuring. */
+void show_window_quickly(Window *window);
+
 /* Show the window by positioning it and mapping it to the X server. */
 void show_window(Window *window);
 
-/* Hide the window by unmapping it to the X server. */
+/* Hide a window without focusing another window or filling the tiling gap.
+ *
+ * The caller must make sure to give another window focus if the given window is
+ * the focus window.
+ */
+void hide_window_quickly(Window *window);
+
+/* Hide the window by unmapping it from the X server.
+ *
+ * When the window is a tiling window, this places the next available window in
+ * the formed gap.
+ *
+ * The next window is focused.
+ */
 void hide_window(Window *window);
 
 #endif

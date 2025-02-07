@@ -27,7 +27,7 @@ typedef struct frame {
 } Frame;
 
 /* the currently selected/focused frame */
-extern Frame *g_cur_frame;
+extern Frame *focus_frame;
 
 /* Check if the given point is within the given frame.
  *
