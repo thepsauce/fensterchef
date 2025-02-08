@@ -5,6 +5,14 @@
 typedef enum {
     /* invalid action value */
     ACTION_NULL,
+
+    /* the first valid action value */
+    ACTION_FIRST_ACTION,
+
+    /* no action at all */
+    ACTION_NONE = ACTION_FIRST_ACTION,
+    /* reload the configuration file */
+    ACTION_RELOAD_CONFIGURATION,
     /* open a terminal window */
     ACTION_START_TERMINAL,
     /* go to the next window in the window list */
@@ -35,7 +43,16 @@ typedef enum {
     ACTION_SHOW_WINDOW_LIST,
     /* quits the window manager */
     ACTION_QUIT_WM,
+
+    /* not a real action */
+    ACTION_MAX
 } action_t;
+
+/* Get an action from a string (case insensitive). */
+action_t convert_string_to_action(const char *string);
+
+/* Get a string version of an action. */
+const char *convert_action_to_string(action_t action);
 
 /* Do the given action, the action codes are `ACTION_*`. */
 void do_action(action_t action);

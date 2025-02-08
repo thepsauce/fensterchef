@@ -24,18 +24,14 @@ static void update_window_name(Window *window)
 
     name_cookie = xcb_ewmh_get_wm_name(&ewmh, window->xcb_window);
 
+    free(window->properties.name);
+
     if (!xcb_ewmh_get_wm_name_reply(&ewmh, name_cookie, &data, NULL)) {
-        snprintf((char*) window->properties.short_name,
-                sizeof(window->properties.short_name),
-                "%" PRId32 "_", window->number);
+        window->properties.name = NULL;
         return;
     }
 
-    snprintf((char*) window->properties.short_name,
-            sizeof(window->properties.short_name),
-        "%" PRId32 "_%.*s",
-            window->number,
-            (int) MIN(data.strings_len, (uint32_t) INT_MAX), data.strings);
+    window->properties.name = xstrndup(data.strings, data.strings_len);
 
     xcb_ewmh_get_utf8_strings_reply_wipe(&data);
 }

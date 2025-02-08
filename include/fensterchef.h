@@ -11,6 +11,8 @@
 
 #define FENSTERCHEF_NAME "fensterchef"
 
+#define FENSTERCHEF_CONFIGURATION ".config/fensterchef/fensterchef.config"
+
 /* flag used to configure window position, size and border width */
 #define XCB_CONFIG_SIZE (XCB_CONFIG_WINDOW_X | \
                          XCB_CONFIG_WINDOW_Y | \
@@ -41,7 +43,7 @@ extern uint32_t                 general_values[7];
 /* Initialize most of fensterchef data and set root window flags. */
 int init_fensterchef(int *screen_number);
 
-/* Quit the window manager and clean up resources. */
+/* Close the connection to xcb and exit the program with given exit code. */
 void quit_fensterchef(int exit_code);
 
 /* Show the notification window with given message at given coordinates for

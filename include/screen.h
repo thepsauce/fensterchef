@@ -2,6 +2,7 @@
 #define SCREEN_H
 
 #include <xcb/randr.h>
+#include <xcb/xcb_ewmh.h>
 
 #include "util.h" // Position, Size
 

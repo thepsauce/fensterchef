@@ -57,8 +57,8 @@ typedef struct window Window;
  */
 typedef struct window_properties {
     /** internal porperties */
-    /* short window name */
-    FcChar8 short_name[256];
+    /* window name */
+    FcChar8 *name;
     /* xcb size hints of the window */
     xcb_size_hints_t size_hints;
     /* special window manager hints */

@@ -1,11 +1,53 @@
 #include <unistd.h>
+#include <string.h> // strcmp
 
 #include "action.h"
+#include "configuration.h"
 #include "fensterchef.h"
 #include "frame.h"
 #include "log.h"
 #include "tiling.h"
 #include "window_list.h"
+
+/* all actions and their string representation */
+static const char *action_strings[ACTION_MAX] = {
+    [ACTION_NULL] = NULL,
+
+    [ACTION_NONE] = "NONE",
+    [ACTION_RELOAD_CONFIGURATION] = "START-TERMINAL",
+    [ACTION_START_TERMINAL] = "START-TERMINAL",
+    [ACTION_NEXT_WINDOW] = "NEXT-WINDOW",
+    [ACTION_PREV_WINDOW] = "PREV-WINDOW",
+    [ACTION_REMOVE_FRAME] = "REMOVE-FRAME",
+    [ACTION_CHANGE_WINDOW_STATE] = "CHANGE-WINDOW-STATE",
+    [ACTION_TRAVERSE_FOCUS] = "TRAVERSE-FOCUS",
+    [ACTION_TOGGLE_FULLSCREEN] = "TOGGLE-FULLSCREEN",
+    [ACTION_SPLIT_HORIZONTALLY] = "SPLIT-HORIZONTALLY",
+    [ACTION_SPLIT_VERTICALLY] = "SPLIT-VERTICALLY",
+    [ACTION_MOVE_UP] = "MOVE-UP",
+    [ACTION_MOVE_LEFT] = "MOVE-LEFT",
+    [ACTION_MOVE_RIGHT] = "MOVE-RIGHT",
+    [ACTION_MOVE_DOWN] = "MOVE-DOWN",
+    [ACTION_SHOW_WINDOW_LIST] = "SHOW-WINDOW-LIST",
+    [ACTION_QUIT_WM] = "QUIT-WM",
+};
+
+/* Get an action from a string. */
+action_t convert_string_to_action(const char *string)
+{
+    for (action_t i = ACTION_FIRST_ACTION; i < ACTION_MAX; i++) {
+        if (strcasecmp(action_strings[i], string) == 0) {
+            return i;
+        }
+    }
+    return ACTION_NULL;
+}
+
+/* Get a string version of an action. */
+const char *convert_action_to_string(action_t action)
+{
+    return action_strings[action];
+}
 
 /* Start a terminal.
  */
@@ -61,6 +103,15 @@ void do_action(action_t action)
     /* invalid action value */
     case ACTION_NULL:
         ERR("tried to do NULL action\n");
+        break;
+
+    /* do nothing */
+    case ACTION_NONE:
+        break;
+
+    /* reload the configuration file */
+    case ACTION_RELOAD_CONFIGURATION:
+        reload_user_configuration();
         break;
 
     /* open a terminal window */
@@ -164,6 +215,10 @@ void do_action(action_t action)
     /* quits the window manager */
     case ACTION_QUIT_WM:
         quit_fensterchef(EXIT_SUCCESS);
+        break;
+
+    /* not a real action */
+    case ACTION_MAX:
         break;
     }
 }

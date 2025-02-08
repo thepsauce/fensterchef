@@ -2,7 +2,7 @@
 
 #include <xcb/randr.h>
 
-#include "action.h"
+#include "configuration.h"
 #include "fensterchef.h"
 #include "frame.h"
 #include "keybind.h"
@@ -195,7 +195,7 @@ void handle_key_press(xcb_key_press_event_t *event)
 {
     action_t action;
 
-    action = get_action_bind(event);
+    action = find_configured_action(event->state, get_keysym(event->detail));
     if (action != ACTION_NULL) {
         LOG("performing action: %u\n", action);
         do_action(action);

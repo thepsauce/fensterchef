@@ -61,10 +61,6 @@ int set_font(const FcChar8 *query)
     const xcb_render_query_pict_formats_reply_t *fmt_reply;
     xcb_render_pictforminfo_t                   *a8_format;
 
-    if (query == NULL) {
-        query = UTF8_TEXT("Noto Sans:size=16");
-    }
-
     fc_finding_pattern = FcNameParse(query);
 
     status = FcConfigSubstitute(NULL, fc_finding_pattern, FcMatchPattern);

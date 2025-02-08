@@ -1,10 +1,12 @@
+# Packages
+PACKAGES := x11 xcb xcb-randr xcb-ewmh xcb-icccm xcb-keysyms xcb-event xcb-render xcb-renderutil freetype2 fontconfig
 # Compiler flags
 DEBUG_FLAGS := -DDEBUG -DLOG_FILE=\"/tmp/fensterchef-log.txt\" -g -fsanitize=address -pg
-C_FLAGS := -Iinclude $(shell pkg-config --cflags freetype2 fontconfig) -Wall -Wextra -Wpedantic -Werror -Wno-format-zero-length
+C_FLAGS := -Iinclude $(shell pkg-config --cflags $(PACKAGES)) -Wall -Wextra -Wpedantic -Werror -Wno-format-zero-length
 RELEASE_FLAGS := -O3
 
 # Libs
-C_LIBS := $(shell pkg-config --libs xcb xcb-randr xcb-ewmh xcb-icccm xcb-keysyms xcb-event xcb-render xcb-renderutil freetype2 fontconfig)
+C_LIBS := $(shell pkg-config --libs $(PACKAGES))
 
 # Input
 SRC := src

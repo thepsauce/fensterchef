@@ -1,5 +1,6 @@
 #include <stdlib.h>
 
+#include "configuration.h"
 #include "event.h"
 #include "fensterchef.h"
 #include "frame.h"
@@ -29,11 +30,12 @@ int main(void)
         quit_fensterchef(EXIT_FAILURE);
     }
 
-    init_keybinds();
-
     init_monitors();
 
     log_screen();
+
+    load_default_configuration();
+    reload_user_configuration();
 
     synchronize_all_root_properties();
 

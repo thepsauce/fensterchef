@@ -16,34 +16,46 @@
 #include "util.h"
 #include "window.h"
 
+static char get_indicator_character(Window *window)
+{
+    return !window->state.is_visible ? '-' :
+            window->state.mode == WINDOW_MODE_POPUP ?
+                (window == focus_window ? '#' : '=') :
+            window->state.mode == WINDOW_MODE_FULLSCREEN ?
+                (window == focus_window ? '@' : 'F') :
+            window == focus_window ? '*' : '+';
+}
+
 /* Render the window list.
  *
  * TODO: add scrolling
  */
 static int render_window_list(Window *selected)
 {
-    uint32_t                 window_count;
-    FcChar8                  *marker_char;
-    struct text_measure      tm;
-    uint32_t                 max_width;
-    struct frame             *primary_frame;
-    xcb_rectangle_t          rect;
-    xcb_render_color_t       bg_color;
-    xcb_render_picture_t     pen;
+    FcChar8                 buffer[256];
+    uint32_t                window_count;
+    struct text_measure     tm;
+    uint32_t                max_width;
+    struct frame            *primary_frame;
+    xcb_rectangle_t         rectangle;
+    xcb_render_color_t      background_color;
+    xcb_render_picture_t    pen;
 
     /* measure the maximum needed width */
     window_count = 0;
     tm.ascent = 12;
     tm.descent = -4;
     max_width = 0;
-    for (Window *w = first_window; w != NULL; w = w->next) {
-        if (!w->state.was_ever_mapped) {
+    for (Window *window = first_window; window != NULL; window = window->next) {
+        if (!window->state.was_ever_mapped) {
             continue;
         }
 
         window_count++;
-        measure_text(w->properties.short_name,
-                strlen((char*) w->properties.short_name), &tm);
+        snprintf((char*) buffer, sizeof(buffer), "%" PRIu32 "%c%s",
+                window->number, get_indicator_character(window),
+                window->properties.name);
+        measure_text(buffer, strlen((char*) buffer), &tm);
         max_width = MAX(max_width, tm.total_width);
     }
 
@@ -53,7 +65,7 @@ static int render_window_list(Window *selected)
 
     primary_frame = get_primary_monitor()->frame;
     general_values[0] = primary_frame->x + primary_frame->width - max_width -
-        WINDOW_PADDING / 2;
+        WINDOW_PADDING;
     general_values[1] = primary_frame->y;
     general_values[2] = max_width + WINDOW_PADDING / 2;
     general_values[3] = window_count *
@@ -67,44 +79,36 @@ static int render_window_list(Window *selected)
     xcb_set_input_focus(connection, XCB_INPUT_FOCUS_POINTER_ROOT,
             screen->window_list_window, XCB_CURRENT_TIME);
 
-    rect.x = 0;
-    rect.y = 0;
-    rect.width = max_width + WINDOW_PADDING / 2;
-    rect.height = tm.ascent - tm.descent + WINDOW_PADDING;
-    for (Window *w = first_window; w != NULL; w = w->next) {
-        if (!w->state.was_ever_mapped) {
+    rectangle.x = 0;
+    rectangle.y = 0;
+    rectangle.width = max_width + WINDOW_PADDING / 2;
+    rectangle.height = tm.ascent - tm.descent + WINDOW_PADDING;
+    for (Window *window = first_window; window != NULL; window = window->next) {
+        if (!window->state.was_ever_mapped) {
             continue;
         }
 
-        bg_color.alpha = 0xff00;
-        if (w == selected) {
+        background_color.alpha = 0xff00;
+        if (window == selected) {
             pen = screen->stock_objects[STOCK_WHITE_PEN];
-            bg_color.red = 0x0000;
-            bg_color.green = 0x0000;
-            bg_color.blue = 0x0000;
+            background_color.red = 0x0000;
+            background_color.green = 0x0000;
+            background_color.blue = 0x0000;
         } else {
             pen = screen->stock_objects[STOCK_BLACK_PEN];
-            bg_color.red = 0xff00;
-            bg_color.green = 0xff00;
-            bg_color.blue = 0xff00;
+            background_color.red = 0xff00;
+            background_color.green = 0xff00;
+            background_color.blue = 0xff00;
         }
 
-        marker_char = w->properties.short_name;
-        while (isdigit(marker_char[0])) {
-            marker_char++;
-        }
-        marker_char[0] = !w->state.is_visible ? '-' :
-                w->state.mode == WINDOW_MODE_POPUP ?
-                    (w == focus_window ? '#' : '=') :
-                w->state.mode == WINDOW_MODE_FULLSCREEN ?
-                    (w == focus_window ? '@' : 'F') :
-                w == focus_window ? '*' : '+';
-
-        draw_text(screen->window_list_window, w->properties.short_name,
-                strlen((char*) w->properties.short_name), bg_color, &rect,
+        snprintf((char*) buffer, sizeof(buffer), "%" PRIu32 "%c%s",
+                window->number, get_indicator_character(window),
+                window->properties.name);
+        draw_text(screen->window_list_window, buffer,
+                strlen((char*) buffer), background_color, &rectangle,
                 pen, WINDOW_PADDING / 2,
-                rect.y + tm.ascent + WINDOW_PADDING / 2);
-        rect.y += rect.height;
+                rectangle.y + tm.ascent + WINDOW_PADDING / 2);
+        rectangle.y += rectangle.height;
     }
     return 0;
 }

@@ -38,13 +38,7 @@ static void alarm_handler(int signal)
     xcb_flush(connection);
 }
 
-/* Initialize most of fensterchef data and set root window flags.
- *
- * This opens the logging file, opens the xcb connection, initializes ewmh
- * which also initializes the screens.
- *
- * After that, the font drawing and the initial font are initialized.
- */
+/* Initialize fensterchef core data. */
 int init_fensterchef(int *screen_number)
 {
     xcb_intern_atom_cookie_t *atom_cookies;
@@ -81,13 +75,12 @@ int init_fensterchef(int *screen_number)
 
     init_font_drawing();
 
-    set_font(NULL);
-
     signal(SIGALRM, alarm_handler);
 
     return 0;
 }
 
+/* Close the connection to xcb and exit the program with given exit code. */
 void quit_fensterchef(int exit_code)
 {
     LOG("quitting fensterchef with exit code: %d\n", exit_code);
