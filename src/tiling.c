@@ -4,7 +4,7 @@
 #include "frame.h"
 #include "log.h"
 #include "tiling.h"
-#include "util.h"
+#include "utility.h"
 #include "window.h"
 
 /* Split a frame horizontally or vertically.

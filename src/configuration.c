@@ -8,7 +8,7 @@
 #include "fensterchef.h"
 #include "render_font.h"
 #include "screen.h"
-#include "xalloc.h"
+#include "utility.h"
 
 /* default font settings */
 static const struct configuration_font default_font = {

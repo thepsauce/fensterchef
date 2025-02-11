@@ -4,15 +4,14 @@
 #include "frame.h"
 #include "log.h"
 #include "screen.h"
-#include "util.h"
+#include "utility.h"
 #include "window.h"
-#include "xalloc.h"
 
 /* the currently selected/focused frame */
 Frame *focus_frame;
 
 /* Check if the given point is within the given frame. */
-int is_point_in_frame(const Frame *frame, int32_t x, int32_t y)
+bool is_point_in_frame(const Frame *frame, int32_t x, int32_t y)
 {
     return x >= frame->x && y >= frame->y &&
         (uint32_t) (x - frame->x) < frame->width &&

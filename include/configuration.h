@@ -96,7 +96,7 @@ void merge_configuration(struct configuration *configuration, merge_t merge);
 
 /* Load the configuration within given file.
  *
- * @return 1 if the file could not be read, 0 otherwise.
+ * @return ERROR if the file could not be read, OK otherwise.
  */
 int load_configuration_file(const char *file_name,
         struct configuration *configuration, merge_t *merge);

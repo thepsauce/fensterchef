@@ -2,18 +2,19 @@
 #include "fensterchef.h"
 #include "keybind.h"
 #include "keymap.h"
+#include "utility.h"
 
 /* symbol translation table */
 static xcb_key_symbols_t *key_symbols;
 
-/* Initializes the keymap so the below functions can be used. */
-int init_keymap(void)
+/* Initializes the key symbol table so the below functions can be used. */
+int initialize_keymap(void)
 {
     key_symbols = xcb_key_symbols_alloc(connection);
     if (key_symbols == NULL) {
-        return 1;
+        return ERROR;
     }
-    return 0;
+    return OK;
 }
 
 /* Refresh the keymap if a mapping notify event arrives. */

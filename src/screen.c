@@ -9,7 +9,7 @@
 #include "log.h"
 #include "screen.h"
 #include "tiling.h"
-#include "util.h"
+#include "utility.h"
 #include "window.h"
 #include "xalloc.h"
 
@@ -32,7 +32,7 @@ static bool randr_enabled = false;
 Screen *screen;
 
 /* Initializes the stock_objects array with graphical objects. */
-static inline int init_stock_objects(void)
+static inline int initialize_stock_objects(void)
 {
     xcb_window_t                                root;
     xcb_generic_error_t                         *error;
@@ -56,7 +56,7 @@ static inline int init_stock_objects(void)
                 XCB_GC_FOREGROUND | XCB_GC_BACKGROUND, general_values));
     if (error != NULL) {
         log_error(error, "could not create graphics context for notifications: ");
-        return 1;
+        return ERROR;
     }
 
     general_values[0] = screen->xcb_screen->white_pixel;
@@ -67,7 +67,7 @@ static inline int init_stock_objects(void)
                 XCB_GC_FOREGROUND | XCB_GC_BACKGROUND, general_values));
     if (error != NULL) {
         log_error(error, "could not create inverted graphics context for notifications: ");
-        return 1;
+        return ERROR;
     }
 
     fmt_reply = xcb_render_util_query_formats(connection);
@@ -115,7 +115,7 @@ static inline int init_stock_objects(void)
 
     xcb_free_pixmap(connection, pixmap);
 
-    return 0;
+    return OK;
 }
 
 /* Create the notification and window list windows. */
@@ -138,7 +138,7 @@ static inline int create_utility_windows(void)
                 0, NULL));
     if (error != NULL) {
         log_error(error, "could not create check window: ");
-        return 1;
+        return ERROR;
     }
     xcb_ewmh_set_wm_name(&ewmh, screen->check_window,
             strlen(FENSTERCHEF_NAME), FENSTERCHEF_NAME);
@@ -154,7 +154,7 @@ static inline int create_utility_windows(void)
                 XCB_CW_BORDER_PIXEL, general_values));
     if (error != NULL) {
         log_error(error, "could not create notification window: ");
-        return 1;
+        return ERROR;
     }
     xcb_icccm_set_wm_hints(connection, screen->notification_window,
             &no_input_hints);
@@ -169,13 +169,13 @@ static inline int create_utility_windows(void)
                 XCB_CW_BORDER_PIXEL | XCB_CW_EVENT_MASK, general_values));
     if (error != NULL) {
         log_error(error, "could not create window list window: ");
-        return 1;
+        return ERROR;
     }
-    return 0;
+    return OK;
 }
 
-/* Initializes the WM data of the screen. */
-int init_screen(int screen_number)
+/* Initialize @screen with graphical stock objects and utility windows. */
+int initialize_screen(int screen_number)
 {
     xcb_window_t root;
     xcb_generic_error_t *error;
@@ -186,8 +186,8 @@ int init_screen(int screen_number)
 
     root = screen->xcb_screen->root;
 
-    if (init_stock_objects() != 0) {
-        return 1;
+    if (initialize_stock_objects() != 0) {
+        return ERROR;
     }
 
     general_values[0] = ROOT_EVENT_MASK;
@@ -196,18 +196,18 @@ int init_screen(int screen_number)
                 XCB_CW_EVENT_MASK, general_values));
     if (error != NULL) {
         log_error(error, "could not change root window mask: ");
-        return 1;
+        return ERROR;
     }
 
     if (create_utility_windows() != 0) {
-        return 1;
+        return ERROR;
     }
 
     /* grabs ALT+Button for moving popup windows */
     xcb_grab_button(connection, 0, root, XCB_EVENT_MASK_BUTTON_PRESS |
             XCB_EVENT_MASK_BUTTON_RELEASE, XCB_GRAB_MODE_ASYNC,
             XCB_GRAB_MODE_ASYNC, root, XCB_NONE, 1, XCB_MOD_MASK_1);
-    return 0;
+    return OK;
 }
 
 /* Create a screenless monitor. */
@@ -223,8 +223,8 @@ static Monitor *create_monitor(const char *name, uint32_t name_len)
     return monitor;
 }
 
-/* Try to initialize randr for monitor management. */
-void init_monitors(void)
+/* Try to initialize randr and set @screen->monitor. */
+void initialize_monitors(void)
 {
     const xcb_query_extension_reply_t *extension;
     xcb_generic_error_t *error;
@@ -415,7 +415,6 @@ Monitor *query_monitors(void)
             last_monitor = first_monitor;
         } else {
             last_monitor->next = create_monitor(name, name_len);
-            last_monitor->next->prev = last_monitor;
             last_monitor = last_monitor->next;
         }
 

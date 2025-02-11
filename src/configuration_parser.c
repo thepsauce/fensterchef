@@ -5,7 +5,7 @@
 #include <X11/Xlib.h> // XStringToKeysym
 
 #include "configuration_parser.h"
-#include "util.h"
+#include "utility.h"
 
 const struct modifier_string {
     const char *name;

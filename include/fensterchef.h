@@ -40,8 +40,8 @@ extern bool                     is_fensterchef_running;
 /* general purpose values */
 extern uint32_t                 general_values[7];
 
-/* Initialize most of fensterchef data and set root window flags. */
-int init_fensterchef(int *screen_number);
+/* Initialize logging, the xcb/ewmh connection and font drawing. */
+int initialize_fensterchef(int *screen_number);
 
 /* Close the connection to xcb and exit the program with given exit code. */
 void quit_fensterchef(int exit_code);
@@ -52,6 +52,6 @@ void quit_fensterchef(int exit_code);
  * @x Center x position.
  * @y Center y position.
  */
-void set_notification(const FcChar8 *msg, int32_t x, int32_t y);
+void set_notification(const FcChar8 *message, int32_t x, int32_t y);
 
 #endif

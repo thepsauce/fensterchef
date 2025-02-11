@@ -3,6 +3,8 @@
 
 #include <xcb/xcb.h>
 
+#include <stdbool.h>
+
 /* Frames are used to partition a monitor into multiple rectangular regions.
  *
  * When a frame has one child, it must have a second one, so either BOTH left
@@ -31,9 +33,9 @@ extern Frame *focus_frame;
 
 /* Check if the given point is within the given frame.
  *
- * @return 1 if the point is inside the frame, 0 otherwise.
+ * @return if the point is inside the frame.
  */
-int is_point_in_frame(const Frame *frame, int32_t x, int32_t y);
+bool is_point_in_frame(const Frame *frame, int32_t x, int32_t y);
 
 /* Get a frame at given position.
  *

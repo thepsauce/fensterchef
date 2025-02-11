@@ -10,7 +10,7 @@
 #include "log.h"
 #include "root_properties.h"
 #include "screen.h"
-#include "util.h"
+#include "utility.h"
 #include "window.h"
 
 /* This file handles all kinds of xcb events.

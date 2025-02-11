@@ -1,44 +1,42 @@
 #ifndef LOG_H
 #define LOG_H
 
-#include "fensterchef.h"
-
 #ifdef DEBUG
 
 #include <stdio.h>
 #include <time.h>
 #include <xcb/xcb_event.h>
 
-extern FILE *log_file;
+#include "fensterchef.h"
 
-/* Log a formatted message to the log file. */
-#define LOG(fmt, ...) do { \
-    char buf[64]; \
-    time_t cur_time; \
+/* Log a formatted message. */
+#define LOG(format, ...) do { \
+    char time_buffer[64]; \
+    time_t current_time; \
     struct tm *tm; \
-    cur_time = time(NULL); \
-    tm = localtime(&cur_time); \
-    strftime(buf, sizeof(buf), "[%F %T]", tm); \
-    fputs(buf, log_file); \
-    fprintf(log_file, "(%s:%d) ", __FILE__, __LINE__); \
-    fprintf(log_file, (fmt), ##__VA_ARGS__); \
+    current_time = time(NULL); \
+    tm = localtime(&current_time); \
+    strftime(time_buffer, sizeof(time_buffer), "[%F %T]", tm); \
+    fputs(time_buffer, stderr); \
+    fprintf(stderr, "(%s:%d) ", __FILE__, __LINE__); \
+    fprintf(stderr, (format), ##__VA_ARGS__); \
 } while (0)
 
-#define LOG_ADDITIONAL(fmt, ...) do { \
-    fprintf(log_file, (fmt), ##__VA_ARGS__); \
+#define LOG_ADDITIONAL(format, ...) do { \
+    fprintf(stderr, (format), ##__VA_ARGS__); \
 } while (0)
 
-/* Log a formatted message to the log file with error indication. */
-#define ERR(fmt, ...) do { \
-    char buf[64]; \
-    time_t cur_time; \
+/* Log a formatted message with error indication. */
+#define ERR(format, ...) do { \
+    char time_buffer[64]; \
+    time_t current_time; \
     struct tm *tm; \
-    cur_time = time(NULL); \
-    tm = localtime(&cur_time); \
-    strftime(buf, sizeof(buf), "{%F %T}", tm); \
-    fputs(buf, log_file); \
-    fprintf(log_file, "(%s:%d) ERR ", __FILE__, __LINE__); \
-    fprintf(log_file, (fmt), ##__VA_ARGS__); \
+    current_time = time(NULL); \
+    tm = localtime(&current_time); \
+    strftime(time_buffer, sizeof(time_buffer), "{%F %T}", tm); \
+    fputs(time_buffer, stderr); \
+    fprintf(stderr, "(%s:%d) ERR ", __FILE__, __LINE__); \
+    fprintf(stderr, (format), ##__VA_ARGS__); \
 } while (0)
 
 /* Log an event to the log file.  */

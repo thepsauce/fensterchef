@@ -12,10 +12,9 @@
 
 #include "fensterchef.h"
 #include "log.h"
-#include "util.h"
 #include "render_font.h"
 #include "screen.h"
-#include "xalloc.h"
+#include "utility.h"
 
 /* xcb server connection */
 xcb_connection_t        *connection;
@@ -38,38 +37,20 @@ static void alarm_handler(int signal)
     xcb_flush(connection);
 }
 
-/* Initialize fensterchef core data. */
-int init_fensterchef(int *screen_number)
+/* Initialize logging, the xcb/ewmh connection and font drawing. */
+int initialize_fensterchef(int *screen_number)
 {
     xcb_intern_atom_cookie_t *atom_cookies;
-
-#ifdef DEBUG
-    if ((void*) LOG_FILE == (void*) stderr) {
-        log_file = stderr;
-    } else {
-        log_file = fopen(LOG_FILE, "w");
-        if (log_file == NULL) {
-            log_file = stderr;
-        }
-    }
-    setbuf(log_file, NULL);
-#endif
 
     connection = xcb_connect(NULL, screen_number);
     if (xcb_connection_has_error(connection) > 0) {
         ERR("could not create xcb connection\n");
-#ifdef DEBUG
-        fclose(log_file);
-#endif
         exit(1);
     }
 
     atom_cookies = xcb_ewmh_init_atoms(connection, &ewmh);
     if (!xcb_ewmh_init_atoms_replies(&ewmh, atom_cookies, NULL)) {
         ERR("could not set up ewmh\n");
-#ifdef DEBUG
-        fclose(log_file);
-#endif
         exit(1);
     }
 
@@ -87,9 +68,6 @@ void quit_fensterchef(int exit_code)
     /* TODO: maybe free all resources to show we care? */
     deinit_font_drawing();
     xcb_disconnect(connection);
-#ifdef DEBUG
-    fclose(log_file);
-#endif
     exit(exit_code);
 }
 

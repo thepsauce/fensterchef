@@ -11,7 +11,7 @@ void split_frame(Frame *split_from, bool is_split_vert);
 
 /* Remove a frame from the screen and hide the inner windows.
  *
- * @return 1 when the given frame is the last frame, otherwise 0.
+ * @return ERROR when the given frame is the last frame, otherwise OK.
  */
 int remove_frame(Frame *frame);
 

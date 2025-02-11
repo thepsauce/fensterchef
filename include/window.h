@@ -5,7 +5,7 @@
 
 #include <xcb/xcb.h> // xcb_window_t
 
-#include "util.h"
+#include "utility.h"
 
 #include "window_properties.h"
 #include "window_state.h"

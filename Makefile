@@ -1,7 +1,7 @@
 # Packages
 PACKAGES := x11 xcb xcb-randr xcb-ewmh xcb-icccm xcb-keysyms xcb-event xcb-render xcb-renderutil freetype2 fontconfig
 # Compiler flags
-DEBUG_FLAGS := -DDEBUG -DLOG_FILE=\"/tmp/fensterchef-log.txt\" -g -fsanitize=address -pg
+DEBUG_FLAGS := -DDEBUG -g -fsanitize=address -pg
 C_FLAGS := -Iinclude $(shell pkg-config --cflags $(PACKAGES)) -Wall -Wextra -Wpedantic -Werror -Wno-format-zero-length
 RELEASE_FLAGS := -O3
 

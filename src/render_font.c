@@ -4,7 +4,7 @@
 #include "log.h"
 #include "render_font.h"
 #include "utf8.h"
-#include "xalloc.h"
+#include "utility.h"
 
 struct font {
     FT_Library library;
@@ -27,16 +27,16 @@ int init_font_drawing(void)
     error = FT_Init_FreeType(&font.library);
     if (error != 0) {
         ERR("could not initialize freetype: %u\n", error);
-        return 1;
+        return ERROR;
     }
 
     if (FcInit() == FcFalse) {
         ERR("could not initialize freetype: %u\n", error);
         FT_Done_FreeType(font.library);
-        return 1;
+        return ERROR;
     }
 
-    return 0;
+    return OK;
 }
 
 /* Frees all resources associated to font rendering. */
@@ -66,7 +66,7 @@ int set_font(const FcChar8 *query)
     status = FcConfigSubstitute(NULL, fc_finding_pattern, FcMatchPattern);
     if (status == FcFalse) {
         ERR("could not substitute font pattern\n");
-        return 1;
+        return ERROR;
     }
     FcDefaultSubstitute(fc_finding_pattern);
 
@@ -76,13 +76,13 @@ int set_font(const FcChar8 *query)
 
     if (result == FcResultNoMatch) {
         ERR("could not match the font\n");
-        return 1;
+        return ERROR;
     }
 
     if (FcPatternGet(pattern, FC_FILE, 0, &fc_file) != FcResultMatch) {
         ERR("could not not get the font file\n");
         FcPatternDestroy(pattern);
-        return 1;
+        return ERROR;
     }
 
     if (FcPatternGet(pattern, FC_INDEX, 0, &fc_index) != FcResultMatch) {
@@ -95,7 +95,7 @@ int set_font(const FcChar8 *query)
     if (ft_error != FT_Err_Ok) {
         ERR("could not not create the new freetype face: %d\n", ft_error);
         FcPatternDestroy(pattern);
-        return 1;
+        return ERROR;
     }
 
     if (FcPatternGet(pattern, FC_MATRIX, 0, &fc_matrix) == FcResultMatch) {
@@ -120,7 +120,7 @@ int set_font(const FcChar8 *query)
     fmt_reply = xcb_render_util_query_formats(connection);
     if (fmt_reply == NULL) {
         ERR("could not query for formats\n");
-        goto err;
+        goto error;
     }
 
     a8_format = xcb_render_util_find_standard_format(fmt_reply,
@@ -128,7 +128,7 @@ int set_font(const FcChar8 *query)
 
     if (a8_format == NULL) {
         ERR("could not get the a8 standard format\n");
-        goto err;
+        goto error;
     }
 
     glyphset = xcb_generate_id(connection);
@@ -137,19 +137,19 @@ int set_font(const FcChar8 *query)
                     glyphset,
                     a8_format->id)) != NULL) {
         ERR("could not create the glyphset\n");
-        goto err;
+        goto error;
     }
 
     LOG("switched to font '%s'\n", (char*) query);
 
     font.face = face;
     font.glyphset = glyphset;
-    return 0;
+    return OK;
 
-err:
+error:
     FcPatternDestroy(pattern);
     FT_Done_Face(face);
-    return 1;
+    return ERROR;
 }
 
 /* Creates a pixmap with width and height set to 1. */
