@@ -5,8 +5,8 @@
 #include "event.h" // randr_event_base
 #include "fensterchef.h"
 #include "frame.h"
-#include "keybind.h"
 #include "log.h"
+#include "render.h"
 #include "screen.h"
 #include "tiling.h"
 #include "utility.h"
@@ -31,105 +31,17 @@ static bool randr_enabled = false;
 /* the actively used screen */
 Screen *screen;
 
-/* Initializes the stock_objects array with graphical objects. */
-static inline int initialize_stock_objects(void)
-{
-    xcb_window_t                                root;
-    xcb_generic_error_t                         *error;
-    xcb_render_color_t                          color;
-    xcb_render_pictforminfo_t                   *fmt;
-    const xcb_render_query_pict_formats_reply_t *fmt_reply;
-    xcb_pixmap_t                                pixmap;
-    xcb_rectangle_t                             rect;
-
-    root = screen->xcb_screen->root;
-
-    for (uint32_t i = 0; i < STOCK_COUNT; i++) {
-        screen->stock_objects[i] = xcb_generate_id(connection);
-    }
-
-    general_values[0] = screen->xcb_screen->black_pixel;
-    general_values[1] = screen->xcb_screen->white_pixel;
-    error = xcb_request_check(connection,
-            xcb_create_gc_checked(connection, screen->stock_objects[STOCK_GC],
-                root,
-                XCB_GC_FOREGROUND | XCB_GC_BACKGROUND, general_values));
-    if (error != NULL) {
-        log_error(error, "could not create graphics context for notifications: ");
-        return ERROR;
-    }
-
-    general_values[0] = screen->xcb_screen->white_pixel;
-    general_values[1] = screen->xcb_screen->black_pixel;
-    error = xcb_request_check(connection,
-            xcb_create_gc_checked(connection,
-                screen->stock_objects[STOCK_INVERTED_GC], root,
-                XCB_GC_FOREGROUND | XCB_GC_BACKGROUND, general_values));
-    if (error != NULL) {
-        log_error(error, "could not create inverted graphics context for notifications: ");
-        return ERROR;
-    }
-
-    fmt_reply = xcb_render_util_query_formats(connection);
-
-    fmt = xcb_render_util_find_standard_format(fmt_reply,
-            XCB_PICT_STANDARD_ARGB_32);
-
-    /* create white pen */
-    pixmap = xcb_generate_id(connection);
-    xcb_create_pixmap(connection, 32, pixmap, root, 1, 1);
-
-    general_values[0] = XCB_RENDER_REPEAT_NORMAL;
-    xcb_render_create_picture(connection,
-            screen->stock_objects[STOCK_WHITE_PEN], pixmap, fmt->id,
-            XCB_RENDER_CP_REPEAT, general_values);
-
-    rect.x = 0;
-    rect.y = 0;
-    rect.width = 1;
-    rect.height = 1;
-
-    color.alpha = 0xff00;
-    color.red = 0xff00;
-    color.green = 0xff00;
-    color.blue = 0xff00;
-    xcb_render_fill_rectangles(connection, XCB_RENDER_PICT_OP_OVER,
-            screen->stock_objects[STOCK_WHITE_PEN], color, 1, &rect);
-
-    xcb_free_pixmap(connection, pixmap);
-
-    /* create black pen */
-    pixmap = xcb_generate_id(connection);
-    xcb_create_pixmap(connection, 32, pixmap, root, 1, 1);
-
-    general_values[0] = XCB_RENDER_REPEAT_NORMAL;
-    xcb_render_create_picture(connection, screen->stock_objects[STOCK_BLACK_PEN],
-            pixmap, fmt->id,
-            XCB_RENDER_CP_REPEAT, general_values);
-
-    color.red = 0x0000;
-    color.green = 0x0000;
-    color.blue = 0x0000;
-    xcb_render_fill_rectangles(connection, XCB_RENDER_PICT_OP_OVER,
-            screen->stock_objects[STOCK_BLACK_PEN], color, 1, &rect);
-
-    xcb_free_pixmap(connection, pixmap);
-
-    return OK;
-}
-
 /* Create the notification and window list windows. */
 static inline int create_utility_windows(void)
 {
     xcb_window_t root;
     xcb_generic_error_t *error;
-    xcb_icccm_wm_hints_t no_input_hints;
 
     root = screen->xcb_screen->root;
 
-    no_input_hints.flags = XCB_ICCCM_WM_HINT_INPUT;
-    no_input_hints.input = 0;
-
+    /* create the check window, this can be used by other applications to
+     * identify our window manager
+     */
     screen->check_window = xcb_generate_id(connection);
     error = xcb_request_check(connection, xcb_create_window_checked(connection,
                 XCB_COPY_FROM_PARENT, screen->check_window,
@@ -137,38 +49,37 @@ static inline int create_utility_windows(void)
                 XCB_WINDOW_CLASS_COPY_FROM_PARENT, XCB_COPY_FROM_PARENT,
                 0, NULL));
     if (error != NULL) {
-        log_error(error, "could not create check window: ");
+        LOG_ERROR(error, "could not create check window");
         return ERROR;
     }
+    /* set the check window name to the name of fensterchef */
     xcb_ewmh_set_wm_name(&ewmh, screen->check_window,
             strlen(FENSTERCHEF_NAME), FENSTERCHEF_NAME);
     xcb_ewmh_set_supporting_wm_check(&ewmh, screen->check_window,
             screen->check_window);
 
+    /* create a notification window for showing the user messages */
     screen->notification_window = xcb_generate_id(connection);
-    general_values[0] = 0x000000;
     error = xcb_request_check(connection, xcb_create_window_checked(connection,
                 XCB_COPY_FROM_PARENT, screen->notification_window,
                 root, -1, -1, 1, 1, 0,
                 XCB_WINDOW_CLASS_COPY_FROM_PARENT, XCB_COPY_FROM_PARENT,
-                XCB_CW_BORDER_PIXEL, general_values));
+                0, NULL));
     if (error != NULL) {
-        log_error(error, "could not create notification window: ");
+        LOG_ERROR(error, "could not create notification window");
         return ERROR;
     }
-    xcb_icccm_set_wm_hints(connection, screen->notification_window,
-            &no_input_hints);
 
+    /* create a window list for selecting windows from a list */
     screen->window_list_window = xcb_generate_id(connection);
-    general_values[0] = 0x000000;
-    general_values[1] = XCB_EVENT_MASK_KEY_PRESS;
+    general_values[0] = XCB_EVENT_MASK_KEY_PRESS; /* need key press events */
     error = xcb_request_check(connection, xcb_create_window_checked(connection,
                 XCB_COPY_FROM_PARENT, screen->window_list_window,
                 root, -1, -1, 1, 1, 0,
                 XCB_WINDOW_CLASS_COPY_FROM_PARENT, XCB_COPY_FROM_PARENT,
-                XCB_CW_BORDER_PIXEL | XCB_CW_EVENT_MASK, general_values));
+                XCB_CW_EVENT_MASK, general_values));
     if (error != NULL) {
-        log_error(error, "could not create window list window: ");
+        LOG_ERROR(error, "could not create window list window");
         return ERROR;
     }
     return OK;
@@ -186,19 +97,19 @@ int initialize_screen(int screen_number)
 
     root = screen->xcb_screen->root;
 
-    if (initialize_stock_objects() != 0) {
-        return ERROR;
-    }
-
+    /* set the mask of the root window so we receive important events like
+     * create notifications
+     */
     general_values[0] = ROOT_EVENT_MASK;
     error = xcb_request_check(connection,
             xcb_change_window_attributes_checked(connection, root,
                 XCB_CW_EVENT_MASK, general_values));
     if (error != NULL) {
-        log_error(error, "could not change root window mask: ");
+        LOG_ERROR(error, "could not change root window mask");
         return ERROR;
     }
 
+    /* create the necessary utility windows */
     if (create_utility_windows() != 0) {
         return ERROR;
     }
@@ -231,25 +142,24 @@ void initialize_monitors(void)
     xcb_randr_query_version_cookie_t version_cookie;
     xcb_randr_query_version_reply_t *version;
 
+    /* get the data for the randr extension and check if it is there */
     extension = xcb_get_extension_data(connection, &xcb_randr_id);
     if (!extension->present) {
         return;
     }
 
+    /* get the randr version number, currently not used for anything */
     version_cookie = xcb_randr_query_version(connection, XCB_RANDR_MAJOR_VERSION,
             XCB_RANDR_MINOR_VERSION);
     version = xcb_randr_query_version_reply(connection, version_cookie, &error);
     if (error != NULL) {
-        log_error(error, "could not query randr version: ");
-        free(error);
+        LOG_ERROR(error, "could not query randr version");
     } else {
         free(version);
 
         randr_enabled = true;
         randr_event_base = extension->first_event;
-    }
 
-    if (randr_enabled) {
         xcb_randr_select_input(connection, screen->xcb_screen->root,
                 XCB_RANDR_NOTIFY_MASK_SCREEN_CHANGE |
                 XCB_RANDR_NOTIFY_MASK_OUTPUT_CHANGE |
@@ -343,7 +253,7 @@ Monitor *query_monitors(void)
     xcb_randr_get_output_info_reply_t *output;
 
     char *name;
-    int name_len;
+    int name_length;
 
     xcb_randr_get_crtc_info_cookie_t crtc_cookie;
     xcb_randr_get_crtc_info_reply_t *crtc;
@@ -352,11 +262,15 @@ Monitor *query_monitors(void)
         return NULL;
     }
 
-    primary_cookie = xcb_randr_get_output_primary(connection, screen->xcb_screen->root);
+    /* get cookies for later */
+    primary_cookie = xcb_randr_get_output_primary(connection,
+            screen->xcb_screen->root);
     resources_cookie = xcb_randr_get_screen_resources_current(connection,
             screen->xcb_screen->root);
 
-    primary = xcb_randr_get_output_primary_reply(connection, primary_cookie, NULL);
+    /* get the primary monitor */
+    primary = xcb_randr_get_output_primary_reply(connection, primary_cookie,
+            NULL);
     if (primary == NULL) {
         primary_output = XCB_NONE;
     } else {
@@ -364,14 +278,15 @@ Monitor *query_monitors(void)
         free(primary);
     }
 
+    /* get the screen resources for querying the screen outputs */
     resources = xcb_randr_get_screen_resources_current_reply(connection,
             resources_cookie, &error);
     if (error != NULL) {
-        log_error(error, "could not get screen resources: ");
-        free(error);
+        LOG_ERROR(error, "could not get screen resources");
         return NULL;
     }
 
+    /* get the outputs (monitors) */
     outputs = xcb_randr_get_screen_resources_current_outputs(resources);
     output_count =
         xcb_randr_get_screen_resources_current_outputs_length(resources);
@@ -379,47 +294,50 @@ Monitor *query_monitors(void)
     first_monitor = NULL;
 
     for (int i = 0; i < output_count; i++) {
+        /* get the output information that includes the output name */
         output_cookie = xcb_randr_get_output_info(connection, outputs[i],
                resources->timestamp);
         output = xcb_randr_get_output_info_reply(connection, output_cookie, &error);
         if (error != NULL) {
-            log_error(error, "unable to get output info of %d: ", i);
-            free(error);
+            LOG_ERROR(error, "unable to get output info of %d", i);
             continue;
         }
 
+        /* extract the name information from the reply */
         name = (char*) xcb_randr_get_output_info_name(output);
-        name_len = xcb_randr_get_output_info_name_length(output);
+        name_length = xcb_randr_get_output_info_name_length(output);
 
         if (output->connection != XCB_RANDR_CONNECTION_CONNECTED) {
-            LOG("ignored output: '%.*s': not connected\n", name_len, name);
+            LOG("ignored output: '%.*s': not connected\n", name_length, name);
             continue;
         }
 
         if (output->crtc == XCB_NONE) {
-            LOG("ignored output: '%.*s': no crtc\n", name_len, name);
+            LOG("ignored output: '%.*s': no crtc\n", name_length, name);
             continue;
         }
 
+        /* get the crtc (cathodic ray tube configuration, basically an old TV)
+         * which tells us the size of the output
+         */
         crtc_cookie = xcb_randr_get_crtc_info(connection, output->crtc,
                 resources->timestamp);
         crtc = xcb_randr_get_crtc_info_reply(connection, crtc_cookie, &error);
         if (crtc == NULL) {
-            log_error(error, "output: '%.*s' gave a NULL crtc?? ", name_len, name);
-            free(error);
+            LOG_ERROR(error, "output: '%.*s' gave a NULL crtc", name_length, name);
             continue;
         }
 
+        /* add the monitor to the linked list */
         if (first_monitor == NULL) {
-            first_monitor = create_monitor(name, name_len);
+            first_monitor = create_monitor(name, name_length);
             last_monitor = first_monitor;
         } else {
-            last_monitor->next = create_monitor(name, name_len);
+            last_monitor->next = create_monitor(name, name_length);
             last_monitor = last_monitor->next;
         }
 
         last_monitor->primary = primary_output == outputs[i];
-
         last_monitor->position.x = crtc->x;
         last_monitor->position.y = crtc->y;
         last_monitor->size.width = crtc->width;
@@ -449,6 +367,9 @@ void reconfigure_monitor_frame_sizes(void)
                 is_strut_empty(&window->properties.struts)) {
             continue;
         }
+        /* only slash off from the monitor that has the struts, this is non
+         * standard behavior as struts are for screens and not monitors
+         */
         monitor = get_monitor_from_rectangle(window->position.x,
                 window->position.y, window->size.width, window->size.height);
         monitor->struts.left += window->properties.struts.left;
@@ -535,6 +456,7 @@ void merge_monitors(Monitor *monitors)
 
     reconfigure_monitor_frame_sizes();
 
+    /* if the focus frame was abonded, focus a different one */
     if (focus_frame == NULL) {
         focus_frame = get_primary_monitor()->frame;
     }

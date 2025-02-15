@@ -83,7 +83,6 @@ void log_event(xcb_generic_event_t *event)
     xcb_mapping_notify_event_t      *min;
     xcb_ge_generic_event_t          *gen;
 
-    LOG("");
     event_type = (event->response_type & ~0x80);
     fputs(xcb_event_get_label(event_type), stderr);
     if (event_type == XCB_GE_GENERIC) {
@@ -297,22 +296,21 @@ void log_event(xcb_generic_event_t *event)
 /* Log an xcb error to the log file with additional output formatting and new
  * line.
  */
-void log_error(xcb_generic_error_t *error, const char *fmt, ...)
+void log_error(xcb_generic_error_t *error, const char *format, ...)
 {
     va_list list;
     const char *error_label;
 
-    ERR("");
-
-    va_start(list, fmt);
-    vfprintf(stderr, fmt, list);
+    va_start(list, format);
+    vfprintf(stderr, format, list);
     va_end(list);
 
+    /* get textual representation of the error */
     error_label = xcb_event_get_error_label(error->error_code);
     if (error_label != NULL) {
-        fprintf(stderr, "X11 error: %s", error_label);
+        fprintf(stderr, ": XCB error: %s", error_label);
     } else {
-        fprintf(stderr, "Unknown X11 error: ");
+        fprintf(stderr, ": Unknown XCB error: ");
     }
     fprintf(stderr, "(code=%d, sequence=%d, major=%d, minor=%d)\n",
             error->error_code, error->sequence, error->major_code,

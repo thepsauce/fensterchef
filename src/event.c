@@ -5,7 +5,6 @@
 #include "configuration.h"
 #include "fensterchef.h"
 #include "frame.h"
-#include "keybind.h"
 #include "keymap.h"
 #include "log.h"
 #include "root_properties.h"
@@ -43,6 +42,13 @@ static void handle_create_notify(xcb_create_notify_event_t *event)
 {
     Window *window;
 
+    /* ignore the fensterchef windows */
+    if (event->window == screen->check_window ||
+            event->window == screen->notification_window ||
+            event->window == screen->window_list_window) {
+        return;
+    }
+
     window = create_window(event->window);
     window->position.x = event->x;
     window->position.y = event->y;
@@ -60,14 +66,10 @@ static void handle_map_request(xcb_map_request_event_t *event)
 
     window = get_window_of_xcb_window(event->window);
     if (window == NULL) {
-        /* can this case ever happen? */
         return;
     }
     show_window(window);
-    if (!does_window_have_type(window, ewmh._NET_WM_WINDOW_TYPE_DESKTOP) &&
-            !does_window_have_type(window, ewmh._NET_WM_WINDOW_TYPE_DOCK)) {
-        set_focus_window(window);
-    }
+    set_focus_window(window);
 }
 
 /* Button press events are sent when the mouse is pressed together with
@@ -90,6 +92,7 @@ static void handle_button_press(xcb_button_press_event_t *event)
 
     selected_window.xcb_window = event->child;
 
+    /* grab mouse events, we will then receive all mouse events */
     xcb_grab_pointer(connection, 0, event->root,
             XCB_EVENT_MASK_BUTTON_RELEASE | XCB_EVENT_MASK_BUTTON_MOTION,
             XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC, event->root,
@@ -103,19 +106,23 @@ static void handle_motion_notify(xcb_motion_notify_event_t *event)
 {
     xcb_get_geometry_reply_t *geometry;
 
+    /* get the current size of the window */
     geometry = xcb_get_geometry_reply(connection,
             xcb_get_geometry(connection, selected_window.xcb_window), NULL);
     if (geometry == NULL) {
+        /* release mouse events back to the applications */
         xcb_ungrab_pointer(connection, XCB_CURRENT_TIME);
         selected_window.xcb_window = XCB_NONE;
         return;
     }
+    /* set the window position to the moved position */
     general_values[0] = geometry->x + (event->root_x - selected_window.old_mouse.x);
     general_values[1] = geometry->y + (event->root_y - selected_window.old_mouse.y);
-    selected_window.old_mouse.x = event->root_x;
-    selected_window.old_mouse.y = event->root_y;
     xcb_configure_window(connection, selected_window.xcb_window,
             XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y, general_values);
+
+    selected_window.old_mouse.x = event->root_x;
+    selected_window.old_mouse.y = event->root_y;
 }
 
 /* Button releases are only sent when we grabbed them. This only happens
@@ -124,6 +131,7 @@ static void handle_motion_notify(xcb_motion_notify_event_t *event)
 static void handle_button_release(xcb_button_release_event_t *event)
 {
     (void) event;
+    /* release mouse events back to the applications */
     xcb_ungrab_pointer(connection, XCB_CURRENT_TIME);
     selected_window.xcb_window = XCB_NONE;
 }
@@ -149,12 +157,7 @@ static void handle_property_notify(xcb_property_notify_event_t *event)
         return;
     }
 
-    set_window_mode(window, predict_window_mode(window), 0);
-
-    if (window->state.is_visible && !is_strut_empty(&window->properties.struts)) {
-        reconfigure_monitor_frame_sizes();
-        synchronize_root_property(ROOT_PROPERTY_WORK_AREA);
-    }
+    set_window_mode(window, predict_window_mode(window), false);
 }
 
 /* Unmap notifications are sent after a window decided it wanted to not be seen
@@ -164,7 +167,9 @@ void handle_unmap_notify(xcb_unmap_notify_event_t *event)
 {
     Window *window;
 
+    /* if the currently moved window is unmapped */
     if (event->window == selected_window.xcb_window) {
+        /* release mouse events back to the applications */
         xcb_ungrab_pointer(connection, XCB_CURRENT_TIME);
         selected_window.xcb_window = XCB_NONE;
     }
@@ -188,19 +193,20 @@ static void handle_destroy_notify(xcb_destroy_notify_event_t *event)
     }
 }
 
-/* Key press events are sent when a GRABBED key is triggered, keys were
- * grabbed at the start in init_keybinds() using xcb_grab_key().
- */
+/* Key press events are sent when a grabbed key is triggered. */
 void handle_key_press(xcb_key_press_event_t *event)
 {
-    action_t action;
+    struct configuration_key *key;
 
-    action = find_configured_action(event->state, get_keysym(event->detail));
-    if (action != ACTION_NULL) {
-        LOG("performing action: %u\n", action);
-        do_action(action);
-    } else {
-        LOG("trash key: %d\n", event->detail);
+    key = find_configured_key(&configuration, event->state,
+            get_keysym(event->detail));
+    if (key != NULL) {
+        LOG("performing %" PRIu32 " action(s)\n", key->number_of_actions);
+        for (uint32_t i = 0; i < key->number_of_actions; i++) {
+            LOG("performing action %s\n",
+                    convert_action_to_string(key->actions[i].code));
+            do_action(&key->actions[i]);
+        }
     }
 }
 
@@ -276,24 +282,6 @@ void handle_mapping_notify(xcb_mapping_notify_event_t *event)
     refresh_keymap(event);
 }
 
-/* Focus in events are sent when a window received focus. */
-void handle_focus_in(xcb_focus_in_event_t *event)
-{
-    Window *window;
-
-    /* TODO: describe this */
-    if (event->mode != XCB_NOTIFY_MODE_NORMAL ||
-            event->detail == XCB_NOTIFY_DETAIL_POINTER) {
-        return;
-    }
-
-    window = get_window_of_xcb_window(event->event);
-    if (window == NULL || window == focus_window) {
-        return;
-    }
-    set_focus_window_with_frame(window);
-}
-
 /* Handle the given xcb event.
  *
  * Descriptions for each event are above each handler.
@@ -302,6 +290,7 @@ void handle_event(xcb_generic_event_t *event)
 {
     uint8_t type;
 
+    /* remove the most significant bit, this gets the actual event type */
     type = (event->response_type & ~0x80);
 
     if (type >= randr_event_base) {
@@ -310,6 +299,7 @@ void handle_event(xcb_generic_event_t *event)
         return;
     }
 
+    LOG("");
     log_event(event);
 
     switch (type) {
@@ -321,11 +311,6 @@ void handle_event(xcb_generic_event_t *event)
     /* a window wants to appear on the screen */
     case XCB_MAP_REQUEST:
         handle_map_request((xcb_map_request_event_t*) event);
-        break;
-
-    /* a window was focused */
-    case XCB_FOCUS_IN:
-        handle_focus_in((xcb_focus_in_event_t*) event);
         break;
 
     /* a mouse button was pressed */

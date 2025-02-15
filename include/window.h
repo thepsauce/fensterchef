@@ -24,9 +24,6 @@ typedef struct window {
     /* the actual X window */
     xcb_window_t xcb_window;
 
-    /* frame this window is contained in */
-    Frame *frame;
-
     /* the window properties */
     WindowProperties properties;
 
@@ -108,6 +105,9 @@ void unlink_window_from_focus_list(Window *window);
 
 /* Check if the window accepts input focus. */
 bool does_window_accept_focus(Window *window);
+
+/* Set the focus_window and change the border color. */
+void set_focus_window_primitively(Window *window);
 
 /* Set the window that is in focus. */
 void set_focus_window(Window *window);

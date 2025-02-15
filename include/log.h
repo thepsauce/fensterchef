@@ -27,16 +27,23 @@
 } while (0)
 
 /* Log a formatted message with error indication. */
-#define ERR(format, ...) do { \
-    char time_buffer[64]; \
-    time_t current_time; \
-    struct tm *tm; \
-    current_time = time(NULL); \
-    tm = localtime(&current_time); \
-    strftime(time_buffer, sizeof(time_buffer), "{%F %T}", tm); \
-    fputs(time_buffer, stderr); \
+#define LOG_ERROR(xcb_error, format, ...) do { \
+    char time_buffer_[64]; \
+    time_t current_time_; \
+    struct tm *tm_; \
+    xcb_generic_error_t *error_ = (xcb_error); \
+    current_time_ = time(NULL); \
+    tm_ = localtime(&current_time_); \
+    strftime(time_buffer_, sizeof(time_buffer_), "{%F %T}", tm_); \
+    fputs(time_buffer_, stderr); \
     fprintf(stderr, "(%s:%d) ERR ", __FILE__, __LINE__); \
-    fprintf(stderr, (format), ##__VA_ARGS__); \
+    if (error_ != NULL) { \
+        log_error(error_, (format), ##__VA_ARGS__); \
+        free(error_); \
+    } else { \
+        fprintf(stderr, (format), ##__VA_ARGS__); \
+        fputc('\n', stderr); \
+    } \
 } while (0)
 
 /* Log an event to the log file.  */
@@ -53,8 +60,8 @@ void log_screen(void);
 #else
 
 #define LOG(...)
-#define LOG_ADDITONAL(...)
-#define ERR(...)
+#define LOG_ADDITIONAL(...)
+#define LOG_ERROR(...)
 
 #define log_event(...)
 #define log_error(...)

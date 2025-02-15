@@ -93,6 +93,7 @@ static void synchronize_supported(void)
         XCB_ATOM_WM_TRANSIENT_FOR,
     };
 
+    /* set all atoms our window manager supports */
     xcb_ewmh_set_supported(&ewmh, screen->number, SIZE(supported_atoms),
             /* xcb_ewmh_set_supported() expects a non const value, however, it
              * is just passed into a function expecting a const value

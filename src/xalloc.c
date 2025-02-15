@@ -92,7 +92,7 @@ void *xmemdup(const void *ptr, size_t size)
     return p_dup;
 }
 
-void *xstrdup(const char *s)
+char *xstrdup(const char *s)
 {
     char *s_dup;
 
@@ -105,7 +105,7 @@ void *xstrdup(const char *s)
     return s_dup;
 }
 
-void *xstrndup(const char *s, size_t n)
+char *xstrndup(const char *s, size_t n)
 {
     char *s_dup;
 

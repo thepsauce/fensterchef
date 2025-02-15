@@ -6,17 +6,6 @@
 
 #include "utility.h" // Position, Size
 
-/* stock object indexes */
-enum {
-    STOCK_WHITE_PEN,
-    STOCK_BLACK_PEN,
-
-    STOCK_GC,
-    STOCK_INVERTED_GC,
-
-    STOCK_COUNT,
-};
-
 /* forward declaration */
 struct monitor;
 
@@ -26,9 +15,6 @@ typedef struct screen {
     int number;
     /* the underlying xcb screen */
     xcb_screen_t *xcb_screen;
-
-    /* graphis objects with the id referring to the xcb id */
-    uint32_t stock_objects[STOCK_COUNT];
 
     /* supporting wm check window */
     xcb_window_t check_window;

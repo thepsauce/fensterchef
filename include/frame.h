@@ -47,6 +47,9 @@ Frame *get_frame_at_position(int32_t x, int32_t y);
 void resize_frame(Frame *frame, int32_t x, int32_t y,
         uint32_t width, uint32_t height);
 
+/* Resizes the inner window to fit within the frame. */
+void reload_frame(Frame *frame);
+
 /* Set the frame in focus, this also focuses the inner window if it exists. */
 void set_focus_frame(Frame *frame);
 

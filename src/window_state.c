@@ -1,48 +1,37 @@
 #include <inttypes.h>
 
+#include "configuration.h"
 #include "fensterchef.h"
 #include "frame.h"
 #include "log.h"
 #include "root_properties.h"
 #include "screen.h"
-#include "util.h"
+#include "tiling.h"
+#include "utility.h"
 #include "window.h"
 
 /* The whole purpose of this file is to detect the initial state of a window
  * and to handle a case where a window changes its window state.
- *
- * Since a change from one state to another depends on the previous state,
- * the transition system was created with function pointers.
  */
 
-static void transition_tiling_popup(Window *window);
-static void transition_tiling_fullscreen(Window *window);
-
-static void transition_popup_tiling(Window *window);
-static void transition_popup_fullscreen(Window *window);
-
-static void transition_fullscreen_popup(Window *window);
-
-static void (*transitions[3][3])(Window *window) = {
-    [WINDOW_MODE_TILING][WINDOW_MODE_POPUP] = transition_tiling_popup,
-    [WINDOW_MODE_TILING][WINDOW_MODE_FULLSCREEN] = transition_tiling_fullscreen,
-
-    [WINDOW_MODE_POPUP][WINDOW_MODE_TILING] = transition_popup_tiling,
-    [WINDOW_MODE_POPUP][WINDOW_MODE_FULLSCREEN] = transition_popup_fullscreen,
-
-                                                /* same as transition popup to
-                                                 * tiling */
-    [WINDOW_MODE_FULLSCREEN][WINDOW_MODE_TILING] = transition_popup_tiling,
-    [WINDOW_MODE_FULLSCREEN][WINDOW_MODE_POPUP] = transition_fullscreen_popup,
-};
+#include <signal.h>
 
 /* Predicts what kind of mode the window should be in.
  * TODO: should this be adjustable in the user configuration?
  */
 window_mode_t predict_window_mode(Window *window)
 {
+    /* direct checks */
     if (does_window_have_state(window, ewmh._NET_WM_STATE_FULLSCREEN)) {
         return WINDOW_MODE_FULLSCREEN;
+    }
+    if (does_window_have_type(window, ewmh._NET_WM_WINDOW_TYPE_DOCK)) {
+        return WINDOW_MODE_DOCK;
+    }
+
+    /* if this window has struts, it must be a dock */
+    if (!is_strut_empty(&window->properties.struts)) {
+        return WINDOW_MODE_DOCK;
     }
 
     /* transient windows are popup windows */
@@ -58,6 +47,12 @@ window_mode_t predict_window_mode(Window *window)
                 window->properties.size_hints.max_width ||
             window->properties.size_hints.min_height ==
                 window->properties.size_hints.max_height)) {
+        return WINDOW_MODE_POPUP;
+    }
+
+    /* popup windows have static gravity */
+    if ((window->properties.size_hints.flags & (XCB_ICCCM_SIZE_HINT_P_WIN_GRAVITY)) &&
+            window->properties.size_hints.win_gravity == XCB_GRAVITY_STATIC) {
         return WINDOW_MODE_POPUP;
     }
 
@@ -88,13 +83,16 @@ static void configure_popup_size(Window *window)
     monitor = get_monitor_from_rectangle(window->position.x, window->position.y,
             window->size.width, window->size.height);
 
+    /* if the window never had a popup size, use the size hints to get a size
+     * that the window prefers
+     */
     if (window->popup_size.width == 0) {
         if ((window->properties.size_hints.flags & XCB_ICCCM_SIZE_HINT_P_SIZE)) {
             width = window->properties.size_hints.width;
             height = window->properties.size_hints.height;
         } else {
-            width = monitor->frame->width * 2 / 3;
-            height = monitor->frame->height * 2 / 3;
+            width = monitor->size.width * 2 / 3;
+            height = monitor->size.height * 2 / 3;
         }
 
         if ((window->properties.size_hints.flags & XCB_ICCCM_SIZE_HINT_P_MIN_SIZE)) {
@@ -111,8 +109,8 @@ static void configure_popup_size(Window *window)
             x = window->properties.size_hints.x;
             y = window->properties.size_hints.y;
         } else {
-            x = (monitor->frame->width - width) / 2;
-            y = (monitor->frame->height - height) / 2;
+            x = monitor->position.x + (monitor->size.width - width) / 2;
+            y = monitor->position.y + (monitor->size.height - height) / 2;
         }
 
         window->popup_position.x = x;
@@ -126,6 +124,7 @@ static void configure_popup_size(Window *window)
         height = window->popup_size.height;
     }
 
+    /* consider the window gravity, i.e. where the window wants to be */
     if ((window->properties.size_hints.flags & XCB_ICCCM_SIZE_HINT_P_WIN_GRAVITY)) {
         switch (window->properties.size_hints.win_gravity) {
         case XCB_GRAVITY_NORTH_WEST:
@@ -141,7 +140,7 @@ static void configure_popup_size(Window *window)
             x = monitor->position.x + monitor->size.width - width;
             y = monitor->position.y;
             break;
-        
+
         case XCB_GRAVITY_WEST:
             x = monitor->position.x;
             break;
@@ -172,6 +171,11 @@ static void configure_popup_size(Window *window)
     }
 
     set_window_size(window, x, y, width, height);
+
+    /* make sure the popup window has a border */
+    general_values[0] = configuration.border.size;
+    xcb_configure_window(connection, window->xcb_window,
+            XCB_CONFIG_WINDOW_BORDER_WIDTH, general_values);
 }
 
 /* Sets the position and size of the window to fullscreen. */
@@ -190,68 +194,132 @@ static void configure_fullscreen_size(Window *window)
     } else {
         monitor = get_monitor_from_rectangle(window->position.x,
                 window->position.y, window->size.width, window->size.height);
-        set_window_size(window, monitor->frame->x, monitor->frame->y,
-                monitor->frame->width, monitor->frame->height);
+        set_window_size(window, monitor->position.x, monitor->position.y,
+                monitor->size.width, monitor->size.height);
     }
+
+    /* remove border: fullscreen windows have no border */
+    general_values[0] = 0;
+    xcb_configure_window(connection, window->xcb_window,
+            XCB_CONFIG_WINDOW_BORDER_WIDTH, general_values);
 }
 
-static void transition_tiling_popup(Window *window)
-{
-    Window *next;
 
-    next = get_next_hidden_window(window);
-    if (next != NULL) {
-        link_window_and_frame(next, window->frame);
-        show_window_quickly(next);
+
+/* Sets the position and size of the window to a dock window. */
+static void configure_dock_size(Window *window)
+{
+    Monitor *monitor;
+    int32_t x, y;
+    uint32_t width, height;
+
+    if ((window->properties.size_hints.flags & XCB_ICCCM_SIZE_HINT_P_SIZE)) {
+        width = window->properties.size_hints.width;
+        height = window->properties.size_hints.height;
     } else {
-        window->frame->window = NULL;
-        window->frame = NULL;
+        width = 0;
+        height = 0;
     }
 
-    configure_popup_size(window);
-    set_window_above(window);
-}
-
-static void transition_tiling_fullscreen(Window *window)
-{
-    Window *next;
-
-    next = get_next_hidden_window(window);
-    if (next != NULL) {
-        link_window_and_frame(next, window->frame);
-        show_window_quickly(next);
+    if ((window->properties.size_hints.flags & XCB_ICCCM_SIZE_HINT_P_POSITION)) {
+        x = window->properties.size_hints.x;
+        y = window->properties.size_hints.y;
     } else {
-        window->frame->window = NULL;
-        window->frame = NULL;
+        x = window->position.x;
+        y = window->position.y;
     }
 
-    configure_fullscreen_size(window);
-    set_window_above(window);
-}
+    monitor = get_monitor_from_rectangle(x, y, 1, 1);
 
-static void transition_popup_tiling(Window *window)
-{
-    Window *old_window;
-
-    old_window = focus_frame->window;
-
-    link_window_and_frame(window, focus_frame);
-
-    set_focus_window(window);
-
-    if (old_window != NULL) {
-        hide_window_quickly(old_window);
+    /* if the window does not specify a size itself, then do it based on the
+     * struts the window defines, reasoning is that when the window wants to
+     * occupy screen space, then it should be within that occupied space
+     */
+    if (width == 0 || height == 0) {
+        if (window->properties.struts.left != 0) {
+            x = monitor->position.x;
+            y = window->properties.struts.left_start_y;
+            width = window->properties.struts.left;
+            height = window->properties.struts.left_end_y -
+                window->properties.struts.left_start_y + 1;
+        } else if (window->properties.struts.top != 0) {
+            x = window->properties.struts.top_start_x;
+            y = monitor->position.y;
+            width = window->properties.struts.top_end_x -
+                window->properties.struts.top_start_x + 1;
+            height = window->properties.struts.top;
+        } else if (window->properties.struts.right != 0) {
+            x = monitor->position.x + monitor->size.width -
+                window->properties.struts.right;
+            y = window->properties.struts.right_start_y;
+            width = window->properties.struts.right;
+            height = window->properties.struts.right_end_y -
+                window->properties.struts.right_start_y + 1;
+        } else if (window->properties.struts.bottom != 0) {
+            x = window->properties.struts.bottom_start_x;
+            y = monitor->position.y + monitor->size.height -
+                window->properties.struts.bottom;
+            width = window->properties.struts.bottom_end_x -
+                window->properties.struts.bottom_start_x + 1;
+            height = window->properties.struts.bottom;
+        } else {
+            /* TODO: what to do here? */
+            width = 64;
+            height = 32;
+        }
     }
-}
 
-static void transition_popup_fullscreen(Window *window)
-{
-    configure_fullscreen_size(window);
-}
+    /* consider the window gravity, i.e. where the window wants to be */
+    if ((window->properties.size_hints.flags & XCB_ICCCM_SIZE_HINT_P_WIN_GRAVITY)) {
+        switch (window->properties.size_hints.win_gravity) {
+        case XCB_GRAVITY_NORTH_WEST:
+            x = monitor->position.x;
+            break;
 
-static void transition_fullscreen_popup(Window *window)
-{
-    configure_popup_size(window);
+        case XCB_GRAVITY_NORTH:
+            y = monitor->position.y;
+            break;
+
+        case XCB_GRAVITY_NORTH_EAST:
+            x = monitor->position.x + monitor->size.width - width;
+            y = monitor->position.y;
+            break;
+
+        case XCB_GRAVITY_WEST:
+            x = monitor->position.x;
+            break;
+
+        case XCB_GRAVITY_CENTER:
+            x = monitor->position.x + (monitor->size.width - width) / 2;
+            y = monitor->position.y + (monitor->size.height - height) / 2;
+            break;
+
+        case XCB_GRAVITY_EAST:
+            x = monitor->position.x + monitor->size.width - width;
+            break;
+
+        case XCB_GRAVITY_SOUTH_WEST:
+            x = monitor->position.x;
+            y = monitor->position.y + monitor->size.height - height;
+            break;
+
+        case XCB_GRAVITY_SOUTH:
+            y = monitor->position.y + monitor->size.height - height;
+            break;
+
+        case XCB_GRAVITY_SOUTH_EAST:
+            x = monitor->position.x + monitor->size.width - width;
+            y = monitor->position.y + monitor->size.width - height;
+            break;
+        }
+    }
+
+    set_window_size(window, x, y, width, height);
+
+    /* dock windows have no border */
+    general_values[0] = 0;
+    xcb_configure_window(connection, window->xcb_window,
+            XCB_CONFIG_WINDOW_BORDER_WIDTH, general_values);
 }
 
 /* Changes the window state to given value and reconfigures the window only
@@ -271,9 +339,60 @@ void set_window_mode(Window *window, window_mode_t mode, bool force_mode)
     window->state.is_mode_forced = force_mode;
 
     if (window->state.is_visible) {
-        if (transitions[window->state.mode][mode] != NULL) {
-            transitions[window->state.mode][mode](window);
+        /* pop out from tiling layout */
+        if (window->state.mode == WINDOW_MODE_TILING) {
+            Frame *const frame = get_frame_of_window(window);
+            if (configuration.tiling.auto_fill_void) {
+                Window *const next = get_next_hidden_window(window);
+                if (next != NULL) {
+                    frame->window = next;
+                    reload_frame(frame);
+                    show_window_quickly(next);
+                } else {
+                    frame->window = NULL;
+                }
+            } else {
+                frame->window = NULL;
+            }
         }
+
+        switch (mode) {
+        case WINDOW_MODE_TILING: {
+            Window *const old_window = focus_frame->window;
+
+            focus_frame->window = window;
+            reload_frame(focus_frame);
+
+            set_focus_window(window);
+
+            if (old_window != NULL) {
+                hide_window_quickly(old_window);
+            }
+
+            /* tiling windows have a border */
+            general_values[0] = configuration.border.size;
+            xcb_configure_window(connection, window->xcb_window,
+                    XCB_CONFIG_WINDOW_BORDER_WIDTH, general_values);
+        } break;
+
+        case WINDOW_MODE_POPUP:
+            configure_popup_size(window);
+            break;
+
+        case WINDOW_MODE_FULLSCREEN:
+            configure_fullscreen_size(window);
+            break;
+
+        case WINDOW_MODE_DOCK:
+            configure_dock_size(window);
+            break;
+
+        /* not a real window mode */
+        case WINDOW_MODE_MAX:
+            break;
+        }
+
+        set_window_above(window);
     }
 
     window->state.previous_mode = window->state.mode;
@@ -295,8 +414,12 @@ void show_window_quickly(Window *window)
 
     xcb_map_window(connection, window->xcb_window);
 
-    if (window->state.mode == WINDOW_MODE_POPUP &&
-            !is_strut_empty(&window->properties.struts)) {
+    general_values[0] = configuration.border.color;
+    xcb_change_window_attributes(connection, window->xcb_window,
+            XCB_CW_BORDER_PIXEL, general_values);
+
+    /* check if struts have disappeared */
+    if (!is_strut_empty(&window->properties.struts)) {
         reconfigure_monitor_frame_sizes();
         synchronize_root_property(ROOT_PROPERTY_WORK_AREA);
     }
@@ -346,16 +469,18 @@ void show_window(Window *window)
     /* the window has to become part of the tiling layout */
     case WINDOW_MODE_TILING:
         previous = focus_frame->window;
-        link_window_and_frame(window, focus_frame);
+
+        focus_frame->window = window;
+        reload_frame(focus_frame);
+
+        general_values[0] = configuration.border.size;
+        xcb_configure_window(connection, window->xcb_window,
+                XCB_CONFIG_WINDOW_BORDER_WIDTH, general_values);
         break;
 
     /* the window has to show as popup window */
     case WINDOW_MODE_POPUP:
         configure_popup_size(window);
-        if (!is_strut_empty(&window->properties.struts)) {
-            reconfigure_monitor_frame_sizes();
-            synchronize_root_property(ROOT_PROPERTY_WORK_AREA);
-        }
         break;
 
     /* the window has to show as fullscreen window */
@@ -363,22 +488,34 @@ void show_window(Window *window)
         configure_fullscreen_size(window);
         break;
 
+    /* the window has to show as dock window */
+    case WINDOW_MODE_DOCK:
+        configure_dock_size(window);
+        break;
+
     /* not a real window mode */
     case WINDOW_MODE_MAX:
         break;
     }
 
-    /* map the window before unmapping to avoid flicker */
     xcb_map_window(connection, window->xcb_window);
 
     if (previous != NULL) {
         hide_window_quickly(previous);
+    }
+
+    /* check if struts have appeared */
+    if (!is_strut_empty(&window->properties.struts)) {
+        reconfigure_monitor_frame_sizes();
+        synchronize_root_property(ROOT_PROPERTY_WORK_AREA);
     }
 }
 
 /* Hide a window without focusing another window. */
 void hide_window_quickly(Window *window)
 {
+    Frame *frame;
+
     if (!window->state.is_visible) {
         return;
     }
@@ -387,16 +524,21 @@ void hide_window_quickly(Window *window)
 
     window->state.is_visible = false;
 
+    frame = get_frame_of_window(window);
+    if (frame != NULL) {
+        frame->window = NULL;
+    }
+
     if (focus_window == window) {
-        focus_window = window->previous_focus;
+        set_focus_window_primitively(window->previous_focus);
     }
 
     unlink_window_from_focus_list(window);
 
     xcb_unmap_window(connection, window->xcb_window);
 
-    if (window->state.mode == WINDOW_MODE_POPUP &&
-            !is_strut_empty(&window->properties.struts)) {
+    /* check if struts have disappeared */
+    if (!is_strut_empty(&window->properties.struts)) {
         reconfigure_monitor_frame_sizes();
         synchronize_root_property(ROOT_PROPERTY_WORK_AREA);
     }
@@ -406,9 +548,9 @@ void hide_window_quickly(Window *window)
 static void focus_previous_window(void)
 {
     if (focus_window->previous_focus != focus_window) {
-        set_focus_window_with_frame(focus_window->previous_focus);
+        set_focus_window(focus_window->previous_focus);
     } else {
-        focus_window = NULL;
+        set_focus_window_primitively(NULL);
         synchronize_root_property(ROOT_PROPERTY_ACTIVE_WINDOW);
     }
 }
@@ -417,6 +559,7 @@ static void focus_previous_window(void)
 void hide_window(Window *window)
 {
     Window *next;
+    Frame *frame;
 
     if (!window->state.is_visible) {
         return;
@@ -429,25 +572,31 @@ void hide_window(Window *window)
     switch (window->state.mode) {
     /* the window is replaced by another window in the tiling layout */
     case WINDOW_MODE_TILING:
-        next = get_next_hidden_window(window);
-        if (next != NULL) {
-            link_window_and_frame(next, window->frame);
-            show_window_quickly(next);
-            if (window == focus_window) {
-                set_focus_window(next);
+        frame = get_frame_of_window(window);
+        if (configuration.tiling.auto_remove_void) {
+            if (frame->parent != NULL) {
+                remove_frame(frame);
+            }
+            break;
+        }
+
+        if (configuration.tiling.auto_fill_void) {
+            next = get_next_hidden_window(window);
+            if (next != NULL) {
+                frame->window = next;
+                reload_frame(frame);
+                show_window_quickly(next);
+            } else {
+                frame->window = NULL;
             }
         } else {
-            if (window == focus_window) {
-                focus_previous_window();
-            }
-            window->frame->window = NULL;
+            frame->window = NULL;
         }
-        window->frame = NULL;
-        break;
-
+    /* fall through */
     /* need to do nothing here, just focus a different window */
     case WINDOW_MODE_POPUP:
     case WINDOW_MODE_FULLSCREEN:
+    case WINDOW_MODE_DOCK:
         if (window == focus_window) {
             focus_previous_window();
         }
@@ -462,8 +611,8 @@ void hide_window(Window *window)
 
     xcb_unmap_window(connection, window->xcb_window);
 
-    if (window->state.mode == WINDOW_MODE_POPUP &&
-            !is_strut_empty(&window->properties.struts)) {
+    /* check if struts have appeared */
+    if (!is_strut_empty(&window->properties.struts)) {
         reconfigure_monitor_frame_sizes();
         synchronize_root_property(ROOT_PROPERTY_WORK_AREA);
     }

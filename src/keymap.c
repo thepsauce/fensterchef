@@ -1,6 +1,5 @@
 #include "configuration.h"
 #include "fensterchef.h"
-#include "keybind.h"
 #include "keymap.h"
 #include "utility.h"
 
@@ -22,7 +21,7 @@ void refresh_keymap(xcb_mapping_notify_event_t *event)
 {
     (void) xcb_refresh_keyboard_mapping(key_symbols, event);
     /* regrab all keys */
-    init_configured_keys();
+    grab_configured_keys();
 }
 
 /* Get a keysym from a keycode. */

@@ -5,18 +5,58 @@
 #include <X11/Xlib.h> // XStringToKeysym
 
 #include "configuration_parser.h"
+#include "log.h"
 #include "utility.h"
 
-const struct modifier_string {
+/* conversion from parser error to string */
+static const char *parser_error_strings[] = {
+    [PARSER_SUCCESS] = "success",
+
+    [PARSER_ERROR_TRAILING] = "trailing characters",
+    [PARSER_ERROR_TOO_LONG] = "identifier exceeds character limit "
+        STRINGIFY(PARSER_IDENTIFIER_LIMIT),
+    [PARSER_ERROR_INVALID_LABEL] = "invalid label name",
+    [PARSER_ERROR_MISSING_CLOSING] = "missing a closing ']'",
+    [PARSER_ERROR_NOT_IN_LABEL] = "not in a label yet, use `[<label>]` on a previous line",
+    [PARSER_ERROR_INVALID_BOOLEAN] = "invalid boolean value",
+    [PARSER_ERROR_INVALID_VARIABLE_NAME] = "the current label does not have that variable name",
+    [PARSER_ERROR_BAD_COLOR_FORMAT] = "bad color format (expect #XXXXXX)",
+    [PARSER_ERROR_PREMATURE_LINE_END] = "premature line end",
+    [PARSER_ERROR_INVALID_MODIFIERS] = "invalid modifiers",
+    [PARSER_ERROR_INVALID_KEY_SYMBOL] = "invalid key symbol name",
+    [PARSER_ERROR_MISSING_ACTION] = "action value is missing",
+    [PARSER_ERROR_INVALID_ACTION] = "invalid action value",
+    [PARSER_ERROR_UNEXPECTED] = "unexpected tokens"
+};
+
+/* conversion from label code to string */
+static const char *label_strings[PARSER_LABEL_MAX] = {
+    [PARSER_LABEL_GENERAL] = "general",
+    [PARSER_LABEL_TILING] = "tiling",
+    [PARSER_LABEL_FONT] = "font",
+    [PARSER_LABEL_BORDER] = "border",
+    [PARSER_LABEL_GAPS] = "gaps",
+    [PARSER_LABEL_NOTIFICATION] = "notification",
+    [PARSER_LABEL_KEYBOARD] = "keyboard",
+};
+
+/* conversion of string to modifier mask */
+static const struct modifier_string {
     const char *name;
     uint16_t modifier;
-} modifier_translations[] = {
+} modifier_strings[] = {
+    { "None", 0 },
+
     { "Shift", XCB_MOD_MASK_SHIFT },
     { "Lock", XCB_MOD_MASK_LOCK },
     { "CapsLock", XCB_MOD_MASK_LOCK },
     { "Ctrl", XCB_MOD_MASK_CONTROL },
     { "Control", XCB_MOD_MASK_CONTROL },
+
+    /* common synonyms for some modifiers */
     { "Alt", XCB_MOD_MASK_1 },
+    { "Super", XCB_MOD_MASK_4 },
+
     { "Mod1", XCB_MOD_MASK_1 },
     { "Mod2", XCB_MOD_MASK_2 },
     { "Mod3", XCB_MOD_MASK_3 },
@@ -24,27 +64,86 @@ const struct modifier_string {
     { "Mod5", XCB_MOD_MASK_5 }
 };
 
-/* Read the next line from the file. */
-bool read_next_line(struct parser_context *context)
+/* size in bytes of all data types */
+static size_t data_type_sizes[] = {
+    [PARSER_DATA_TYPE_VOID] = 0,
+    [PARSER_DATA_TYPE_BOOLEAN] =
+        sizeof(((union parser_data_value*) 0)->boolean),
+    [PARSER_DATA_TYPE_STRING] =
+        sizeof(((union parser_data_value*) 0)->string),
+    [PARSER_DATA_TYPE_INTEGER] =
+        sizeof(((union parser_data_value*) 0)->integer),
+    [PARSER_DATA_TYPE_COLOR] =
+        sizeof(((union parser_data_value*) 0)->color),
+    [PARSER_DATA_TYPE_MODIFIERS] =
+        sizeof(((union parser_data_value*) 0)->modifiers),
+};
+
+/* The void data type is just a placeholder, it expects nothing. */
+static parser_error_t parse_void(Parser *parser)
+{
+    (void) parser;
+    return PARSER_SUCCESS;
+}
+
+/* Parse a boolean with some tolerance on the wording. */
+static parser_error_t parse_boolean(Parser *parser);
+
+/* Parse any text without leading or trailing space.
+ *
+ * This stops at a semicolon!
+ */
+static parser_error_t parse_string(Parser *parser);
+
+/* Parse an integer in simple decimal notation. */
+static parser_error_t parse_integer(Parser *parser);
+
+/* Parse a color in the format (X: hexadecimal digit): #XXXXXX. */
+static parser_error_t parse_color(Parser *parser);
+
+/* Parse key modifiers, e.g.: Control+Shift. */
+static parser_error_t parse_modifiers(Parser *parser);
+
+/* parsers for each data type */
+static parser_error_t (*data_type_parsers[])(Parser *parser) = {
+    [PARSER_DATA_TYPE_VOID] = parse_void,
+    [PARSER_DATA_TYPE_BOOLEAN] = parse_boolean,
+    [PARSER_DATA_TYPE_STRING] = parse_string,
+    [PARSER_DATA_TYPE_INTEGER] = parse_integer,
+    [PARSER_DATA_TYPE_COLOR] = parse_color,
+    [PARSER_DATA_TYPE_MODIFIERS] = parse_modifiers,
+};
+
+/* Converts @error to a string. */
+const char *parser_string_error(parser_error_t error)
+{
+    return parser_error_strings[error];
+}
+
+/* Read the next line from @parser->file into @parser->line. */
+bool read_next_line(Parser *parser)
 {
     size_t length;
 
+    parser->line_number++;
     length = 0;
     for (int c;; ) {
-        c = fgetc(context->file);
+        c = fgetc(parser->file);
 
-        if (length == context->line_capacity) {
-            context->line_capacity *= 2;
-            context->line = xrealloc(context->line, context->line_capacity);
+        if (length == parser->line_capacity) {
+            parser->line_capacity *= 2;
+            parser->line = xrealloc(parser->line, parser->line_capacity);
         }
 
         if (c == '\n' || c == EOF) {
             if (length > 0) {
-                context->line[length] = '\0';
+                parser->column = 0;
+                parser->line[length] = '\0';
                 return true;
             }
+            parser->line_number++;
         } else {
-            context->line[length++] = c;
+            parser->line[length++] = c;
         }
     
         if (c == EOF) {
@@ -54,319 +153,548 @@ bool read_next_line(struct parser_context *context)
     return false;
 }
 
-/* Parse any text without leading or trailing space. */
-static int parse_name(char *string, struct parser_variable *variable)
+/* Skip over empty characters (space). */
+static void skip_space(Parser *parser)
 {
-    variable->type = PARSER_TYPE_NAME;
-    variable->value.name = (FcChar8*) xstrdup(string);
-    return 0;
+    while (isspace(parser->line[parser->column])) {
+        parser->column++;
+    }
+}
+
+/* Skip leading space and put the next character into @parser->character. */
+static parser_error_t parse_character(Parser *parser)
+{
+    skip_space(parser);
+
+    parser->item_start_column = parser->column;
+    if (parser->line[parser->column] == '\0') {
+        return PARSER_ERROR_UNEXPECTED;
+    }
+    parser->character = parser->line[parser->column++];
+    return PARSER_SUCCESS;
+}
+
+/* Skip leading space and load the next identifier into @parser->indentifier. */
+static parser_error_t parse_identifier(Parser *parser)
+{
+    size_t length;
+
+    skip_space(parser);
+
+    parser->item_start_column = parser->column;
+
+    length = 0;
+    while (isalnum(parser->line[parser->column]) ||
+            parser->line[parser->column] == '-') {
+        length++;
+        if (length == sizeof(parser->identifier)) {
+            return PARSER_ERROR_TOO_LONG;
+        }
+        parser->column++;
+    }
+
+    if (length == 0) {
+        return PARSER_ERROR_UNEXPECTED;
+    }
+
+    memcpy(parser->identifier, &parser->line[parser->item_start_column], length);
+    parser->identifier[length] = '\0';
+    return PARSER_SUCCESS;
+}
+
+/* Parse a boolean with some tolerance on the wording. */
+static parser_error_t parse_boolean(Parser *parser)
+{
+    static const char *truth_values[] = {
+        "on", "true", "yes"
+    };
+    static const char *false_values[] = {
+        "off", "false", "no"
+    };
+
+    parser_error_t error;
+
+    skip_space(parser);
+
+    error = parse_identifier(parser);
+    if (error != PARSER_SUCCESS) {
+        return error;
+    }
+
+    for (uint32_t i = 0; i < SIZE(truth_values); i++) {
+        if (strcmp(truth_values[i], parser->identifier) == 0) {
+            parser->data.boolean = true;
+            return PARSER_SUCCESS;
+        }
+    }
+
+    for (uint32_t i = 0; i < SIZE(false_values); i++) {
+        if (strcmp(false_values[i], parser->identifier) == 0) {
+            parser->data.boolean = false;
+            return PARSER_SUCCESS;
+        }
+    }
+
+    return PARSER_ERROR_INVALID_BOOLEAN;
+}
+
+/* Parse any text without leading or trailing space.
+ *
+ * This stops at a semicolon!
+ */
+static parser_error_t parse_string(Parser *parser)
+{
+    size_t end, real_end;
+
+    skip_space(parser);
+
+    end = parser->column;
+    real_end = end;
+    while (parser->line[end] != '\0' && parser->line[end] != ';') {
+        if (!isspace(parser->line[end])) {
+            real_end = end + 1;
+        }
+        end++;
+    }
+
+    parser->data.string = (uint8_t*) xstrndup(&parser->line[parser->column],
+            real_end - parser->column);
+    parser->column = end;
+    return PARSER_SUCCESS;
 }
 
 /* Parse an integer in simple decimal notation. */
-static int parse_integer(char *string, struct parser_variable *variable)
+static parser_error_t parse_integer(Parser *parser)
 {
     uint32_t integer;
 
-    for (integer = 0; isdigit(string[0]); ) {
+    skip_space(parser);
+
+    parser->item_start_column = parser->column;
+
+    if (!isdigit(parser->line[parser->column])) {
+        return PARSER_ERROR_UNEXPECTED;
+    }
+
+    for (integer = 0; isdigit(parser->line[parser->column]); parser->column++) {
         integer *= 10;
-        integer += string[0] - '0';
+        integer += parser->line[parser->column] - '0';
     }
 
-    while (isspace(string[0])) {
-       string++;
-    }
+    parser->data.integer = integer;
 
-    if (string[0] != '\0') {
-        return 1;
-    }
-
-    variable->value.integer = integer;
-
-    return 0;
+    return PARSER_SUCCESS;
 }
 
 /* Parse a color in the format (X: hexadecimal digit): #XXXXXX. */
-static int parse_color(char *string, struct parser_variable *variable)
+static parser_error_t parse_color(Parser *parser)
 {
     uint32_t color;
+    uint32_t count;
 
-    if (string[0] != '#') {
-        return 1;
+    if (parse_character(parser) != PARSER_SUCCESS) {
+        return PARSER_ERROR_PREMATURE_LINE_END;
     }
 
-    for (color = 0; isxdigit(string[0]); ) {
-        color *= 16;
-        color += isdigit(string[0]) ? string[0] - '0' :
-            tolower(string[0]) + 0xa - 'a';
+    if (parser->character != '#') {
+        return PARSER_ERROR_BAD_COLOR_FORMAT;
     }
 
-    variable->value.color = color;
+    for (color = 0, count = 0; isxdigit(parser->line[parser->column]);
+            count++, parser->column++) {
+        color <<= 4;
+        color += isdigit(parser->line[parser->column]) ?
+            parser->line[parser->column] - '0' :
+            tolower(parser->line[parser->column]) + 0xa - 'a';
+    }
 
-    return 0;
+    if (count != 6) {
+        return PARSER_ERROR_BAD_COLOR_FORMAT;
+    }
+
+    parser->data.color = color;
+
+    return PARSER_SUCCESS;
 }
 
 /* Parse key modifiers, e.g.: Control+Shift. */
-static int parse_modifiers(char *modifiers, struct parser_variable *variable)
+static parser_error_t parse_modifiers(Parser *parser)
 {
-    char *next_modifier, *end;
-    uint32_t translation_index;
+    parser_error_t error;
+    uint32_t string_index;
 
-    variable->value.modifiers = 0;
-    while (modifiers != NULL) {
-        next_modifier = modifiers;
-        while (isalpha(modifiers[0])) {
-            modifiers++;
-        }
-        end = modifiers;
-
-        while (isspace(modifiers[0])) {
-            modifiers++;
-        }
-
-        if (modifiers[0] == '\0') {
-            modifiers = NULL;
-        } else if (modifiers[0] != '+') {
-            return 1;
-        }
-
-        end[0] = '\0';
-
-        translation_index = (uint32_t) -1;
-        for (uint32_t i = 0; i < SIZE(modifier_translations); i++) {
-            if (strcmp(modifier_translations[i].name, next_modifier) == 0) {
-                translation_index = i;
+    parser->data.modifiers = 0;
+    error = parse_identifier(parser);
+    while (error == PARSER_SUCCESS) {
+        /* find the modifier */
+        string_index = (uint32_t) -1;
+        for (uint32_t i = 0; i < SIZE(modifier_strings); i++) {
+            if (strcmp(modifier_strings[i].name, parser->identifier) == 0) {
+                string_index = i;
                 break;
             }
         }
-        if (translation_index == (uint32_t) -1) {
-            return 1;
+        if (string_index == (uint32_t) -1) {
+            return PARSER_ERROR_INVALID_MODIFIERS;
         }
 
-        variable->value.modifiers |=
-            modifier_translations[translation_index].modifier;
+        parser->data.modifiers |= modifier_strings[string_index].modifier;
+
+        /* go to the next '+' */
+        if (parse_character(parser) != PARSER_SUCCESS) {
+            return PARSER_SUCCESS;
+        }
+        if (parser->character != '+') {
+            return PARSER_ERROR_UNEXPECTED;
+        }
+
+        error = parse_identifier(parser);
     }
-    return 0;
+    return error;
 }
 
-/* Parse a key bind, e.g.: a next-window. */
-static int parse_key(char *key, struct parser_variable *variable)
+/* Duplicates given @value deeply into itself. */
+void duplicate_data_value(parser_data_type_t type,
+        union parser_data_value *value)
 {
-    char *next_value;
-    bool is_end;
-    uint32_t translation_index;
+    switch (type) {
+    /* do a copy of the string */
+    case PARSER_DATA_TYPE_STRING:
+        value->string = (uint8_t*) xstrdup((char*) value->string);
+        break;
 
-    variable->value.key.modifiers = 0;
-    while (1) {
-        next_value = key;
-        while (isalpha(key[0])) {
-            key++;
-        }
+    /* these have no data that needs to be deep copied */
+    case PARSER_DATA_TYPE_BOOLEAN:
+    case PARSER_DATA_TYPE_VOID:
+    case PARSER_DATA_TYPE_INTEGER:
+    case PARSER_DATA_TYPE_COLOR:
+    case PARSER_DATA_TYPE_MODIFIERS:
+        break;
+    }
+}
 
-        if (key[0] == '\0') {
-            return 1;
-        }
+/* Frees the resources the given data value occupies. */
+void clear_data_value(parser_data_type_t type, union parser_data_value *value)
+{
+    switch (type) {
+    /* free the string value */
+    case PARSER_DATA_TYPE_STRING:
+        free(value->string);
+        break;
 
-        is_end = isspace(key[0]);
+    /* these have no data that needs to be cleared */
+    case PARSER_DATA_TYPE_BOOLEAN:
+    case PARSER_DATA_TYPE_VOID:
+    case PARSER_DATA_TYPE_INTEGER:
+    case PARSER_DATA_TYPE_COLOR:
+    case PARSER_DATA_TYPE_MODIFIERS:
+        break;
+    }
+}
 
-        key[0] = '\0';
-        key++;
+/* Parse a keybinding, e.g.: "Shift+v split-horizontally ; move-right".
+ *
+ * This function assumes that an identifier was loaded into @parser.
+ */
+static parser_error_t parse_key(Parser *parser)
+{
+    parser_error_t error;
+    uint32_t string_index;
+    Action *action;
 
-        if (is_end) {
-            variable->value.key.key_symbol = XStringToKeysym(next_value);
+    parser->key.modifiers = parser->configuration->keyboard.modifiers;
+
+    /* first, read the modifiers and key symbol */
+    error = PARSER_SUCCESS;
+    while (error == PARSER_SUCCESS) {
+        /* try to find a next '+', if not found, then that must be a none
+         * modifier
+         */
+        skip_space(parser);
+        if (parser->line[parser->column] != '+') {
+            parser->key.key_symbol = XStringToKeysym(parser->identifier);
+            if (parser->key.key_symbol == NoSymbol) {
+                return PARSER_ERROR_INVALID_KEY_SYMBOL;
+            }
             break;
         }
 
-        translation_index = (uint32_t) -1;
-        for (uint32_t i = 0; i < SIZE(modifier_translations); i++) {
-            if (strcmp(modifier_translations[i].name, next_value) == 0) {
-                translation_index = i;
+        /* find the modifier */
+        string_index = (uint32_t) -1;
+        for (uint32_t i = 0; i < SIZE(modifier_strings); i++) {
+            if (strcmp(modifier_strings[i].name, parser->identifier) == 0) {
+                string_index = i;
                 break;
             }
         }
-        if (translation_index == (uint32_t) -1) {
-            return 1;
+        if (string_index == (uint32_t) -1) {
+            return PARSER_ERROR_INVALID_MODIFIERS;
         }
 
-        variable->value.key.modifiers |=
-            modifier_translations[translation_index].modifier;
+        parser->key.modifiers |= modifier_strings[string_index].modifier;
+
+        /* skip over '+' */
+        parser->column++;
+
+        error = parse_identifier(parser);
     }
 
-    next_value = key;
-    while (isalpha(key[0]) || key[0] == '-') {
-        key++;
-    }
-
-    if (key[0] != '\0') {
-        key[0] = '\0';
-
-        do {
-            key++;
-        } while (isspace(key[0]));
-
-        if (key[0] != '\0') {
-            return 1;
+    /* second, read the actions to perform */
+    parser->key.actions = NULL;
+    parser->key.number_of_actions = 0;
+    while (true) {
+        error = parse_identifier(parser);
+        if (error == PARSER_ERROR_TOO_LONG) {
+            free_key_actions(&parser->key);
+            return error;
         }
+        if (error != PARSER_SUCCESS) {
+            free_key_actions(&parser->key);
+            return PARSER_ERROR_MISSING_ACTION;
+        }
+
+        RESIZE(parser->key.actions, parser->key.number_of_actions + 1);
+        action = &parser->key.actions[parser->key.number_of_actions];
+
+        action->code = convert_string_to_action(parser->identifier);
+        if (action->code == ACTION_NULL) {
+            free_key_actions(&parser->key);
+            return PARSER_ERROR_INVALID_ACTION;
+        }
+        memset(&action->parameter, 0, sizeof(action->parameter));
+
+        const parser_data_type_t data_type = get_action_data_type(action->code);
+        if (data_type != PARSER_DATA_TYPE_VOID) {
+            error = data_type_parsers[data_type](parser);
+            if (error != PARSER_SUCCESS) {
+                return error;
+            }
+            action->parameter = parser->data;
+        }
+
+        parser->key.number_of_actions++;
+
+        skip_space(parser);
+        
+        if (parser->line[parser->column] != ';') {
+            break;
+        }
+        parser->column++;
     }
 
-    variable->value.key.action = convert_string_to_action(next_value);
-    if (variable->value.key.action == ACTION_NULL) {
-        return 1;
-    }
-
-    return 0;
+    return PARSER_SUCCESS;
 }
 
-static void update_configuration_value(struct configuration *configuration,
-        merge_t merge, struct parser_variable *variable)
+/* Merges the default keybindings into the current parser keybindings. */
+static parser_error_t merge_default_keyboard(Parser *parser)
 {
-    switch (merge) {
-    /* do nothing */
-    case MERGE_NONE:
-        break;
-
-    case MERGE_FONT_NAME:
-        free(configuration->font.name);
-        configuration->font.name = variable->value.name;
-        break;
-
-    case MERGE_BORDER_SIZE:
-        configuration->border.size = variable->value.integer;
-        break;
-    case MERGE_BORDER_COLOR:
-        configuration->border.color = variable->value.color;
-        break;
-    case MERGE_BORDER_FOCUS_COLOR:
-        configuration->border.focus_color = variable->value.color;
-        break;
-
-    case MERGE_GAPS_SIZE:
-        configuration->gaps.size = variable->value.integer;
-        break;
-
-    case MERGE_KEYBOARD_MAIN_MODIFIERS:
-        configuration->keyboard.main_modifiers = variable->value.modifiers;
-        break;
-    case MERGE_KEYBOARD_IGNORE_MODIFIERS:
-        configuration->keyboard.ignore_modifiers = variable->value.modifiers;
-        break;
-
-    /* handled elsewhere */
-    case MERGE_KEYBOARD_KEYS:
-        break;
-    }
+    merge_with_default_key_bindings(parser->configuration);
+    return PARSER_SUCCESS;
 }
 
 /* Parses and handles given textual line. */
-int parse_line(struct parser_context *context)
+parser_error_t parse_line(Parser *parser)
 {
-    static const char *labels[PARSER_LABEL_MAX] = {
-        [PARSER_LABEL_FONT] = "font",
-        [PARSER_LABEL_BORDER] = "border",
-        [PARSER_LABEL_GAPS] = "gaps",
-        [PARSER_LABEL_KEYBOARD] = "keyboard",
-    };
-
+    /* variables in the form <name> <value> */
     static const struct variable {
+        /* name of the variable */
         const char *name;
-        int (*parser)(char *argument, struct parser_variable *variable);
-        merge_t merge;
+        /* type of the variable */
+        parser_data_type_t data_type;
+        /* offset within a `struct configuration` */
+        size_t offset;
     } variables[PARSER_LABEL_MAX][8] = {
+        [PARSER_LABEL_GENERAL] = {
+            { "unused", PARSER_DATA_TYPE_INTEGER,
+                offsetof(struct configuration, general.unused) },
+            /* null terminate the end */
+            { NULL, 0, 0 }
+        },
+
+        [PARSER_LABEL_TILING] = {
+            { "auto-fill-void", PARSER_DATA_TYPE_BOOLEAN,
+                offsetof(struct configuration, tiling.auto_fill_void) },
+            { "auto-remove-void", PARSER_DATA_TYPE_BOOLEAN,
+                offsetof(struct configuration, tiling.auto_remove_void) },
+            /* null terminate the end */
+            { NULL, 0, 0 }
+        },
+
         [PARSER_LABEL_FONT] = {
-            { "name", parse_name, MERGE_FONT_NAME },
+            { "name", PARSER_DATA_TYPE_STRING,
+                offsetof(struct configuration, font.name) },
+            /* null terminate the end */
+            { NULL, 0, 0 }
         },
 
         [PARSER_LABEL_BORDER] = {
-            { "size", parse_integer, MERGE_BORDER_SIZE },
-            { "color", parse_color, MERGE_BORDER_COLOR },
-            { "focus-color", parse_color, MERGE_BORDER_FOCUS_COLOR },
+            { "size", PARSER_DATA_TYPE_INTEGER,
+                offsetof(struct configuration, border.size) },
+            { "color", PARSER_DATA_TYPE_COLOR,
+                offsetof(struct configuration, border.color) },
+            { "focus-color", PARSER_DATA_TYPE_COLOR,
+                offsetof(struct configuration, border.focus_color) },
+            /* null terminate the end */
+            { NULL, 0, 0 }
         },
 
         [PARSER_LABEL_GAPS] = {
-            { "size", parse_integer, MERGE_GAPS_SIZE },
+            { "inner", PARSER_DATA_TYPE_INTEGER,
+                offsetof(struct configuration, gaps.inner) },
+            { "outer", PARSER_DATA_TYPE_INTEGER,
+                offsetof(struct configuration, gaps.outer) },
+            /* null terminate the end */
+            { NULL, 0, 0 }
+        },
+
+        [PARSER_LABEL_NOTIFICATION] = {
+            { "duration", PARSER_DATA_TYPE_INTEGER,
+                offsetof(struct configuration, notification.duration) },
+            { "padding", PARSER_DATA_TYPE_INTEGER,
+                offsetof(struct configuration, notification.padding) },
+            { "border-color", PARSER_DATA_TYPE_COLOR,
+                offsetof(struct configuration, notification.border_color) },
+            { "border-size", PARSER_DATA_TYPE_INTEGER,
+                offsetof(struct configuration, notification.border_size) },
+            { "background", PARSER_DATA_TYPE_COLOR,
+                offsetof(struct configuration, notification.background) },
+            { "foreground", PARSER_DATA_TYPE_COLOR,
+                offsetof(struct configuration, notification.foreground) },
+            /* null terminate the end */
+            { NULL, 0, 0 }
         },
 
         [PARSER_LABEL_KEYBOARD] = {
-            { "main-modifiers", parse_modifiers, MERGE_KEYBOARD_MAIN_MODIFIERS },
-            { "ignore-modifiers", parse_modifiers, MERGE_KEYBOARD_IGNORE_MODIFIERS },
+            { "modifiers", PARSER_DATA_TYPE_MODIFIERS,
+                offsetof(struct configuration, keyboard.modifiers) },
+            { "ignore-modifiers", PARSER_DATA_TYPE_MODIFIERS,
+                offsetof(struct configuration, keyboard.ignore_modifiers) },
+            /* null terminate the end */
+            { NULL, 0, 0 }
         },
     };
 
-    char *line;
-    char *word, *end_word;
+    /* the parser commands are in the form <command> <arguments> */
+    static const struct command {
+        /* the name of the command */
+        const char *name;
+        /* the procedure to execute (parses and executes the command) */
+        parser_error_t (*procedure)(Parser *parser);
+    } commands[PARSER_LABEL_MAX][2] = {
+        [PARSER_LABEL_KEYBOARD] = {
+            { "merge-default", merge_default_keyboard },
+            /* null terminate the end */
+            { NULL, NULL }
+        }
+    };
 
-    struct parser_variable variable;
-    merge_t merge;
+    parser_error_t error;
 
-    line = context->line;
+    struct configuration_key *key;
 
     /* remove leading whitespace */
-    while (isblank(line[0])) {
-        line++;
-    }
+    skip_space(parser);
     
-    /* ignore empty lines */
-    if (line[0] == '\0') {
-        return 0;
+    /* ignore empty lines and comments */
+    if (parser->line[parser->column] == '\0' || parser->line[parser->column] == '#') {
+        parser->column += strlen(&parser->line[parser->column]);
+        return PARSER_SUCCESS;
     }
 
-    /* get an identifier */
-    word = line;
-    while (isalnum(line[0]) || line[0] == '-') {
-        line++;
-    }
+    if (parser->line[parser->column] == '[') {
+        parser->column++;
 
-    /* check for a label */
-    if (line[0] == ':') {
-        line[0] = '\0';
-        for (label_t i = PARSER_FIRST_LABEL; i < PARSER_LABEL_MAX; i++) {
-            if (strcmp(labels[i], word) == 0) {
-                context->label = i;
-                return 0;
+        error = parse_identifier(parser);
+        if (error != PARSER_SUCCESS) {
+            return error;
+        }
+
+        /* check if the label exists */
+        for (parser_label_t i = PARSER_FIRST_LABEL; i < PARSER_LABEL_MAX; i++) {
+            if (strcmp(label_strings[i], parser->identifier) == 0) {
+                parser->label = i;
+                /* check for an ending ']' */
+                error = parse_character(parser);
+                if (error != PARSER_SUCCESS || parser->character != ']') {
+                    return PARSER_ERROR_MISSING_CLOSING;
+                }
+                return PARSER_SUCCESS;
             }
         }
-        return 1;
+        return PARSER_ERROR_INVALID_LABEL;
+    }
+
+    /* check if we are in a label */
+    if (parser->label == PARSER_LABEL_NONE) {
+        return PARSER_ERROR_NOT_IN_LABEL;
     }
 
     /* if this is the end of the string already, then there is no hope */
-    if (line[0] == '\0') {
-        return 1;
+    if (parser->line[parser->column] == '\0') {
+        return PARSER_ERROR_PREMATURE_LINE_END;
     }
 
-    end_word = line;
-    end_word[0] = '\0';
+    /* get the variable/command name */
+    error = parse_identifier(parser);
+    if (error != PARSER_SUCCESS) {
+        return error;
+    }
 
-    do {
-        line++;
-    } while (isspace(line[0]));
-
-    for (uint32_t i = 0; i < SIZE(variables[context->label]); i++) {
-        if (variables[context->label][i].name == NULL) {
+    /* check for a variable setting */
+    for (uint32_t i = 0; i < SIZE(variables[parser->label]); i++) {
+        const struct variable *const variable = &variables[parser->label][i];
+        if (variable->name == NULL) {
             break;
         }
 
-        if (strcmp(variables[context->label][i].name, word) == 0) {
-            if (variables[context->label][i].parser(line, &variable) != 0) {
-                return 1;
+        if (strcmp(variable->name, parser->identifier) == 0) {
+            error = data_type_parsers[variable->data_type](parser);
+            if (error != PARSER_SUCCESS) {
+                return error;
             }
-            merge = variables[context->label][i].merge;
-            update_configuration_value(context->configuration, merge, &variable);
-            context->merge |= merge;
-            return 0;
+
+            /* set the struct member at given offset */
+            union parser_data_value *const value = (union parser_data_value*)
+                ((uint8_t*) parser->configuration + variable->offset);
+            clear_data_value(variable->data_type, value);
+            memcpy(value, &parser->data, data_type_sizes[variable->data_type]);
+            return PARSER_SUCCESS;
         }
     }
 
-    if (context->label == PARSER_LABEL_KEYBOARD) {
-        end_word[0] = ' ';
-        if (parse_key(word, &variable) != 0) {
-            return 1;
+    /* check for a parser command */
+    for (uint32_t i = 0; i < SIZE(commands[parser->label]); i++) {
+        const struct command *const command = &commands[parser->label][i];
+        if (command->name == NULL) {
+            break;
         }
-        RESIZE(context->configuration->keyboard.keys,
-                context->configuration->keyboard.number_of_keys + 1);
-        context->configuration->keyboard.keys[
-            context->configuration->keyboard.number_of_keys++] = variable.value.key;
-        context->merge |= MERGE_KEYBOARD_KEYS;
-        return 0;
+
+        if (strcmp(command->name, parser->identifier) == 0) {
+            return command->procedure(parser);
+        }
     }
 
-    return 1;
+    /* special handling for defining keybindings */
+    if (parser->label == PARSER_LABEL_KEYBOARD) {
+        error = parse_key(parser);
+        if (error != PARSER_SUCCESS) {
+            return error;
+        }
+
+        key = find_configured_key(parser->configuration, parser->key.modifiers,
+                parser->key.key_symbol);
+
+        if (key != NULL) {
+            free_key_actions(key);
+        } else {
+            RESIZE(parser->configuration->keyboard.keys,
+                    parser->configuration->keyboard.number_of_keys + 1);
+            key = &parser->configuration->keyboard.keys[
+                parser->configuration->keyboard.number_of_keys++];
+        }
+        *key = parser->key;
+        return PARSER_SUCCESS;
+    }
+
+    return PARSER_ERROR_INVALID_VARIABLE_NAME;
 }

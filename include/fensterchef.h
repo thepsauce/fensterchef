@@ -5,6 +5,7 @@
 
 #include <xcb/xcb.h>
 #include <xcb/xcb_ewmh.h>
+#include <xcb/render.h>
 
 #include <stdbool.h>
 #include <stdio.h>
@@ -18,15 +19,6 @@
                          XCB_CONFIG_WINDOW_Y | \
                          XCB_CONFIG_WINDOW_WIDTH | \
                          XCB_CONFIG_WINDOW_HEIGHT)
-
-/* padding used for internal popup windows */
-#define WINDOW_PADDING 6
-
-/* duration of the notification window in seconds */
-#define NOTIFICATION_DURATION 3
-
-/* cast to FcChar8* which represents a utf8 string */
-#define UTF8_TEXT(text) ((FcChar8*) (text))
 
 /* xcb server connection */
 extern xcb_connection_t         *connection;
@@ -49,9 +41,10 @@ void quit_fensterchef(int exit_code);
 /* Show the notification window with given message at given coordinates for
  * NOTIFICATION_DURATION seconds.
  *
+ * @message UTF-8 string.
  * @x Center x position.
  * @y Center y position.
  */
-void set_notification(const FcChar8 *message, int32_t x, int32_t y);
+void set_notification(const uint8_t *message, int32_t x, int32_t y);
 
 #endif
