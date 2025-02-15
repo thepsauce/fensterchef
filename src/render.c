@@ -549,6 +549,7 @@ static FT_Face load_glyph(uint32_t glyph, FT_Int32 load_flags)
         return face;
     }
 
+    /* glyph was not found, try an alternative font face */
     face = create_font_face_containing_glyph(glyph);
     if (face == NULL) {
         return NULL;
@@ -625,6 +626,7 @@ static int cache_glyph(uint32_t glyph, FT_Pos *advance)
 
     *advance = glyph_info.x_off;
 
+    /* mark the glyph as cached */
     FcCharSetAddChar(font.charset, glyph);
     return OK;
 }

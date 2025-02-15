@@ -9,6 +9,7 @@
 #include "configuration.h"
 #include "utility.h"
 
+/* maximum length of an identifier */
 #define PARSER_IDENTIFIER_LIMIT 64
 
 /* parser error codes

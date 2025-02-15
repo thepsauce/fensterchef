@@ -10,6 +10,8 @@
 #include <stdbool.h>
 #include <stdio.h>
 
+#include "utf8.h"
+
 #define FENSTERCHEF_NAME "fensterchef"
 
 #define FENSTERCHEF_CONFIGURATION ".config/fensterchef/fensterchef.config"
