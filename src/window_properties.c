@@ -2,13 +2,16 @@
 #include <string.h>
 
 #include "fensterchef.h"
+#include "log.h"
 #include "window.h"
+#include "root_properties.h"
+#include "screen.h"
 
 /* Checks if an atom is within the given list of atoms. */
 bool is_atom_included(const xcb_atom_t *atoms, uint32_t number_of_atoms,
         xcb_atom_t atom)
 {
-    for (uint32_t i = 0; i < number_of_atoms; i++) { \
+    for (uint32_t i = 0; i < number_of_atoms; i++) {
         if (atoms[i] == atom) {
             return true;
         }
@@ -21,21 +24,32 @@ static void update_window_name(Window *window)
 {
     xcb_get_property_cookie_t name_cookie;
     xcb_ewmh_get_utf8_strings_reply_t data;
+    xcb_get_property_reply_t *name;
+    xcb_generic_error_t *error;
 
     name_cookie = xcb_ewmh_get_wm_name(&ewmh, window->xcb_window);
 
+    free(window->properties.name);
+
     if (!xcb_ewmh_get_wm_name_reply(&ewmh, name_cookie, &data, NULL)) {
-        snprintf((char*) window->properties.short_name,
-                sizeof(window->properties.short_name),
-                "%" PRId32 "_", window->number);
+        /* fall back to WM_NAME */
+        name_cookie = xcb_get_property(connection, 0, window->xcb_window,
+                XCB_ATOM_WM_NAME, XCB_GET_PROPERTY_TYPE_ANY, 0, UINT32_MAX);
+        name = xcb_get_property_reply(connection, name_cookie, &error);
+        if (name == NULL) {
+            LOG_ERROR(error, "could not get window name");
+            window->properties.name = NULL;
+            return;
+        }
+        window->properties.name = (uint8_t*) xstrndup(
+                xcb_get_property_value(name),
+                xcb_get_property_value_length(name));
+        free(name);
         return;
     }
 
-    snprintf((char*) window->properties.short_name,
-            sizeof(window->properties.short_name),
-        "%" PRId32 "_%.*s",
-            window->number,
-            (int) MIN(data.strings_len, (uint32_t) INT_MAX), data.strings);
+    window->properties.name = (uint8_t*) xstrndup(data.strings,
+            data.strings_len);
 
     xcb_ewmh_get_utf8_strings_reply_wipe(&data);
 }
@@ -45,7 +59,8 @@ static void update_window_size_hints(Window *window)
 {
     xcb_get_property_cookie_t size_hints_cookie;
 
-    size_hints_cookie = xcb_icccm_get_wm_normal_hints(connection, window->xcb_window);
+    size_hints_cookie = xcb_icccm_get_wm_size_hints(connection, window->xcb_window,
+            XCB_ATOM_WM_NORMAL_HINTS);
     if (!xcb_icccm_get_wm_size_hints_reply(connection, size_hints_cookie,
                 &window->properties.size_hints, NULL)) {
         window->properties.size_hints.flags = 0;
@@ -67,28 +82,36 @@ static void update_window_hints(Window *window)
 /* Update the strut partial property of given window. */
 static void update_window_strut(Window *window)
 {
+    xcb_ewmh_wm_strut_partial_t new_struts;
     xcb_get_property_cookie_t strut_partial_cookie;
     xcb_get_property_cookie_t strut_cookie;
     xcb_ewmh_get_extents_reply_t struts;
 
-    memset(&window->properties.struts, 0, sizeof(window->properties.struts));
+    memset(&new_struts, 0, sizeof(new_struts));
 
     strut_partial_cookie = xcb_ewmh_get_wm_strut_partial(&ewmh,
             window->xcb_window);
-    if (xcb_ewmh_get_wm_strut_partial_reply(&ewmh, strut_partial_cookie,
-                &window->properties.struts, NULL)) {
-        return;
+    if (!xcb_ewmh_get_wm_strut_partial_reply(&ewmh, strut_partial_cookie,
+                &new_struts, NULL)) {
+        /* _NET_WM_STRUT is older than _NET_WM_STRUT_PARTIAL, fall back to it when
+         * there is no strut partial
+         */
+        strut_cookie = xcb_ewmh_get_wm_strut(&ewmh, window->xcb_window);
+        if (xcb_ewmh_get_wm_strut_reply(&ewmh, strut_cookie, &struts, NULL)) {
+            new_struts.left = struts.left;
+            new_struts.top = struts.top;
+            new_struts.right = struts.right;
+            new_struts.bottom = struts.bottom;
+        }
     }
 
-    /* _NET_WM_STRUT is older than _NET_WM_STRUT_PARTIAL, fall back to it when
-     * there is no strut partial
-     */
-    strut_cookie = xcb_ewmh_get_wm_strut(&ewmh, window->xcb_window);
-    if (xcb_ewmh_get_wm_strut_reply(&ewmh, strut_cookie, &struts, NULL)) {
-        window->properties.struts.left = struts.left;
-        window->properties.struts.top = struts.top;
-        window->properties.struts.right = struts.right;
-        window->properties.struts.bottom = struts.bottom;
+    /* check if the struts have changed */
+    if (memcmp(&window->properties.struts, &new_struts, sizeof(new_struts)) != 0) {
+        window->properties.struts = new_struts;
+        if (window->state.is_visible) {
+            reconfigure_monitor_frame_sizes();
+            synchronize_root_property(ROOT_PROPERTY_WORK_AREA);
+        }
     }
 }
 
@@ -109,6 +132,12 @@ static void update_window_type(Window *window)
     window->properties.types = xmemdup(type.atoms,
             sizeof(*type.atoms) * type.atoms_len);
     window->properties.number_of_types = type.atoms_len;
+
+    if (does_window_have_type(window, ewmh._NET_WM_WINDOW_TYPE_DOCK)) {
+        general_values[0] = 0;
+        xcb_configure_window(connection, window->xcb_window,
+                XCB_CONFIG_WINDOW_BORDER_WIDTH, general_values);
+    }
 
     xcb_ewmh_get_atoms_reply_wipe(&type);
 }
@@ -226,7 +255,7 @@ void update_all_window_properties(Window *window)
 /* Update the property of given window corresponding to given atom. */
 bool update_window_property_by_atom(Window *window, xcb_atom_t atom)
 {
-    if (atom == XCB_ATOM_WM_NAME) {
+    if (atom == XCB_ATOM_WM_NAME || atom == ewmh._NET_WM_NAME) {
         update_window_property(window, WINDOW_PROPERTY_NAME);
     } else if (atom == XCB_ATOM_WM_NORMAL_HINTS ||
             atom == XCB_ATOM_WM_SIZE_HINTS) {
@@ -249,7 +278,6 @@ bool update_window_property_by_atom(Window *window, xcb_atom_t atom)
     } else if (atom == ewmh._NET_WM_FULLSCREEN_MONITORS) {
         update_window_property(window, WINDOW_PROPERTY_FULLSCREEN_MONITORS);
     } else {
-        /* nothing we know of changed */
         return false;
     }
     return true;
@@ -323,6 +351,10 @@ void synchronize_allowed_actions(Window *window)
             ewmh._NET_WM_ACTION_CLOSE,
             ewmh._NET_WM_ACTION_ABOVE,
             ewmh._NET_WM_ACTION_BELOW,
+            XCB_NONE,
+        },
+
+        [WINDOW_MODE_DOCK] = {
             XCB_NONE,
         },
     };

@@ -1,20 +1,32 @@
 #ifndef ACTION_H
 #define ACTION_H
 
-/* action codes */
+#include "bits/configuration_parser_data_type.h"
+
+/* action codes
+ *
+ * NOTE: After editing an action code, also edit the action_strings[] array in
+ * action.c and implement the action in do_action().
+ */
 typedef enum {
     /* invalid action value */
     ACTION_NULL,
-    /* open a terminal window */
-    ACTION_START_TERMINAL,
+
+    /* the first valid action value */
+    ACTION_FIRST_ACTION,
+
+    /* no action at all */
+    ACTION_NONE = ACTION_FIRST_ACTION,
+    /* reload the configuration file */
+    ACTION_RELOAD_CONFIGURATION,
     /* go to the next window in the window list */
     ACTION_NEXT_WINDOW,
     /* go to the previous window in the window list */
-    ACTION_PREV_WINDOW,
+    ACTION_PREVIOUS_WINDOW,
     /* remove the current frame */
     ACTION_REMOVE_FRAME,
     /* changes a popup window to a tiling window and vise versa */
-    ACTION_CHANGE_WINDOW_STATE,
+    ACTION_TOGGLE_TILING,
     /* changes the window that was in focus before the current one */
     ACTION_TRAVERSE_FOCUS,
     /* toggles the fullscreen state of the currently focused window */
@@ -33,11 +45,36 @@ typedef enum {
     ACTION_MOVE_DOWN,
     /* show the interactive window list */
     ACTION_SHOW_WINDOW_LIST,
-    /* quits the window manager */
-    ACTION_QUIT_WM,
+    /* run a shell program */
+    ACTION_RUN,
+    /* show a notification with a string message */
+    ACTION_SHOW_MESSAGE,
+    /* show a notification with a message extracted from a shell program */
+    ACTION_SHOW_MESSAGE_RUN,
+    /* quits fensterchef */
+    ACTION_QUIT,
+
+    /* not a real action */
+    ACTION_MAX,
 } action_t;
 
-/* Do the given action, the action codes are `ACTION_*`. */
-void do_action(action_t action);
+typedef struct action {
+    /* the code of the action */
+    action_t code;
+    /* the parameter of the action */
+    union parser_data_value parameter;
+} Action;
+
+/* Get the data type the action expects as parameter. */
+parser_data_type_t get_action_data_type(action_t action);
+
+/* Get an action from a string (case insensitive). */
+action_t convert_string_to_action(const char *string);
+
+/* Get a string version of an action. */
+const char *convert_action_to_string(action_t action);
+
+/* Do the given action. */
+void do_action(const Action *action);
 
 #endif

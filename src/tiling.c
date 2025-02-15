@@ -1,10 +1,11 @@
 #include <inttypes.h>
 
+#include "configuration.h"
 #include "fensterchef.h"
 #include "frame.h"
 #include "log.h"
 #include "tiling.h"
-#include "util.h"
+#include "utility.h"
 #include "window.h"
 
 /* Split a frame horizontally or vertically.
@@ -47,9 +48,6 @@ void split_frame(Frame *split_from, bool is_split_vert)
 
     left->window = split_from->window;
 
-    if (split_from->window != NULL) {
-        split_from->window->frame = left;
-    }
     split_from->window = NULL;
     split_from->left = left;
     split_from->right = right;
@@ -63,18 +61,16 @@ void split_frame(Frame *split_from, bool is_split_vert)
         next_cur_frame = focus_frame;
     }
 
-    window = get_next_hidden_window(left->window);
-    if (window != NULL) {
-        /* show window in the right frame */
-        set_window_mode(window, WINDOW_MODE_TILING, 1);
-        focus_frame = right;
-        show_window(window);
+    if (configuration.tiling.auto_fill_void) {
+        window = get_next_hidden_window(left->window);
+        if (window != NULL) {
+            /* show window in the right frame */
+            focus_frame = right;
+            show_window(window);
+        }
     }
 
-    if (left->window != NULL) {
-        set_window_size(left->window, left->x, left->y,
-                left->width, left->height);
-    }
+    reload_frame(left);
 
     set_focus_frame(next_cur_frame);
 
@@ -90,7 +86,6 @@ static void unmap_and_destroy_recursively(Frame *frame)
         unmap_and_destroy_recursively(frame->left);
         unmap_and_destroy_recursively(frame->right);
     } else if (frame->window != NULL) {
-        frame->window->frame = NULL;
         hide_window_quickly(frame->window);
     }
     free(frame);
@@ -104,7 +99,7 @@ int remove_frame(Frame *frame)
 
     if (frame->parent == NULL) {
         LOG("attempted to remove the root frame\n");
-        return 1;
+        return ERROR;
     }
 
     parent = frame->parent;
@@ -115,9 +110,6 @@ int remove_frame(Frame *frame)
         other = parent->left;
     }
     parent->window = other->window;
-    if (other->window != NULL) {
-        other->window->frame = parent;
-    }
     parent->left = other->left;
     parent->right = other->right;
     free(other);
@@ -136,7 +128,7 @@ int remove_frame(Frame *frame)
     center_x = parent->x + parent->width / 2;
     center_y = parent->y + parent->height / 2;
     set_focus_frame(get_frame_at_position(center_x, center_y));
-    return 0;
+    return OK;
 }
 
 /* Destroy a frame and all child frames and hide all inner windows. */

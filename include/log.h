@@ -1,44 +1,49 @@
 #ifndef LOG_H
 #define LOG_H
 
-#include "fensterchef.h"
-
 #ifdef DEBUG
 
 #include <stdio.h>
 #include <time.h>
 #include <xcb/xcb_event.h>
 
-extern FILE *log_file;
+#include "fensterchef.h"
 
-/* Log a formatted message to the log file. */
-#define LOG(fmt, ...) do { \
-    char buf[64]; \
-    time_t cur_time; \
+/* Log a formatted message. */
+#define LOG(format, ...) do { \
+    char time_buffer[64]; \
+    time_t current_time; \
     struct tm *tm; \
-    cur_time = time(NULL); \
-    tm = localtime(&cur_time); \
-    strftime(buf, sizeof(buf), "[%F %T]", tm); \
-    fputs(buf, log_file); \
-    fprintf(log_file, "(%s:%d) ", __FILE__, __LINE__); \
-    fprintf(log_file, (fmt), ##__VA_ARGS__); \
+    current_time = time(NULL); \
+    tm = localtime(&current_time); \
+    strftime(time_buffer, sizeof(time_buffer), "[%F %T]", tm); \
+    fputs(time_buffer, stderr); \
+    fprintf(stderr, "(%s:%d) ", __FILE__, __LINE__); \
+    fprintf(stderr, (format), ##__VA_ARGS__); \
 } while (0)
 
-#define LOG_ADDITIONAL(fmt, ...) do { \
-    fprintf(log_file, (fmt), ##__VA_ARGS__); \
+#define LOG_ADDITIONAL(format, ...) do { \
+    fprintf(stderr, (format), ##__VA_ARGS__); \
 } while (0)
 
-/* Log a formatted message to the log file with error indication. */
-#define ERR(fmt, ...) do { \
-    char buf[64]; \
-    time_t cur_time; \
-    struct tm *tm; \
-    cur_time = time(NULL); \
-    tm = localtime(&cur_time); \
-    strftime(buf, sizeof(buf), "{%F %T}", tm); \
-    fputs(buf, log_file); \
-    fprintf(log_file, "(%s:%d) ERR ", __FILE__, __LINE__); \
-    fprintf(log_file, (fmt), ##__VA_ARGS__); \
+/* Log a formatted message with error indication. */
+#define LOG_ERROR(xcb_error, format, ...) do { \
+    char time_buffer_[64]; \
+    time_t current_time_; \
+    struct tm *tm_; \
+    xcb_generic_error_t *error_ = (xcb_error); \
+    current_time_ = time(NULL); \
+    tm_ = localtime(&current_time_); \
+    strftime(time_buffer_, sizeof(time_buffer_), "{%F %T}", tm_); \
+    fputs(time_buffer_, stderr); \
+    fprintf(stderr, "(%s:%d) ERR ", __FILE__, __LINE__); \
+    if (error_ != NULL) { \
+        log_error(error_, (format), ##__VA_ARGS__); \
+        free(error_); \
+    } else { \
+        fprintf(stderr, (format), ##__VA_ARGS__); \
+        fputc('\n', stderr); \
+    } \
 } while (0)
 
 /* Log an event to the log file.  */
@@ -55,8 +60,8 @@ void log_screen(void);
 #else
 
 #define LOG(...)
-#define LOG_ADDITONAL(...)
-#define ERR(...)
+#define LOG_ADDITIONAL(...)
+#define LOG_ERROR(...)
 
 #define log_event(...)
 #define log_error(...)

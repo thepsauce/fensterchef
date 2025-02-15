@@ -9,10 +9,15 @@ typedef enum window_mode {
     WINDOW_MODE_POPUP,
     /* the window is a fullscreen window */
     WINDOW_MODE_FULLSCREEN,
+    /* the window is attached to an edge of the screen, usually not focusable */
+    WINDOW_MODE_DOCK,
 
     /* the maximum value of a window mode */
     WINDOW_MODE_MAX,
 } window_mode_t;
+
+#define DOES_WINDOW_MODE_HAVE_BORDER(mode) \
+    ((mode) == WINDOW_MODE_TILING || (mode) == WINDOW_MODE_POPUP)
 
 /* forward declaration */
 struct window;

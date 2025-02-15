@@ -1,19 +1,100 @@
 #include <unistd.h>
+#include <string.h> // strcmp
 
 #include "action.h"
+#include "configuration.h"
 #include "fensterchef.h"
 #include "frame.h"
 #include "log.h"
 #include "tiling.h"
+#include "utility.h"
 #include "window_list.h"
 
-/* Start a terminal.
- */
-static void start_terminal(void)
+/* all actions and their string representation */
+static const struct {
+    /* name of the action */
+    const char *name;
+    /* data type of the action parameter */
+    parser_data_type_t data_type;
+} action_information[ACTION_MAX] = {
+    [ACTION_NULL] = { NULL, 0 },
+
+    [ACTION_NONE] = { "NONE", PARSER_DATA_TYPE_VOID },
+    [ACTION_RELOAD_CONFIGURATION] = { "RELOAD-CONFIGURATION", PARSER_DATA_TYPE_VOID },
+    [ACTION_NEXT_WINDOW] = { "NEXT-WINDOW", PARSER_DATA_TYPE_VOID },
+    [ACTION_PREVIOUS_WINDOW] = { "PREVIOUS-WINDOW", PARSER_DATA_TYPE_VOID },
+    [ACTION_REMOVE_FRAME] = { "REMOVE-FRAME", PARSER_DATA_TYPE_VOID },
+    [ACTION_TOGGLE_TILING] = { "TOGGLE-TILING", PARSER_DATA_TYPE_VOID },
+    [ACTION_TRAVERSE_FOCUS] = { "TRAVERSE-FOCUS", PARSER_DATA_TYPE_VOID },
+    [ACTION_TOGGLE_FULLSCREEN] = { "TOGGLE-FULLSCREEN", PARSER_DATA_TYPE_VOID },
+    [ACTION_SPLIT_HORIZONTALLY] = { "SPLIT-HORIZONTALLY", PARSER_DATA_TYPE_VOID },
+    [ACTION_SPLIT_VERTICALLY] = { "SPLIT-VERTICALLY", PARSER_DATA_TYPE_VOID },
+    [ACTION_MOVE_UP] = { "MOVE-UP", PARSER_DATA_TYPE_VOID },
+    [ACTION_MOVE_LEFT] = { "MOVE-LEFT", PARSER_DATA_TYPE_VOID },
+    [ACTION_MOVE_RIGHT] = { "MOVE-RIGHT", PARSER_DATA_TYPE_VOID },
+    [ACTION_MOVE_DOWN] = { "MOVE-DOWN", PARSER_DATA_TYPE_VOID },
+    [ACTION_SHOW_WINDOW_LIST] = { "SHOW-WINDOW-LIST", PARSER_DATA_TYPE_VOID },
+    [ACTION_RUN] = { "RUN", PARSER_DATA_TYPE_STRING },
+    [ACTION_SHOW_MESSAGE] = { "SHOW-MESSAGE", PARSER_DATA_TYPE_STRING },
+    [ACTION_SHOW_MESSAGE_RUN] = { "SHOW-MESSAGE-RUN", PARSER_DATA_TYPE_STRING },
+    [ACTION_QUIT] = { "QUIT", PARSER_DATA_TYPE_VOID },
+};
+
+/* Get the data type the action expects as parameter. */
+parser_data_type_t get_action_data_type(action_t action)
+{
+    return action_information[action].data_type;
+}
+
+/* Get an action from a string. */
+action_t convert_string_to_action(const char *string)
+{
+    for (action_t i = ACTION_FIRST_ACTION; i < ACTION_MAX; i++) {
+        if (strcasecmp(action_information[i].name, string) == 0) {
+            return i;
+        }
+    }
+    return ACTION_NULL;
+}
+
+/* Get a string version of an action. */
+const char *convert_action_to_string(action_t action)
+{
+    return action_information[action].name;
+}
+
+/* Run given shell program. */
+static void run_shell(const char *shell)
 {
     if (fork() == 0) {
-        execl("/usr/bin/xterm", "/usr/bin/xterm", NULL);
+        execl("/bin/sh", "sh", "-c", shell, (char*) NULL);
     }
+}
+
+/* Run a shell and get the output. */
+static char *run_shell_get_output(const char *shell)
+{
+    FILE *process;
+    char *line;
+    size_t length, capacity;
+
+    process = popen(shell, "r");
+    if (process == NULL) {
+        return NULL;
+    }
+    capacity = 128;
+    line = xmalloc(capacity);
+    length = 0;
+    for (int c; (c = fgetc(process)) != EOF && c != '\n'; ) {
+        if (length + 1 == capacity) {
+            capacity *= 2;
+            RESIZE(line, capacity);
+        }
+        line[length++] = c;
+    }
+    line[length] = '\0';
+    pclose(process);
+    return line;
 }
 
 /* Show the given window and focus it.
@@ -23,7 +104,7 @@ static void start_terminal(void)
 static void set_active_window(Window *window)
 {
     if (window == NULL) {
-        set_notification(UTF8_TEXT("No other window"),
+        set_notification((utf8_t*) "No other window",
                 focus_frame->x + focus_frame->width / 2,
                 focus_frame->y + focus_frame->height / 2);
         return;
@@ -31,6 +112,7 @@ static void set_active_window(Window *window)
 
     show_window(window);
     set_window_above(window);
+    set_focus_window(window);
 }
 
 /* Shows the user the window list and lets the user select a window to focus. */
@@ -52,20 +134,25 @@ static void show_window_list(void)
     set_focus_window_with_frame(window);
 }
 
-/* Do the given action, the action codes are `ACTION_*`. */
-void do_action(action_t action)
+/* Do the given action. */
+void do_action(const Action *action)
 {
     Frame *frame;
+    char *shell;
 
-    switch (action) {
+    switch (action->code) {
     /* invalid action value */
     case ACTION_NULL:
-        ERR("tried to do NULL action\n");
+        LOG_ERROR(NULL, "tried to do NULL action");
         break;
 
-    /* open a terminal window */
-    case ACTION_START_TERMINAL:
-        start_terminal();
+    /* do nothing */
+    case ACTION_NONE:
+        break;
+
+    /* reload the configuration file */
+    case ACTION_RELOAD_CONFIGURATION:
+        reload_requested = true;
         break;
 
     /* go to the next window in the window list */
@@ -74,7 +161,7 @@ void do_action(action_t action)
         break;
 
     /* go to the previous window in the window list */
-    case ACTION_PREV_WINDOW:
+    case ACTION_PREVIOUS_WINDOW:
         set_active_window(get_previous_hidden_window(focus_frame->window));
         break;
 
@@ -82,19 +169,22 @@ void do_action(action_t action)
     /* TODO: make it so this hides a popup window as well? */
     case ACTION_REMOVE_FRAME:
         if (remove_frame(focus_frame) != 0) {
-            set_notification(UTF8_TEXT("Can not remove the last frame"),
+            set_notification((utf8_t*) "Can not remove the last frame",
                     focus_frame->x + focus_frame->width / 2,
                     focus_frame->y + focus_frame->height / 2);
         }
         break;
 
     /* changes a popup window to a tiling window and vise versa */
-    case ACTION_CHANGE_WINDOW_STATE:
+    case ACTION_TOGGLE_TILING:
         if (focus_window == NULL) {
             break;
         }
-        set_window_mode(focus_window, focus_window->state.mode == WINDOW_MODE_TILING ?
-                WINDOW_MODE_POPUP : WINDOW_MODE_TILING, true);
+        set_window_mode(focus_window,
+                focus_window->state.mode == WINDOW_MODE_TILING ?
+                (focus_window->state.previous_mode == WINDOW_MODE_TILING ?
+                    WINDOW_MODE_POPUP : WINDOW_MODE_TILING) :
+                focus_window->state.previous_mode, true);
         break;
 
     /* changes the window that was in focus before the current one */
@@ -161,9 +251,34 @@ void do_action(action_t action)
         show_window_list();
         break;
 
-    /* quits the window manager */
-    case ACTION_QUIT_WM:
-        quit_fensterchef(EXIT_SUCCESS);
+    /* quit fensterchef */
+    case ACTION_QUIT:
+        is_fensterchef_running = false;
+        break;
+
+    /* run a shell program */
+    case ACTION_RUN:
+        run_shell((char*) action->parameter.string);
+        break;
+
+    /* show the user a message */
+    case ACTION_SHOW_MESSAGE:
+        set_notification((utf8_t*) action->parameter.string,
+                focus_frame->x + focus_frame->width / 2,
+                focus_frame->y + focus_frame->height / 2);
+        break;
+
+    /* show a message by getting output from a shell script */
+    case ACTION_SHOW_MESSAGE_RUN:
+        shell = run_shell_get_output((char*) action->parameter.string);
+        set_notification((utf8_t*) shell,
+                focus_frame->x + focus_frame->width / 2,
+                focus_frame->y + focus_frame->height / 2);
+        free(shell);
+        break;
+
+    /* not a real action */
+    case ACTION_MAX:
         break;
     }
 }

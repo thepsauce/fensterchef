@@ -10,17 +10,17 @@
 #include <xcb/xcb_icccm.h>
 #include <xcb/xcb_keysyms.h>
 
+#include "configuration.h"
 #include "fensterchef.h"
 #include "log.h"
-#include "util.h"
-#include "render_font.h"
+#include "render.h"
 #include "screen.h"
-#include "xalloc.h"
+#include "utility.h"
 
 /* xcb server connection */
 xcb_connection_t        *connection;
 
-/* ewmh information */
+/* ewmh (extended window manager hints) information */
 xcb_ewmh_connection_t   ewmh;
 
 /* true while the window manager is running */
@@ -34,111 +34,109 @@ static void alarm_handler(int signal)
 {
     (void) signal;
     LOG("triggered alarm: hiding notification window\n");
+    /* hide the notification window */
     xcb_unmap_window(connection, screen->notification_window);
+    /* flush is needed because the only place we flush is after receiving an
+     * event so the changes would not be reflected until then
+     */
     xcb_flush(connection);
 }
 
-/* Initialize most of fensterchef data and set root window flags.
- *
- * This opens the logging file, opens the xcb connection, initializes ewmh
- * which also initializes the screens.
- *
- * After that, the font drawing and the initial font are initialized.
- */
-int init_fensterchef(int *screen_number)
+/* Initialize logging, the xcb/ewmh connection and font drawing. */
+int initialize_fensterchef(int *screen_number)
 {
     xcb_intern_atom_cookie_t *atom_cookies;
+    xcb_generic_error_t *error;
 
-#ifdef DEBUG
-    if ((void*) LOG_FILE == (void*) stderr) {
-        log_file = stderr;
-    } else {
-        log_file = fopen(LOG_FILE, "w");
-        if (log_file == NULL) {
-            log_file = stderr;
-        }
-    }
-    setbuf(log_file, NULL);
-#endif
-
+    /* read the DISPLAY environment variable to determine the display to
+     * attach to; if the DISPLAY variable is in the form :X.Y then X is the
+     * display number and Y the screen number which is stored in `screen_number
+     */
     connection = xcb_connect(NULL, screen_number);
+    /* standard way to check if a connection failed */
     if (xcb_connection_has_error(connection) > 0) {
-        ERR("could not create xcb connection\n");
-#ifdef DEBUG
-        fclose(log_file);
-#endif
-        exit(1);
+        LOG_ERROR(NULL, "could not create xcb connection");
+        return ERROR;
     }
 
+    /* intern the atoms into the xcb server, they are stored in an array of
+     * cookies
+     */
     atom_cookies = xcb_ewmh_init_atoms(connection, &ewmh);
-    if (!xcb_ewmh_init_atoms_replies(&ewmh, atom_cookies, NULL)) {
-        ERR("could not set up ewmh\n");
-#ifdef DEBUG
-        fclose(log_file);
-#endif
-        exit(1);
+    /* get the reply for all cookies and set the ewmh atoms to the values the
+     * xcb server assigned for us
+     */
+    if (!xcb_ewmh_init_atoms_replies(&ewmh, atom_cookies, &error)) {
+        LOG_ERROR(error, "could not set up ewmh");
+        return ERROR;
     }
 
-    init_font_drawing();
+    /* initialize freetype and fontconfig for drawing fonts */
+    (void) initialize_font_drawing();
 
-    set_font(NULL);
-
+    /* create a signal handle for the alarm signal, this is triggered when the
+     * alarm created by `alarm()` expires
+     */
     signal(SIGALRM, alarm_handler);
 
-    return 0;
+    return OK;
 }
 
+/* Close the connection to xcb and exit the program with given exit code. */
 void quit_fensterchef(int exit_code)
 {
     LOG("quitting fensterchef with exit code: %d\n", exit_code);
     /* TODO: maybe free all resources to show we care? */
-    deinit_font_drawing();
+    deinitialize_renderer();
     xcb_disconnect(connection);
-#ifdef DEBUG
-    fclose(log_file);
-#endif
     exit(exit_code);
 }
 
 /* Show the notification window with given message at given coordinates. */
-void set_notification(const FcChar8 *msg, int32_t x, int32_t y)
+void set_notification(const uint8_t *message, int32_t x, int32_t y)
 {
-    size_t              msg_len;
-    struct text_measure tm;
-    xcb_rectangle_t     rect;
+    size_t              message_length;
+    struct text_measure measure;
+    xcb_rectangle_t     rectangle;
     xcb_render_color_t  color;
 
-    msg_len = strlen((char*) msg);
-    measure_text(msg, msg_len, &tm);
+    if (configuration.notification.duration == 0) {
+        return;
+    }
 
-    tm.total_width += WINDOW_PADDING;
+    /* measure the text for centering the text */
+    message_length = strlen((char*) message);
+    measure_text(message, message_length, &measure);
 
-    x -= tm.total_width / 2;
-    y -= (tm.ascent - tm.descent + WINDOW_PADDING) / 2;
+    measure.total_width += configuration.notification.padding;
 
+    x -= measure.total_width / 2;
+    y -= (measure.ascent - measure.descent +
+            configuration.notification.padding) / 2;
+
+    /* set the window size and position */
     general_values[0] = x;
     general_values[1] = y;
-    general_values[2] = tm.total_width;
-    general_values[3] = tm.ascent - tm.descent + WINDOW_PADDING;
-    general_values[4] = 1;
-    general_values[5] = XCB_STACK_MODE_ABOVE;
+    general_values[2] = measure.total_width;
+    general_values[3] = measure.ascent - measure.descent +
+        configuration.notification.padding;
+    general_values[4] = XCB_STACK_MODE_ABOVE;
     xcb_configure_window(connection, screen->notification_window,
-            XCB_CONFIG_SIZE | XCB_CONFIG_WINDOW_BORDER_WIDTH |
-            XCB_CONFIG_WINDOW_STACK_MODE, general_values);
-
+            XCB_CONFIG_SIZE | XCB_CONFIG_WINDOW_STACK_MODE, general_values);
+    /* show the window */
     xcb_map_window(connection, screen->notification_window);
 
-    rect.x = 0;
-    rect.y = 0;
-    rect.width = tm.total_width;
-    rect.height = tm.ascent - tm.descent + WINDOW_PADDING;
-    color.alpha = 0xff00;
-    color.red = 0xff00;
-    color.green = 0xff00;
-    color.blue = 0xff00;
-    draw_text(screen->notification_window, msg, msg_len, color, &rect,
-            screen->stock_objects[STOCK_BLACK_PEN], WINDOW_PADDING / 2,
-            tm.ascent + WINDOW_PADDING / 2);
+    rectangle.x = 0;
+    rectangle.y = 0;
+    rectangle.width = measure.total_width;
+    rectangle.height = measure.ascent - measure.descent +
+        configuration.notification.padding;
+    convert_color_to_xcb_color(&color, configuration.notification.background);
+    draw_text(screen->notification_window, message, message_length, color,
+            &rectangle, stock_objects[STOCK_BLACK_PEN],
+            configuration.notification.padding / 2,
+            measure.ascent + configuration.notification.padding / 2);
 
-    alarm(NOTIFICATION_DURATION);
+    /* set an alarm to trigger after @configuration.notification.duration */
+    alarm(configuration.notification.duration);
 }

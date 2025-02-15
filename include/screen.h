@@ -2,19 +2,9 @@
 #define SCREEN_H
 
 #include <xcb/randr.h>
+#include <xcb/xcb_ewmh.h>
 
-#include "util.h" // Position, Size
-
-/* stock object indexes */
-enum {
-    STOCK_WHITE_PEN,
-    STOCK_BLACK_PEN,
-
-    STOCK_GC,
-    STOCK_INVERTED_GC,
-
-    STOCK_COUNT,
-};
+#include "utility.h" // Position, Size
 
 /* forward declaration */
 struct monitor;
@@ -25,9 +15,6 @@ typedef struct screen {
     int number;
     /* the underlying xcb screen */
     xcb_screen_t *xcb_screen;
-
-    /* graphis objects with the id referring to the xcb id */
-    uint32_t stock_objects[STOCK_COUNT];
 
     /* supporting wm check window */
     xcb_window_t check_window;
@@ -67,16 +54,15 @@ typedef struct monitor {
     /* root frame */
     struct frame *frame;
 
-    /* next/prev monitor */
-    struct monitor *prev;
+    /* next monitor in the linked list */
     struct monitor *next;
 } Monitor;
 
-/* Initializes the window manager data of the screen. */
-int init_screen(int screen_number);
+/* Initialize @screen with graphical stock objects and utility windows. */
+int initialize_screen(int screen_number);
 
-/* Try to initialize randr for screen and monitor management. */
-void init_monitors(void);
+/* Try to initialize randr and set @screen->monitor. */
+void initialize_monitors(void);
 
 /* Get a monitor marked as primary or the first monitor if no monitor is marked
  * as primary.

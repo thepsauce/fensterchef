@@ -9,4 +9,4 @@ Fensterchef is a lightweight, lightning-fast window manager for Linux, focused o
 
 Whether you're a power user or a minimalist, Fensterchef puts you in control of your setup! 🚀
 
-![fensterchef](./img/fensterchef.png)
+![fensterchef](./images/fensterchef.png)

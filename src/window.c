@@ -1,5 +1,6 @@
 #include <inttypes.h>
 
+#include "configuration.h"
 #include "fensterchef.h"
 #include "frame.h"
 #include "log.h"
@@ -21,8 +22,7 @@ Window *focus_window;
 Window *create_window(xcb_window_t xcb_window)
 {
     Window *window;
-    xcb_get_window_attributes_cookie_t window_attributes_cookie;
-    xcb_get_window_attributes_reply_t *window_attributes;
+    xcb_generic_error_t *error;
 
     window = xcalloc(1, sizeof(*window));
     window->xcb_window = xcb_window;
@@ -31,29 +31,22 @@ Window *create_window(xcb_window_t xcb_window)
     window->next = first_window;
     first_window = window;
 
-    /* preserve the event mask of our windows */
-    window_attributes_cookie = xcb_get_window_attributes(connection,
-            xcb_window);
-    window_attributes = xcb_get_window_attributes_reply(connection,
-            window_attributes_cookie, NULL);
-    if (window_attributes == NULL) {
-        general_values[0] = 0;
-    } else {
-        general_values[0] = window_attributes->your_event_mask;
-        free(window_attributes);
-    }
-
-    general_values[0] |= XCB_EVENT_MASK_PROPERTY_CHANGE |
+    /* set the border color and set the event mask for focus events */
+    general_values[0] = configuration.border.color;
+    general_values[1] = XCB_EVENT_MASK_PROPERTY_CHANGE |
         XCB_EVENT_MASK_FOCUS_CHANGE;
-    xcb_change_window_attributes(connection, xcb_window, XCB_CW_EVENT_MASK,
-            general_values);
-
-    general_values[0] = 0;
-    xcb_configure_window(connection, xcb_window, XCB_CONFIG_WINDOW_BORDER_WIDTH,
-            general_values);
+    error = xcb_request_check(connection,
+            xcb_change_window_attributes_checked(connection, xcb_window,
+            XCB_CW_BORDER_PIXEL | XCB_CW_EVENT_MASK, general_values));
+    if (error != NULL) {
+        LOG_ERROR(error, "could not change window attributes");
+        /* still continue */
+    }
 
     update_all_window_properties(window);
     synchronize_all_window_properties(window);
+
+    set_window_mode(window, predict_window_mode(window), false);
 
     LOG("created new window wrapping %" PRIu32 "\n", xcb_window);
     return window;
@@ -64,9 +57,12 @@ void destroy_window(Window *window)
 {
     Window *previous;
 
+    /* really make sure the window is hidden, not sure if this case can ever
+     * happen because usually a MapUnnotify event hides the window beforehand
+     */
     hide_window_quickly(window);
 
-    /* remove window from window linked list */
+    /* remove window from the window linked list */
     if (window == first_window) {
         first_window = window->next;
     } else {
@@ -125,6 +121,7 @@ void set_window_above(Window *window)
             continue;
         }
         if (above->properties.transient_for == window->xcb_window) {
+            general_values[0] = XCB_STACK_MODE_ABOVE;
             xcb_configure_window(connection, window->xcb_window,
                     XCB_CONFIG_WINDOW_STACK_MODE, general_values);
         }
@@ -166,11 +163,47 @@ Window *get_window_of_xcb_window(xcb_window_t xcb_window)
     return NULL;
 }
 
-/* Removes a window from the focus list. */
+/* Checks if @frame contains @window and checks this for all its children. */
+static Frame *find_frame_recursively(Frame *frame, const Window *window)
+{
+    if (frame->window == window) {
+        return frame;
+    }
+
+    if (frame->left == NULL) {
+        return NULL;
+    }
+
+    Frame *const find = find_frame_recursively(frame->left, window);
+    if (find != NULL) {
+        return find;
+    }
+    
+    return find_frame_recursively(frame->right, window);
+}
+
+/* Get the frame this window is contained in. */
+Frame *get_frame_of_window(const Window *window)
+{
+    /* only tiling windows are within a frame */
+    if (window->state.mode != WINDOW_MODE_TILING) {
+        return NULL;
+    }
+
+    for (Monitor *monitor = screen->monitor; monitor != NULL; monitor = monitor->next) {
+        Frame *const find = find_frame_recursively(monitor->frame, window);
+        if (find != NULL) {
+            return find;
+        }
+    }
+    return NULL;
+}
+
+/* Removes @window from the focus list. */
 void unlink_window_from_focus_list(Window *window)
 {
     if (window->previous_focus == window) {
-         focus_window = NULL;
+        set_focus_window_primitively(NULL);
     }
 
     if (window->previous_focus != NULL) {
@@ -183,14 +216,49 @@ void unlink_window_from_focus_list(Window *window)
     window->next_focus = NULL;
 }
 
-/* Check if the window accepts input focus. */
+/* Check if @window accepts input focus. */
 bool does_window_accept_focus(Window *window)
 {
+    if (window->state.mode == WINDOW_MODE_DOCK) {
+        return false;
+    }
+
+    /* desktop windows are in the background, they are at the bottom and not
+     * focusable
+     */
+    if (does_window_have_type(window, ewmh._NET_WM_WINDOW_TYPE_DESKTOP)) {
+        return false;
+    }
+
     return !(window->properties.hints.flags & XCB_ICCCM_WM_HINT_INPUT) ||
             window->properties.hints.input != 0;
 }
 
-/* Set the window that is in focus. */
+/* Set @focus_window to @window and update the border colors. */
+void set_focus_window_primitively(Window *window)
+{
+    if (focus_window != NULL) {
+        general_values[0] = configuration.border.color;
+        xcb_change_window_attributes(connection, focus_window->xcb_window,
+                XCB_CW_BORDER_PIXEL, general_values);
+    }
+
+    focus_window = window;
+    synchronize_root_property(ROOT_PROPERTY_ACTIVE_WINDOW);
+
+    if (window != NULL) {
+        general_values[0] = configuration.border.focus_color;
+        xcb_change_window_attributes(connection, window->xcb_window,
+                XCB_CW_BORDER_PIXEL, general_values);
+
+        xcb_set_input_focus(connection, XCB_INPUT_FOCUS_POINTER_ROOT,
+                window->xcb_window, XCB_CURRENT_TIME);
+
+        LOG("changed focus to %" PRIu32 "\n", window->number);
+    }
+}
+
+/* Set the window that is in focus to @window. */
 void set_focus_window(Window *window)
 {
     if (!does_window_accept_focus(window)) {
@@ -217,13 +285,7 @@ void set_focus_window(Window *window)
         window->next_focus = window;
     }
 
-    focus_window = window;
-    synchronize_root_property(ROOT_PROPERTY_ACTIVE_WINDOW);
-
-    LOG("changed focus to %" PRIu32 "\n", window->number);
-
-    xcb_set_input_focus(connection, XCB_INPUT_FOCUS_POINTER_ROOT,
-            window->xcb_window, XCB_CURRENT_TIME);
+    set_focus_window_primitively(window);
 }
 
 /* Focuses the window before or after the currently focused window. */
@@ -245,16 +307,12 @@ void traverse_focus_chain(int direction)
         return;
     }
 
-    focus_window = window;
-    synchronize_root_property(ROOT_PROPERTY_ACTIVE_WINDOW);
+    /* keep the focus chain intact */
+    set_focus_window_primitively(window);
 
-    LOG("changed focus to %" PRIu32 "\n", window->number);
-
-    xcb_set_input_focus(connection, XCB_INPUT_FOCUS_POINTER_ROOT,
-            window->xcb_window, XCB_CURRENT_TIME);
-
-    if (focus_window->frame != NULL) {
-        set_focus_frame(focus_window->frame);
+    Frame *const frame = get_frame_of_window(focus_window);
+    if (frame != NULL) {
+        set_focus_frame(frame);
     }
 }
 
@@ -263,8 +321,9 @@ void traverse_focus_chain(int direction)
  */
 void set_focus_window_with_frame(Window *window)
 {
-    if (window->frame != NULL) {
-        set_focus_frame(window->frame);
+    Frame *const frame = get_frame_of_window(window);
+    if (frame != NULL) {
+        set_focus_frame(frame);
     } else {
         set_focus_window(window);
     }
@@ -313,19 +372,4 @@ Window *get_previous_hidden_window(Window *window)
     } while (!previous->state.was_ever_mapped || previous->state.is_visible);
 
     return previous;
-}
-
-/* Puts a window into a frame and matches its size. */
-void link_window_and_frame(Window *window, Frame *frame)
-{
-    if (window->frame != NULL) {
-        window->frame->window = NULL;
-    }
-    if (frame->window != NULL) {
-        frame->window->frame = NULL;
-    }
-
-    window->frame = frame;
-    frame->window = window;
-    set_window_size(window, frame->x, frame->y, frame->width, frame->height);
 }

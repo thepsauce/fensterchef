@@ -1,18 +1,18 @@
 #include <inttypes.h>
 
+#include "configuration.h"
 #include "fensterchef.h"
 #include "frame.h"
 #include "log.h"
 #include "screen.h"
-#include "util.h"
+#include "utility.h"
 #include "window.h"
-#include "xalloc.h"
 
 /* the currently selected/focused frame */
 Frame *focus_frame;
 
 /* Check if the given point is within the given frame. */
-int is_point_in_frame(const Frame *frame, int32_t x, int32_t y)
+bool is_point_in_frame(const Frame *frame, int32_t x, int32_t y)
 {
     return x >= frame->x && y >= frame->y &&
         (uint32_t) (x - frame->x) < frame->width &&
@@ -58,9 +58,7 @@ void resize_frame(Frame *frame, int32_t x, int32_t y,
     frame->y = y;
     frame->width = width;
     frame->height = height;
-    if (frame->window != NULL) {
-        set_window_size(frame->window, x, y, width, height);
-    }
+    reload_frame(frame);
 
     left = frame->left;
     right = frame->right;
@@ -82,6 +80,49 @@ void resize_frame(Frame *frame, int32_t x, int32_t y,
     }
 }
 
+/* Resizes the inner window to fit within the frame. */
+void reload_frame(Frame *frame)
+{
+    Monitor *monitor;
+    uint32_t left, top, right, bottom;
+
+    if (frame->window == NULL) {
+        return;
+    }
+    monitor = get_monitor_from_rectangle(frame->x, frame->y,
+            frame->width, frame->height);
+    if (monitor->position.x == frame->x) {
+        left = configuration.gaps.outer;
+    } else {
+        left = configuration.gaps.inner;
+    }
+
+    if (monitor->position.y == frame->y) {
+        top = configuration.gaps.outer;
+    } else {
+        top = configuration.gaps.inner;
+    }
+
+    if (monitor->position.x + monitor->size.width ==
+            frame->x + frame->width) {
+        right = configuration.gaps.outer;
+    } else {
+        right = 0;
+    }
+
+    if (monitor->position.y + monitor->size.height ==
+            frame->y + frame->height) {
+        bottom = configuration.gaps.outer;
+    } else {
+        bottom = 0;
+    }
+    set_window_size(frame->window,
+            frame->x + left,
+            frame->y + top,
+            frame->width - left - right - configuration.border.size * 2,
+            frame->height - top - bottom - configuration.border.size * 2);
+}
+
 /* Set the frame in focus, this also focuses the inner window if possible. */
 void set_focus_frame(Frame *frame)
 {
@@ -90,7 +131,7 @@ void set_focus_frame(Frame *frame)
     }
     focus_frame = frame;
 
-    set_notification(UTF8_TEXT("Current frame"),
+    set_notification((utf8_t*) "Current frame",
             focus_frame->x + focus_frame->width / 2,
             focus_frame->y + focus_frame->height / 2);
 

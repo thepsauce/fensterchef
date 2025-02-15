@@ -6,15 +6,33 @@
 #include <X11/keysym.h>
 #include <xcb/xcb_keysyms.h>
 
+#include "configuration.h"
 #include "event.h"
 #include "fensterchef.h"
 #include "frame.h"
 #include "keymap.h"
 #include "log.h"
-#include "render_font.h"
+#include "render.h"
 #include "screen.h"
-#include "util.h"
+#include "utility.h"
 #include "window.h"
+
+/* Check if @window should appear in the window list. */
+static inline bool is_valid_for_display(Window *window)
+{
+    return window->state.was_ever_mapped && does_window_accept_focus(window);
+}
+
+/* Get character indicating the window state. */
+static inline char get_indicator_character(Window *window)
+{
+    return !window->state.is_visible ? '-' :
+            window->state.mode == WINDOW_MODE_POPUP ?
+                (window == focus_window ? '#' : '=') :
+            window->state.mode == WINDOW_MODE_FULLSCREEN ?
+                (window == focus_window ? '@' : 'F') :
+            window == focus_window ? '*' : '+';
+}
 
 /* Render the window list.
  *
@@ -22,104 +40,186 @@
  */
 static int render_window_list(Window *selected)
 {
-    uint32_t                 window_count;
-    FcChar8                  *marker_char;
-    struct text_measure      tm;
-    uint32_t                 max_width;
-    struct frame             *primary_frame;
-    xcb_rectangle_t          rect;
-    xcb_render_color_t       bg_color;
-    xcb_render_picture_t     pen;
+    utf8_t                  buffer[256];
+    uint32_t                window_count;
+    struct text_measure     measure;
+    uint32_t                max_width;
+    struct frame            *primary_frame;
+    xcb_rectangle_t         rectangle;
+    xcb_render_color_t      background_color;
+    xcb_render_picture_t    pen;
 
     /* measure the maximum needed width */
     window_count = 0;
-    tm.ascent = 12;
-    tm.descent = -4;
+    measure.ascent = 12;
+    measure.descent = -4;
     max_width = 0;
-    for (Window *w = first_window; w != NULL; w = w->next) {
-        if (!w->state.was_ever_mapped) {
+    for (Window *window = first_window; window != NULL; window = window->next) {
+        if (!is_valid_for_display(window)) {
             continue;
         }
 
         window_count++;
-        measure_text(w->properties.short_name,
-                strlen((char*) w->properties.short_name), &tm);
-        max_width = MAX(max_width, tm.total_width);
+        snprintf((char*) buffer, sizeof(buffer), "%" PRIu32 "%c%s",
+                window->number, get_indicator_character(window),
+                window->properties.name);
+        measure_text(buffer, strlen((char*) buffer), &measure);
+        max_width = MAX(max_width, measure.total_width);
     }
 
+    /* return ERROR to indicate the window list should close */
     if (window_count == 0) {
-        return 1;
+        return ERROR;
     }
 
+    /* set the list position and size so it is in the top right of the primary
+     * monitor
+     */
     primary_frame = get_primary_monitor()->frame;
     general_values[0] = primary_frame->x + primary_frame->width - max_width -
-        WINDOW_PADDING / 2;
+        configuration.notification.padding / 2 -
+        configuration.notification.border_size * 2;
     general_values[1] = primary_frame->y;
-    general_values[2] = max_width + WINDOW_PADDING / 2;
+    general_values[2] = max_width + configuration.notification.padding / 2;
     general_values[3] = window_count *
-        (tm.ascent - tm.descent + WINDOW_PADDING);
-    general_values[4] = 1;
-    general_values[5] = XCB_STACK_MODE_ABOVE;
+        (measure.ascent - measure.descent + configuration.notification.padding); general_values[4] = XCB_STACK_MODE_ABOVE;
     xcb_configure_window(connection, screen->window_list_window,
-            XCB_CONFIG_SIZE | XCB_CONFIG_WINDOW_BORDER_WIDTH |
-            XCB_CONFIG_WINDOW_STACK_MODE, general_values);
+            XCB_CONFIG_SIZE | XCB_CONFIG_WINDOW_STACK_MODE, general_values);
 
+    /* focus the window list */
     xcb_set_input_focus(connection, XCB_INPUT_FOCUS_POINTER_ROOT,
             screen->window_list_window, XCB_CURRENT_TIME);
 
-    rect.x = 0;
-    rect.y = 0;
-    rect.width = max_width + WINDOW_PADDING / 2;
-    rect.height = tm.ascent - tm.descent + WINDOW_PADDING;
-    for (Window *w = first_window; w != NULL; w = w->next) {
-        if (!w->state.was_ever_mapped) {
+    rectangle.x = 0;
+    rectangle.y = 0;
+    rectangle.width = max_width + configuration.notification.padding / 2;
+    rectangle.height = measure.ascent - measure.descent +
+        configuration.notification.padding;
+    for (Window *window = first_window; window != NULL; window = window->next) {
+        if (!is_valid_for_display(window)) {
             continue;
         }
 
-        bg_color.alpha = 0xff00;
-        if (w == selected) {
-            pen = screen->stock_objects[STOCK_WHITE_PEN];
-            bg_color.red = 0x0000;
-            bg_color.green = 0x0000;
-            bg_color.blue = 0x0000;
+        if (window != selected) {
+            pen = stock_objects[STOCK_BLACK_PEN];
+            convert_color_to_xcb_color(&background_color,
+                    configuration.notification.background);
         } else {
-            pen = screen->stock_objects[STOCK_BLACK_PEN];
-            bg_color.red = 0xff00;
-            bg_color.green = 0xff00;
-            bg_color.blue = 0xff00;
+            pen = stock_objects[STOCK_WHITE_PEN];
+            convert_color_to_xcb_color(&background_color,
+                    configuration.notification.foreground);
         }
 
-        marker_char = w->properties.short_name;
-        while (isdigit(marker_char[0])) {
-            marker_char++;
-        }
-        marker_char[0] = !w->state.is_visible ? '-' :
-                w->state.mode == WINDOW_MODE_POPUP ?
-                    (w == focus_window ? '#' : '=') :
-                w->state.mode == WINDOW_MODE_FULLSCREEN ?
-                    (w == focus_window ? '@' : 'F') :
-                w == focus_window ? '*' : '+';
-
-        draw_text(screen->window_list_window, w->properties.short_name,
-                strlen((char*) w->properties.short_name), bg_color, &rect,
-                pen, WINDOW_PADDING / 2,
-                rect.y + tm.ascent + WINDOW_PADDING / 2);
-        rect.y += rect.height;
+        snprintf((char*) buffer, sizeof(buffer), "%" PRIu32 "%c%s",
+                window->number, get_indicator_character(window),
+                window->properties.name);
+        draw_text(screen->window_list_window, buffer,
+                strlen((char*) buffer), background_color, &rectangle,
+                pen, configuration.notification.padding / 2,
+                rectangle.y + measure.ascent +
+                    configuration.notification.padding / 2);
+        rectangle.y += rectangle.height;
     }
-    return 0;
+    return OK;
+}
+
+/* Get the window before @start in the window list. @last_valid is the fallback
+ * value and @before is the end point.
+ */
+static inline Window *get_valid_window_before(Window *last_valid, Window *start,
+        Window *before)
+{
+    while (start != before) {
+        if (is_valid_for_display(start)) {
+            last_valid = start;
+        }
+        start = start->next;
+    }
+    return last_valid;
+}
+
+/* Get the window after @start. @last_valid is the fallback value. This does not
+ * have a third parameter because it would just be NULL anyway for all calls.
+ */
+static inline Window *get_valid_window_after(Window *last_valid, Window *start)
+{
+    while (start != NULL) {
+        if (is_valid_for_display(start)) {
+            last_valid = start;
+            break;
+        }
+        start = start->next;
+    }
+    return last_valid;
+}
+
+/* Handle a key press for the window list window.
+ *
+ * @return if the selection was confirmed.
+ */
+static inline bool handle_key_press(Window **pointer_selected,
+        xcb_key_press_event_t *event)
+{
+    Window *selected;
+
+    selected = *pointer_selected;
+
+    switch (get_keysym(event->detail)) {
+    /* cancel selection */
+    case XK_q:
+    case XK_Escape:
+        selected = NULL;
+        break;
+
+    /* confirm selection */
+    case XK_c:
+    case XK_Return:
+        return true;
+
+    /* go to the first item */
+    case XK_Home:
+        selected = get_valid_window_after(NULL, first_window);
+        break;
+
+    /* go to the last item */
+    case XK_End:
+        selected = get_valid_window_before(selected, first_window, NULL);
+        break;
+
+    /* go to the previous item */
+    case XK_h:
+    case XK_k:
+    case XK_Left:
+    case XK_Up:
+        selected = get_valid_window_before(selected, first_window, selected);
+        break;
+
+    /* go to the next item */
+    case XK_l:
+    case XK_j:
+    case XK_Right:
+    case XK_Down:
+        selected = get_valid_window_after(selected, selected->next);
+        break;
+    }
+
+    *pointer_selected = selected;
+    return false;
 }
 
 /* Handle all incoming xcb events for the window list. */
-static inline Window *handle_window_list_events(Window *selected,
-        Window **p_old_focus)
+static inline Window *handle_window_list_events(Window *selected)
 {
     xcb_generic_event_t *event;
-    xcb_key_press_event_t *key_press;
-    xcb_keysym_t keysym;
     Window *window;
 
-    while (xcb_connection_has_error(connection) == 0) {
-        if (render_window_list(selected) != 0) {
+    while (true) {
+        /* all windows left or the user cancelled selecting */
+        if (selected == NULL) {
+            return NULL;
+        }
+
+        if (render_window_list(selected) != OK) {
             return NULL;
         }
 
@@ -127,74 +227,31 @@ static inline Window *handle_window_list_events(Window *selected,
 
         event = xcb_wait_for_event(connection);
         if (event == NULL) {
-            continue;
+            break;
         }
 
+        LOG("");
+        log_event(event);
+
+        /* remove the most significant bit, this gets the actual event type */
         switch ((event->response_type & ~0x80)) {
         case XCB_KEY_PRESS:
-            key_press = (xcb_key_press_event_t*) event;
-            keysym = get_keysym(key_press->detail);
-            switch (keysym) {
-            case XK_q:
-            case XK_Escape:
-                free(event);
-                return NULL;
-
-            case XK_c:
-            case XK_Return:
+            if (handle_key_press(&selected, (xcb_key_press_event_t*) event)) {
                 free(event);
                 return selected;
-
-            case XK_Home:
-                selected = first_window;
-                break;
-
-            case XK_End:
-                selected = first_window;
-                while (selected->next != NULL) {
-                    selected = selected->next;
-                }
-                break;
-
-            case XK_k:
-            case XK_Up:
-                selected = get_previous_window(selected);
-                break;
-
-            case XK_j:
-            case XK_Down:
-                selected = selected->next;
-                if (selected == NULL) {
-                    selected = first_window;
-                }
-                break;
             }
             break;
 
+        /* make sure to selected another window if the selected one is destroyed */
         case XCB_DESTROY_NOTIFY:
             window = get_window_of_xcb_window(
                     ((xcb_unmap_notify_event_t*) event)->window);
-            if (window != NULL) {
-                if (window == *p_old_focus) {
-                    *p_old_focus = NULL;
-                }
-
-                if (window == selected) {
-                    selected = selected->next;
-                    if (selected == NULL) {
-                        selected = first_window;
-                    }
-                    if (selected == NULL) {
-                        destroy_window(window);
-                        free(event);
-                        return NULL;
-                    }
-                }
-
-                destroy_window(window);
+            if (window == selected) {
+                selected = get_valid_window_before(
+                        get_valid_window_after(NULL, selected->next),
+                        first_window, selected);
             }
-            break;
-
+        /* fall through */
         default:
             handle_event(event);
         }
@@ -207,45 +264,37 @@ static inline Window *handle_window_list_events(Window *selected,
 Window *select_window_from_list(void)
 {
     Window *window;
-    Window *old_focus;
 
-    for (window = first_window; window != NULL; window = window->next) {
-        if (window->state.was_ever_mapped) {
-            break;
+    /* get the initially selected window */
+    if (focus_window != NULL) {
+        window = focus_window;
+    } else {
+        for (window = first_window; window != NULL; window = window->next) {
+            if (is_valid_for_display(window)) {
+                break;
+            }
         }
     }
 
     if (window == NULL) {
-        set_notification((FcChar8*) "No managed windows",
-                screen->xcb_screen->width_in_pixels / 2,
-                screen->xcb_screen->height_in_pixels / 2);
+        set_notification((uint8_t*) "No managed windows",
+                focus_frame->x + focus_frame->width / 2,
+                focus_frame->y + focus_frame->height / 2);
         return NULL;
     }
 
+    /* show the window on screen */
     xcb_map_window(connection, screen->window_list_window);
 
-    window = focus_window;
-    if (window == NULL) {
-        if (focus_frame->window == NULL) {
-            window = first_window;
-        } else {
-            window = focus_frame->window;
-        }
-    }
+    window = handle_window_list_events(window);
 
-    old_focus = window;
-
-    window = handle_window_list_events(window, &old_focus);
-
+    /* hide the window from the screen */
     xcb_unmap_window(connection, screen->window_list_window);
 
-    if (old_focus != NULL) {
-        if (old_focus == focus_window) {
-            xcb_set_input_focus(connection, XCB_INPUT_FOCUS_POINTER_ROOT,
-                focus_window->xcb_window, XCB_CURRENT_TIME);
-        } else {
-            set_focus_window(old_focus);
-        }
+    /* refocus the old window */
+    if (focus_window != NULL) {
+        xcb_set_input_focus(connection, XCB_INPUT_FOCUS_POINTER_ROOT,
+            focus_window->xcb_window, XCB_CURRENT_TIME);
     }
 
     return window;
