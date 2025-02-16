@@ -1,6 +1,10 @@
 #ifndef WINDOW_STATE_H
 #define WINDOW_STATE_H
 
+#include <stdbool.h>
+
+#include "bits/window_typedef.h"
+
 /* the mode of the window */
 typedef enum window_mode {
     /* the window is part of the tiling layout (if visible) */
@@ -19,10 +23,6 @@ typedef enum window_mode {
 #define DOES_WINDOW_MODE_HAVE_BORDER(mode) \
     ((mode) == WINDOW_MODE_TILING || (mode) == WINDOW_MODE_POPUP)
 
-/* forward declaration */
-struct window;
-typedef struct window Window;
-
 /* The state of the window signals our window manager what kind of window it is
  * and how the window should behave.
  */
@@ -33,6 +33,10 @@ typedef struct window_state {
     bool is_visible;
     /* if the window was forced to be a certain mode */
     bool is_mode_forced;
+    /* if the user ever requested to close the window */
+    bool was_close_requested;
+    /* when the user requested to close the window */
+    time_t user_request_close_time;
     /* the current window state */
     window_mode_t mode;
     /* the previous window state */

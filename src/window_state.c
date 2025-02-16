@@ -22,15 +22,15 @@
 window_mode_t predict_window_mode(Window *window)
 {
     /* direct checks */
-    if (does_window_have_state(window, ewmh._NET_WM_STATE_FULLSCREEN)) {
+    if (x_is_state(&window->properties, ATOM(_NET_WM_STATE_FULLSCREEN))) {
         return WINDOW_MODE_FULLSCREEN;
     }
-    if (does_window_have_type(window, ewmh._NET_WM_WINDOW_TYPE_DOCK)) {
+    if (x_is_window_type(&window->properties, ATOM(_NET_WM_WINDOW_TYPE_DOCK))) {
         return WINDOW_MODE_DOCK;
     }
 
-    /* if this window has struts, it must be a dock */
-    if (!is_strut_empty(&window->properties.struts)) {
+    /* if this window has strut, it must be a dock */
+    if (!is_strut_empty(&window->properties.strut)) {
         return WINDOW_MODE_DOCK;
     }
 
@@ -57,10 +57,11 @@ window_mode_t predict_window_mode(Window *window)
     }
 
     /* popup windows do not have the normal window type */
-    if (window->properties.number_of_types > 0) {
-        if (window->properties.types[0] == ewmh._NET_WM_WINDOW_TYPE_NORMAL) {
-            return WINDOW_MODE_TILING;
-        }
+    if (window->properties.types[0] == ATOM(_NET_WM_WINDOW_TYPE_NORMAL)) {
+        return WINDOW_MODE_TILING;
+    }
+
+    if (window->properties.types[0] != XCB_NONE) {
         return WINDOW_MODE_POPUP;
     }
 
@@ -174,7 +175,7 @@ static void configure_popup_size(Window *window)
 
     /* make sure the popup window has a border */
     general_values[0] = configuration.border.size;
-    xcb_configure_window(connection, window->xcb_window,
+    xcb_configure_window(connection, window->properties.window,
             XCB_CONFIG_WINDOW_BORDER_WIDTH, general_values);
 }
 
@@ -200,7 +201,7 @@ static void configure_fullscreen_size(Window *window)
 
     /* remove border: fullscreen windows have no border */
     general_values[0] = 0;
-    xcb_configure_window(connection, window->xcb_window,
+    xcb_configure_window(connection, window->properties.window,
             XCB_CONFIG_WINDOW_BORDER_WIDTH, general_values);
 }
 
@@ -232,36 +233,36 @@ static void configure_dock_size(Window *window)
     monitor = get_monitor_from_rectangle(x, y, 1, 1);
 
     /* if the window does not specify a size itself, then do it based on the
-     * struts the window defines, reasoning is that when the window wants to
+     * strut the window defines, reasoning is that when the window wants to
      * occupy screen space, then it should be within that occupied space
      */
     if (width == 0 || height == 0) {
-        if (window->properties.struts.left != 0) {
+        if (window->properties.strut.reserved.left != 0) {
             x = monitor->position.x;
-            y = window->properties.struts.left_start_y;
-            width = window->properties.struts.left;
-            height = window->properties.struts.left_end_y -
-                window->properties.struts.left_start_y + 1;
-        } else if (window->properties.struts.top != 0) {
-            x = window->properties.struts.top_start_x;
+            y = window->properties.strut.left_start_y;
+            width = window->properties.strut.reserved.left;
+            height = window->properties.strut.left_end_y -
+                window->properties.strut.left_start_y + 1;
+        } else if (window->properties.strut.reserved.top != 0) {
+            x = window->properties.strut.top_start_x;
             y = monitor->position.y;
-            width = window->properties.struts.top_end_x -
-                window->properties.struts.top_start_x + 1;
-            height = window->properties.struts.top;
-        } else if (window->properties.struts.right != 0) {
+            width = window->properties.strut.top_end_x -
+                window->properties.strut.top_start_x + 1;
+            height = window->properties.strut.reserved.top;
+        } else if (window->properties.strut.reserved.right != 0) {
             x = monitor->position.x + monitor->size.width -
-                window->properties.struts.right;
-            y = window->properties.struts.right_start_y;
-            width = window->properties.struts.right;
-            height = window->properties.struts.right_end_y -
-                window->properties.struts.right_start_y + 1;
-        } else if (window->properties.struts.bottom != 0) {
-            x = window->properties.struts.bottom_start_x;
+                window->properties.strut.reserved.right;
+            y = window->properties.strut.right_start_y;
+            width = window->properties.strut.reserved.right;
+            height = window->properties.strut.right_end_y -
+                window->properties.strut.right_start_y + 1;
+        } else if (window->properties.strut.reserved.bottom != 0) {
+            x = window->properties.strut.bottom_start_x;
             y = monitor->position.y + monitor->size.height -
-                window->properties.struts.bottom;
-            width = window->properties.struts.bottom_end_x -
-                window->properties.struts.bottom_start_x + 1;
-            height = window->properties.struts.bottom;
+                window->properties.strut.reserved.bottom;
+            width = window->properties.strut.bottom_end_x -
+                window->properties.strut.bottom_start_x + 1;
+            height = window->properties.strut.reserved.bottom;
         } else {
             /* TODO: what to do here? */
             width = 64;
@@ -318,8 +319,65 @@ static void configure_dock_size(Window *window)
 
     /* dock windows have no border */
     general_values[0] = 0;
-    xcb_configure_window(connection, window->xcb_window,
+    xcb_configure_window(connection, window->properties.window,
             XCB_CONFIG_WINDOW_BORDER_WIDTH, general_values);
+}
+
+/* Synchronize the _NET_WM_ALLOWED actions X property. */
+void synchronize_allowed_actions(Window *window)
+{
+    const xcb_atom_t atom_lists[WINDOW_MODE_MAX][16] = {
+        [WINDOW_MODE_TILING] = {
+            ATOM(_NET_WM_ACTION_MAXIMIZE_HORZ),
+            ATOM(_NET_WM_ACTION_MAXIMIZE_VERT),
+            ATOM(_NET_WM_ACTION_FULLSCREEN),
+            ATOM(_NET_WM_ACTION_CHANGE_DESKTOP),
+            ATOM(_NET_WM_ACTION_CLOSE),
+            XCB_NONE,
+        },
+
+        [WINDOW_MODE_POPUP] = {
+            ATOM(_NET_WM_ACTION_MOVE),
+            ATOM(_NET_WM_ACTION_RESIZE),
+            ATOM(_NET_WM_ACTION_MINIMIZE),
+            ATOM(_NET_WM_ACTION_SHADE),
+            ATOM(_NET_WM_ACTION_STICK),
+            ATOM(_NET_WM_ACTION_MAXIMIZE_HORZ),
+            ATOM(_NET_WM_ACTION_MAXIMIZE_VERT),
+            ATOM(_NET_WM_ACTION_FULLSCREEN),
+            ATOM(_NET_WM_ACTION_CHANGE_DESKTOP),
+            ATOM(_NET_WM_ACTION_CLOSE),
+            ATOM(_NET_WM_ACTION_ABOVE),
+            ATOM(_NET_WM_ACTION_BELOW),
+            XCB_NONE,
+        },
+
+        [WINDOW_MODE_FULLSCREEN] = {
+            ATOM(_NET_WM_ACTION_CHANGE_DESKTOP),
+            ATOM(_NET_WM_ACTION_CLOSE),
+            ATOM(_NET_WM_ACTION_ABOVE),
+            ATOM(_NET_WM_ACTION_BELOW),
+            XCB_NONE,
+        },
+
+        [WINDOW_MODE_DOCK] = {
+            XCB_NONE,
+        },
+    };
+
+    const xcb_atom_t *list;
+    uint32_t list_length;
+
+    list = atom_lists[window->state.mode];
+    for (list_length = 0; list_length < SIZE(atom_lists[0]); list_length++) {
+        if (list[list_length] == XCB_NONE) {
+            break;
+        }
+    }
+
+    xcb_change_property(connection, XCB_PROP_MODE_REPLACE,
+            window->properties.window, ATOM(_NET_WM_ALLOWED_ACTIONS),
+            XCB_ATOM_ATOM, 32, list_length * sizeof(*list), list);
 }
 
 /* Changes the window state to given value and reconfigures the window only
@@ -371,7 +429,7 @@ void set_window_mode(Window *window, window_mode_t mode, bool force_mode)
 
             /* tiling windows have a border */
             general_values[0] = configuration.border.size;
-            xcb_configure_window(connection, window->xcb_window,
+            xcb_configure_window(connection, window->properties.window,
                     XCB_CONFIG_WINDOW_BORDER_WIDTH, general_values);
         } break;
 
@@ -398,7 +456,7 @@ void set_window_mode(Window *window, window_mode_t mode, bool force_mode)
     window->state.previous_mode = window->state.mode;
     window->state.mode = mode;
 
-    synchronize_window_property(window, WINDOW_EXTERNAL_PROPERTY_ALLOWED_ACTIONS);
+    synchronize_allowed_actions(window);
 }
 
 /* Show given window but do not assign an id and no size configuring. */
@@ -412,14 +470,14 @@ void show_window_quickly(Window *window)
 
     window->state.is_visible = true;
 
-    xcb_map_window(connection, window->xcb_window);
+    xcb_map_window(connection, window->properties.window);
 
     general_values[0] = configuration.border.color;
-    xcb_change_window_attributes(connection, window->xcb_window,
+    xcb_change_window_attributes(connection, window->properties.window,
             XCB_CW_BORDER_PIXEL, general_values);
 
-    /* check if struts have disappeared */
-    if (!is_strut_empty(&window->properties.struts)) {
+    /* check if strut have disappeared */
+    if (!is_strut_empty(&window->properties.strut)) {
         reconfigure_monitor_frame_sizes();
         synchronize_root_property(ROOT_PROPERTY_WORK_AREA);
     }
@@ -444,7 +502,7 @@ void show_window(Window *window)
         window->number = last->number + 1;
 
         LOG("assigned id %" PRIu32 " to window wrapping %" PRIu32 "\n",
-                window->number, window->xcb_window);
+                window->number, window->properties.window);
 
         if (last != window) {
             if (window != first_window) {
@@ -474,7 +532,7 @@ void show_window(Window *window)
         reload_frame(focus_frame);
 
         general_values[0] = configuration.border.size;
-        xcb_configure_window(connection, window->xcb_window,
+        xcb_configure_window(connection, window->properties.window,
                 XCB_CONFIG_WINDOW_BORDER_WIDTH, general_values);
         break;
 
@@ -498,14 +556,14 @@ void show_window(Window *window)
         break;
     }
 
-    xcb_map_window(connection, window->xcb_window);
+    xcb_map_window(connection, window->properties.window);
 
     if (previous != NULL) {
         hide_window_quickly(previous);
     }
 
-    /* check if struts have appeared */
-    if (!is_strut_empty(&window->properties.struts)) {
+    /* check if strut have appeared */
+    if (!is_strut_empty(&window->properties.strut)) {
         reconfigure_monitor_frame_sizes();
         synchronize_root_property(ROOT_PROPERTY_WORK_AREA);
     }
@@ -535,10 +593,10 @@ void hide_window_quickly(Window *window)
 
     unlink_window_from_focus_list(window);
 
-    xcb_unmap_window(connection, window->xcb_window);
+    xcb_unmap_window(connection, window->properties.window);
 
-    /* check if struts have disappeared */
-    if (!is_strut_empty(&window->properties.struts)) {
+    /* check if strut has disappeared */
+    if (!is_strut_empty(&window->properties.strut)) {
         reconfigure_monitor_frame_sizes();
         synchronize_root_property(ROOT_PROPERTY_WORK_AREA);
     }
@@ -580,20 +638,20 @@ void hide_window(Window *window)
             break;
         }
 
+        frame->window = NULL;
         if (configuration.tiling.auto_fill_void) {
             next = get_next_hidden_window(window);
             if (next != NULL) {
                 frame->window = next;
                 reload_frame(frame);
                 show_window_quickly(next);
-            } else {
-                frame->window = NULL;
+                if (window == focus_window) {
+                    set_focus_window(next);
+                }
             }
-        } else {
-            frame->window = NULL;
         }
     /* fall through */
-    /* need to do nothing here, just focus a different window */
+    /* need to just focus a different window */
     case WINDOW_MODE_POPUP:
     case WINDOW_MODE_FULLSCREEN:
     case WINDOW_MODE_DOCK:
@@ -609,10 +667,10 @@ void hide_window(Window *window)
 
     unlink_window_from_focus_list(window);
 
-    xcb_unmap_window(connection, window->xcb_window);
+    xcb_unmap_window(connection, window->properties.window);
 
-    /* check if struts have appeared */
-    if (!is_strut_empty(&window->properties.struts)) {
+    /* check if strut has appeared */
+    if (!is_strut_empty(&window->properties.strut)) {
         reconfigure_monitor_frame_sizes();
         synchronize_root_property(ROOT_PROPERTY_WORK_AREA);
     }

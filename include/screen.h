@@ -2,20 +2,18 @@
 #define SCREEN_H
 
 #include <xcb/randr.h>
-#include <xcb/xcb_ewmh.h>
 
 #include "utility.h" // Position, Size
+
+#include "bits/frame_typedef.h"
+
+#include "x.h"
 
 /* forward declaration */
 struct monitor;
 
 /* A screen is a user region that can contain multiple monitors. */
 typedef struct screen {
-    /* the screen number */
-    int number;
-    /* the underlying xcb screen */
-    xcb_screen_t *xcb_screen;
-
     /* supporting wm check window */
     xcb_window_t check_window;
     /* user notification window */
@@ -30,9 +28,6 @@ typedef struct screen {
 /* the actively used screen */
 extern Screen *screen;
 
-/* forward declaration */
-struct frame;
-
 /* A monitor is a rectangular region tied to a screen. */
 typedef struct monitor {
     /* name of the monitor, used as key */
@@ -45,21 +40,21 @@ typedef struct monitor {
     unsigned is_free : 1;
 
     /* region of the monitor to cut off */
-    xcb_ewmh_get_extents_reply_t struts;
+    Extents strut;
 
     /* the position and size of the monitor */
     Position position;
     Size size;
 
     /* root frame */
-    struct frame *frame;
+    Frame *frame;
 
     /* next monitor in the linked list */
     struct monitor *next;
 } Monitor;
 
-/* Initialize @screen with graphical stock objects and utility windows. */
-int initialize_screen(int screen_number);
+/* Initialize the screen utility windows. */
+int initialize_screen(void);
 
 /* Try to initialize randr and set @screen->monitor. */
 void initialize_monitors(void);

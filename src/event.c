@@ -146,13 +146,13 @@ static void handle_property_notify(xcb_property_notify_event_t *event)
 
     window = get_window_of_xcb_window(event->window);
     if (window == NULL) {
-        if (event->window != screen->xcb_screen->root) {
+        if (event->window != x_screen->root) {
             LOG("property change of unmanaged window: %" PRId32 "\n", event->window);
         }
         return;
     }
 
-    if (!update_window_property_by_atom(window, event->atom)) {
+    if (!x_cache_window_property(&window->properties, event->atom)) {
         /* nothing we know of changed */
         return;
     }

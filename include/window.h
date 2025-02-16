@@ -3,29 +3,24 @@
 
 #include <stdint.h>
 
-#include <xcb/xcb.h> // xcb_window_t
-
 #include "utility.h"
 
-#include "window_properties.h"
 #include "window_state.h"
+
+#include "bits/window_typedef.h"
+#include "bits/frame_typedef.h"
+
+#include "x.h"
 
 /* the number the first window gets assigned */
 #define FIRST_WINDOW_NUMBER 1
 
-/* forward declaration */
-struct frame;
-typedef struct frame Frame;
-
 /* A window is a wrapper around an xcb window, it is always part of a global
  * linked list and has a unique id.
  */
-typedef struct window {
-    /* the actual X window */
-    xcb_window_t xcb_window;
-
-    /* the window properties */
-    WindowProperties properties;
+struct window {
+    /* the window's X properties */
+    XProperties properties;
 
     /* the window state */
     WindowState state;
@@ -48,13 +43,13 @@ typedef struct window {
      */
 
     /* the previous window in the focus chain */
-    struct window *previous_focus;
+    Window *previous_focus;
     /* the next window in the focus chain */
-    struct window *next_focus;
+    Window *next_focus;
 
     /* the next window in the linked list */
-    struct window *next;
-} Window;
+    Window *next;
+};
 
 /* the first window in the linked list, the list is sorted increasingly
  * with respect to the window number
@@ -64,9 +59,17 @@ extern Window *first_window;
 /* the currently focused window */
 extern Window *focus_window;
 
-/* Create a window struct and add it to the window list,
- * this also assigns the next id. */
-Window *create_window(xcb_window_t xcb_window);
+/* Create a window struct and add it to the window list. */
+Window *create_window(xcb_window_t xcb);
+
+/* time in seconds to wait for a second close */
+#define REQUEST_CLOSE_MAX_DURATION 3
+
+/* Attempt to close a window. If it is the first time, use a friendly method by
+ * sending a close request to the window. Call this function again within
+ * `REQUEST_CLOSE_MAX_DURATION` to forcefully kill it.
+ */
+void close_window(Window *window);
 
 /* Destroy given window and removes it from the window linked list.
  * This does NOT destroy the underlying xcb window.
@@ -82,7 +85,7 @@ void set_window_above(Window *window);
 
 /* Get the window before this window in the linked list.
  * This function WRAPS around so
- *  `get_previous_window(g_first_window)` returns the last window.
+ *  `get_previous_window(first_window)` returns the last window.
  *
  * @window may be NULL, then NULL is also returned.
  */

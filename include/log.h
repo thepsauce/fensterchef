@@ -10,7 +10,7 @@
 #include "fensterchef.h"
 
 /* Log a formatted message. */
-#define LOG(format, ...) do { \
+#define LOG(...) do { \
     char time_buffer[64]; \
     time_t current_time; \
     struct tm *tm; \
@@ -19,15 +19,15 @@
     strftime(time_buffer, sizeof(time_buffer), "[%F %T]", tm); \
     fputs(time_buffer, stderr); \
     fprintf(stderr, "(%s:%d) ", __FILE__, __LINE__); \
-    fprintf(stderr, (format), ##__VA_ARGS__); \
+    fprintf(stderr, __VA_ARGS__); \
 } while (0)
 
-#define LOG_ADDITIONAL(format, ...) do { \
-    fprintf(stderr, (format), ##__VA_ARGS__); \
+#define LOG_ADDITIONAL(...) do { \
+    fprintf(stderr, __VA_ARGS__); \
 } while (0)
 
 /* Log a formatted message with error indication. */
-#define LOG_ERROR(xcb_error, format, ...) do { \
+#define LOG_ERROR(xcb_error, ...) do { \
     char time_buffer_[64]; \
     time_t current_time_; \
     struct tm *tm_; \
@@ -38,10 +38,10 @@
     fputs(time_buffer_, stderr); \
     fprintf(stderr, "(%s:%d) ERR ", __FILE__, __LINE__); \
     if (error_ != NULL) { \
-        log_error(error_, (format), ##__VA_ARGS__); \
+        log_error(error_, __VA_ARGS__); \
         free(error_); \
     } else { \
-        fprintf(stderr, (format), ##__VA_ARGS__); \
+        fprintf(stderr, __VA_ARGS__); \
         fputc('\n', stderr); \
     } \
 } while (0)

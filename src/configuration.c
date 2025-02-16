@@ -87,6 +87,8 @@ void merge_with_default_key_bindings(struct configuration *configuration)
     } default_bindings[] = {
         { XCB_MOD_MASK_SHIFT, XK_r, { .code = ACTION_RELOAD_CONFIGURATION } },
 
+        { 0, XK_q, { .code = ACTION_CLOSE_WINDOW } },
+
         { 0, XK_n, { .code = ACTION_NEXT_WINDOW } },
         { 0, XK_p, { .code = ACTION_PREVIOUS_WINDOW } },
 
@@ -260,7 +262,7 @@ void grab_configured_keys(void)
     xcb_keycode_t *keycodes;
     uint16_t modifiers;
 
-    root = screen->xcb_screen->root;
+    root = x_screen->root;
 
     /* remove all previously grabbed keys so that we can overwrite them */
     xcb_ungrab_key(connection, XCB_GRAB_ANY, root, XCB_MOD_MASK_ANY);
@@ -341,7 +343,7 @@ void set_configuration(struct configuration *new_configuration)
                 continue;
             }
             general_values[0] = configuration.border.size;
-            xcb_configure_window(connection, window->xcb_window,
+            xcb_configure_window(connection, window->properties.window,
                     XCB_CONFIG_WINDOW_BORDER_WIDTH, general_values);
         }
     }

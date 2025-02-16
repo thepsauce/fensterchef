@@ -5,15 +5,18 @@
 
 #include <stdbool.h>
 
+#include "bits/frame_typedef.h"
+#include "bits/window_typedef.h"
+
 /* Frames are used to partition a monitor into multiple rectangular regions.
  *
  * When a frame has one child, it must have a second one, so either BOTH left
  * AND right are NULL or neither are NULL.
  * parent is NULL when the frame is a root frame.
  */
-typedef struct frame {
+struct frame {
     /* the window inside the frame, may be NULL */
-    struct window *window;
+    Window *window;
 
     /* coordinates and size of the frame */
     int32_t x;
@@ -22,11 +25,11 @@ typedef struct frame {
     uint32_t height;
 
     /* parent of the frame */
-    struct frame *parent;
+    Frame *parent;
     /* left and right child of the frame */
-    struct frame *left;
-    struct frame *right;
-} Frame;
+    Frame *left;
+    Frame *right;
+};
 
 /* the currently selected/focused frame */
 extern Frame *focus_frame;

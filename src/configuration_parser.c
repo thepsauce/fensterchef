@@ -222,14 +222,14 @@ static parser_error_t parse_boolean(Parser *parser)
     }
 
     for (uint32_t i = 0; i < SIZE(truth_values); i++) {
-        if (strcmp(truth_values[i], parser->identifier) == 0) {
+        if (strcasecmp(truth_values[i], parser->identifier) == 0) {
             parser->data.boolean = true;
             return PARSER_SUCCESS;
         }
     }
 
     for (uint32_t i = 0; i < SIZE(false_values); i++) {
-        if (strcmp(false_values[i], parser->identifier) == 0) {
+        if (strcasecmp(false_values[i], parser->identifier) == 0) {
             parser->data.boolean = false;
             return PARSER_SUCCESS;
         }
@@ -329,7 +329,7 @@ static parser_error_t parse_modifiers(Parser *parser)
         /* find the modifier */
         string_index = (uint32_t) -1;
         for (uint32_t i = 0; i < SIZE(modifier_strings); i++) {
-            if (strcmp(modifier_strings[i].name, parser->identifier) == 0) {
+            if (strcasecmp(modifier_strings[i].name, parser->identifier) == 0) {
                 string_index = i;
                 break;
             }
@@ -422,7 +422,7 @@ static parser_error_t parse_key(Parser *parser)
         /* find the modifier */
         string_index = (uint32_t) -1;
         for (uint32_t i = 0; i < SIZE(modifier_strings); i++) {
-            if (strcmp(modifier_strings[i].name, parser->identifier) == 0) {
+            if (strcasecmp(modifier_strings[i].name, parser->identifier) == 0) {
                 string_index = i;
                 break;
             }
@@ -611,7 +611,7 @@ parser_error_t parse_line(Parser *parser)
 
         /* check if the label exists */
         for (parser_label_t i = PARSER_FIRST_LABEL; i < PARSER_LABEL_MAX; i++) {
-            if (strcmp(label_strings[i], parser->identifier) == 0) {
+            if (strcasecmp(label_strings[i], parser->identifier) == 0) {
                 parser->label = i;
                 /* check for an ending ']' */
                 error = parse_character(parser);
@@ -647,7 +647,7 @@ parser_error_t parse_line(Parser *parser)
             break;
         }
 
-        if (strcmp(variable->name, parser->identifier) == 0) {
+        if (strcasecmp(variable->name, parser->identifier) == 0) {
             error = data_type_parsers[variable->data_type](parser);
             if (error != PARSER_SUCCESS) {
                 return error;

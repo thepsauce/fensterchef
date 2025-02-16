@@ -321,11 +321,11 @@ void log_error(xcb_generic_error_t *error, const char *format, ...)
 void log_screen(void)
 {
     LOG("Screen with root %u(width=%u, height=%u, white_pixel=%u, black_pixel=%u)\n",
-            screen->xcb_screen->root,
-            screen->xcb_screen->width_in_pixels,
-            screen->xcb_screen->height_in_pixels,
-            screen->xcb_screen->white_pixel,
-            screen->xcb_screen->black_pixel);
+            x_screen->root,
+            x_screen->width_in_pixels,
+            x_screen->height_in_pixels,
+            x_screen->white_pixel,
+            x_screen->black_pixel);
 }
 
 #else

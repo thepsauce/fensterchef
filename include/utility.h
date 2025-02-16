@@ -60,14 +60,54 @@
 #define OVERFLOW_ADD(a, b, c) \
     __builtin_add_overflow((a), (b), &(c))
 
+/* a point at position x, y */
 typedef struct position {
+    /* horizontal position */
     int32_t x;
+    /* vertical position */
     int32_t y;
 } Position;
 
+/* a size of width x height */
 typedef struct size {
+    /* horizontal size */
     uint32_t width;
+    /* vertical size */
     uint32_t height;
 } Size;
+
+/* offsets from the edges of *something* */
+typedef struct extents {
+    /* left extent */
+    int32_t left;
+    /* right extent */
+    int32_t right;
+    /* top extent */
+    int32_t top;
+    /* bottom extent */
+    int32_t bottom;
+} Extents;
+
+/* a rectangular region */
+typedef struct rectangle {
+    /* horizontal position */
+    int32_t x;
+    /* vertical position */
+    int32_t y;
+    /* horizontal size */
+    uint32_t width;
+    /* vertical size */
+    uint32_t height;
+} Rectangle;
+
+/* Get the length of @string up to a maximum of @max_length. */
+size_t strnlen(const char *string, size_t max_length);
+
+/* Compare two strings and ignore case.
+ *
+ * @return 0 for equality, a negative value if str1 < str2, otherwise a positive
+ * value.
+ */
+int strcasecmp(const char *string1, const char *string2);
 
 #endif

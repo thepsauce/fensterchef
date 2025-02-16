@@ -37,7 +37,7 @@ static inline int create_utility_windows(void)
     xcb_window_t root;
     xcb_generic_error_t *error;
 
-    root = screen->xcb_screen->root;
+    root = x_screen->root;
 
     /* create the check window, this can be used by other applications to
      * identify our window manager
@@ -53,10 +53,12 @@ static inline int create_utility_windows(void)
         return ERROR;
     }
     /* set the check window name to the name of fensterchef */
-    xcb_ewmh_set_wm_name(&ewmh, screen->check_window,
-            strlen(FENSTERCHEF_NAME), FENSTERCHEF_NAME);
-    xcb_ewmh_set_supporting_wm_check(&ewmh, screen->check_window,
-            screen->check_window);
+    xcb_icccm_set_wm_name(connection, screen->check_window,
+            ATOM(UTF8_STRING), 8, strlen(FENSTERCHEF_NAME), FENSTERCHEF_NAME);
+    /* the check window has itself as supporting wm check window */
+    xcb_change_property(connection, XCB_PROP_MODE_REPLACE,
+            screen->check_window, ATOM(_NET_SUPPORTING_WM_CHECK),
+            XCB_ATOM_WINDOW, 0, 1, &screen->check_window);
 
     /* create a notification window for showing the user messages */
     screen->notification_window = xcb_generate_id(connection);
@@ -85,17 +87,15 @@ static inline int create_utility_windows(void)
     return OK;
 }
 
-/* Initialize @screen with graphical stock objects and utility windows. */
-int initialize_screen(int screen_number)
+/* Initialize the screen with graphical stock objects and utility windows. */
+int initialize_screen(void)
 {
     xcb_window_t root;
     xcb_generic_error_t *error;
 
     screen = xcalloc(1, sizeof(*screen));
-    screen->number = screen_number;
-    screen->xcb_screen = ewmh.screens[screen_number];
 
-    root = screen->xcb_screen->root;
+    root = x_screen->root;
 
     /* set the mask of the root window so we receive important events like
      * create notifications
@@ -160,7 +160,7 @@ void initialize_monitors(void)
         randr_enabled = true;
         randr_event_base = extension->first_event;
 
-        xcb_randr_select_input(connection, screen->xcb_screen->root,
+        xcb_randr_select_input(connection, x_screen->root,
                 XCB_RANDR_NOTIFY_MASK_SCREEN_CHANGE |
                 XCB_RANDR_NOTIFY_MASK_OUTPUT_CHANGE |
                 XCB_RANDR_NOTIFY_MASK_CRTC_CHANGE |
@@ -264,9 +264,9 @@ Monitor *query_monitors(void)
 
     /* get cookies for later */
     primary_cookie = xcb_randr_get_output_primary(connection,
-            screen->xcb_screen->root);
+            x_screen->root);
     resources_cookie = xcb_randr_get_screen_resources_current(connection,
-            screen->xcb_screen->root);
+            x_screen->root);
 
     /* get the primary monitor */
     primary = xcb_randr_get_output_primary_reply(connection, primary_cookie,
@@ -346,7 +346,7 @@ Monitor *query_monitors(void)
     return first_monitor;
 }
 
-/* Updates the struts of all monitors and then correctly sizes the frame. */
+/* Updates the strut of all monitors and then correctly sizes the frame. */
 void reconfigure_monitor_frame_sizes(void)
 {
     Monitor *monitor;
@@ -354,40 +354,40 @@ void reconfigure_monitor_frame_sizes(void)
     /* reset all extents */
     for (monitor = screen->monitor; monitor != NULL;
             monitor = monitor->next) {
-        monitor->struts.left = 0;
-        monitor->struts.top = 0;
-        monitor->struts.right = 0;
-        monitor->struts.bottom = 0;
+        monitor->strut.left = 0;
+        monitor->strut.top = 0;
+        monitor->strut.right = 0;
+        monitor->strut.bottom = 0;
     }
 
     /* work out the new extents based on the window defined extents */
     for (Window *window = first_window; window != NULL;
             window = window->next) {
         if (!window->state.is_visible ||
-                is_strut_empty(&window->properties.struts)) {
+                is_strut_empty(&window->properties.strut)) {
             continue;
         }
-        /* only slash off from the monitor that has the struts, this is non
-         * standard behavior as struts are for screens and not monitors
+        /* only slash off from the monitor that has the strut, this is non
+         * standard behavior as strut are for screens and not monitors
          */
         monitor = get_monitor_from_rectangle(window->position.x,
                 window->position.y, window->size.width, window->size.height);
-        monitor->struts.left += window->properties.struts.left;
-        monitor->struts.top += window->properties.struts.top;
-        monitor->struts.right += window->properties.struts.right;
-        monitor->struts.bottom += window->properties.struts.bottom;
+        monitor->strut.left += window->properties.strut.reserved.left;
+        monitor->strut.top += window->properties.strut.reserved.top;
+        monitor->strut.right += window->properties.strut.reserved.right;
+        monitor->strut.bottom += window->properties.strut.reserved.bottom;
     }
 
     /* resize all frames to their according size */
     for (monitor = screen->monitor; monitor != NULL;
             monitor = monitor->next) {
         resize_frame(monitor->frame,
-                monitor->position.x + monitor->struts.left,
-                monitor->position.y + monitor->struts.top,
-                monitor->size.width - monitor->struts.right -
-                    monitor->struts.left,
-                monitor->size.height - monitor->struts.bottom -
-                    monitor->struts.top);
+                monitor->position.x + monitor->strut.left,
+                monitor->position.y + monitor->strut.top,
+                monitor->size.width - monitor->strut.right -
+                    monitor->strut.left,
+                monitor->size.height - monitor->strut.bottom -
+                    monitor->strut.top);
     }
 }
 
@@ -405,8 +405,8 @@ void merge_monitors(Monitor *monitors)
 
     if (monitors == NULL) {
         monitors = create_monitor("#Virtual", (uint32_t) -1);
-        monitors->size.width = screen->xcb_screen->width_in_pixels;
-        monitors->size.height = screen->xcb_screen->height_in_pixels;
+        monitors->size.width = x_screen->width_in_pixels;
+        monitors->size.height = x_screen->height_in_pixels;
     }
 
     /* copy frames from the old monitors to the new ones with same name */

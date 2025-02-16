@@ -2,12 +2,11 @@
 
 #include <xcb/xcb_renderutil.h>
 
-#include "fensterchef.h"
 #include "log.h"
 #include "render.h"
-#include "screen.h"
 #include "utf8.h"
 #include "utility.h"
+#include "x.h"
 
 /* TODO: how do we make colored emojis work?
  * I tried to but color formats other than 8 bit colors
@@ -97,6 +96,27 @@ static void free_font(void)
     FcCharSetDestroy(font.charset);
 }
 
+/* Initializes all parts needed for drawing fonts. */
+static int initialize_font_drawing(void)
+{
+    FT_Error error;
+
+    /* initialize the freetype library */
+    error = FT_Init_FreeType(&font.library);
+    if (error != FT_Err_Ok) {
+        LOG_ERROR(NULL, "could not initialize freetype: %u", error);
+        return ERROR;
+    }
+
+    /* initialize fontconfig, this reads the font configuration database */
+    if (FcInit() == FcFalse) {
+        LOG_ERROR(NULL, "could not initialize freetype: %u", error);
+        FT_Done_FreeType(font.library);
+        return ERROR;
+    }
+    return OK;
+}
+
 /* Initialize the graphical stock objects that can be used for rendering. */
 int initialize_renderer(void)
 {
@@ -117,15 +137,15 @@ int initialize_renderer(void)
         return ERROR;
     }
 
-    root = screen->xcb_screen->root;
+    root = x_screen->root;
 
     for (uint32_t i = 0; i < STOCK_MAX; i++) {
         stock_objects[i] = xcb_generate_id(connection);
     }
 
     /* create a graphics context */
-    general_values[0] = screen->xcb_screen->black_pixel;
-    general_values[1] = screen->xcb_screen->white_pixel;
+    general_values[0] = x_screen->black_pixel;
+    general_values[1] = x_screen->white_pixel;
     error = xcb_request_check(connection,
             xcb_create_gc_checked(connection, stock_objects[STOCK_GC],
                 root, XCB_GC_FOREGROUND | XCB_GC_BACKGROUND, general_values));
@@ -135,8 +155,8 @@ int initialize_renderer(void)
     }
 
     /* create a graphics context with inverted colors */
-    general_values[0] = screen->xcb_screen->white_pixel;
-    general_values[1] = screen->xcb_screen->black_pixel;
+    general_values[0] = x_screen->white_pixel;
+    general_values[1] = x_screen->black_pixel;
     error = xcb_request_check(connection,
             xcb_create_gc_checked(connection,
                 stock_objects[STOCK_INVERTED_GC], root,
@@ -147,7 +167,7 @@ int initialize_renderer(void)
     }
 
     /* create a white pen */
-    convert_color_to_xcb_color(&color, screen->xcb_screen->white_pixel);
+    convert_color_to_xcb_color(&color, x_screen->white_pixel);
     pen = create_pen(color);
     if (pen == XCB_NONE) {
         return ERROR;
@@ -155,12 +175,17 @@ int initialize_renderer(void)
     stock_objects[STOCK_WHITE_PEN] = create_pen(color);
 
     /* create a black pen */
-    convert_color_to_xcb_color(&color, screen->xcb_screen->black_pixel);
+    convert_color_to_xcb_color(&color, x_screen->black_pixel);
     pen = create_pen(color);
     if (pen == XCB_NONE) {
         return ERROR;
     }
     stock_objects[STOCK_BLACK_PEN] = pen;
+
+    /* continue running even when fonts do not work */
+    if (initialize_font_drawing() == OK) {
+        font.available = true;
+    }
 
     return OK;
 }
@@ -227,7 +252,7 @@ xcb_render_picture_t cache_window_picture(xcb_drawable_t xcb_drawable)
     error = xcb_request_check(connection,
                 xcb_render_create_picture_checked(connection, picture,
                 xcb_drawable,
-                find_visual_format(screen->xcb_screen->root_visual),
+                find_visual_format(x_screen->root_visual),
                 XCB_RENDER_CP_POLY_MODE | XCB_RENDER_CP_POLY_EDGE,
                 general_values));
     if (error != NULL) {
@@ -266,8 +291,8 @@ xcb_render_picture_t create_pen(xcb_render_color_t color)
     /* create 1x1 pixmap */
     pixmap = xcb_generate_id(connection);
     error = xcb_request_check(connection, xcb_create_pixmap_checked(connection,
-                screen->xcb_screen->root_depth, pixmap,
-                screen->xcb_screen->root, 1, 1));
+                x_screen->root_depth, pixmap,
+                x_screen->root, 1, 1));
     if (error != NULL) {
         LOG_ERROR(error, "could not create pixmap");
         return XCB_NONE;
@@ -286,29 +311,6 @@ xcb_render_picture_t create_pen(xcb_render_color_t color)
 
     set_pen_color(picture, color);
     return picture;
-}
-
-/* Initializes all parts needed for drawing fonts. */
-int initialize_font_drawing(void)
-{
-    FT_Error error;
-
-    /* initialize the freetype library */
-    error = FT_Init_FreeType(&font.library);
-    if (error != FT_Err_Ok) {
-        LOG_ERROR(NULL, "could not initialize freetype: %u", error);
-        return ERROR;
-    }
-
-    /* initialize fontconfig, this reads the font configuration database */
-    if (FcInit() == FcFalse) {
-        LOG_ERROR(NULL, "could not initialize freetype: %u", error);
-        FT_Done_FreeType(font.library);
-        return ERROR;
-    }
-
-    font.available = true;
-    return OK;
 }
 
 /* Create a font face using given pattern. */
@@ -368,12 +370,12 @@ static FT_Face create_font_face(FcPattern *pattern)
      * multiplying by 254 and then diving by 10 converts the millimeters to
      * inches, adding half the divisor before dividing will round better
      */
-    horizontal_dpi = (FT_UInt) (screen->xcb_screen->width_in_pixels * 254 +
-            screen->xcb_screen->width_in_millimeters * 5) /
-        (screen->xcb_screen->width_in_millimeters * 10);
-    vertical_dpi = (FT_UInt) (screen->xcb_screen->height_in_pixels * 254 +
-            screen->xcb_screen->height_in_millimeters * 5) /
-        (screen->xcb_screen->height_in_millimeters * 10);
+    horizontal_dpi = (FT_UInt) (x_screen->width_in_pixels * 254 +
+            x_screen->width_in_millimeters * 5) /
+        (x_screen->width_in_millimeters * 10);
+    vertical_dpi = (FT_UInt) (x_screen->height_in_pixels * 254 +
+            x_screen->height_in_millimeters * 5) /
+        (x_screen->height_in_millimeters * 10);
     /* try to set the size of the face, we need to multiply by 64 because
      * FT_Set_Char_Size() expects 26.6 fractional points
      */

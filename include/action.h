@@ -5,8 +5,8 @@
 
 /* action codes
  *
- * NOTE: After editing an action code, also edit the action_strings[] array in
- * action.c and implement the action in do_action().
+ * NOTE: After editing an action code, also edit the action_information[] array
+ * in action.c and implement the action in do_action().
  */
 typedef enum {
     /* invalid action value */
@@ -19,6 +19,8 @@ typedef enum {
     ACTION_NONE = ACTION_FIRST_ACTION,
     /* reload the configuration file */
     ACTION_RELOAD_CONFIGURATION,
+    /* closes the currently active window */
+    ACTION_CLOSE_WINDOW,
     /* go to the next window in the window list */
     ACTION_NEXT_WINDOW,
     /* go to the previous window in the window list */

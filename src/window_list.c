@@ -294,7 +294,7 @@ Window *select_window_from_list(void)
     /* refocus the old window */
     if (focus_window != NULL) {
         xcb_set_input_focus(connection, XCB_INPUT_FOCUS_POINTER_ROOT,
-            focus_window->xcb_window, XCB_CURRENT_TIME);
+            focus_window->properties.window, XCB_CURRENT_TIME);
     }
 
     return window;

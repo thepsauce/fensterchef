@@ -1,7 +1,7 @@
 #include "configuration.h"
-#include "fensterchef.h"
 #include "keymap.h"
 #include "utility.h"
+#include "x.h"
 
 /* symbol translation table */
 static xcb_key_symbols_t *key_symbols;
