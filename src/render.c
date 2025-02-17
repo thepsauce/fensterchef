@@ -121,7 +121,6 @@ static int initialize_font_drawing(void)
 int initialize_renderer(void)
 {
     xcb_render_query_pict_formats_cookie_t formats_cookie;
-    xcb_drawable_t root;
     xcb_generic_error_t *error;
     xcb_render_color_t color;
     xcb_render_picture_t pen;
@@ -137,8 +136,6 @@ int initialize_renderer(void)
         return ERROR;
     }
 
-    root = x_screen->root;
-
     for (uint32_t i = 0; i < STOCK_MAX; i++) {
         stock_objects[i] = xcb_generate_id(connection);
     }
@@ -148,7 +145,8 @@ int initialize_renderer(void)
     general_values[1] = x_screen->white_pixel;
     error = xcb_request_check(connection,
             xcb_create_gc_checked(connection, stock_objects[STOCK_GC],
-                root, XCB_GC_FOREGROUND | XCB_GC_BACKGROUND, general_values));
+                x_screen->root, XCB_GC_FOREGROUND | XCB_GC_BACKGROUND,
+                general_values));
     if (error != NULL) {
         LOG_ERROR(error, "could not create graphics context for notifications");
         return ERROR;
@@ -159,7 +157,7 @@ int initialize_renderer(void)
     general_values[1] = x_screen->black_pixel;
     error = xcb_request_check(connection,
             xcb_create_gc_checked(connection,
-                stock_objects[STOCK_INVERTED_GC], root,
+                stock_objects[STOCK_INVERTED_GC], x_screen->root,
                 XCB_GC_FOREGROUND | XCB_GC_BACKGROUND, general_values));
     if (error != NULL) {
         LOG_ERROR(error, "could not create inverted graphics context for notifications");

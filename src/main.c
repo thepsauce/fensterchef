@@ -64,7 +64,7 @@ int main(void)
     }
 
     /* load the default configuration and the user configuration, this also
-     * initializes the keybinds and font
+     * initializes the keybindings and font
      */
     load_default_configuration();
     reload_user_configuration();

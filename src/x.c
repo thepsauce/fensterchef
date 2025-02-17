@@ -110,6 +110,7 @@ bool x_is_state(XProperties *properties, xcb_atom_t state)
     return x_is_atom_included(properties->states, state);
 }
 
+/* Wrapper around getting a cookie and reply for a GetProperty request. */
 static inline xcb_get_property_reply_t *x_get_property(xcb_window_t window,
         xcb_atom_t property, xcb_atom_t type, uint8_t format, uint32_t length,
         xcb_generic_error_t **error)
@@ -123,6 +124,7 @@ static inline xcb_get_property_reply_t *x_get_property(xcb_window_t window,
     if (reply == NULL) {
         return NULL;
     }
+    /* check if the property is in the needed format and if it is long enough */
     if (reply->format != format || (length != UINT32_MAX &&
                 (uint32_t) xcb_get_property_value_length(reply) <
                 length * format / 8)) {
@@ -212,14 +214,6 @@ static void x_update_window_strut(XProperties *properties)
     free(strut);
 
     properties->strut = new_strut;
-    /* check if the struts have changed */
-    /*TODO:if (memcmp(&properties->strut, &new_wm_strut, sizeof(new_wm_strut)) != 0) {
-        properties->strut = new_wm_strut;
-        if (window->state.is_visible) {
-            reconfigure_monitor_frame_sizes();
-            synchronize_root_property(ROOT_PROPERTY_WORK_AREA);
-        }
-    }*/
 }
 
 /* Get a window property as list of atoms. */
@@ -248,12 +242,6 @@ static void x_update_window_type(XProperties *properties)
 {
     properties->types = x_get_atom_list(properties->window,
             ATOM(_NET_WM_WINDOW_TYPE));
-
-    /* TODO: if (does_window_have_type(window, ATOM(_NET_WM_WINDOW_TYPE_DOCK))) {
-        general_values[0] = 0;
-        xcb_configure_window(connection, properties->window,
-                XCB_CONFIG_WINDOW_BORDER_WIDTH, general_values);
-    }*/
 }
 
 /* Update the states property of given window. */
@@ -335,8 +323,7 @@ static void x_update_window_fullscreen_monitors(XProperties *properties)
 /* Update the property with @properties corresponding to given atom. */
 bool x_cache_window_property(XProperties *properties, xcb_atom_t atom)
 {
-    /* this is spaced out because it was very difficult to read with the eyes
-     */
+    /* this is spaced out because it was very difficult to read with the eyes */
     if (atom == XCB_ATOM_WM_NAME || atom == ATOM(_NET_WM_NAME)) {
 
         x_update_window_name(properties);

@@ -59,12 +59,6 @@ static inline void convert_color_to_xcb_color(xcb_render_color_t *xcb_color,
     xcb_color->blue = (color & 0xff) << 8;
 }
 
-/* Initializes all parts needed for drawing fonts.
- *
- * @return 0 on success, 1 otherwise.
- */
-int initialize_font_drawing(void);
-
 /* This sets the globally used font for rendering.
  *
  * @name can be NULL to set the default font.
