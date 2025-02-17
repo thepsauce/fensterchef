@@ -1,7 +1,7 @@
 #include "configuration.h"
 #include "keymap.h"
 #include "utility.h"
-#include "x.h"
+#include "x11_management.h"
 
 /* symbol translation table */
 static xcb_key_symbols_t *key_symbols;

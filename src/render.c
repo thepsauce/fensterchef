@@ -6,7 +6,7 @@
 #include "render.h"
 #include "utf8.h"
 #include "utility.h"
-#include "x.h"
+#include "x11_management.h"
 
 /* TODO: how do we make colored emojis work?
  * I tried to but color formats other than 8 bit colors

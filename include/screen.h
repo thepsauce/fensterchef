@@ -7,7 +7,7 @@
 
 #include "bits/frame_typedef.h"
 
-#include "x.h"
+#include "x11_management.h"
 
 /* forward declaration */
 struct monitor;

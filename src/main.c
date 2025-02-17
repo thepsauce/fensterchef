@@ -11,7 +11,7 @@
 #include "render.h"
 #include "root_properties.h"
 #include "screen.h"
-#include "x.h"
+#include "x11_management.h"
 #include "xalloc.h"
 
 /* Handle an incoming alarm. */

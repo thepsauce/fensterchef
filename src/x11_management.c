@@ -1,7 +1,7 @@
 #include <string.h>
 
 #include "log.h"
-#include "x.h"
+#include "x11_management.h"
 
 /* connection to the xcb server */
 xcb_connection_t *connection;

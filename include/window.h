@@ -10,7 +10,7 @@
 #include "bits/window_typedef.h"
 #include "bits/frame_typedef.h"
 
-#include "x.h"
+#include "x11_management.h"
 
 /* the number the first window gets assigned */
 #define FIRST_WINDOW_NUMBER 1

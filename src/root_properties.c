@@ -46,9 +46,6 @@ static void synchronize_supported(void)
         ATOM(_NET_REQUEST_FRAME_EXTENTS),
 
         ATOM(_NET_WM_NAME),
-        ATOM(_NET_WM_VISIBLE_NAME),
-        ATOM(_NET_WM_ICON_NAME),
-        ATOM(_NET_WM_VISIBLE_ICON_NAME),
 
         ATOM(_NET_WM_DESKTOP),
 
@@ -87,8 +84,6 @@ static void synchronize_supported(void)
         ATOM(_NET_WM_STRUT_PARTIAL),
 
         ATOM(_NET_FRAME_EXTENTS),
-
-        ATOM(_NET_WM_PING),
 
         ATOM(_NET_WM_FULLSCREEN_MONITORS),
 
