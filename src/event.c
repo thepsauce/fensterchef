@@ -7,8 +7,8 @@
 #include "frame.h"
 #include "keymap.h"
 #include "log.h"
+#include "monitor.h"
 #include "root_properties.h"
-#include "screen.h"
 #include "utility.h"
 #include "window.h"
 
@@ -43,9 +43,9 @@ static void handle_create_notify(xcb_create_notify_event_t *event)
     Window *window;
 
     /* ignore the fensterchef windows */
-    if (event->window == screen->check_window ||
-            event->window == screen->notification_window ||
-            event->window == screen->window_list_window) {
+    if (event->window == check_window ||
+            event->window == notification_window ||
+            event->window == window_list_window) {
         return;
     }
 

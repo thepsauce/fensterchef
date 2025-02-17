@@ -3,7 +3,6 @@
 #include "fensterchef.h"
 #include "log.h"
 #include "root_properties.h"
-#include "screen.h"
 #include "window.h"
 
 /* Set the root property _NET_SUPPORTED atom list to the supported atoms. */
@@ -195,7 +194,7 @@ void synchronize_root_property(root_property_t property)
     case ROOT_PROPERTY_SUPPORTING_WM_CHECK:
         xcb_change_property(connection, XCB_PROP_MODE_REPLACE,
                 x_screen->root, ATOM(_NET_SUPPORTING_WM_CHECK), XCB_ATOM_WINDOW,
-                32, 1, &screen->check_window);
+                32, 1, &check_window);
         break;
 
     /* not a real property */

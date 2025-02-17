@@ -4,9 +4,9 @@
 #include "fensterchef.h"
 #include "frame.h"
 #include "log.h"
+#include "monitor.h"
 #include "window.h"
 #include "root_properties.h"
-#include "screen.h"
 #include "xalloc.h"
 
 /* the first window in the linked list, the list is sorted increasingly
@@ -226,7 +226,8 @@ Frame *get_frame_of_window(const Window *window)
         return NULL;
     }
 
-    for (Monitor *monitor = screen->monitor; monitor != NULL; monitor = monitor->next) {
+    for (Monitor *monitor = first_monitor; monitor != NULL;
+            monitor = monitor->next) {
         Frame *const find = find_frame_recursively(monitor->frame, window);
         if (find != NULL) {
             return find;

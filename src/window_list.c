@@ -12,8 +12,8 @@
 #include "frame.h"
 #include "keymap.h"
 #include "log.h"
+#include "monitor.h"
 #include "render.h"
-#include "screen.h"
 #include "utility.h"
 #include "window.h"
 
@@ -84,12 +84,12 @@ static int render_window_list(Window *selected)
     general_values[3] = window_count *
         (measure.ascent - measure.descent + configuration.notification.padding);
     general_values[4] = XCB_STACK_MODE_ABOVE;
-    xcb_configure_window(connection, screen->window_list_window,
+    xcb_configure_window(connection, window_list_window,
             XCB_CONFIG_SIZE | XCB_CONFIG_WINDOW_STACK_MODE, general_values);
 
     /* focus the window list */
     xcb_set_input_focus(connection, XCB_INPUT_FOCUS_POINTER_ROOT,
-            screen->window_list_window, XCB_CURRENT_TIME);
+            window_list_window, XCB_CURRENT_TIME);
 
     rectangle.x = 0;
     rectangle.y = 0;
@@ -114,7 +114,7 @@ static int render_window_list(Window *selected)
         snprintf((char*) buffer, sizeof(buffer), "%" PRIu32 "%c%s",
                 window->number, get_indicator_character(window),
                 window->properties.name);
-        draw_text(screen->window_list_window, buffer,
+        draw_text(window_list_window, buffer,
                 strlen((char*) buffer), background_color, &rectangle,
                 pen, configuration.notification.padding / 2,
                 rectangle.y + measure.ascent +
@@ -285,12 +285,12 @@ Window *select_window_from_list(void)
     }
 
     /* show the window on screen */
-    xcb_map_window(connection, screen->window_list_window);
+    xcb_map_window(connection, window_list_window);
 
     window = handle_window_list_events(window);
 
     /* hide the window from the screen */
-    xcb_unmap_window(connection, screen->window_list_window);
+    xcb_unmap_window(connection, window_list_window);
 
     /* refocus the old window */
     if (focus_window != NULL) {

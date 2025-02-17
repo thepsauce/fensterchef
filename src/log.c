@@ -3,8 +3,8 @@
 #include <inttypes.h>
 
 #include "log.h"
-#include "screen.h"
 #include "utility.h"
+#include "x11_management.h"
 
 /* Log key modifiers to the log file. */
 static void log_modifiers(uint32_t mask)
