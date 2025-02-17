@@ -90,7 +90,7 @@ static void synchronize_supported(void)
     };
 
     /* set all atoms our window manager supports */
-    xcb_change_property(connection, XCB_PROP_MODE_REPLACE, x_screen->root,
+    xcb_change_property(connection, XCB_PROP_MODE_REPLACE, screen->root,
             ATOM(_NET_SUPPORTED), XCB_ATOM_ATOM, 8 * sizeof(uint32_t),
             SIZE(supported_atoms), supported_atoms);
 }
@@ -116,9 +116,9 @@ static void synchronize_work_area(void)
     }
     rectangle.x = left;
     rectangle.y = top;
-    rectangle.width = x_screen->width_in_pixels - right - left;
-    rectangle.height = x_screen->height_in_pixels - bottom - top;
-    xcb_change_property(connection, XCB_PROP_MODE_REPLACE, x_screen->root,
+    rectangle.width = screen->width_in_pixels - right - left;
+    rectangle.height = screen->height_in_pixels - bottom - top;
+    xcb_change_property(connection, XCB_PROP_MODE_REPLACE, screen->root,
             ATOM(_NET_WORKAREA), XCB_ATOM_CARDINAL, 8 * sizeof(uint32_t),
             sizeof(rectangle) / sizeof(uint32_t), &rectangle);
 }
@@ -142,44 +142,44 @@ void synchronize_root_property(root_property_t property)
 
     /* the number of desktops, just set it to 1 */
     case ROOT_PROPERTY_NUMBER_OF_DESKTOPS:
-        xcb_change_property(connection, XCB_PROP_MODE_REPLACE, x_screen->root,
+        xcb_change_property(connection, XCB_PROP_MODE_REPLACE, screen->root,
                 ATOM(_NET_NUMBER_OF_DESKTOPS), XCB_ATOM_CARDINAL, 32, 1, &one);
         break;
 
     /* the size of a desktop, we do not support large desktops */
     case ROOT_PROPERTY_DESKTOP_GEOMETRY:
-        geometry.width = x_screen->width_in_pixels;
-        geometry.height = x_screen->height_in_pixels;
-        xcb_change_property(connection, XCB_PROP_MODE_REPLACE, x_screen->root,
+        geometry.width = screen->width_in_pixels;
+        geometry.height = screen->height_in_pixels;
+        xcb_change_property(connection, XCB_PROP_MODE_REPLACE, screen->root,
                 ATOM(_NET_DESKTOP_GEOMETRY), XCB_ATOM_CARDINAL, 32, 2,
                 &geometry);
         break;
 
     /* viewport of each desktop, just set it to (0, 0) for the only desktop */
     case ROOT_PROPERTY_DESKTOP_VIEWPORT:
-        xcb_change_property(connection, XCB_PROP_MODE_REPLACE, x_screen->root,
+        xcb_change_property(connection, XCB_PROP_MODE_REPLACE, screen->root,
                 ATOM(_NET_DESKTOP_VIEWPORT), XCB_ATOM_CARDINAL, 32, 2,
                 &origin);
         break;
 
     /* the currently selected desktop, always 0 */
     case ROOT_PROPERTY_CURRENT_DESKTOP:
-        xcb_change_property(connection, XCB_PROP_MODE_REPLACE, x_screen->root,
+        xcb_change_property(connection, XCB_PROP_MODE_REPLACE, screen->root,
                 ATOM(_NET_CURRENT_DESKTOP), XCB_ATOM_CARDINAL, 32, 1, &zero);
         break;
 
     /* the name of each desktop */
     case ROOT_PROPERTY_DESKTOP_NAMES:
-        xcb_change_property(connection, XCB_PROP_MODE_REPLACE, x_screen->root,
+        xcb_change_property(connection, XCB_PROP_MODE_REPLACE, screen->root,
                 ATOM(_NET_DESKTOP_NAMES), ATOM(UTF8_STRING), 8,
                 strlen(desktop_name), desktop_name);
         break;
 
     /* the currently active window */
     case ROOT_PROPERTY_ACTIVE_WINDOW:
-        xcb_change_property(connection, XCB_PROP_MODE_REPLACE, x_screen->root,
+        xcb_change_property(connection, XCB_PROP_MODE_REPLACE, screen->root,
                 ATOM(_NET_ACTIVE_WINDOW), XCB_ATOM_WINDOW, 32, 1,
-                focus_window == NULL ?  &x_screen->root :
+                focus_window == NULL ?  &screen->root :
                 &focus_window->properties.window);
         break;
 
@@ -193,7 +193,7 @@ void synchronize_root_property(root_property_t property)
      */
     case ROOT_PROPERTY_SUPPORTING_WM_CHECK:
         xcb_change_property(connection, XCB_PROP_MODE_REPLACE,
-                x_screen->root, ATOM(_NET_SUPPORTING_WM_CHECK), XCB_ATOM_WINDOW,
+                screen->root, ATOM(_NET_SUPPORTING_WM_CHECK), XCB_ATOM_WINDOW,
                 32, 1, &check_window);
         break;
 

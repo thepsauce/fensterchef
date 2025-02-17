@@ -22,10 +22,6 @@
     fprintf(stderr, __VA_ARGS__); \
 } while (0)
 
-#define LOG_ADDITIONAL(...) do { \
-    fprintf(stderr, __VA_ARGS__); \
-} while (0)
-
 /* Log a formatted message with error indication. */
 #define LOG_ERROR(xcb_error, ...) do { \
     char time_buffer_[64]; \

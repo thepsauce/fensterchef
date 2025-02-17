@@ -3,11 +3,11 @@
 
 #include "frame.h"
 
-/* Split a frame horizontally or vertically. 
- *
- * @is_split_vert true for a vertical split and false for a horizontal split.
- */
-void split_frame(Frame *split_from, bool is_split_vert);
+/* Increases the @edge of @frame by @amount. */
+int32_t bump_frame_edge(Frame *frame, frame_edge_t edge, int32_t amount);
+
+/* Split a frame horizontally or vertically. */
+void split_frame(Frame *split_from, frame_split_direction_t direction);
 
 /* Remove a frame from the screen and hide the inner windows.
  *

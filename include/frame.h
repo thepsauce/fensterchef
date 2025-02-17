@@ -8,6 +8,20 @@
 #include "bits/frame_typedef.h"
 #include "bits/window_typedef.h"
 
+typedef enum {
+    FRAME_EDGE_LEFT,
+    FRAME_EDGE_TOP,
+    FRAME_EDGE_RIGHT,
+    FRAME_EDGE_BOTTOM,
+} frame_edge_t;
+
+typedef enum {
+    /* the frame was split horizontally (children are left and right) */
+    FRAME_SPLIT_HORIZONTALLY,
+    /* the frame was split vertically (children are up and down) */
+    FRAME_SPLIT_VERTICALLY,
+} frame_split_direction_t;
+
 /* Frames are used to partition a monitor into multiple rectangular regions.
  *
  * When a frame has one child, it must have a second one, so either BOTH left
@@ -24,9 +38,12 @@ struct frame {
     uint32_t width;
     uint32_t height;
 
+    /* the direction the frame was split in */
+    frame_split_direction_t split_direction;
+
     /* parent of the frame */
     Frame *parent;
-    /* left and right child of the frame */
+    /* left child and right child of the frame */
     Frame *left;
     Frame *right;
 };

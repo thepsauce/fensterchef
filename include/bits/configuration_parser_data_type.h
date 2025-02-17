@@ -11,9 +11,9 @@
 
 /* data types the parser understands
  *
- * NOTE: After editing a data type, also edit the data_type_parsers[] array in
- * configuration_parser.c and implement its parser function. It can then be used
- * in parse_line().
+ * NOTE: After editing a data type, also edit the data_types[] array in
+ * configuration_parser.c and implement its parser function. It will then be
+ * automatically used in parse_line().
  */
 typedef enum parser_data_type {
     /* no data type at all */
@@ -24,6 +24,8 @@ typedef enum parser_data_type {
     PARSER_DATA_TYPE_STRING,
     /* an integer in simple decimal notation */
     PARSER_DATA_TYPE_INTEGER,
+    /* a set of 4 integers */
+    PARSER_DATA_TYPE_QUAD,
     /* color in the format (X: hexadecimal digit): #XXXXXX */
     PARSER_DATA_TYPE_COLOR,
     /* key modifiers, e.g.: Control+Shift */
@@ -39,7 +41,9 @@ union parser_data_value {
     /* any utf8 text without leading or trailing space */
     uint8_t *string;
     /* an integer in simple decimal notation */
-    uint32_t integer;
+    int32_t integer;
+    /* a set of 4 integers */
+    int32_t quad[4];
     /* color in the format (X: hexadecimal digit): #XXXXXX */
     uint32_t color;
     /* key modifiers, e.g.: Control+Shift */

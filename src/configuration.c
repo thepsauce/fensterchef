@@ -139,7 +139,8 @@ void merge_with_default_key_bindings(struct configuration *configuration)
 
     /* add the new keys on top of the already defined keys */
     RESIZE(configuration->keyboard.keys, new_count);
-    next_key = &configuration->keyboard.keys[configuration->keyboard.number_of_keys];
+    next_key =
+        &configuration->keyboard.keys[configuration->keyboard.number_of_keys];
     for (uint32_t i = 0; i < SIZE(default_bindings); i++) {
         const uint16_t modifiers = default_bindings[i].modifiers |
             configuration->keyboard.modifiers;
@@ -262,7 +263,7 @@ void grab_configured_keys(void)
     xcb_keycode_t *keycodes;
     uint16_t modifiers;
 
-    root = x_screen->root;
+    root = screen->root;
 
     /* remove all previously grabbed keys so that we can overwrite them */
     xcb_ungrab_key(connection, XCB_GRAB_ANY, root, XCB_MOD_MASK_ANY);
@@ -338,8 +339,7 @@ void set_configuration(struct configuration *new_configuration)
     if (old_configuration.border.size != configuration.border.size) {
         for (Window *window = first_window; window != NULL;
                 window = window->next) {
-            if (!window->state.is_visible ||
-                    !DOES_WINDOW_MODE_HAVE_BORDER(window->state.mode)) {
+            if (!has_window_border(window)) {
                 continue;
             }
             general_values[0] = configuration.border.size;
@@ -406,8 +406,10 @@ void set_configuration(struct configuration *new_configuration)
                 XCB_GC_FOREGROUND | XCB_GC_BACKGROUND, general_values);
     }
 
-    /* reset the alarm */
-    alarm(configuration.notification.duration);
+    /* cancel the alarm */
+    alarm(0);
+    /* hide the notification window */
+    xcb_unmap_window(connection, notification_window);
 
     /* just do this without checking if anything changed */
     grab_configured_keys();
@@ -452,31 +454,31 @@ int load_configuration_file(const char *file_name,
         if (error != PARSER_SUCCESS) {
             LOG("%s:%zu: %s\n", file_name, parser.line_number,
                     parser_string_error(error));
-            LOG_ADDITIONAL("%5zu %s\n", parser.line_number, parser.line);
+            fprintf(stderr, "%5zu %s\n", parser.line_number, parser.line);
             for (int i = 0; i <= 5; i++) {
-                LOG_ADDITIONAL(" ");
+                fprintf(stderr, " ");
             }
             if (error == PARSER_ERROR_TRAILING) {
                 /* indicate all trailing characters using "  ^~~~" */
                 for (size_t i = 0; i < parser.column; i++) {
-                    LOG_ADDITIONAL(" ");
+                    fprintf(stderr, " ");
                 }
-                LOG_ADDITIONAL("^");
+                fprintf(stderr, "^");
                 for (size_t i = parser.column + 1;
                         parser.line[i] != '\0'; i++) {
-                    LOG_ADDITIONAL("~");
+                    fprintf(stderr, "~");
                 }
-                LOG_ADDITIONAL("\n");
+                fprintf(stderr, "\n");
             } else {
                 /* indicate the error region using "  ~~~^" */
                 for (size_t i = 0; i < parser.item_start_column; i++) {
-                    LOG_ADDITIONAL(" ");
+                    fprintf(stderr, " ");
                 }
                 for (size_t i = parser.item_start_column + 1;
                         i < parser.column; i++) {
-                    LOG_ADDITIONAL("~");
+                    fprintf(stderr, "~");
                 }
-                LOG_ADDITIONAL("^\n");
+                fprintf(stderr, "^\n");
             }
         }
 

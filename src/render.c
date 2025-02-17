@@ -141,11 +141,11 @@ int initialize_renderer(void)
     }
 
     /* create a graphics context */
-    general_values[0] = x_screen->black_pixel;
-    general_values[1] = x_screen->white_pixel;
+    general_values[0] = screen->black_pixel;
+    general_values[1] = screen->white_pixel;
     error = xcb_request_check(connection,
             xcb_create_gc_checked(connection, stock_objects[STOCK_GC],
-                x_screen->root, XCB_GC_FOREGROUND | XCB_GC_BACKGROUND,
+                screen->root, XCB_GC_FOREGROUND | XCB_GC_BACKGROUND,
                 general_values));
     if (error != NULL) {
         LOG_ERROR(error, "could not create graphics context for notifications");
@@ -153,11 +153,11 @@ int initialize_renderer(void)
     }
 
     /* create a graphics context with inverted colors */
-    general_values[0] = x_screen->white_pixel;
-    general_values[1] = x_screen->black_pixel;
+    general_values[0] = screen->white_pixel;
+    general_values[1] = screen->black_pixel;
     error = xcb_request_check(connection,
             xcb_create_gc_checked(connection,
-                stock_objects[STOCK_INVERTED_GC], x_screen->root,
+                stock_objects[STOCK_INVERTED_GC], screen->root,
                 XCB_GC_FOREGROUND | XCB_GC_BACKGROUND, general_values));
     if (error != NULL) {
         LOG_ERROR(error, "could not create inverted graphics context for notifications");
@@ -165,7 +165,7 @@ int initialize_renderer(void)
     }
 
     /* create a white pen */
-    convert_color_to_xcb_color(&color, x_screen->white_pixel);
+    convert_color_to_xcb_color(&color, screen->white_pixel);
     pen = create_pen(color);
     if (pen == XCB_NONE) {
         return ERROR;
@@ -173,7 +173,7 @@ int initialize_renderer(void)
     stock_objects[STOCK_WHITE_PEN] = create_pen(color);
 
     /* create a black pen */
-    convert_color_to_xcb_color(&color, x_screen->black_pixel);
+    convert_color_to_xcb_color(&color, screen->black_pixel);
     pen = create_pen(color);
     if (pen == XCB_NONE) {
         return ERROR;
@@ -250,7 +250,7 @@ xcb_render_picture_t cache_window_picture(xcb_drawable_t xcb_drawable)
     error = xcb_request_check(connection,
                 xcb_render_create_picture_checked(connection, picture,
                 xcb_drawable,
-                find_visual_format(x_screen->root_visual),
+                find_visual_format(screen->root_visual),
                 XCB_RENDER_CP_POLY_MODE | XCB_RENDER_CP_POLY_EDGE,
                 general_values));
     if (error != NULL) {
@@ -289,8 +289,8 @@ xcb_render_picture_t create_pen(xcb_render_color_t color)
     /* create 1x1 pixmap */
     pixmap = xcb_generate_id(connection);
     error = xcb_request_check(connection, xcb_create_pixmap_checked(connection,
-                x_screen->root_depth, pixmap,
-                x_screen->root, 1, 1));
+                screen->root_depth, pixmap,
+                screen->root, 1, 1));
     if (error != NULL) {
         LOG_ERROR(error, "could not create pixmap");
         return XCB_NONE;
@@ -368,12 +368,12 @@ static FT_Face create_font_face(FcPattern *pattern)
      * multiplying by 254 and then diving by 10 converts the millimeters to
      * inches, adding half the divisor before dividing will round better
      */
-    horizontal_dpi = (FT_UInt) (x_screen->width_in_pixels * 254 +
-            x_screen->width_in_millimeters * 5) /
-        (x_screen->width_in_millimeters * 10);
-    vertical_dpi = (FT_UInt) (x_screen->height_in_pixels * 254 +
-            x_screen->height_in_millimeters * 5) /
-        (x_screen->height_in_millimeters * 10);
+    horizontal_dpi = (FT_UInt) (screen->width_in_pixels * 254 +
+            screen->width_in_millimeters * 5) /
+        (screen->width_in_millimeters * 10);
+    vertical_dpi = (FT_UInt) (screen->height_in_pixels * 254 +
+            screen->height_in_millimeters * 5) /
+        (screen->height_in_millimeters * 10);
     /* try to set the size of the face, we need to multiply by 64 because
      * FT_Set_Char_Size() expects 26.6 fractional points
      */
@@ -619,7 +619,7 @@ static int cache_glyph(uint32_t glyph, FT_Pos *advance)
     free(temporary_bitmap);
 
     if (error != NULL) {
-        LOG_ERROR(error, "could not add glyph U+%8x to the glyphset",
+        LOG_ERROR(error, "could not add glyph U+%08x to the glyphset",
                 (unsigned) glyph);
         return ERROR;
     }

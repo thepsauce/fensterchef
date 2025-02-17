@@ -3,6 +3,7 @@
 
 #include "action.h"
 #include "configuration.h"
+#include "event.h"
 #include "fensterchef.h"
 #include "frame.h"
 #include "log.h"
@@ -38,6 +39,7 @@ static const struct {
     [ACTION_RUN] = { "RUN", PARSER_DATA_TYPE_STRING },
     [ACTION_SHOW_MESSAGE] = { "SHOW-MESSAGE", PARSER_DATA_TYPE_STRING },
     [ACTION_SHOW_MESSAGE_RUN] = { "SHOW-MESSAGE-RUN", PARSER_DATA_TYPE_STRING },
+    [ACTION_RESIZE_BY] = { "RESIZE-BY", PARSER_DATA_TYPE_QUAD },
     [ACTION_QUIT] = { "QUIT", PARSER_DATA_TYPE_VOID },
 };
 
@@ -192,8 +194,8 @@ void do_action(const Action *action)
         set_window_mode(focus_window,
                 focus_window->state.mode == WINDOW_MODE_TILING ?
                 (focus_window->state.previous_mode == WINDOW_MODE_TILING ?
-                    WINDOW_MODE_POPUP : WINDOW_MODE_TILING) :
-                focus_window->state.previous_mode, true);
+                    WINDOW_MODE_POPUP : focus_window->state.previous_mode) :
+                WINDOW_MODE_TILING, true);
         break;
 
     /* changes the window that was in focus before the current one */
@@ -209,18 +211,19 @@ void do_action(const Action *action)
         if (focus_window != NULL) {
             set_window_mode(focus_window,
                     focus_window->state.mode == WINDOW_MODE_FULLSCREEN ?
-                    focus_window->state.previous_mode : WINDOW_MODE_FULLSCREEN, true);
+                    focus_window->state.previous_mode : WINDOW_MODE_FULLSCREEN,
+                    true);
         }
         break;
 
     /* split the current frame horizontally */
     case ACTION_SPLIT_HORIZONTALLY:
-        split_frame(focus_frame, false);
+        split_frame(focus_frame, FRAME_SPLIT_HORIZONTALLY);
         break;
 
     /* split the current frame vertically */
     case ACTION_SPLIT_VERTICALLY:
-        split_frame(focus_frame, true);
+        split_frame(focus_frame, FRAME_SPLIT_VERTICALLY);
         break;
 
     /* move to the frame above the current one */
@@ -284,6 +287,32 @@ void do_action(const Action *action)
                 focus_frame->x + focus_frame->width / 2,
                 focus_frame->y + focus_frame->height / 2);
         free(shell);
+        break;
+
+    /* resize the edges of the current window */
+    case ACTION_RESIZE_BY:
+        if (focus_window == NULL) {
+            frame = focus_frame;
+            if (frame == NULL) {
+                break;
+            }
+        } else {
+            frame = get_frame_of_window(focus_window);
+        }
+        if (frame != NULL) {
+            bump_frame_edge(frame, FRAME_EDGE_LEFT, action->parameter.quad[0]);
+            bump_frame_edge(frame, FRAME_EDGE_TOP, action->parameter.quad[1]);
+            bump_frame_edge(frame, FRAME_EDGE_RIGHT, action->parameter.quad[2]);
+            bump_frame_edge(frame, FRAME_EDGE_BOTTOM, action->parameter.quad[3]);
+        } else {
+            set_window_size(focus_window,
+                    focus_window->position.x - action->parameter.quad[0],
+                    focus_window->position.y - action->parameter.quad[1],
+                    focus_window->size.width + action->parameter.quad[2] +
+                        action->parameter.quad[0],
+                    focus_window->size.height + action->parameter.quad[3] +
+                        action->parameter.quad[1]);
+        }
         break;
 
     /* not a real action */

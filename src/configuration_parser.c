@@ -29,17 +29,6 @@ static const char *parser_error_strings[] = {
     [PARSER_ERROR_UNEXPECTED] = "unexpected tokens"
 };
 
-/* conversion from label code to string */
-static const char *label_strings[PARSER_LABEL_MAX] = {
-    [PARSER_LABEL_GENERAL] = "general",
-    [PARSER_LABEL_TILING] = "tiling",
-    [PARSER_LABEL_FONT] = "font",
-    [PARSER_LABEL_BORDER] = "border",
-    [PARSER_LABEL_GAPS] = "gaps",
-    [PARSER_LABEL_NOTIFICATION] = "notification",
-    [PARSER_LABEL_KEYBOARD] = "keyboard",
-};
-
 /* conversion of string to modifier mask */
 static const struct modifier_string {
     const char *name;
@@ -64,21 +53,6 @@ static const struct modifier_string {
     { "Mod5", XCB_MOD_MASK_5 }
 };
 
-/* size in bytes of all data types */
-static size_t data_type_sizes[] = {
-    [PARSER_DATA_TYPE_VOID] = 0,
-    [PARSER_DATA_TYPE_BOOLEAN] =
-        sizeof(((union parser_data_value*) 0)->boolean),
-    [PARSER_DATA_TYPE_STRING] =
-        sizeof(((union parser_data_value*) 0)->string),
-    [PARSER_DATA_TYPE_INTEGER] =
-        sizeof(((union parser_data_value*) 0)->integer),
-    [PARSER_DATA_TYPE_COLOR] =
-        sizeof(((union parser_data_value*) 0)->color),
-    [PARSER_DATA_TYPE_MODIFIERS] =
-        sizeof(((union parser_data_value*) 0)->modifiers),
-};
-
 /* The void data type is just a placeholder, it expects nothing. */
 static parser_error_t parse_void(Parser *parser)
 {
@@ -98,20 +72,47 @@ static parser_error_t parse_string(Parser *parser);
 /* Parse an integer in simple decimal notation. */
 static parser_error_t parse_integer(Parser *parser);
 
+/* Parse a set of 4 integers. */
+static parser_error_t parse_quad(Parser *parser);
+
 /* Parse a color in the format (X: hexadecimal digit): #XXXXXX. */
 static parser_error_t parse_color(Parser *parser);
 
 /* Parse key modifiers, e.g.: Control+Shift. */
 static parser_error_t parse_modifiers(Parser *parser);
 
-/* parsers for each data type */
-static parser_error_t (*data_type_parsers[])(Parser *parser) = {
-    [PARSER_DATA_TYPE_VOID] = parse_void,
-    [PARSER_DATA_TYPE_BOOLEAN] = parse_boolean,
-    [PARSER_DATA_TYPE_STRING] = parse_string,
-    [PARSER_DATA_TYPE_INTEGER] = parse_integer,
-    [PARSER_DATA_TYPE_COLOR] = parse_color,
-    [PARSER_DATA_TYPE_MODIFIERS] = parse_modifiers,
+/* size in bytes of all data types */
+static struct parser_data_type_information {
+    /* size in bytes of the data type */
+    size_t size;
+    /* parse function for the data type */
+    parser_error_t (*parse)(Parser *parser);
+} data_types[] = {
+    [PARSER_DATA_TYPE_VOID] = { 0, parse_void },
+    [PARSER_DATA_TYPE_BOOLEAN] = {
+        sizeof(((union parser_data_value*) 0)->boolean),
+        parse_boolean
+    },
+    [PARSER_DATA_TYPE_STRING] = {
+        sizeof(((union parser_data_value*) 0)->string),
+        parse_string
+    },
+    [PARSER_DATA_TYPE_INTEGER] = {
+        sizeof(((union parser_data_value*) 0)->integer),
+        parse_integer
+    },
+    [PARSER_DATA_TYPE_QUAD] = {
+        sizeof(((union parser_data_value*) 0)->quad),
+        parse_quad
+    },
+    [PARSER_DATA_TYPE_COLOR] = {
+        sizeof(((union parser_data_value*) 0)->color),
+        parse_color
+    },
+    [PARSER_DATA_TYPE_MODIFIERS] = {
+        sizeof(((union parser_data_value*) 0)->modifiers),
+        parse_modifiers
+    }
 };
 
 /* Converts @error to a string. */
@@ -135,19 +136,20 @@ bool read_next_line(Parser *parser)
             parser->line = xrealloc(parser->line, parser->line_capacity);
         }
 
-        if (c == '\n' || c == EOF) {
-            if (length > 0) {
-                parser->column = 0;
-                parser->line[length] = '\0';
-                return true;
+        switch (c) {
+        /* terminate line at \n or EOF */
+        case EOF:
+            if (length == 0) {
+                return false;
             }
-            parser->line_number++;
-        } else {
+        /* fall through */
+        case '\n':
+            parser->column = 0;
+            parser->line[length] = '\0';
+            return true;
+
+        default:
             parser->line[length++] = c;
-        }
-    
-        if (c == EOF) {
-            break;
         }
     }
     return false;
@@ -266,11 +268,22 @@ static parser_error_t parse_string(Parser *parser)
 /* Parse an integer in simple decimal notation. */
 static parser_error_t parse_integer(Parser *parser)
 {
-    uint32_t integer;
+    int32_t sign;
+    int32_t integer;
 
     skip_space(parser);
 
     parser->item_start_column = parser->column;
+
+    if (parser->line[parser->column] == '+') {
+        sign = 1;
+        parser->column++;
+    } else if (parser->line[parser->column] == '-') {
+        sign = -1;
+        parser->column++;
+    } else {
+        sign = 1;
+    }
 
     if (!isdigit(parser->line[parser->column])) {
         return PARSER_ERROR_UNEXPECTED;
@@ -279,10 +292,35 @@ static parser_error_t parse_integer(Parser *parser)
     for (integer = 0; isdigit(parser->line[parser->column]); parser->column++) {
         integer *= 10;
         integer += parser->line[parser->column] - '0';
+        if (integer >= PARSER_INTEGER_LIMIT) {
+            integer = PARSER_INTEGER_LIMIT;
+        }
     }
 
-    parser->data.integer = integer;
+    parser->data.integer = sign * integer;
 
+    return PARSER_SUCCESS;
+}
+
+/* Parse a set of up to 4 integers. */
+static parser_error_t parse_quad(Parser *parser)
+{
+    int32_t quad[4];
+    parser_error_t error;
+
+    memset(quad, 0, sizeof(quad));
+    for (uint32_t i = 0; i < SIZE(parser->data.quad); i++) {
+        skip_space(parser);
+        if (parser->line[parser->column] == '\0') {
+            break;
+        }
+        error = parse_integer(parser);
+        if (error != PARSER_SUCCESS) {
+            return error;
+        }
+        quad[i] = parser->data.integer;
+    }
+    memcpy(parser->data.quad, quad, sizeof(quad));
     return PARSER_SUCCESS;
 }
 
@@ -367,6 +405,7 @@ void duplicate_data_value(parser_data_type_t type,
     case PARSER_DATA_TYPE_BOOLEAN:
     case PARSER_DATA_TYPE_VOID:
     case PARSER_DATA_TYPE_INTEGER:
+    case PARSER_DATA_TYPE_QUAD:
     case PARSER_DATA_TYPE_COLOR:
     case PARSER_DATA_TYPE_MODIFIERS:
         break;
@@ -386,6 +425,7 @@ void clear_data_value(parser_data_type_t type, union parser_data_value *value)
     case PARSER_DATA_TYPE_BOOLEAN:
     case PARSER_DATA_TYPE_VOID:
     case PARSER_DATA_TYPE_INTEGER:
+    case PARSER_DATA_TYPE_QUAD:
     case PARSER_DATA_TYPE_COLOR:
     case PARSER_DATA_TYPE_MODIFIERS:
         break;
@@ -465,7 +505,7 @@ static parser_error_t parse_key(Parser *parser)
 
         const parser_data_type_t data_type = get_action_data_type(action->code);
         if (data_type != PARSER_DATA_TYPE_VOID) {
-            error = data_type_parsers[data_type](parser);
+            error = data_types[data_type].parse(parser);
             if (error != PARSER_SUCCESS) {
                 return error;
             }
@@ -496,38 +536,45 @@ static parser_error_t merge_default_keyboard(Parser *parser)
 parser_error_t parse_line(Parser *parser)
 {
     /* variables in the form <name> <value> */
-    static const struct variable {
-        /* name of the variable */
+    static const struct label {
         const char *name;
-        /* type of the variable */
-        parser_data_type_t data_type;
-        /* offset within a `struct configuration` */
-        size_t offset;
-    } variables[PARSER_LABEL_MAX][8] = {
+        struct label_variable {
+            /* name of the variable */
+            const char *name;
+            /* type of the variable */
+            parser_data_type_t data_type;
+            /* offset within a `struct configuration` */
+            size_t offset;
+        } variables[8];
+    } labels[PARSER_LABEL_MAX] = {
         [PARSER_LABEL_GENERAL] = {
+            "general", {
             { "unused", PARSER_DATA_TYPE_INTEGER,
                 offsetof(struct configuration, general.unused) },
             /* null terminate the end */
-            { NULL, 0, 0 }
+            { NULL, 0, 0 } }
         },
 
         [PARSER_LABEL_TILING] = {
+            "tiling", {
             { "auto-fill-void", PARSER_DATA_TYPE_BOOLEAN,
                 offsetof(struct configuration, tiling.auto_fill_void) },
             { "auto-remove-void", PARSER_DATA_TYPE_BOOLEAN,
                 offsetof(struct configuration, tiling.auto_remove_void) },
             /* null terminate the end */
-            { NULL, 0, 0 }
+            { NULL, 0, 0 } }
         },
 
         [PARSER_LABEL_FONT] = {
+            "font", {
             { "name", PARSER_DATA_TYPE_STRING,
                 offsetof(struct configuration, font.name) },
             /* null terminate the end */
-            { NULL, 0, 0 }
+            { NULL, 0, 0 } }
         },
 
         [PARSER_LABEL_BORDER] = {
+            "border", {
             { "size", PARSER_DATA_TYPE_INTEGER,
                 offsetof(struct configuration, border.size) },
             { "color", PARSER_DATA_TYPE_COLOR,
@@ -535,19 +582,21 @@ parser_error_t parse_line(Parser *parser)
             { "focus-color", PARSER_DATA_TYPE_COLOR,
                 offsetof(struct configuration, border.focus_color) },
             /* null terminate the end */
-            { NULL, 0, 0 }
+            { NULL, 0, 0 } }
         },
 
         [PARSER_LABEL_GAPS] = {
+            "gaps", {
             { "inner", PARSER_DATA_TYPE_INTEGER,
                 offsetof(struct configuration, gaps.inner) },
             { "outer", PARSER_DATA_TYPE_INTEGER,
                 offsetof(struct configuration, gaps.outer) },
             /* null terminate the end */
-            { NULL, 0, 0 }
+            { NULL, 0, 0 } }
         },
 
         [PARSER_LABEL_NOTIFICATION] = {
+            "notification", {
             { "duration", PARSER_DATA_TYPE_INTEGER,
                 offsetof(struct configuration, notification.duration) },
             { "padding", PARSER_DATA_TYPE_INTEGER,
@@ -561,16 +610,17 @@ parser_error_t parse_line(Parser *parser)
             { "foreground", PARSER_DATA_TYPE_COLOR,
                 offsetof(struct configuration, notification.foreground) },
             /* null terminate the end */
-            { NULL, 0, 0 }
+            { NULL, 0, 0 } }
         },
 
         [PARSER_LABEL_KEYBOARD] = {
+            "keyboard", {
             { "modifiers", PARSER_DATA_TYPE_MODIFIERS,
                 offsetof(struct configuration, keyboard.modifiers) },
             { "ignore-modifiers", PARSER_DATA_TYPE_MODIFIERS,
                 offsetof(struct configuration, keyboard.ignore_modifiers) },
             /* null terminate the end */
-            { NULL, 0, 0 }
+            { NULL, 0, 0 } }
         },
     };
 
@@ -611,7 +661,7 @@ parser_error_t parse_line(Parser *parser)
 
         /* check if the label exists */
         for (parser_label_t i = PARSER_FIRST_LABEL; i < PARSER_LABEL_MAX; i++) {
-            if (strcasecmp(label_strings[i], parser->identifier) == 0) {
+            if (strcasecmp(labels[i].name, parser->identifier) == 0) {
                 parser->label = i;
                 /* check for an ending ']' */
                 error = parse_character(parser);
@@ -641,14 +691,15 @@ parser_error_t parse_line(Parser *parser)
     }
 
     /* check for a variable setting */
-    for (uint32_t i = 0; i < SIZE(variables[parser->label]); i++) {
-        const struct variable *const variable = &variables[parser->label][i];
+    for (uint32_t i = 0; i < SIZE(labels[parser->label].variables); i++) {
+        const struct label_variable *const variable =
+            &labels[parser->label].variables[i];
         if (variable->name == NULL) {
             break;
         }
 
         if (strcasecmp(variable->name, parser->identifier) == 0) {
-            error = data_type_parsers[variable->data_type](parser);
+            error = data_types[variable->data_type].parse(parser);
             if (error != PARSER_SUCCESS) {
                 return error;
             }
@@ -657,7 +708,7 @@ parser_error_t parse_line(Parser *parser)
             union parser_data_value *const value = (union parser_data_value*)
                 ((uint8_t*) parser->configuration + variable->offset);
             clear_data_value(variable->data_type, value);
-            memcpy(value, &parser->data, data_type_sizes[variable->data_type]);
+            memcpy(value, &parser->data, data_types[variable->data_type].size);
             return PARSER_SUCCESS;
         }
     }

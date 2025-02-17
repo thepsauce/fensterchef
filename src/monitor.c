@@ -58,7 +58,7 @@ void initialize_monitors(void)
         randr_enabled = true;
         randr_event_base = extension->first_event;
 
-        xcb_randr_select_input(connection, x_screen->root,
+        xcb_randr_select_input(connection, screen->root,
                 XCB_RANDR_NOTIFY_MASK_SCREEN_CHANGE |
                 XCB_RANDR_NOTIFY_MASK_OUTPUT_CHANGE |
                 XCB_RANDR_NOTIFY_MASK_CRTC_CHANGE |
@@ -162,9 +162,9 @@ Monitor *query_monitors(void)
 
     /* get cookies for later */
     primary_cookie = xcb_randr_get_output_primary(connection,
-            x_screen->root);
+            screen->root);
     resources_cookie = xcb_randr_get_screen_resources_current(connection,
-            x_screen->root);
+            screen->root);
 
     /* get the primary monitor */
     primary = xcb_randr_get_output_primary_reply(connection, primary_cookie,
@@ -303,8 +303,8 @@ void merge_monitors(Monitor *monitors)
 
     if (monitors == NULL) {
         monitors = create_monitor("#Virtual", (uint32_t) -1);
-        monitors->size.width = x_screen->width_in_pixels;
-        monitors->size.height = x_screen->height_in_pixels;
+        monitors->size.width = screen->width_in_pixels;
+        monitors->size.height = screen->height_in_pixels;
     }
 
     /* copy frames from the old monitors to the new ones with same name */

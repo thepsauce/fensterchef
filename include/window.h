@@ -3,12 +3,12 @@
 
 #include <stdint.h>
 
-#include "utility.h"
-
-#include "window_state.h"
-
 #include "bits/window_typedef.h"
 #include "bits/frame_typedef.h"
+
+#include "monitor.h"
+#include "utility.h"
+#include "window_state.h"
 
 #include "x11_management.h"
 
@@ -75,6 +75,10 @@ void close_window(Window *window);
  * This does NOT destroy the underlying xcb window.
  */
 void destroy_window(Window *window);
+
+/* Adjust given @x and @y such that it follows the @window_gravity. */
+void adjust_for_window_gravity(Monitor *monitor, int32_t *x, int32_t *y,
+        uint32_t width, uint32_t height, uint32_t window_gravity);
 
 /* Set the position and size of a window. */
 void set_window_size(Window *window, int32_t x, int32_t y, uint32_t width,

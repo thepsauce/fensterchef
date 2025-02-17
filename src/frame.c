@@ -45,14 +45,16 @@ Frame *get_frame_at_position(int32_t x, int32_t y)
     return NULL;
 }
 
-/* Set the size of a frame, this also resize the inner frames and windows.
- *
- * TODO: keep ratio when resizing?
- */
+/* Set the size of a frame, this also resizes the inner frames and windows. */
 void resize_frame(Frame *frame, int32_t x, int32_t y,
         uint32_t width, uint32_t height)
 {
     Frame *left, *right;
+    uint32_t old_width, old_height;
+    uint32_t left_size;
+
+    old_width = frame->width;
+    old_height = frame->height;
 
     frame->x = x;
     frame->y = y;
@@ -68,19 +70,26 @@ void resize_frame(Frame *frame, int32_t x, int32_t y,
         return;
     }
 
-    /* check if the split is horizontal or vertical and place the children at
-     * half the area
-     */
-    if (left->x != right->x) {
-        resize_frame(left, x, y, width / 2, height);
-        resize_frame(right, x + left->width, y, width - left->width, height);
-    } else {
-        resize_frame(left, x, y, width, height / 2);
-        resize_frame(right, x, y + left->height, width, height - left->height);
+    switch (frame->split_direction) {
+    /* left to right split */
+    case FRAME_SPLIT_HORIZONTALLY:
+        left_size = old_width == 0 ? width / 2 :
+            width * left->width / old_width;
+        resize_frame(left, x, y, left_size, height);
+        resize_frame(right, x + left->width, y, width - left_size, height);
+        break;
+
+    /* top to bottom split */
+    case FRAME_SPLIT_VERTICALLY:
+        left_size = old_height == 0 ? height / 2 :
+            height * left->height / old_height;
+        resize_frame(left, x, y, width, left_size);
+        resize_frame(right, x, y + left->height, width, height - left_size);
+        break;
     }
 }
 
-/* Resizes the inner window to fit within the frame. */
+/* Resize the inner window to fit within the frame. */
 void reload_frame(Frame *frame)
 {
     Monitor *monitor;
@@ -116,11 +125,14 @@ void reload_frame(Frame *frame)
     } else {
         bottom = 0;
     }
+
+    right += left + configuration.border.size * 2;
+    bottom += top + configuration.border.size * 2;
     set_window_size(frame->window,
             frame->x + left,
             frame->y + top,
-            frame->width - left - right - configuration.border.size * 2,
-            frame->height - top - bottom - configuration.border.size * 2);
+            frame->width < right ? 0 : frame->width - right,
+            frame->height < bottom ? 0 : frame->height - bottom);
 }
 
 /* Set the frame in focus, this also focuses the inner window if possible. */

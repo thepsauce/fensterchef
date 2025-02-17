@@ -14,22 +14,20 @@
  * and to handle a case where a window changes its window state.
  */
 
-#include <signal.h>
-
 /* Predicts what kind of mode the window should be in.
  * TODO: should this be adjustable in the user configuration?
  */
 window_mode_t predict_window_mode(Window *window)
 {
     /* direct checks */
-    if (x_is_state(&window->properties, ATOM(_NET_WM_STATE_FULLSCREEN))) {
+    if (has_state(&window->properties, ATOM(_NET_WM_STATE_FULLSCREEN))) {
         return WINDOW_MODE_FULLSCREEN;
     }
-    if (x_is_window_type(&window->properties, ATOM(_NET_WM_WINDOW_TYPE_DOCK))) {
+    if (has_window_type(&window->properties, ATOM(_NET_WM_WINDOW_TYPE_DOCK))) {
         return WINDOW_MODE_DOCK;
     }
 
-    /* if this window has strut, it must be a dock */
+    /* if this window has strut, it must be a dock window */
     if (!is_strut_empty(&window->properties.strut)) {
         return WINDOW_MODE_DOCK;
     }
@@ -39,10 +37,18 @@ window_mode_t predict_window_mode(Window *window)
         return WINDOW_MODE_POPUP;
     }
 
+    /* tiling windows have the normal window type */
+    if (has_window_type(&window->properties,
+                ATOM(_NET_WM_WINDOW_TYPE_NORMAL))) {
+        return WINDOW_MODE_TILING;
+    }
+
     /* popup windows have an equal minimum and maximum size */
     if ((window->properties.size_hints.flags &
-                (XCB_ICCCM_SIZE_HINT_P_MIN_SIZE | XCB_ICCCM_SIZE_HINT_P_MAX_SIZE)) ==
-                (XCB_ICCCM_SIZE_HINT_P_MIN_SIZE | XCB_ICCCM_SIZE_HINT_P_MAX_SIZE) &&
+                (XCB_ICCCM_SIZE_HINT_P_MIN_SIZE |
+                 XCB_ICCCM_SIZE_HINT_P_MAX_SIZE)) ==
+                (XCB_ICCCM_SIZE_HINT_P_MIN_SIZE |
+                 XCB_ICCCM_SIZE_HINT_P_MAX_SIZE) &&
             (window->properties.size_hints.min_width ==
                 window->properties.size_hints.max_width ||
             window->properties.size_hints.min_height ==
@@ -50,28 +56,35 @@ window_mode_t predict_window_mode(Window *window)
         return WINDOW_MODE_POPUP;
     }
 
-    /* popup windows have static gravity */
-    if ((window->properties.size_hints.flags & (XCB_ICCCM_SIZE_HINT_P_WIN_GRAVITY)) &&
-            window->properties.size_hints.win_gravity == XCB_GRAVITY_STATIC) {
-        return WINDOW_MODE_POPUP;
-    }
-
-    /* popup windows do not have the normal window type */
-    if (window->properties.types[0] == ATOM(_NET_WM_WINDOW_TYPE_NORMAL)) {
-        return WINDOW_MODE_TILING;
-    }
-
-    if (window->properties.types[0] != XCB_NONE) {
-        return WINDOW_MODE_POPUP;
-    }
-
-    /* popup windows have a maximum size */
-    if ((window->properties.size_hints.flags & XCB_ICCCM_SIZE_HINT_P_MAX_SIZE)) {
+    /* popup windows have a special window type */
+    if (window->properties.types != NULL) {
         return WINDOW_MODE_POPUP;
     }
 
     /* fall back to tiling window */
     return WINDOW_MODE_TILING;
+}
+
+/* Check if @window has a visible border currently. */
+bool has_window_border(Window *window)
+{
+    if (!window->state.is_visible) {
+        return false;
+    }
+    /* tiling windows always have a border */
+    if (window->state.mode == WINDOW_MODE_TILING) {
+        return true;
+    }
+    /* fullscreen and dock windows have no border */
+    if (window->state.mode != WINDOW_MODE_POPUP) {
+        return false;
+    }
+    /* if the window has borders itself (not set by the window manager) */
+    if ((window->properties.motif_wm_hints.flags &
+                MOTIF_WM_HINTS_DECORATIONS)) {
+        return false;
+    }
+    return true;
 }
 
 /* Set the window size and position according to the size hints. */
@@ -126,55 +139,21 @@ static void configure_popup_size(Window *window)
     }
 
     /* consider the window gravity, i.e. where the window wants to be */
-    if ((window->properties.size_hints.flags & XCB_ICCCM_SIZE_HINT_P_WIN_GRAVITY)) {
-        switch (window->properties.size_hints.win_gravity) {
-        case XCB_GRAVITY_NORTH_WEST:
-            x = monitor->position.x;
-            y = monitor->position.y;
-            break;
-
-        case XCB_GRAVITY_NORTH:
-            y = monitor->position.y;
-            break;
-
-        case XCB_GRAVITY_NORTH_EAST:
-            x = monitor->position.x + monitor->size.width - width;
-            y = monitor->position.y;
-            break;
-
-        case XCB_GRAVITY_WEST:
-            x = monitor->position.x;
-            break;
-
-        case XCB_GRAVITY_CENTER:
-            x = monitor->position.x + (monitor->size.width - width) / 2;
-            y = monitor->position.y + (monitor->size.height - height) / 2;
-            break;
-
-        case XCB_GRAVITY_EAST:
-            x = monitor->position.x + monitor->size.width - width;
-            break;
-
-        case XCB_GRAVITY_SOUTH_WEST:
-            x = monitor->position.x;
-            y = monitor->position.y + monitor->size.height - height;
-            break;
-
-        case XCB_GRAVITY_SOUTH:
-            y = monitor->position.y + monitor->size.height - height;
-            break;
-
-        case XCB_GRAVITY_SOUTH_EAST:
-            x = monitor->position.x + monitor->size.width - width;
-            y = monitor->position.y + monitor->size.width - height;
-            break;
-        }
+    if ((window->properties.size_hints.flags &
+                XCB_ICCCM_SIZE_HINT_P_WIN_GRAVITY)) {
+        adjust_for_window_gravity(monitor, &x, &y, width, height,
+                window->properties.size_hints.win_gravity);
     }
 
     set_window_size(window, x, y, width, height);
 
-    /* make sure the popup window has a border */
-    general_values[0] = configuration.border.size;
+    /* windows that set this flag have their own border/frame */
+    if ((window->properties.motif_wm_hints.flags &
+                MOTIF_WM_HINTS_DECORATIONS)) {
+        general_values[0] = 0;
+    } else {
+        general_values[0] = configuration.border.size;
+    }
     xcb_configure_window(connection, window->properties.window,
             XCB_CONFIG_WINDOW_BORDER_WIDTH, general_values);
 }
@@ -184,14 +163,14 @@ static void configure_fullscreen_size(Window *window)
 {
     Monitor *monitor;
 
-    if (window->properties.fullscreen_monitor.top !=
-            window->properties.fullscreen_monitor.bottom) {
-        set_window_size(window, window->properties.fullscreen_monitor.left,
-                window->properties.fullscreen_monitor.top,
-                window->properties.fullscreen_monitor.right -
-                    window->properties.fullscreen_monitor.left,
-                window->properties.fullscreen_monitor.bottom -
-                    window->properties.fullscreen_monitor.left);
+    if (window->properties.fullscreen_monitors.top !=
+            window->properties.fullscreen_monitors.bottom) {
+        set_window_size(window, window->properties.fullscreen_monitors.left,
+                window->properties.fullscreen_monitors.top,
+                window->properties.fullscreen_monitors.right -
+                    window->properties.fullscreen_monitors.left,
+                window->properties.fullscreen_monitors.bottom -
+                    window->properties.fullscreen_monitors.left);
     } else {
         monitor = get_monitor_from_rectangle(window->position.x,
                 window->position.y, window->size.width, window->size.height);
@@ -271,48 +250,10 @@ static void configure_dock_size(Window *window)
     }
 
     /* consider the window gravity, i.e. where the window wants to be */
-    if ((window->properties.size_hints.flags & XCB_ICCCM_SIZE_HINT_P_WIN_GRAVITY)) {
-        switch (window->properties.size_hints.win_gravity) {
-        case XCB_GRAVITY_NORTH_WEST:
-            x = monitor->position.x;
-            break;
-
-        case XCB_GRAVITY_NORTH:
-            y = monitor->position.y;
-            break;
-
-        case XCB_GRAVITY_NORTH_EAST:
-            x = monitor->position.x + monitor->size.width - width;
-            y = monitor->position.y;
-            break;
-
-        case XCB_GRAVITY_WEST:
-            x = monitor->position.x;
-            break;
-
-        case XCB_GRAVITY_CENTER:
-            x = monitor->position.x + (monitor->size.width - width) / 2;
-            y = monitor->position.y + (monitor->size.height - height) / 2;
-            break;
-
-        case XCB_GRAVITY_EAST:
-            x = monitor->position.x + monitor->size.width - width;
-            break;
-
-        case XCB_GRAVITY_SOUTH_WEST:
-            x = monitor->position.x;
-            y = monitor->position.y + monitor->size.height - height;
-            break;
-
-        case XCB_GRAVITY_SOUTH:
-            y = monitor->position.y + monitor->size.height - height;
-            break;
-
-        case XCB_GRAVITY_SOUTH_EAST:
-            x = monitor->position.x + monitor->size.width - width;
-            y = monitor->position.y + monitor->size.width - height;
-            break;
-        }
+    if ((window->properties.size_hints.flags &
+                XCB_ICCCM_SIZE_HINT_P_WIN_GRAVITY)) {
+        adjust_for_window_gravity(monitor, &x, &y, width, height,
+            window->properties.size_hints.win_gravity);
     }
 
     set_window_size(window, x, y, width, height);
@@ -427,7 +368,7 @@ void set_window_mode(Window *window, window_mode_t mode, bool force_mode)
                 hide_window_quickly(old_window);
             }
 
-            /* tiling windows have a border */
+            /* tiling windows always have a border */
             general_values[0] = configuration.border.size;
             xcb_configure_window(connection, window->properties.window,
                     XCB_CONFIG_WINDOW_BORDER_WIDTH, general_values);
@@ -531,6 +472,7 @@ void show_window(Window *window)
         focus_frame->window = window;
         reload_frame(focus_frame);
 
+        /* tiling windows always have a border */
         general_values[0] = configuration.border.size;
         xcb_configure_window(connection, window->properties.window,
                 XCB_CONFIG_WINDOW_BORDER_WIDTH, general_values);

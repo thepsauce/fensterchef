@@ -28,7 +28,7 @@ enum {
     STOCK_MAX,
 };
 
-/* graphical objects with the id referring to the xcb id */
+/* graphical objects with the id referring to the X id */
 extern uint32_t stock_objects[STOCK_MAX];
 
 /* Initialize the graphical stock objects that can be used for rendering. */
@@ -61,9 +61,7 @@ static inline void convert_color_to_xcb_color(xcb_render_color_t *xcb_color,
 
 /* This sets the globally used font for rendering.
  *
- * @name can be NULL to set the default font.
- *
- * @return 0 on success or 1 when the font was not found.
+ * @return OK on success or ERROR when the font was not found.
  */
 int set_font(const utf8_t *query);
 

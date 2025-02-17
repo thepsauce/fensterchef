@@ -16,12 +16,12 @@
 int main(void)
 {
     /* initialize the X connection, X atoms and create utility windows */
-    if (x_initialize() != OK) {
+    if (initialize_x11() != OK) {
         return ERROR;
     }
 
     /* try to take control of the windows and start managing */
-    if (x_take_control() != OK) {
+    if (take_control() != OK) {
         quit_fensterchef(EXIT_FAILURE);
     }
 
@@ -41,16 +41,16 @@ int main(void)
         quit_fensterchef(EXIT_FAILURE);
     }
 
-    /* prepare the event loop */
-    if (prepare_cycles() != OK) {
-        quit_fensterchef(EXIT_FAILURE);
-    }
-
     /* load the default configuration and the user configuration, this also
      * initializes the keybindings and font
      */
     load_default_configuration();
     reload_user_configuration();
+
+    /* set the signal handlers */
+    if (initialize_signal_handlers() != OK) {
+        quit_fensterchef(EXIT_FAILURE);
+    }
 
     /* set the X properties on the root window */
     synchronize_all_root_properties();
