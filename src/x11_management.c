@@ -18,6 +18,9 @@
 /* connection to the xcb server */
 xcb_connection_t *connection;
 
+/* file descriptor associated to the X connection */
+int x_file_descriptor;
+
 /* the selected x screen */
 xcb_screen_t *x_screen;
 
@@ -126,6 +129,8 @@ int x_initialize(void)
         LOG_ERROR(NULL, "could not create xcb connection");
         return ERROR;
     }
+
+    x_file_descriptor = xcb_get_file_descriptor(connection);
 
     x_screen = x_get_screen(screen_number);
     if (x_screen == NULL) {

@@ -1,10 +1,15 @@
 #include <inttypes.h>
+#include <signal.h>
+#include <string.h>
+#include <sys/select.h>
+#include <unistd.h>
 
 #include <xcb/randr.h>
 
 #include "configuration.h"
 #include "fensterchef.h"
 #include "frame.h"
+#include "event.h"
 #include "keymap.h"
 #include "log.h"
 #include "monitor.h"
@@ -12,7 +17,7 @@
 #include "utility.h"
 #include "window.h"
 
-/* This file handles all kinds of xcb events.
+/* This file handles all kinds of X events.
  *
  * Note the difference between REQUESTS and NOTIFICATIONS.
  * REQUEST: What is requested has not happened yet and will not happen
@@ -25,6 +30,9 @@
 /* this is the first index of a randr event */
 uint8_t randr_event_base;
 
+/* signals whether the alarm signal was received */
+volatile sig_atomic_t timer_expired_signal;
+
 /* this is used for moving a popup window */
 static struct {
     /* the initial position of the moved window (for ESCAPE cancellation) */
@@ -34,6 +42,84 @@ static struct {
     /* the window that is being moved */
     xcb_window_t xcb_window;
 } selected_window;
+
+/* Handle an incoming alarm. */
+static void alarm_handler(int signal)
+{
+    (void) signal;
+    timer_expired_signal = true;
+}
+
+/* Create signal handlers and prepares for calling `next_cycle()`. */
+int prepare_cycles(void)
+{
+    struct sigaction action;
+
+    /* install the signal handler for the alarm signal, this is triggered when
+     * the alarm created by `alarm()` expires
+     */
+    memset(&action, 0, sizeof(action));
+    action.sa_handler = alarm_handler;
+    sigemptyset(&action.sa_mask);
+    if (sigaction(SIGALRM, &action, NULL) == -1) {
+        LOG_ERROR(NULL, "could not create alarm handler\n");
+        return ERROR;
+    }
+    return OK;
+}
+
+/* Run the next cycle of the event loop. */
+int next_cycle(int (*callback)(int cycle_when, xcb_generic_event_t *event))
+{
+    xcb_generic_event_t *event;
+    fd_set set;
+
+    if (!is_fensterchef_running || xcb_connection_has_error(connection) != 0) {
+        return ERROR;
+    }
+
+    if (callback != NULL && (*callback)(CYCLE_PREPARE, NULL) != OK) {
+        return ERROR;
+    }
+
+    /* prepare `set` for `select()` */
+    FD_ZERO(&set);
+    FD_SET(x_file_descriptor, &set);
+
+    /* using select here is key: select will block until data on the file
+     * descriptor for the X connection arrives; when a signal is received,
+     * `select()` will however also unblock and return -1
+     */
+    if (select(x_file_descriptor + 1, &set, NULL, NULL, NULL) > 0) {
+        /* handle all received events */
+        while (event = xcb_poll_for_event(connection), event != NULL) {
+            if (callback != NULL && (*callback)(CYCLE_EVENT, event) != OK) {
+                return ERROR;
+            }
+
+            handle_event(event);
+
+            if (reload_requested) {
+                reload_user_configuration();
+                reload_requested = false;
+            }
+
+            free(event);
+        }
+    }
+
+    if (timer_expired_signal) {
+        LOG("triggered alarm: hiding notification window\n");
+        /* hide the notification window */
+        xcb_unmap_window(connection, notification_window);
+        timer_expired_signal = false;
+    }
+
+    /* flush after every event so all changes are reflected */
+    xcb_flush(connection);
+
+    return OK;
+}
 
 /* Create notifications are sent when a client creates a window on our
  * connection.

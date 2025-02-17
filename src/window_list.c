@@ -17,6 +17,15 @@
 #include "utility.h"
 #include "window.h"
 
+static struct window_list {
+    /* if the window list is shown */
+    bool is_open;
+    /* the currently selected window */
+    Window *selected;
+    /* the currently scrolled amount */
+    uint32_t vertical_scrolling;
+} window_list;
+
 /* Check if @window should appear in the window list. */
 static inline bool is_valid_for_display(Window *window)
 {
@@ -34,22 +43,24 @@ static inline char get_indicator_character(Window *window)
             window == focus_window ? '*' : '+';
 }
 
-/* Render the window list.
- *
- * TODO: add scrolling
- */
-static int render_window_list(Window *selected)
+/* Render the window list. */
+static int render_window_list(void)
 {
     utf8_t                  buffer[256];
     uint32_t                window_count;
     struct text_measure     measure;
+    uint32_t                height_per_item;
     uint32_t                max_width;
     struct frame            *primary_frame;
+    uint32_t                index;
+    uint32_t                maximum_item;
     xcb_rectangle_t         rectangle;
     xcb_render_color_t      background_color;
     xcb_render_picture_t    pen;
 
-    /* measure the maximum needed width */
+    /* measure the maximum needed width and get the index of the currently
+     * selected window
+     */
     window_count = 0;
     measure.ascent = 12;
     measure.descent = -4;
@@ -57,6 +68,10 @@ static int render_window_list(Window *selected)
     for (Window *window = first_window; window != NULL; window = window->next) {
         if (!is_valid_for_display(window)) {
             continue;
+        }
+
+        if (window_list.selected == window) {
+            index = window_count;
         }
 
         window_count++;
@@ -72,17 +87,33 @@ static int render_window_list(Window *selected)
         return ERROR;
     }
 
+    height_per_item = measure.ascent - measure.descent +
+        configuration.notification.padding;
+
+    primary_frame = get_primary_monitor()->frame;
+
+    /* the number of items that can fit on screen */
+    maximum_item = (primary_frame->height -
+            configuration.notification.border_size) / height_per_item;
+    maximum_item = MIN(maximum_item, window_count);
+
+    /* adjust the scrolling so the selected item is visible */
+    if (index < window_list.vertical_scrolling) {
+        window_list.vertical_scrolling = index;
+    }
+    if (index >= window_list.vertical_scrolling + maximum_item) {
+        window_list.vertical_scrolling = index - maximum_item + 1;
+    }
+
     /* set the list position and size so it is in the top right of the primary
      * monitor
      */
-    primary_frame = get_primary_monitor()->frame;
     general_values[0] = primary_frame->x + primary_frame->width - max_width -
         configuration.notification.padding / 2 -
         configuration.notification.border_size * 2;
     general_values[1] = primary_frame->y;
     general_values[2] = max_width + configuration.notification.padding / 2;
-    general_values[3] = window_count *
-        (measure.ascent - measure.descent + configuration.notification.padding);
+    general_values[3] = maximum_item * height_per_item;
     general_values[4] = XCB_STACK_MODE_ABOVE;
     xcb_configure_window(connection, window_list_window,
             XCB_CONFIG_SIZE | XCB_CONFIG_WINDOW_STACK_MODE, general_values);
@@ -91,17 +122,28 @@ static int render_window_list(Window *selected)
     xcb_set_input_focus(connection, XCB_INPUT_FOCUS_POINTER_ROOT,
             window_list_window, XCB_CURRENT_TIME);
 
+    /* render the items showing the window names */
     rectangle.x = 0;
     rectangle.y = 0;
     rectangle.width = max_width + configuration.notification.padding / 2;
-    rectangle.height = measure.ascent - measure.descent +
-        configuration.notification.padding;
+    rectangle.height = height_per_item;
+    index = 0;
     for (Window *window = first_window; window != NULL; window = window->next) {
         if (!is_valid_for_display(window)) {
             continue;
         }
 
-        if (window != selected) {
+        index++;
+        /* if the window is above the scrolling, ignore it */
+        if (index <= window_list.vertical_scrolling) {
+            continue;
+        }
+        /* if the window is below the visible region, stop */
+        if (index > window_list.vertical_scrolling + maximum_item) {
+            break;
+        }
+
+        if (window != window_list.selected) {
             pen = stock_objects[STOCK_BLACK_PEN];
             convert_color_to_xcb_color(&background_color,
                     configuration.notification.background);
@@ -158,33 +200,30 @@ static inline Window *get_valid_window_after(Window *last_valid, Window *start)
  *
  * @return if the selection was confirmed.
  */
-static inline bool handle_key_press(Window **pointer_selected,
-        xcb_key_press_event_t *event)
+static inline bool handle_key_press(xcb_key_press_event_t *event)
 {
-    Window *selected;
-
-    selected = *pointer_selected;
-
     switch (get_keysym(event->detail)) {
     /* cancel selection */
     case XK_q:
+    case XK_n:
     case XK_Escape:
-        selected = NULL;
+        window_list.selected = NULL;
         break;
 
     /* confirm selection */
-    case XK_c:
+    case XK_y:
     case XK_Return:
         return true;
 
     /* go to the first item */
     case XK_Home:
-        selected = get_valid_window_after(NULL, first_window);
+        window_list.selected = get_valid_window_after(NULL, first_window);
         break;
 
     /* go to the last item */
     case XK_End:
-        selected = get_valid_window_before(selected, first_window, NULL);
+        window_list.selected = get_valid_window_before(window_list.selected,
+                first_window, NULL);
         break;
 
     /* go to the previous item */
@@ -192,7 +231,8 @@ static inline bool handle_key_press(Window **pointer_selected,
     case XK_k:
     case XK_Left:
     case XK_Up:
-        selected = get_valid_window_before(selected, first_window, selected);
+        window_list.selected = get_valid_window_before(window_list.selected,
+                first_window, window_list.selected);
         break;
 
     /* go to the next item */
@@ -200,96 +240,91 @@ static inline bool handle_key_press(Window **pointer_selected,
     case XK_j:
     case XK_Right:
     case XK_Down:
-        selected = get_valid_window_after(selected, selected->next);
+        window_list.selected = get_valid_window_after(window_list.selected,
+                window_list.selected->next);
         break;
     }
-
-    *pointer_selected = selected;
     return false;
 }
 
 /* Handle all incoming xcb events for the window list. */
-static inline Window *handle_window_list_events(Window *selected)
+static int window_list_callback(int cycle_when, xcb_generic_event_t *event)
 {
-    xcb_generic_event_t *event;
     Window *window;
 
-    while (true) {
-        /* all windows left or the user cancelled selecting */
-        if (selected == NULL) {
-            return NULL;
+    switch (cycle_when) {
+    case CYCLE_PREPARE:
+        if (window_list.selected == NULL || render_window_list() != OK) {
+            return ERROR;
         }
+        break;
 
-        if (render_window_list(selected) != OK) {
-            return NULL;
-        }
-
-        xcb_flush(connection);
-
-        event = xcb_wait_for_event(connection);
-        if (event == NULL) {
-            break;
-        }
-
-        LOG("");
-        log_event(event);
-
+    case CYCLE_EVENT:
         /* remove the most significant bit, this gets the actual event type */
         switch ((event->response_type & ~0x80)) {
         case XCB_KEY_PRESS:
-            if (handle_key_press(&selected, (xcb_key_press_event_t*) event)) {
-                free(event);
-                return selected;
+            if (((xcb_key_press_event_t*) event)->event == window_list_window) {
+                if (handle_key_press((xcb_key_press_event_t*) event)) {
+                    free(event);
+                    return ERROR;
+                }
             }
             break;
 
-        /* make sure to selected another window if the selected one is destroyed */
+        /* select another window if the currently selected one is destroyed */
         case XCB_DESTROY_NOTIFY:
             window = get_window_of_xcb_window(
                     ((xcb_unmap_notify_event_t*) event)->window);
-            if (window == selected) {
-                selected = get_valid_window_before(
-                        get_valid_window_after(NULL, selected->next),
-                        first_window, selected);
+            if (window == window_list.selected) {
+                window_list.selected = get_valid_window_before(
+                        get_valid_window_after(NULL, window_list.selected->next),
+                        first_window, window_list.selected);
             }
-        /* fall through */
-        default:
-            handle_event(event);
+            break;
         }
-        free(event);
+        break;
     }
-    return NULL;
+    return OK;
 }
 
 /* Shows a windows list where the user can select a window from. */
 Window *select_window_from_list(void)
 {
-    Window *window;
+    /* do not show the window list if it is already there */
+    if (window_list.is_open) {
+        return NULL;
+    }
 
     /* get the initially selected window */
     if (focus_window != NULL) {
-        window = focus_window;
+        window_list.selected = focus_window;
     } else {
-        for (window = first_window; window != NULL; window = window->next) {
-            if (is_valid_for_display(window)) {
+        for (window_list.selected = first_window; window_list.selected != NULL;
+                window_list.selected = window_list.selected->next) {
+            if (is_valid_for_display(window_list.selected)) {
                 break;
             }
         }
     }
 
-    if (window == NULL) {
+    if (window_list.selected == NULL) {
         set_notification((uint8_t*) "No managed windows",
                 focus_frame->x + focus_frame->width / 2,
                 focus_frame->y + focus_frame->height / 2);
         return NULL;
     }
 
-    /* show the window on screen */
+    /* show the window list window on screen */
     xcb_map_window(connection, window_list_window);
 
-    window = handle_window_list_events(window);
+    /* take control of the event loop */
+    window_list.is_open = true;
+    while (next_cycle(window_list_callback) == OK) {
+        (void) 0;
+    }
+    window_list.is_open = false;
 
-    /* hide the window from the screen */
+    /* hide the window list window from the screen */
     xcb_unmap_window(connection, window_list_window);
 
     /* refocus the old window */
@@ -298,5 +333,5 @@ Window *select_window_from_list(void)
             focus_window->properties.window, XCB_CURRENT_TIME);
     }
 
-    return window;
+    return window_list.selected;
 }

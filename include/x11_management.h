@@ -264,6 +264,9 @@ typedef struct x_properties {
 /* connection to the xcb server */
 extern xcb_connection_t *connection;
 
+/* file descriptor associated to the X connection */
+extern int x_file_descriptor;
+
 /* general purpose values for xcb function calls */
 extern uint32_t general_values[7];
 
