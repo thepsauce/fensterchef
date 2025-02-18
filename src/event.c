@@ -136,28 +136,30 @@ static void handle_button_release(xcb_button_release_event_t *event)
     selected_window.xcb_window = XCB_NONE;
 }
 
-/* Property notifications are sent when a window atom changes, this can
- * be many atoms, but the main ones handled are WM_NAME, WM_SIZE_HINTS,
- * WM_HINTS.
- */
+/* Property notifications are sent when a window property changes. */
 static void handle_property_notify(xcb_property_notify_event_t *event)
 {
     Window *window;
 
     window = get_window_of_xcb_window(event->window);
     if (window == NULL) {
-        if (event->window != screen->xcb_screen->root) {
-            LOG("property change of unmanaged window: %" PRId32 "\n", event->window);
-        }
         return;
     }
 
-    if (!update_window_property_by_atom(window, event->atom)) {
+    if (!x_cache_window_property(&window->properties, event->atom)) {
         /* nothing we know of changed */
         return;
     }
 
     set_window_mode(window, predict_window_mode(window), false);
+
+    /* check if the strut has changed */
+    if (window->state.is_visible &&
+            (event->atom == ATOM(_NET_WM_STRUT_PARTIAL) ||
+             event->atom == ATOM(_NET_WM_STRUT))) {
+        reconfigure_monitor_frame_sizes();
+        synchronize_root_property(ROOT_PROPERTY_WORK_AREA);
+    }
 }
 
 /* Unmap notifications are sent after a window decided it wanted to not be seen

@@ -82,7 +82,8 @@ static int render_window_list(Window *selected)
     general_values[1] = primary_frame->y;
     general_values[2] = max_width + configuration.notification.padding / 2;
     general_values[3] = window_count *
-        (measure.ascent - measure.descent + configuration.notification.padding); general_values[4] = XCB_STACK_MODE_ABOVE;
+        (measure.ascent - measure.descent + configuration.notification.padding);
+    general_values[4] = XCB_STACK_MODE_ABOVE;
     xcb_configure_window(connection, screen->window_list_window,
             XCB_CONFIG_SIZE | XCB_CONFIG_WINDOW_STACK_MODE, general_values);
 
@@ -294,7 +295,7 @@ Window *select_window_from_list(void)
     /* refocus the old window */
     if (focus_window != NULL) {
         xcb_set_input_focus(connection, XCB_INPUT_FOCUS_POINTER_ROOT,
-            focus_window->xcb_window, XCB_CURRENT_TIME);
+            focus_window->properties.window, XCB_CURRENT_TIME);
     }
 
     return window;

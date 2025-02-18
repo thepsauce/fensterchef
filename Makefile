@@ -1,12 +1,12 @@
 # Packages
-PACKAGES := x11 xcb xcb-randr xcb-ewmh xcb-icccm xcb-keysyms xcb-event xcb-render freetype2 fontconfig
+PACKAGES := x11 xcb xcb-randr xcb-icccm xcb-keysyms xcb-event xcb-render freetype2 fontconfig
 
 # Packages only used within tests and not the end build
 TEST_PACKAGES := xcb-errors
 
 # Compiler flags
-DEBUG_FLAGS := -DDEBUG -g -pg
-C_FLAGS := -Iinclude $(shell pkg-config --cflags $(PACKAGES)) -Wall -Wextra -Wpedantic -Werror -Wno-format-zero-length
+DEBUG_FLAGS := -DDEBUG -g -fsanitize=address -pg
+C_FLAGS := -Iinclude -std=c99 $(shell pkg-config --cflags $(PACKAGES)) -Wall -Wextra -Wpedantic -Werror -Wno-format-zero-length
 RELEASE_FLAGS := -O3
 
 # Libraries

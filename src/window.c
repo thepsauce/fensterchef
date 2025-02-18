@@ -17,15 +17,13 @@ Window *first_window;
 /* the currently focused window */
 Window *focus_window;
 
-/* Create a window struct and add it to the window list,
- * this also assigns the next id. */
+/* Create a window struct and add it to the window list. */
 Window *create_window(xcb_window_t xcb_window)
 {
     Window *window;
     xcb_generic_error_t *error;
 
     window = xcalloc(1, sizeof(*window));
-    window->xcb_window = xcb_window;
 
     /* each window starts with id 0, at the beginning of the linked list */
     window->next = first_window;
@@ -43,13 +41,50 @@ Window *create_window(xcb_window_t xcb_window)
         /* still continue */
     }
 
-    update_all_window_properties(window);
-    synchronize_all_window_properties(window);
+    x_init_properties(&window->properties, xcb_window);
 
     set_window_mode(window, predict_window_mode(window), false);
 
     LOG("created new window wrapping %" PRIu32 "\n", xcb_window);
     return window;
+}
+
+/* Attempt to close a window. If it is the first time, use a friendly method by
+ * sending a close request to the window. Call this function again within
+ * `REQUEST_CLOSE_MAX_DURATION` to forcefully kill it.
+ */
+void close_window(Window *window)
+{
+    time_t current_time;
+    uint8_t event_data[32];
+    xcb_client_message_event_t *event;
+
+    current_time = time(NULL);
+    /* if either `WM_DELETE_WINDOW` is not supported or a close was requested
+     * twice in a row
+     */
+    if (!x_supports_protocol(&window->properties, ATOM(WM_DELETE_WINDOW)) ||
+            (window->state.was_close_requested && current_time <=
+                window->state.user_request_close_time +
+                    REQUEST_CLOSE_MAX_DURATION)) {
+        free(xcb_request_check(connection, xcb_kill_client_checked(connection,
+                    window->properties.window)));
+        return;
+    }
+
+    /* bake an event for running a protocol on the window */
+    event = (xcb_client_message_event_t*) event_data;
+    event->response_type = XCB_CLIENT_MESSAGE;
+    event->window = window->properties.window;
+    event->type = ATOM(WM_PROTOCOLS);
+    event->format = 32;
+    event->data.data32[0] = ATOM(WM_DELETE_WINDOW);
+    event->data.data32[1] = XCB_CURRENT_TIME;
+    xcb_send_event(connection, false, window->properties.window,
+            XCB_EVENT_MASK_NO_EVENT, (char*) event);
+
+    window->state.was_close_requested = true;
+    window->state.user_request_close_time = current_time;
 }
 
 /* Destroys given window and removes it from the window linked list. */
@@ -95,7 +130,7 @@ void set_window_size(Window *window, int32_t x, int32_t y, uint32_t width,
     general_values[1] = y;
     general_values[2] = width;
     general_values[3] = height;
-    xcb_configure_window(connection, window->xcb_window, XCB_CONFIG_SIZE,
+    xcb_configure_window(connection, window->properties.window, XCB_CONFIG_SIZE,
             general_values);
 }
 
@@ -107,12 +142,13 @@ void set_window_above(Window *window)
     LOG("setting window %" PRIu32 " above all other windows\n", window->number);
 
     /* desktop windows are always at the bottom */
-    if (does_window_have_type(window, ewmh._NET_WM_WINDOW_TYPE_DESKTOP)) {
+    if (x_is_window_type(&window->properties,
+                ATOM(_NET_WM_WINDOW_TYPE_DESKTOP))) {
         general_values[0] = XCB_STACK_MODE_BELOW;
     } else {
         general_values[0] = XCB_STACK_MODE_ABOVE;
     }
-    xcb_configure_window(connection, window->xcb_window,
+    xcb_configure_window(connection, window->properties.window,
             XCB_CONFIG_WINDOW_STACK_MODE, general_values);
 
     /* put windows that are transient for this window above it */
@@ -120,9 +156,9 @@ void set_window_above(Window *window)
         if (!above->state.is_visible) {
             continue;
         }
-        if (above->properties.transient_for == window->xcb_window) {
+        if (above->properties.transient_for == window->properties.window) {
             general_values[0] = XCB_STACK_MODE_ABOVE;
-            xcb_configure_window(connection, window->xcb_window,
+            xcb_configure_window(connection, window->properties.window,
                     XCB_CONFIG_WINDOW_STACK_MODE, general_values);
         }
     }
@@ -150,13 +186,13 @@ Window *get_window_of_xcb_window(xcb_window_t xcb_window)
 {
     for (Window *window = first_window; window != NULL;
             window = window->next) {
-        if (window->xcb_window == xcb_window) {
+        if (window->properties.window == xcb_window) {
             return window;
         }
     }
 #ifdef DEBUG
     /* omit log message for the root window */
-    if (xcb_window != screen->xcb_screen->root) {
+    if (xcb_window != x_screen->root) {
         LOG("xcb window %" PRIu32 " is not managed\n", xcb_window);
     }
 #endif
@@ -226,7 +262,8 @@ bool does_window_accept_focus(Window *window)
     /* desktop windows are in the background, they are at the bottom and not
      * focusable
      */
-    if (does_window_have_type(window, ewmh._NET_WM_WINDOW_TYPE_DESKTOP)) {
+    if (x_is_window_type(&window->properties,
+                ATOM(_NET_WM_WINDOW_TYPE_DESKTOP))) {
         return false;
     }
 
@@ -239,7 +276,7 @@ void set_focus_window_primitively(Window *window)
 {
     if (focus_window != NULL) {
         general_values[0] = configuration.border.color;
-        xcb_change_window_attributes(connection, focus_window->xcb_window,
+        xcb_change_window_attributes(connection, focus_window->properties.window,
                 XCB_CW_BORDER_PIXEL, general_values);
     }
 
@@ -248,11 +285,11 @@ void set_focus_window_primitively(Window *window)
 
     if (window != NULL) {
         general_values[0] = configuration.border.focus_color;
-        xcb_change_window_attributes(connection, window->xcb_window,
+        xcb_change_window_attributes(connection, window->properties.window,
                 XCB_CW_BORDER_PIXEL, general_values);
 
         xcb_set_input_focus(connection, XCB_INPUT_FOCUS_POINTER_ROOT,
-                window->xcb_window, XCB_CURRENT_TIME);
+                window->properties.window, XCB_CURRENT_TIME);
 
         LOG("changed focus to %" PRIu32 "\n", window->number);
     }

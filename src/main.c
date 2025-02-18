@@ -1,4 +1,6 @@
+#include <signal.h>
 #include <stdlib.h>
+#include <unistd.h>
 
 #include "configuration.h"
 #include "event.h"
@@ -9,18 +11,36 @@
 #include "render.h"
 #include "root_properties.h"
 #include "screen.h"
+#include "x11_management.h"
 #include "xalloc.h"
+
+/* Handle an incoming alarm. */
+static void alarm_handler(int signal)
+{
+    (void) signal;
+    LOG("triggered alarm: hiding notification window\n");
+    /* hide the notification window */
+    xcb_unmap_window(connection, screen->notification_window);
+    /* flush is needed because the only place we flush is after receiving an
+     * event so the changes would not be reflected until then
+     */
+    xcb_flush(connection);
+}
 
 /* FENSTERCHEF main entry point. */
 int main(void)
 {
-    int screen_number;
     xcb_generic_event_t *event;
 
     /* initialize logging, the xcb/ewmh connection and font drawing */
-    if (initialize_fensterchef(&screen_number) != 0) {
+    if (x_initialize() != 0) {
         return ERROR;
     }
+
+    /* create a signal handle for the alarm signal, this is triggered when the
+     * alarm created by `alarm()` expires
+     */
+    signal(SIGALRM, alarm_handler);
 
     /* initialize the key symbol table */
     if (initialize_keymap() != OK) {
@@ -28,7 +48,7 @@ int main(void)
     }
 
     /* initialize the @screen with graphical stock objects and utility windows */
-    if (initialize_screen(screen_number) != OK) {
+    if (initialize_screen() != OK) {
         quit_fensterchef(EXIT_FAILURE);
     }
 
@@ -44,7 +64,7 @@ int main(void)
     }
 
     /* load the default configuration and the user configuration, this also
-     * initializes the keybinds and font
+     * initializes the keybindings and font
      */
     load_default_configuration();
     reload_user_configuration();

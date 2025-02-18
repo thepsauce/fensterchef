@@ -16,26 +16,8 @@
 
 #define FENSTERCHEF_CONFIGURATION ".config/fensterchef/fensterchef.config"
 
-/* flag used to configure window position, size and border width */
-#define XCB_CONFIG_SIZE (XCB_CONFIG_WINDOW_X | \
-                         XCB_CONFIG_WINDOW_Y | \
-                         XCB_CONFIG_WINDOW_WIDTH | \
-                         XCB_CONFIG_WINDOW_HEIGHT)
-
-/* xcb server connection */
-extern xcb_connection_t         *connection;
-
-/* ewmh (extended window manager hints) information */
-extern xcb_ewmh_connection_t    ewmh;
-
 /* true while the window manager is running */
-extern bool                     is_fensterchef_running;
-
-/* general purpose values */
-extern uint32_t                 general_values[7];
-
-/* Initialize logging, the xcb/ewmh connection and font drawing. */
-int initialize_fensterchef(int *screen_number);
+extern bool is_fensterchef_running;
 
 /* Close the connection to xcb and exit the program with given exit code. */
 void quit_fensterchef(int exit_code);

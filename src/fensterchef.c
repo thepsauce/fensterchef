@@ -1,86 +1,13 @@
-#include <inttypes.h>
-#include <signal.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 #include <unistd.h>
-
-#include <X11/keysym.h>
-#include <xcb/xcb_atom.h>
-#include <xcb/xcb_icccm.h>
-#include <xcb/xcb_keysyms.h>
 
 #include "configuration.h"
 #include "fensterchef.h"
 #include "log.h"
 #include "render.h"
 #include "screen.h"
-#include "utility.h"
-
-/* xcb server connection */
-xcb_connection_t        *connection;
-
-/* ewmh (extended window manager hints) information */
-xcb_ewmh_connection_t   ewmh;
 
 /* true while the window manager is running */
-bool                    is_fensterchef_running;
-
-/* general purpose values */
-uint32_t                general_values[7];
-
-/* Handle an incoming alarm. */
-static void alarm_handler(int signal)
-{
-    (void) signal;
-    LOG("triggered alarm: hiding notification window\n");
-    /* hide the notification window */
-    xcb_unmap_window(connection, screen->notification_window);
-    /* flush is needed because the only place we flush is after receiving an
-     * event so the changes would not be reflected until then
-     */
-    xcb_flush(connection);
-}
-
-/* Initialize logging, the xcb/ewmh connection and font drawing. */
-int initialize_fensterchef(int *screen_number)
-{
-    xcb_intern_atom_cookie_t *atom_cookies;
-    xcb_generic_error_t *error;
-
-    /* read the DISPLAY environment variable to determine the display to
-     * attach to; if the DISPLAY variable is in the form :X.Y then X is the
-     * display number and Y the screen number which is stored in `screen_number
-     */
-    connection = xcb_connect(NULL, screen_number);
-    /* standard way to check if a connection failed */
-    if (xcb_connection_has_error(connection) > 0) {
-        LOG_ERROR(NULL, "could not create xcb connection");
-        return ERROR;
-    }
-
-    /* intern the atoms into the xcb server, they are stored in an array of
-     * cookies
-     */
-    atom_cookies = xcb_ewmh_init_atoms(connection, &ewmh);
-    /* get the reply for all cookies and set the ewmh atoms to the values the
-     * xcb server assigned for us
-     */
-    if (!xcb_ewmh_init_atoms_replies(&ewmh, atom_cookies, &error)) {
-        LOG_ERROR(error, "could not set up ewmh");
-        return ERROR;
-    }
-
-    /* initialize freetype and fontconfig for drawing fonts */
-    (void) initialize_font_drawing();
-
-    /* create a signal handle for the alarm signal, this is triggered when the
-     * alarm created by `alarm()` expires
-     */
-    signal(SIGALRM, alarm_handler);
-
-    return OK;
-}
+bool is_fensterchef_running;
 
 /* Close the connection to xcb and exit the program with given exit code. */
 void quit_fensterchef(int exit_code)

@@ -21,6 +21,7 @@ static const struct {
 
     [ACTION_NONE] = { "NONE", PARSER_DATA_TYPE_VOID },
     [ACTION_RELOAD_CONFIGURATION] = { "RELOAD-CONFIGURATION", PARSER_DATA_TYPE_VOID },
+    [ACTION_CLOSE_WINDOW] = { "CLOSE-WINDOW", PARSER_DATA_TYPE_VOID },
     [ACTION_NEXT_WINDOW] = { "NEXT-WINDOW", PARSER_DATA_TYPE_VOID },
     [ACTION_PREVIOUS_WINDOW] = { "PREVIOUS-WINDOW", PARSER_DATA_TYPE_VOID },
     [ACTION_REMOVE_FRAME] = { "REMOVE-FRAME", PARSER_DATA_TYPE_VOID },
@@ -153,6 +154,14 @@ void do_action(const Action *action)
     /* reload the configuration file */
     case ACTION_RELOAD_CONFIGURATION:
         reload_requested = true;
+        break;
+
+    /* closes the currently active window */
+    case ACTION_CLOSE_WINDOW:
+        if (focus_window == NULL) {
+            break;
+        }
+        close_window(focus_window);
         break;
 
     /* go to the next window in the window list */

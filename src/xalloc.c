@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "utility.h"
 #include "xalloc.h"
 
 void *xmalloc(size_t size)
@@ -92,43 +93,51 @@ void *xmemdup(const void *ptr, size_t size)
     return p_dup;
 }
 
-char *xstrdup(const char *s)
+char *xstrdup(const char *string)
 {
-    char *s_dup;
+    size_t length;
+    char *result;
 
-    s_dup = strdup(s);
-    if (s_dup == NULL) {
-        fprintf(stderr, "strdup(%s): %s\n",
-                s, strerror(errno));
-        exit(EXIT_FAILURE);
-    }
-    return s_dup;
+    /* `+ 1` for the null terminator */
+    length = strlen(string) + 1;
+    result = xmalloc(length);
+    memcpy(result, string, length);
+    return result;
 }
 
-char *xstrndup(const char *s, size_t n)
+char *xstrndup(const char *string, size_t length)
 {
-    char *s_dup;
+    char *result;
 
-    s_dup = strndup(s, n);
-    if (s_dup == NULL) {
-        fprintf(stderr, "strndup(%.*s, %zu): %s\n",
-                (int) n, s, n, strerror(errno));
-        exit(EXIT_FAILURE);
-    }
-    return s_dup;
+    length = strnlen(string, length);
+    /* `+ 1` for the null terminator */
+    result = xmalloc(length + 1);
+    result[length] = '\0';
+    memcpy(result, string, length);
+    return result;
 }
 
-char *xasprintf(const char *fmt, ...)
+char *xasprintf(const char *format, ...)
 {
-    va_list l;
-    char *s;
+    va_list list;
+    int total_size;
+    char *result;
 
-    va_start(l, fmt);
-    if (vasprintf(&s, fmt, l) == -1) {
-        fprintf(stderr, "vasprintf(%s): %s\n",
-                fmt, strerror(errno));
+    /* get the length of the expanded format */
+    va_start(list, format);
+    total_size = vsnprintf(NULL, 0, format, list);
+    va_end(list);
+
+    if (total_size < 0) {
+        fprintf(stderr, "snprintf(%s): %s\n",
+                format, strerror(errno));
         exit(EXIT_FAILURE);
     }
-    va_end(l);
-    return s;
+
+    va_start(list, format);
+    /* `+ 1` for the null terminator */
+    result = xmalloc(total_size + 1);
+    (void) vsprintf(result, format, list);
+    va_end(list);
+    return result;
 }
