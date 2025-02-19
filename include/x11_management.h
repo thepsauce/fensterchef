@@ -1,5 +1,5 @@
-#ifndef X_H
-#define X_H
+#ifndef X11_MANAGEMENT_H
+#define X11_MANAGEMENT_H
 
 #include <xcb/xcb.h>
 #include <xcb/xcb_icccm.h> // xcb_size_hints_t,
@@ -264,11 +264,23 @@ typedef struct x_properties {
 /* connection to the xcb server */
 extern xcb_connection_t *connection;
 
+/* file descriptor associated to the X connection */
+extern int x_file_descriptor;
+
 /* general purpose values for xcb function calls */
 extern uint32_t general_values[7];
 
 /* the selected X screen */
 extern xcb_screen_t *x_screen;
+
+/* supporting wm check window */
+extern xcb_window_t check_window;
+
+/* user notification window */
+extern xcb_window_t notification_window;
+
+/* user window list window */
+extern xcb_window_t window_list_window;
 
 /* Checks if given strut has any reserved space. */
 static inline bool is_strut_empty(wm_strut_partial_t *strut)
@@ -279,6 +291,9 @@ static inline bool is_strut_empty(wm_strut_partial_t *strut)
 
 /* Initialize the X connection and the X atoms. */
 int x_initialize(void);
+
+/* Try to take control of the window manager role. */
+int x_take_control(void);
 
 /* Initialize all properties within @properties. */
 void x_init_properties(XProperties *properties, xcb_window_t window);

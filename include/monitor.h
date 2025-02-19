@@ -1,5 +1,5 @@
-#ifndef SCREEN_H
-#define SCREEN_H
+#ifndef MONITOR_H
+#define MONITOR_H
 
 #include <xcb/randr.h>
 
@@ -8,25 +8,6 @@
 #include "bits/frame_typedef.h"
 
 #include "x11_management.h"
-
-/* forward declaration */
-struct monitor;
-
-/* A screen is a user region that can contain multiple monitors. */
-typedef struct screen {
-    /* supporting wm check window */
-    xcb_window_t check_window;
-    /* user notification window */
-    xcb_window_t notification_window;
-    /* user window list window */
-    xcb_window_t window_list_window;
-
-    /* first monitor in the monitor linked list */
-    struct monitor *monitor;
-} Screen;
-
-/* the actively used screen */
-extern Screen *screen;
 
 /* A monitor is a rectangular region tied to a screen. */
 typedef struct monitor {
@@ -53,10 +34,10 @@ typedef struct monitor {
     struct monitor *next;
 } Monitor;
 
-/* Initialize the screen utility windows. */
-int initialize_screen(void);
+/* the first monitor in the linked list */
+extern Monitor *first_monitor;
 
-/* Try to initialize randr and set @screen->monitor. */
+/* Try to initialize randr and the internal monitor linked list. */
 void initialize_monitors(void);
 
 /* Get a monitor marked as primary or the first monitor if no monitor is marked

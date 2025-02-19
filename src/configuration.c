@@ -10,8 +10,8 @@
 #include "fensterchef.h"
 #include "frame.h"
 #include "log.h"
+#include "monitor.h"
 #include "render.h"
-#include "screen.h"
 #include "utility.h"
 #include "window.h"
 
@@ -352,7 +352,7 @@ void set_configuration(struct configuration *new_configuration)
     if (old_configuration.border.size != configuration.border.size ||
             old_configuration.gaps.inner != configuration.gaps.inner ||
             old_configuration.gaps.outer != configuration.gaps.outer) {
-        for (Monitor *monitor = screen->monitor; monitor != NULL;
+        for (Monitor *monitor = first_monitor; monitor != NULL;
                 monitor = monitor->next) {
             reload_frame_recursively(monitor->frame);
         }
@@ -362,18 +362,18 @@ void set_configuration(struct configuration *new_configuration)
     if (old_configuration.notification.border_color !=
             configuration.notification.border_color) {
         general_values[0] = configuration.notification.border_color;
-        xcb_change_window_attributes(connection, screen->notification_window,
+        xcb_change_window_attributes(connection, notification_window,
                 XCB_CW_BORDER_PIXEL, general_values);
-        xcb_change_window_attributes(connection, screen->window_list_window,
+        xcb_change_window_attributes(connection, window_list_window,
                 XCB_CW_BORDER_PIXEL, general_values);
     }
     /* check if notification border size changed */
     if (old_configuration.notification.border_size !=
             configuration.notification.border_size) {
         general_values[0] = configuration.notification.border_size;
-        xcb_configure_window(connection, screen->notification_window,
+        xcb_configure_window(connection, notification_window,
                 XCB_CONFIG_WINDOW_BORDER_WIDTH, general_values);
-        xcb_configure_window(connection, screen->window_list_window,
+        xcb_configure_window(connection, window_list_window,
                 XCB_CONFIG_WINDOW_BORDER_WIDTH, general_values);
     }
     /* check if notification background changed */

@@ -1,6 +1,4 @@
-#include <signal.h>
 #include <stdlib.h>
-#include <unistd.h>
 
 #include "configuration.h"
 #include "event.h"
@@ -8,51 +6,31 @@
 #include "frame.h"
 #include "keymap.h"
 #include "log.h"
+#include "monitor.h"
 #include "render.h"
 #include "root_properties.h"
-#include "screen.h"
 #include "x11_management.h"
 #include "xalloc.h"
-
-/* Handle an incoming alarm. */
-static void alarm_handler(int signal)
-{
-    (void) signal;
-    LOG("triggered alarm: hiding notification window\n");
-    /* hide the notification window */
-    xcb_unmap_window(connection, screen->notification_window);
-    /* flush is needed because the only place we flush is after receiving an
-     * event so the changes would not be reflected until then
-     */
-    xcb_flush(connection);
-}
 
 /* FENSTERCHEF main entry point. */
 int main(void)
 {
-    xcb_generic_event_t *event;
-
-    /* initialize logging, the xcb/ewmh connection and font drawing */
-    if (x_initialize() != 0) {
+    /* initialize the X connection, X atoms and create utility windows */
+    if (x_initialize() != OK) {
         return ERROR;
     }
 
-    /* create a signal handle for the alarm signal, this is triggered when the
-     * alarm created by `alarm()` expires
-     */
-    signal(SIGALRM, alarm_handler);
+    /* try to take control of the windows and start managing */
+    if (x_take_control() != OK) {
+        quit_fensterchef(EXIT_FAILURE);
+    }
 
     /* initialize the key symbol table */
     if (initialize_keymap() != OK) {
         quit_fensterchef(EXIT_FAILURE);
     }
 
-    /* initialize the @screen with graphical stock objects and utility windows */
-    if (initialize_screen() != OK) {
-        quit_fensterchef(EXIT_FAILURE);
-    }
-
-    /* try to initialize randr and set @screen->monitor */
+    /* try to initialize randr */
     initialize_monitors();
 
     /* log the screen information */
@@ -60,6 +38,11 @@ int main(void)
 
     /* initialize graphical stock objects used for rendering */
     if (initialize_renderer() != OK) {
+        quit_fensterchef(EXIT_FAILURE);
+    }
+
+    /* prepare the event loop */
+    if (prepare_cycles() != OK) {
         quit_fensterchef(EXIT_FAILURE);
     }
 
@@ -77,23 +60,8 @@ int main(void)
 
     /* run the main event loop */
     is_fensterchef_running = true;
-    while (is_fensterchef_running) {
-        event = xcb_wait_for_event(connection);
-        if (event == NULL) {
-            quit_fensterchef(EXIT_FAILURE);
-        }
-
-        handle_event(event);
-
-        if (reload_requested) {
-            reload_user_configuration();
-            reload_requested = false;
-        }
-
-        free(event);
-
-        /* flush after every event so all changes are reflected */
-        xcb_flush(connection);
+    while (next_cycle(NULL) == OK) {
+        (void) 0;
     }
 
     quit_fensterchef(EXIT_SUCCESS);

@@ -3,14 +3,38 @@
 #include "log.h"
 #include "x11_management.h"
 
+/* event mask for the root window */
+#define ROOT_EVENT_MASK (XCB_EVENT_MASK_SUBSTRUCTURE_REDIRECT | \
+                         XCB_EVENT_MASK_BUTTON_PRESS | \
+                         /* when the user adds a monitor (e.g. video
+                          * projector), the root window gets a
+                          * ConfigureNotify */ \
+                         XCB_EVENT_MASK_STRUCTURE_NOTIFY | \
+                         XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY | \
+                         XCB_EVENT_MASK_PROPERTY_CHANGE | \
+                         XCB_EVENT_MASK_FOCUS_CHANGE | \
+                         XCB_EVENT_MASK_ENTER_WINDOW)
+
 /* connection to the xcb server */
 xcb_connection_t *connection;
+
+/* file descriptor associated to the X connection */
+int x_file_descriptor;
 
 /* the selected x screen */
 xcb_screen_t *x_screen;
 
 /* general purpose values for xcb function calls */
 uint32_t general_values[7];
+
+/* supporting wm check window */
+xcb_window_t check_window;
+
+/* user notification window */
+xcb_window_t notification_window;
+
+/* user window list window */
+xcb_window_t window_list_window;
 
 struct x_atoms x_atoms[] = {
 #define X(atom) { #atom, 0 },
@@ -34,6 +58,59 @@ static xcb_screen_t *x_get_screen(int screen_number)
     return NULL;
 }
 
+/* Create the notification and window list windows. */
+static int create_utility_windows(void)
+{
+    xcb_generic_error_t *error;
+
+    /* create the check window, this can be used by other applications to
+     * identify our window manager
+     */
+    check_window = xcb_generate_id(connection);
+    error = xcb_request_check(connection, xcb_create_window_checked(connection,
+                XCB_COPY_FROM_PARENT, check_window,
+                x_screen->root, -1, -1, 1, 1, 0,
+                XCB_WINDOW_CLASS_COPY_FROM_PARENT, XCB_COPY_FROM_PARENT,
+                0, NULL));
+    if (error != NULL) {
+        LOG_ERROR(error, "could not create check window");
+        return ERROR;
+    }
+    /* set the check window name to the name of fensterchef */
+    xcb_icccm_set_wm_name(connection, check_window,
+            ATOM(UTF8_STRING), 8, strlen(FENSTERCHEF_NAME), FENSTERCHEF_NAME);
+    /* the check window has itself as supporting wm check window */
+    xcb_change_property(connection, XCB_PROP_MODE_REPLACE,
+            check_window, ATOM(_NET_SUPPORTING_WM_CHECK),
+            XCB_ATOM_WINDOW, 0, 1, &check_window);
+
+    /* create a notification window for showing the user messages */
+    notification_window = xcb_generate_id(connection);
+    error = xcb_request_check(connection, xcb_create_window_checked(connection,
+                XCB_COPY_FROM_PARENT, notification_window,
+                x_screen->root, -1, -1, 1, 1, 0,
+                XCB_WINDOW_CLASS_COPY_FROM_PARENT, XCB_COPY_FROM_PARENT,
+                0, NULL));
+    if (error != NULL) {
+        LOG_ERROR(error, "could not create notification window");
+        return ERROR;
+    }
+
+    /* create a window list for selecting windows from a list */
+    window_list_window = xcb_generate_id(connection);
+    general_values[0] = XCB_EVENT_MASK_KEY_PRESS; /* need key press events */
+    error = xcb_request_check(connection, xcb_create_window_checked(connection,
+                XCB_COPY_FROM_PARENT, window_list_window,
+                x_screen->root, -1, -1, 1, 1, 0,
+                XCB_WINDOW_CLASS_COPY_FROM_PARENT, XCB_COPY_FROM_PARENT,
+                XCB_CW_EVENT_MASK, general_values));
+    if (error != NULL) {
+        LOG_ERROR(error, "could not create window list window");
+        return ERROR;
+    }
+    return OK;
+}
+
 /* Initialize the xcb connection and the xcb atoms. */
 int x_initialize(void)
 {
@@ -52,6 +129,8 @@ int x_initialize(void)
         LOG_ERROR(NULL, "could not create xcb connection");
         return ERROR;
     }
+
+    x_file_descriptor = xcb_get_file_descriptor(connection);
 
     x_screen = x_get_screen(screen_number);
     if (x_screen == NULL) {
@@ -78,6 +157,34 @@ int x_initialize(void)
         free(atom);
     }
 
+    /* create the necessary utility windows */
+    if (create_utility_windows() != OK) {
+        return ERROR;
+    }
+
+    /* grabs ALT+Button for moving popup windows */
+    xcb_grab_button(connection, 0, x_screen->root, XCB_EVENT_MASK_BUTTON_PRESS |
+            XCB_EVENT_MASK_BUTTON_RELEASE, XCB_GRAB_MODE_ASYNC,
+            XCB_GRAB_MODE_ASYNC, x_screen->root, XCB_NONE, 1, XCB_MOD_MASK_1);
+    return OK;
+}
+
+/* Try to take control of the window manager role. */
+int x_take_control(void)
+{
+    xcb_generic_error_t *error;
+
+    /* set the mask of the root window so we receive important events like
+     * create notifications
+     */
+    general_values[0] = ROOT_EVENT_MASK;
+    error = xcb_request_check(connection,
+            xcb_change_window_attributes_checked(connection, x_screen->root,
+                XCB_CW_EVENT_MASK, general_values));
+    if (error != NULL) {
+        LOG_ERROR(error, "could not change root window mask");
+        return ERROR;
+    }
     return OK;
 }
 

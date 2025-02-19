@@ -4,7 +4,7 @@
 #include "fensterchef.h"
 #include "frame.h"
 #include "log.h"
-#include "screen.h"
+#include "monitor.h"
 #include "utility.h"
 #include "window.h"
 
@@ -24,7 +24,7 @@ Frame *get_frame_at_position(int32_t x, int32_t y)
 {
     Frame *frame;
 
-    for (Monitor *monitor = screen->monitor; monitor != NULL;
+    for (Monitor *monitor = first_monitor; monitor != NULL;
             monitor = monitor->next) {
         frame = monitor->frame;
         if (is_point_in_frame(frame, x, y)) {
