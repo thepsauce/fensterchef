@@ -178,8 +178,24 @@ void adjust_for_window_gravity(Monitor *monitor, int32_t *x, int32_t *y,
 void set_window_size(Window *window, int32_t x, int32_t y, uint32_t width,
         uint32_t height)
 {
-    width = MAX(width, 1);
-    height = MAX(height, 1);
+    width = MAX(width, WINDOW_MINIMUM_SIZE);
+    height = MAX(height, WINDOW_MINIMUM_SIZE);
+
+    /* make it so the window does not become too large and that is stays on
+     * screen
+     */
+    width = MIN(width, WINDOW_MAXIMUM_SIZE);
+    height = MIN(height, WINDOW_MAXIMUM_SIZE);
+    if (x + (int32_t) width < WINDOW_MINIMUM_VISIBLE_SIZE) {
+        x = WINDOW_MINIMUM_VISIBLE_SIZE - width;
+    } else if (x + WINDOW_MINIMUM_VISIBLE_SIZE > screen->width_in_pixels) {
+        x = screen->width_in_pixels - WINDOW_MINIMUM_VISIBLE_SIZE;
+    }
+    if (y + (int32_t) height < WINDOW_MINIMUM_VISIBLE_SIZE) {
+        y = WINDOW_MINIMUM_VISIBLE_SIZE - height;
+    } else if (y + WINDOW_MINIMUM_VISIBLE_SIZE > screen->height_in_pixels) {
+        y = screen->height_in_pixels - WINDOW_MINIMUM_VISIBLE_SIZE;
+    }
 
     LOG("configuring size of window %" PRIu32
             " to: %" PRId32 ", %" PRId32 ", %" PRIu32 ", %" PRIu32 "\n",

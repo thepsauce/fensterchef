@@ -8,6 +8,10 @@
 #include "bits/frame_typedef.h"
 #include "bits/window_typedef.h"
 
+/* the minimum width or height of a frame */
+#define FRAME_MINIMUM_SIZE 12
+
+/* an edge of the frame */
 typedef enum {
     FRAME_EDGE_LEFT,
     FRAME_EDGE_TOP,
@@ -15,6 +19,7 @@ typedef enum {
     FRAME_EDGE_BOTTOM,
 } frame_edge_t;
 
+/* a direction to split a frame in */
 typedef enum {
     /* the frame was split horizontally (children are left and right) */
     FRAME_SPLIT_HORIZONTALLY,

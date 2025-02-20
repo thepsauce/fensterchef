@@ -107,10 +107,44 @@ void merge_with_default_key_bindings(struct configuration *configuration)
         { 0, XK_l, { .code = ACTION_MOVE_RIGHT } },
         { 0, XK_j, { .code = ACTION_MOVE_DOWN } },
 
+        { 0, XK_Left, { ACTION_RESIZE_BY, {
+                .quad = { 20, 0, 0, 0 } } } },
+        { 0, XK_Up, { ACTION_RESIZE_BY, {
+                .quad = { 0, 20, 0, 0 } } } },
+        { 0, XK_Right, { ACTION_RESIZE_BY, {
+                .quad = { -20, 0, 0, 0 } } } },
+        { 0, XK_Down, { ACTION_RESIZE_BY, {
+                .quad = { 0, -20, 0, 0 } } } },
+
+        { XCB_MOD_MASK_SHIFT, XK_Left, { ACTION_RESIZE_BY, {
+                .quad = { 0, 0, -20, 0 } } } },
+        { XCB_MOD_MASK_SHIFT, XK_Up, { ACTION_RESIZE_BY, {
+                .quad = { 0, 0, 0, -20 } } } },
+        { XCB_MOD_MASK_SHIFT, XK_Right, { ACTION_RESIZE_BY, {
+                .quad = { 0, 0, 20, 0 } } } },
+        { XCB_MOD_MASK_SHIFT, XK_Down, { ACTION_RESIZE_BY, {
+                .quad = { 0, 0, 0, 20 } } } },
+
+        { XCB_MOD_MASK_CONTROL, XK_Left, { ACTION_RESIZE_BY, {
+                .quad = { 20, 0, -20, 0 } } } },
+        { XCB_MOD_MASK_CONTROL, XK_Up, { ACTION_RESIZE_BY, {
+                .quad = { 0, 20, 0, -20 } } } },
+        { XCB_MOD_MASK_CONTROL, XK_Right, { ACTION_RESIZE_BY, {
+                .quad = { -20, 0, 20, 0 } } } },
+        { XCB_MOD_MASK_CONTROL, XK_Down, { ACTION_RESIZE_BY, {
+                .quad = { 0, -20, 0, 20 } } } },
+
+        { XCB_MOD_MASK_CONTROL, XK_plus, { ACTION_RESIZE_BY, {
+                .quad = { 10, 10, 10, 10 } } } },
+        { XCB_MOD_MASK_CONTROL, XK_minus, { ACTION_RESIZE_BY, {
+                .quad = { -10, -10, -10, -10 } } } },
+        { XCB_MOD_MASK_CONTROL, XK_equal, { ACTION_RESIZE_BY, {
+                .quad = { 10, 10, 10, 10 } } } },
+
         { 0, XK_w, { .code = ACTION_SHOW_WINDOW_LIST } },
 
         { 0, XK_Return, { ACTION_RUN, {
-            .string = (uint8_t*) "/usr/bin/xterm" } } },
+                .string = (uint8_t*) "/usr/bin/xterm" } } },
 
         { XCB_MOD_MASK_SHIFT, XK_e, { .code = ACTION_QUIT } }
     };

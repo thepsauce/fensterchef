@@ -137,6 +137,44 @@ static void show_window_list(void)
     set_focus_window_with_frame(window);
 }
 
+/* Resize the current window or current frame if it does not exist. */
+static void resize_frame_or_window_by(int32_t left, int32_t top,
+        int32_t right, int32_t bottom)
+{
+    Frame *frame;
+
+    if (focus_window == NULL) {
+        frame = focus_frame;
+        if (frame == NULL) {
+            return;
+        }
+    } else {
+        frame = get_frame_of_window(focus_window);
+    }
+
+    if (frame != NULL) {
+        bump_frame_edge(frame, FRAME_EDGE_LEFT, left);
+        bump_frame_edge(frame, FRAME_EDGE_TOP, top);
+        bump_frame_edge(frame, FRAME_EDGE_RIGHT, right);
+        bump_frame_edge(frame, FRAME_EDGE_BOTTOM, bottom);
+    } else {
+        right += left;
+        bottom += top;
+        /* check for underflows */
+        if ((int32_t) focus_window->size.width < -right) {
+            right = -focus_window->size.width;
+        }
+        if ((int32_t) focus_window->size.height < -bottom) {
+            bottom = -focus_window->size.height;
+        }
+        set_window_size(focus_window,
+                focus_window->position.x - left,
+                focus_window->position.y - top,
+                focus_window->size.width + right,
+                focus_window->size.height + bottom);
+    }
+}
+
 /* Do the given action. */
 void do_action(const Action *action)
 {
@@ -291,28 +329,10 @@ void do_action(const Action *action)
 
     /* resize the edges of the current window */
     case ACTION_RESIZE_BY:
-        if (focus_window == NULL) {
-            frame = focus_frame;
-            if (frame == NULL) {
-                break;
-            }
-        } else {
-            frame = get_frame_of_window(focus_window);
-        }
-        if (frame != NULL) {
-            bump_frame_edge(frame, FRAME_EDGE_LEFT, action->parameter.quad[0]);
-            bump_frame_edge(frame, FRAME_EDGE_TOP, action->parameter.quad[1]);
-            bump_frame_edge(frame, FRAME_EDGE_RIGHT, action->parameter.quad[2]);
-            bump_frame_edge(frame, FRAME_EDGE_BOTTOM, action->parameter.quad[3]);
-        } else {
-            set_window_size(focus_window,
-                    focus_window->position.x - action->parameter.quad[0],
-                    focus_window->position.y - action->parameter.quad[1],
-                    focus_window->size.width + action->parameter.quad[2] +
-                        action->parameter.quad[0],
-                    focus_window->size.height + action->parameter.quad[3] +
-                        action->parameter.quad[1]);
-        }
+        resize_frame_or_window_by(action->parameter.quad[0],
+                action->parameter.quad[1],
+                action->parameter.quad[2],
+                action->parameter.quad[3]);
         break;
 
     /* not a real action */

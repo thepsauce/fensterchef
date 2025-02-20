@@ -92,35 +92,32 @@ void resize_frame(Frame *frame, int32_t x, int32_t y,
 /* Resize the inner window to fit within the frame. */
 void reload_frame(Frame *frame)
 {
-    Monitor *monitor;
+    Frame *root;
     uint32_t left, top, right, bottom;
 
     if (frame->window == NULL) {
         return;
     }
-    monitor = get_monitor_from_rectangle(frame->x, frame->y,
-            frame->width, frame->height);
-    if (monitor->position.x == frame->x) {
+    root = get_root_frame(frame);
+    if (root->x == frame->x) {
         left = configuration.gaps.outer;
     } else {
         left = configuration.gaps.inner;
     }
 
-    if (monitor->position.y == frame->y) {
+    if (root->y == frame->y) {
         top = configuration.gaps.outer;
     } else {
         top = configuration.gaps.inner;
     }
 
-    if (monitor->position.x + monitor->size.width ==
-            frame->x + frame->width) {
+    if (root->x + root->width == frame->x + frame->width) {
         right = configuration.gaps.outer;
     } else {
         right = 0;
     }
 
-    if (monitor->position.y + monitor->size.height ==
-            frame->y + frame->height) {
+    if (root->y + root->height == frame->y + frame->height) {
         bottom = configuration.gaps.outer;
     } else {
         bottom = 0;

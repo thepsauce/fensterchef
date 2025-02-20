@@ -150,9 +150,9 @@ Frame *get_below_frame(Frame *frame)
 /* Get the minimum size the given frame should have. */
 static void get_minimum_frame_size(Frame *frame, Size *size)
 {
-    Size left_size, right_size;
-
     if (frame->left != NULL) {
+        Size left_size, right_size;
+
         get_minimum_frame_size(frame->left, &left_size);
         get_minimum_frame_size(frame->right, &right_size);
         if (frame->split_direction == FRAME_SPLIT_VERTICALLY) {
@@ -163,8 +163,8 @@ static void get_minimum_frame_size(Frame *frame, Size *size)
             size->height = MAX(left_size.height, right_size.height);
         }
     } else {
-        size->width = 12;
-        size->height = 12;
+        size->width = FRAME_MINIMUM_SIZE;
+        size->height = FRAME_MINIMUM_SIZE;
     }
 }
 

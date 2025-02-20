@@ -12,6 +12,15 @@
 
 #include "x11_management.h"
 
+/* the maximum size of the window */
+#define WINDOW_MAXIMUM_SIZE 1000000
+
+/* the minimum length of the window that needs to stay visible */
+#define WINDOW_MINIMUM_VISIBLE_SIZE 8
+
+/* the minimum width or height a window can have */
+#define WINDOW_MINIMUM_SIZE 4
+
 /* the number the first window gets assigned */
 #define FIRST_WINDOW_NUMBER 1
 
