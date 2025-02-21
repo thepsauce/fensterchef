@@ -91,8 +91,75 @@ static void synchronize_supported(void)
 
     /* set all atoms our window manager supports */
     xcb_change_property(connection, XCB_PROP_MODE_REPLACE, screen->root,
-            ATOM(_NET_SUPPORTED), XCB_ATOM_ATOM, 8 * sizeof(uint32_t),
+            ATOM(_NET_SUPPORTED), XCB_ATOM_ATOM, 32,
             SIZE(supported_atoms), supported_atoms);
+}
+
+/* Compare the time of two windows. */
+static int compare_window_time(const Window **a, const Window **b)
+{
+    return (*a)->creation_time - (*b)->creation_time;
+}
+
+/* Compare the Z order of two windows. */
+static int compare_window_z_order(const Window **a, const Window **b)
+{
+    const Window *above;
+
+    above = *a;
+    while (above != NULL && above->above != *b) {
+        above = above->above;
+    }
+    if (above == NULL) {
+        return 1;
+    }
+    return -1;
+}
+
+/* Set the root property _NET_CLIENT_LIST and _NET_CLIENT_LIST_STACKING. */
+static void synchronize_client_list(void)
+{
+    uint32_t number_of_windows = 0;
+    Window **windows;
+    xcb_window_t *xcb_windows;
+
+    for (Window *window = first_window; window != NULL; window = window->next) {
+        if (!window->state.was_ever_mapped) {
+            continue;
+        }
+        number_of_windows++;
+    }
+
+    windows = xreallocarray(NULL, number_of_windows, sizeof(*windows));
+    number_of_windows = 0;
+    for (Window *window = first_window; window != NULL; window = window->next) {
+        if (!window->state.was_ever_mapped) {
+            continue;
+        }
+        windows[number_of_windows++] = window;
+    }
+
+    xcb_windows = xreallocarray(NULL, number_of_windows, sizeof(*xcb_windows));
+
+    qsort(windows, number_of_windows, sizeof(*windows),
+            (int (*)(const void*, const void*)) compare_window_time);
+    for (uint32_t i = 0; i < number_of_windows; i++) {
+        xcb_windows[i] = windows[i]->properties.window;
+    }
+    xcb_change_property(connection, XCB_PROP_MODE_REPLACE, screen->root,
+            ATOM(_NET_CLIENT_LIST), XCB_ATOM_WINDOW, 32,
+            number_of_windows, xcb_windows);
+
+    qsort(windows, number_of_windows, sizeof(*windows),
+            (int (*)(const void*, const void*)) compare_window_z_order);
+    for (uint32_t i = 0; i < number_of_windows; i++) {
+        xcb_windows[i] = windows[i]->properties.window;
+    }
+    xcb_change_property(connection, XCB_PROP_MODE_REPLACE, screen->root,
+            ATOM(_NET_CLIENT_LIST_STACKING), XCB_ATOM_WINDOW, 32,
+            number_of_windows, xcb_windows);
+
+    free(windows);
 }
 
 /* Set the root property _NET_WORK_AREA to the usable area (screen size minus
@@ -100,13 +167,9 @@ static void synchronize_supported(void)
  */
 static void synchronize_work_area(void)
 {
-    uint32_t left, top, right, bottom;
+    uint32_t left = 0, top = 0, right = 0, bottom = 0;
     Rectangle rectangle;
 
-    left = 0;
-    top = 0;
-    right = 0;
-    bottom = 0;
     for (Window *window = first_window; window != NULL;
             window = window->next) {
         left += window->properties.strut.reserved.left;
@@ -138,6 +201,11 @@ void synchronize_root_property(root_property_t property)
     /* the supported options of our window manager */
     case ROOT_PROPERTY_SUPPORTED:
         synchronize_supported();
+        break;
+
+    /* a list of out managed windows */
+    case ROOT_PROPERTY_CLIENT_LIST:
+        synchronize_client_list();
         break;
 
     /* the number of desktops, just set it to 1 */

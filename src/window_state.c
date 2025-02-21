@@ -466,6 +466,8 @@ void show_window(Window *window)
         }
 
         window->state.was_ever_mapped = true;
+
+        synchronize_root_property(ROOT_PROPERTY_CLIENT_LIST);
     }
 
     LOG("showing window with id: %" PRIu32 "\n", window->number);
@@ -518,21 +520,6 @@ void show_window(Window *window)
     if (!is_strut_empty(&window->properties.strut)) {
         reconfigure_monitor_frame_sizes();
         synchronize_root_property(ROOT_PROPERTY_WORK_AREA);
-    }
-}
-
-/* Wrapper around `hide_window()` that does not touch the tiling or focus. */
-void hide_window_abruptly(Window *window)
-{
-    window_mode_t previous_mode;
-
-    previous_mode = window->state.mode;
-    window->state.mode = WINDOW_MODE_MAX;
-    hide_window(window);
-    window->state.mode = previous_mode;
-    /* make sure there is no invalid focus window */
-    if (window == focus_window) {
-        set_focus_window(NULL);
     }
 }
 
@@ -603,5 +590,24 @@ void hide_window(Window *window)
     if (!is_strut_empty(&window->properties.strut)) {
         reconfigure_monitor_frame_sizes();
         synchronize_root_property(ROOT_PROPERTY_WORK_AREA);
+    }
+}
+
+/* Wrapper around `hide_window()` that does not touch the tiling or focus. */
+void hide_window_abruptly(Window *window)
+{
+    window_mode_t previous_mode;
+
+    previous_mode = window->state.mode;
+    window->state.mode = WINDOW_MODE_MAX;
+    hide_window(window);
+    window->state.mode = previous_mode;
+
+    /* link into the taken window list */
+    window->previous_taken = last_taken_window;
+    last_taken_window = window;
+    /* make sure there is no invalid focus window */
+    if (window == focus_window) {
+        set_focus_window(NULL);
     }
 }

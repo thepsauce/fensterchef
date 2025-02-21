@@ -28,6 +28,8 @@ Window *create_window(xcb_window_t xcb_window)
 
     window = xcalloc(1, sizeof(*window));
 
+    window->creation_time = time(NULL);
+
     /* each window starts with id 0, at the beginning of the linked list */
     window->next = first_window;
     first_window = window;
@@ -313,6 +315,8 @@ void set_window_above(Window *window)
             link_window_into_z_list(below, window);
         }
     }
+
+    synchronize_root_property(ROOT_PROPERTY_CLIENT_LIST);
 }
 
 /* Get the internal window that has the associated xcb window. */

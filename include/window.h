@@ -31,6 +31,9 @@ struct window {
     /* the window's X properties */
     XProperties properties;
 
+    /* the time the window was created */
+    time_t creation_time;
+
     /* the window state */
     WindowState state;
 
