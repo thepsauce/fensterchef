@@ -14,6 +14,9 @@
  */
 Window *first_window;
 
+/* the last window in the taken window linked list */
+Window *last_taken_window;
+
 /* the currently focused window */
 Window *focus_window;
 
@@ -87,6 +90,38 @@ void close_window(Window *window)
     window->state.user_request_close_time = current_time;
 }
 
+/* Remove @window from the Z linked list. */
+void unlink_window_from_z_list(Window *window)
+{
+    if (window->below != NULL) {
+        window->below->above = window->above;
+    }
+    if (window->above != NULL) {
+        window->above->below = window->below;
+    }
+
+    window->below = NULL;
+    window->above = NULL;
+}
+
+/* Remove @window from the taken linked list. */
+void unlink_window_from_taken_list(Window *window)
+{
+    Window *previous;
+
+    if (window == last_taken_window) {
+        last_taken_window = last_taken_window->previous_taken;
+    } else {
+        previous = last_taken_window;
+        while (previous != NULL && previous->previous_taken != window) {
+            previous = previous->previous_taken;
+        }
+        if (previous != NULL) {
+            previous->previous_taken = window->previous_taken;
+        }
+    }
+}
+
 /* Destroys given window and removes it from the window linked list. */
 void destroy_window(Window *window)
 {
@@ -96,6 +131,15 @@ void destroy_window(Window *window)
      * happen because usually a MapUnnotify event hides the window beforehand
      */
     hide_window_quickly(window);
+
+    /* exceptional state, this should never happen */
+    if (window == focus_window) {
+        focus_window = NULL;
+        LOG_ERROR(NULL, "destroying window with focus\n");
+    }
+
+    unlink_window_from_z_list(window);
+    unlink_window_from_taken_list(window);
 
     /* remove window from the window linked list */
     if (window == first_window) {
@@ -178,14 +222,13 @@ void adjust_for_window_gravity(Monitor *monitor, int32_t *x, int32_t *y,
 void set_window_size(Window *window, int32_t x, int32_t y, uint32_t width,
         uint32_t height)
 {
+    /* make sure the window does not become too large or too small */
     width = MAX(width, WINDOW_MINIMUM_SIZE);
     height = MAX(height, WINDOW_MINIMUM_SIZE);
-
-    /* make it so the window does not become too large and that is stays on
-     * screen
-     */
     width = MIN(width, WINDOW_MAXIMUM_SIZE);
     height = MIN(height, WINDOW_MAXIMUM_SIZE);
+
+    /* place the window so that it is visible */
     if (x + (int32_t) width < WINDOW_MINIMUM_VISIBLE_SIZE) {
         x = WINDOW_MINIMUM_VISIBLE_SIZE - width;
     } else if (x + WINDOW_MINIMUM_VISIBLE_SIZE > screen->width_in_pixels) {
@@ -201,6 +244,12 @@ void set_window_size(Window *window, int32_t x, int32_t y, uint32_t width,
             " to: %" PRId32 ", %" PRId32 ", %" PRIu32 ", %" PRIu32 "\n",
             window->number, x, y, width, height);
 
+    /* do not bother notifying the X server if nothing changed */
+    if (window->position.x == x && window->position.y == y &&
+            window->size.width == width && window->size.height == height) {
+        return;
+    }
+
     window->position.x = x;
     window->position.y = y;
     window->size.width = width;
@@ -210,55 +259,55 @@ void set_window_size(Window *window, int32_t x, int32_t y, uint32_t width,
     general_values[1] = y;
     general_values[2] = width;
     general_values[3] = height;
-    xcb_configure_window(connection, window->properties.window, XCB_CONFIG_SIZE,
-            general_values);
+    xcb_configure_window(connection, window->properties.window,
+            XCB_CONFIG_SIZE, general_values);
+}
+
+/* Link the window into the Z linked list. */
+static void link_window_into_z_list(Window *window, Window *top)
+{
+    /* make sure `top` is actually the top */
+    while (top->above != NULL) {
+        top = top->above;
+    }
+
+    /* put @window above @top */
+    window->below = top;
+    top->above = window;
+
+    /* reflect this change in the X server */
+    general_values[0] = XCB_STACK_MODE_ABOVE;
+    xcb_configure_window(connection, window->properties.window,
+            XCB_CONFIG_WINDOW_STACK_MODE, general_values);
 }
 
 /* Put the window on top of all other windows. */
 void set_window_above(Window *window)
 {
-    Window *above;
+    Window *top;
+    Window *below, *next_below;
 
     LOG("setting window %" PRIu32 " above all other windows\n", window->number);
 
-    /* desktop windows are always at the bottom */
-    if (has_window_type(&window->properties,
-                ATOM(_NET_WM_WINDOW_TYPE_DESKTOP))) {
-        general_values[0] = XCB_STACK_MODE_BELOW;
-    } else {
-        general_values[0] = XCB_STACK_MODE_ABOVE;
+    /* check if the window is already the top window */
+    if (window->above == NULL) {
+        LOG("the window is already above all other windows\n");
+        return;
     }
-    xcb_configure_window(connection, window->properties.window,
-            XCB_CONFIG_WINDOW_STACK_MODE, general_values);
+
+    /* put window at the top in the Z stack */
+    top = window->above;
+    unlink_window_from_z_list(window);
+    link_window_into_z_list(window, top);
 
     /* put windows that are transient for this window above it */
-    for (above = first_window; above != NULL; above = above->next) {
-        if (!above->state.is_visible) {
-            continue;
-        }
-        if (above->properties.transient_for == window->properties.window) {
-            general_values[0] = XCB_STACK_MODE_ABOVE;
-            xcb_configure_window(connection, window->properties.window,
-                    XCB_CONFIG_WINDOW_STACK_MODE, general_values);
+    for (below = window->below; below != NULL; below = next_below) {
+        next_below = below->below;
+        if (below->properties.transient_for == window->properties.window) {
+            unlink_window_from_z_list(below);
+            link_window_into_z_list(below, window);
         }
     }
-}
-
-/* Get the window before this window in the linked list. */
-Window *get_previous_window(Window *window)
-{
-    Window *prev;
-
-    if (window == NULL) {
-        return NULL;
-    }
-
-    for (prev = first_window; prev->next != window; prev = prev->next) {
-        if (prev->next == NULL) {
-            break;
-        }
-    }
-    return prev;
 }
 
 /* Get the internal window that has the associated xcb window. */
@@ -316,23 +365,6 @@ Frame *get_frame_of_window(const Window *window)
     return NULL;
 }
 
-/* Removes @window from the focus list. */
-void unlink_window_from_focus_list(Window *window)
-{
-    if (window->previous_focus == window) {
-        set_focus_window_primitively(NULL);
-    }
-
-    if (window->previous_focus != NULL) {
-        window->previous_focus->next_focus = window->next_focus;
-    }
-    if (window->next_focus != NULL) {
-        window->next_focus->previous_focus = window->previous_focus;
-    }
-    window->previous_focus = NULL;
-    window->next_focus = NULL;
-}
-
 /* Check if @window accepts input focus. */
 bool does_window_accept_focus(Window *window)
 {
@@ -352,14 +384,39 @@ bool does_window_accept_focus(Window *window)
             window->properties.hints.input != 0;
 }
 
-/* Set @focus_window to @window and update the border colors. */
-void set_focus_window_primitively(Window *window)
+static void lose_focus(Window *window)
 {
-    if (focus_window != NULL) {
-        general_values[0] = configuration.border.color;
-        xcb_change_window_attributes(connection, focus_window->properties.window,
-                XCB_CW_BORDER_PIXEL, general_values);
+    if (window == NULL) {
+        return;
     }
+
+    general_values[0] = configuration.border.color;
+    xcb_change_window_attributes(connection,
+            window->properties.window,
+            XCB_CW_BORDER_PIXEL, general_values);
+}
+
+/* Set the window that is in focus to @window. */
+void set_focus_window(Window *window)
+{
+    if (window == NULL) {
+        lose_focus(focus_window);
+        focus_window = NULL;
+        LOG("removed focus from all windows\n");
+        return;
+    }
+
+    if (!does_window_accept_focus(window)) {
+        LOG("window %" PRIu32 " can not be focused\n", window->number);
+        return;
+    }
+
+    if (window == focus_window) {
+        LOG("window %" PRIu32 " is already focused\n", window->number);
+        return;
+    }
+
+    lose_focus(focus_window);
 
     focus_window = window;
     synchronize_root_property(ROOT_PROPERTY_ACTIVE_WINDOW);
@@ -376,64 +433,6 @@ void set_focus_window_primitively(Window *window)
     }
 }
 
-/* Set the window that is in focus to @window. */
-void set_focus_window(Window *window)
-{
-    if (!does_window_accept_focus(window)) {
-        return;
-    }
-
-    if (window == focus_window) {
-        LOG("window %" PRIu32 " is already focused\n", window->number);
-        return;
-    }
-
-    if (focus_window != NULL) {
-        unlink_window_from_focus_list(window);
-
-        /* relink window into focus list */
-        if (focus_window->next_focus != NULL) {
-            focus_window->next_focus->previous_focus = window;
-        }
-        window->previous_focus = focus_window;
-        window->next_focus = focus_window->next_focus;
-        focus_window->next_focus = window;
-    } else {
-        window->previous_focus = window;
-        window->next_focus = window;
-    }
-
-    set_focus_window_primitively(window);
-}
-
-/* Focuses the window before or after the currently focused window. */
-void traverse_focus_chain(int direction)
-{
-    Window *window;
-
-    if (focus_window == NULL) {
-        return;
-    }
-
-    if (direction < 0) {
-        window = focus_window->previous_focus;
-    } else {
-        window = focus_window->next_focus;
-    }
-    
-    if (focus_window == window) {
-        return;
-    }
-
-    /* keep the focus chain intact */
-    set_focus_window_primitively(window);
-
-    Frame *const frame = get_frame_of_window(focus_window);
-    if (frame != NULL) {
-        set_focus_frame(frame);
-    }
-}
-
 /* Focuses the window guaranteed but also focuse the frame of the window if it
  * has one.
  */
@@ -445,49 +444,4 @@ void set_focus_window_with_frame(Window *window)
     } else {
         set_focus_window(window);
     }
-}
-
-/* Get a window that is not shown but in the window list coming after
- * the given window. */
-Window *get_next_hidden_window(Window *window)
-{
-    Window *next;
-
-    if (window == NULL) {
-        return NULL;
-    }
-    next = window;
-    do {
-        if (next->next == NULL) {
-            next = first_window;
-        } else {
-            next = next->next;
-        }
-        if (window == next) {
-            return NULL;
-        }
-    } while (!next->state.was_ever_mapped || next->state.is_visible);
-
-    return next;
-}
-
-/* Get a window that is not shown but in the window list coming before
- * the given window. */
-Window *get_previous_hidden_window(Window *window)
-{
-    Window *previous;
-
-    if (window == NULL) {
-        return NULL;
-    }
-
-    previous = window;
-    do {
-        previous = get_previous_window(previous);
-        if (window == previous) {
-            return NULL;
-        }
-    } while (!previous->state.was_ever_mapped || previous->state.is_visible);
-
-    return previous;
 }

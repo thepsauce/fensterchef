@@ -10,8 +10,7 @@
 void split_frame(Frame *split_from, frame_split_direction_t direction)
 {
     Frame *left, *right;
-    Frame *next_cur_frame;
-    Window *window;
+    Frame *next_focus_frame;
 
     split_from->split_direction = direction;
 
@@ -58,23 +57,21 @@ void split_frame(Frame *split_from, frame_split_direction_t direction)
     right->parent = split_from;
 
     if (split_from == focus_frame) {
-        next_cur_frame = left;
+        next_focus_frame = left;
     } else {
-        next_cur_frame = focus_frame;
+        next_focus_frame = focus_frame;
     }
 
-    if (configuration.tiling.auto_fill_void) {
-        window = get_next_hidden_window(left->window);
-        if (window != NULL) {
-            /* show window in the right frame */
-            focus_frame = right;
-            show_window(window);
-        }
+    if (configuration.tiling.auto_fill_void && last_taken_window != NULL) {
+        right->window = last_taken_window;
+        reload_frame(right);
+        show_window_quickly(last_taken_window);
+        last_taken_window = last_taken_window->previous_taken;
     }
 
     reload_frame(left);
 
-    set_focus_frame(next_cur_frame);
+    set_focus_frame(next_focus_frame);
 
     LOG("split %p[%p, %p]\n", (void*) split_from, (void*) left, (void*) right);
 }

@@ -184,8 +184,6 @@ static void configure_fullscreen_size(Window *window)
             XCB_CONFIG_WINDOW_BORDER_WIDTH, general_values);
 }
 
-
-
 /* Sets the position and size of the window to a dock window. */
 static void configure_dock_size(Window *window)
 {
@@ -341,17 +339,13 @@ void set_window_mode(Window *window, window_mode_t mode, bool force_mode)
         /* pop out from tiling layout */
         if (window->state.mode == WINDOW_MODE_TILING) {
             Frame *const frame = get_frame_of_window(window);
-            if (configuration.tiling.auto_fill_void) {
-                Window *const next = get_next_hidden_window(window);
-                if (next != NULL) {
-                    frame->window = next;
-                    reload_frame(frame);
-                    show_window_quickly(next);
-                } else {
-                    frame->window = NULL;
-                }
-            } else {
-                frame->window = NULL;
+            frame->window = NULL;
+            if (configuration.tiling.auto_fill_void &&
+                    last_taken_window != NULL) {
+                frame->window = last_taken_window;
+                reload_frame(frame);
+                show_window_quickly(last_taken_window);
+                last_taken_window = last_taken_window->previous_taken;
             }
         }
 
@@ -392,6 +386,11 @@ void set_window_mode(Window *window, window_mode_t mode, bool force_mode)
         }
 
         set_window_above(window);
+    } else {
+        /* make sure the window is no longer in the taken list */
+        if (window->state.mode == WINDOW_MODE_TILING) {
+            unlink_window_from_taken_list(window);
+        }
     }
 
     window->state.previous_mode = window->state.mode;
@@ -404,6 +403,8 @@ void set_window_mode(Window *window, window_mode_t mode, bool force_mode)
 void show_window_quickly(Window *window)
 {
     if (window->state.is_visible) {
+        LOG("tried to quickly show already shown window: %" PRIu32 "\n",
+                window->number);
         return;
     }
 
@@ -413,11 +414,7 @@ void show_window_quickly(Window *window)
 
     xcb_map_window(connection, window->properties.window);
 
-    general_values[0] = configuration.border.color;
-    xcb_change_window_attributes(connection, window->properties.window,
-            XCB_CW_BORDER_PIXEL, general_values);
-
-    /* check if strut have disappeared */
+    /* check if strut has disappeared */
     if (!is_strut_empty(&window->properties.strut)) {
         reconfigure_monitor_frame_sizes();
         synchronize_root_property(ROOT_PROPERTY_WORK_AREA);
@@ -430,6 +427,8 @@ void show_window(Window *window)
     Window *last, *previous;
 
     if (window->state.is_visible) {
+        LOG("tried to show already shown window: %" PRIu32 "\n",
+                window->number);
         return;
     }
 
@@ -445,15 +444,38 @@ void show_window(Window *window)
         LOG("assigned id %" PRIu32 " to window wrapping %" PRIu32 "\n",
                 window->number, window->properties.window);
 
+        /* reinsert the window into the main linked list */
         if (last != window) {
             if (window != first_window) {
-                previous = get_previous_window(window);
+                previous = first_window;
+                while (previous->next != window) {
+                    previous = previous->next;
+                }
                 previous->next = window->next;
             } else {
                 first_window = window->next;
             }
             window->next = last->next;
             last->next = window;
+        }
+
+        /* note: when a window is mapped first, it is at the top automatically
+         */
+        /* find a window that was ever mapped */
+        previous = first_window;
+        while (previous != NULL) {
+            if (previous->state.was_ever_mapped) {
+                break;
+            }
+            previous = previous->next;
+        }
+        /* link it into the Z linked list */
+        if (previous != NULL) {
+            while (previous->above != NULL) {
+                previous = previous->above;
+            }
+            previous->above = window;
+            window->below = previous;
         }
 
         window->state.was_ever_mapped = true;
@@ -500,6 +522,7 @@ void show_window(Window *window)
 
     xcb_map_window(connection, window->properties.window);
 
+    /* this is delayed because we always want to map first */
     if (previous != NULL) {
         hide_window_quickly(previous);
     }
@@ -517,6 +540,8 @@ void hide_window_quickly(Window *window)
     Frame *frame;
 
     if (!window->state.is_visible) {
+        LOG("tried to quickly hide already hidden window: %" PRIu32 "\n",
+                window->number);
         return;
     }
 
@@ -529,11 +554,11 @@ void hide_window_quickly(Window *window)
         frame->window = NULL;
     }
 
-    if (focus_window == window) {
-        set_focus_window_primitively(window->previous_focus);
+    if (window->state.mode == WINDOW_MODE_TILING) {
+        /* put the window into the taken window list */
+        window->previous_taken = last_taken_window;
+        last_taken_window = window;
     }
-
-    unlink_window_from_focus_list(window);
 
     xcb_unmap_window(connection, window->properties.window);
 
@@ -544,30 +569,18 @@ void hide_window_quickly(Window *window)
     }
 }
 
-/* Focus the window that was in focus before the currently focused one. */
-static void focus_previous_window(void)
-{
-    if (focus_window->previous_focus != focus_window) {
-        set_focus_window(focus_window->previous_focus);
-    } else {
-        set_focus_window_primitively(NULL);
-        synchronize_root_property(ROOT_PROPERTY_ACTIVE_WINDOW);
-    }
-}
-
 /* Hide the window by unmapping it from the X server. */
 void hide_window(Window *window)
 {
-    Window *next;
     Frame *frame;
 
     if (!window->state.is_visible) {
+        LOG("tried to hide already hidden window: %" PRIu32 "\n",
+                window->number);
         return;
     }
 
     LOG("hiding window with id: %" PRIu32 "\n", window->number);
-
-    window->state.is_visible = false;
 
     switch (window->state.mode) {
     /* the window is replaced by another window in the tiling layout */
@@ -582,23 +595,28 @@ void hide_window(Window *window)
 
         frame->window = NULL;
         if (configuration.tiling.auto_fill_void) {
-            next = get_next_hidden_window(window);
-            if (next != NULL) {
-                frame->window = next;
+            if (last_taken_window != NULL) {
+                frame->window = last_taken_window;
                 reload_frame(frame);
-                show_window_quickly(next);
-                if (window == focus_window) {
-                    set_focus_window(next);
-                }
+                show_window_quickly(last_taken_window);
+                last_taken_window = last_taken_window->previous_taken;
+            }
+            if (window == focus_window) {
+                set_focus_window(last_taken_window);
             }
         }
-    /* fall through */
+        if (window == focus_window) {
+            set_focus_window(NULL);
+        }
+        break;
+
     /* need to just focus a different window */
     case WINDOW_MODE_POPUP:
     case WINDOW_MODE_FULLSCREEN:
     case WINDOW_MODE_DOCK:
         if (window == focus_window) {
-            focus_previous_window();
+            set_focus_window_with_frame(window->below == NULL ? window->above :
+                    window->below);
         }
         break;
 
@@ -607,13 +625,5 @@ void hide_window(Window *window)
         break;
     }
 
-    unlink_window_from_focus_list(window);
-
-    xcb_unmap_window(connection, window->properties.window);
-
-    /* check if strut has appeared */
-    if (!is_strut_empty(&window->properties.strut)) {
-        reconfigure_monitor_frame_sizes();
-        synchronize_root_property(ROOT_PROPERTY_WORK_AREA);
-    }
+    hide_window_quickly(window);
 }

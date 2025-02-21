@@ -21,6 +21,8 @@ typedef enum {
     ACTION_RELOAD_CONFIGURATION,
     /* closes the currently active window */
     ACTION_CLOSE_WINDOW,
+    /* hides the currently active window */
+    ACTION_MINIMIZE_WINDOW,
     /* go to the next window in the window list */
     ACTION_NEXT_WINDOW,
     /* go to the previous window in the window list */

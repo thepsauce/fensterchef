@@ -23,6 +23,7 @@ static const struct {
     [ACTION_NONE] = { "NONE", PARSER_DATA_TYPE_VOID },
     [ACTION_RELOAD_CONFIGURATION] = { "RELOAD-CONFIGURATION", PARSER_DATA_TYPE_VOID },
     [ACTION_CLOSE_WINDOW] = { "CLOSE-WINDOW", PARSER_DATA_TYPE_VOID },
+    [ACTION_MINIMIZE_WINDOW] = { "MINIMIZE-WINDOW", PARSER_DATA_TYPE_VOID },
     [ACTION_NEXT_WINDOW] = { "NEXT-WINDOW", PARSER_DATA_TYPE_VOID },
     [ACTION_PREVIOUS_WINDOW] = { "PREVIOUS-WINDOW", PARSER_DATA_TYPE_VOID },
     [ACTION_REMOVE_FRAME] = { "REMOVE-FRAME", PARSER_DATA_TYPE_VOID },
@@ -115,7 +116,7 @@ static void set_active_window(Window *window)
 
     show_window(window);
     set_window_above(window);
-    set_focus_window(window);
+    set_focus_window_with_frame(window);
 }
 
 /* Shows the user the window list and lets the user select a window to focus. */
@@ -175,6 +176,74 @@ static void resize_frame_or_window_by(int32_t left, int32_t top,
     }
 }
 
+/* Get a tiling window that is not currently shown and mappable. */
+Window *get_next_showable_tiling_window(Window *window)
+{
+    Window *next;
+
+    if (window == NULL) {
+        return last_taken_window;
+    }
+
+    while (next = window->next == NULL ? first_window : window->next,
+            next != window) {
+        if (next->state.was_ever_mapped && !next->state.is_visible &&
+                next->state.mode == WINDOW_MODE_TILING) {
+            return next;
+        }
+    }
+    return NULL;
+}
+
+/* Get a tiling window that is not currently shown and mappable. */
+Window *get_previous_showable_tiling_window(Window *window)
+{
+    Window *next;
+    Window *valid;
+
+    if (window == NULL) {
+        return last_taken_window;
+    }
+
+    while (next = window->next == NULL ? first_window : window->next,
+            next != window) {
+        if (next->state.was_ever_mapped && !next->state.is_visible &&
+                next->state.mode == WINDOW_MODE_TILING) {
+            valid = next;
+        }
+    }
+    return valid;
+}
+
+/* Focus the window above the current window or wrap around at the top. */
+void traverse_focus(void)
+{
+    Window *window, *valid;
+
+    if (focus_window == NULL) {
+        return;
+    }
+    /* try to get a visible window above this window */
+    window = focus_window->above;
+    while (window != NULL && !window->state.is_visible) {
+        window = window->above;
+    }
+
+    /* if none found, wrap around and get the bottom window */
+    if (window == NULL) {
+        window = focus_window->below;
+        valid = NULL;
+        while (window != NULL) {
+            if (window->state.is_visible) {
+                valid = window;
+            }
+            window = window->below;
+        }
+        window = valid;
+    }
+    set_active_window(window);
+}
+
 /* Do the given action. */
 void do_action(const Action *action)
 {
@@ -204,18 +273,25 @@ void do_action(const Action *action)
         close_window(focus_window);
         break;
 
+    /* hide the currently active window */
+    case ACTION_MINIMIZE_WINDOW:
+        if (focus_window == NULL) {
+            break;
+        }
+        hide_window(focus_window);
+        break;
+
     /* go to the next window in the window list */
     case ACTION_NEXT_WINDOW:
-        set_active_window(get_next_hidden_window(focus_frame->window));
+        set_active_window(get_next_showable_tiling_window(focus_frame->window));
         break;
 
     /* go to the previous window in the window list */
     case ACTION_PREVIOUS_WINDOW:
-        set_active_window(get_previous_hidden_window(focus_frame->window));
+        set_active_window(get_previous_showable_tiling_window(focus_frame->window));
         break;
 
     /* remove the current frame */
-    /* TODO: make it so this hides a popup window as well? */
     case ACTION_REMOVE_FRAME:
         if (remove_frame(focus_frame) != 0) {
             set_notification((utf8_t*) "Can not remove the last frame",
@@ -236,12 +312,9 @@ void do_action(const Action *action)
                 WINDOW_MODE_TILING, true);
         break;
 
-    /* changes the window that was in focus before the current one */
+    /* focus the window above the current window or wrap around at the top */
     case ACTION_TRAVERSE_FOCUS:
-        traverse_focus_chain(-1);
-        if (focus_window != NULL) {
-            set_window_above(focus_window);
-        }
+        traverse_focus();
         break;
 
     /* toggles the fullscreen state of the currently focused window */

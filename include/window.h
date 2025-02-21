@@ -38,25 +38,30 @@ struct window {
     Position position;
     Size size;
 
-    /* position and size when the window was in popup state */
+    /* position and size when the window was in popup mode */
     Position popup_position;
     Size popup_size;
 
     /* the id of this window */
     uint32_t number;
 
-    /* the focus chain is a linked list containing only visible windows and
-     * their relative time when they were focused; the focus chain is cyclic,
-     * meaning that all windows within the focus chain have a next_focus and
-     * previous_focus
+    /* All windows that were ever mapped are part of the Z ordered linked list
+     * even when they are hidden now.
      */
+    /* the window above this window */
+    Window *below;
+    /* the window below this window */
+    Window *above;
 
-    /* the previous window in the focus chain */
-    Window *previous_focus;
-    /* the next window in the focus chain */
-    Window *next_focus;
+    /* Windows are part of the taken linked list if and only if:
+     * 1. They were mapped before.
+     * 2. They are now invisible.
+     * 3. They are a tiling window.
+     */
+    /* the previous taken window in the taken window linked list */
+    Window *previous_taken;
 
-    /* the next window in the linked list */
+    /* the next window in the linked list (sorted by the window number) */
     Window *next;
 };
 
@@ -64,6 +69,9 @@ struct window {
  * with respect to the window number
  */
 extern Window *first_window;
+
+/* the last window in the taken window linked list */
+extern Window *last_taken_window;
 
 /* the currently focused window */
 extern Window *focus_window;
@@ -79,6 +87,12 @@ Window *create_window(xcb_window_t xcb);
  * `REQUEST_CLOSE_MAX_DURATION` to forcefully kill it.
  */
 void close_window(Window *window);
+
+/* Remove @window from the Z linked list. */
+void unlink_window_from_z_list(Window *window);
+
+/* Remove @window from the taken linked list. */
+void unlink_window_from_taken_list(Window *window);
 
 /* Destroy given window and removes it from the window linked list.
  * This does NOT destroy the underlying xcb window.
@@ -96,14 +110,6 @@ void set_window_size(Window *window, int32_t x, int32_t y, uint32_t width,
 /* Put the window on top of all other windows. */
 void set_window_above(Window *window);
 
-/* Get the window before this window in the linked list.
- * This function WRAPS around so
- *  `get_previous_window(first_window)` returns the last window.
- *
- * @window may be NULL, then NULL is also returned.
- */
-Window *get_previous_window(Window *window);
-
 /* Get the internal window that has the associated xcb window.
  *
  * @return NULL when none has this xcb window.
@@ -116,47 +122,15 @@ Window *get_window_of_xcb_window(xcb_window_t xcb_window);
  */
 Frame *get_frame_of_window(const Window *window);
 
-/* Removes a window from the focus list. */
-void unlink_window_from_focus_list(Window *window);
-
 /* Check if the window accepts input focus. */
 bool does_window_accept_focus(Window *window);
 
-/* Set the focus_window and change the border color. */
-void set_focus_window_primitively(Window *window);
-
 /* Set the window that is in focus. */
 void set_focus_window(Window *window);
-
-/* Focuses the window before or after the currently focused window. */
-void traverse_focus_chain(int direction);
 
 /* Focuses the window guaranteed but also focuse the frame of the window if it
  * has one.
  */
 void set_focus_window_with_frame(Window *window);
-
-/* Get a window that is not shown but in the window list coming after
- * the given window or NULL when there is none.
- *
- * @window may be NULL.
- * @return NULL iff there is no hidden window.
- */
-Window *get_next_hidden_window(Window *window);
-
-/* Get a window that is not shown but in the window list coming before
- * the given window.
- *
- * @window may be NULL.
- * @return NULL iff there is no hidden window.
- */
-Window *get_previous_hidden_window(Window *window);
-
-/* Puts a window into a frame and matches its size.
- *
- * This also disconnects the frame of the window AND the window of the frame
- * from their respective frame and window which makes this a very safe function.
- */
-void link_window_and_frame(Window *window, Frame *frame);
 
 #endif
