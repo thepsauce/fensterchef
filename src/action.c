@@ -185,7 +185,9 @@ Window *get_next_showable_tiling_window(Window *window)
         return last_taken_window;
     }
 
-    while (next = window->next == NULL ? first_window : window->next,
+    /* go forward in the linked list and wrap around */
+    next = window;
+    while (next = next->next == NULL ? first_window : next->next,
             next != window) {
         if (next->state.was_ever_mapped && !next->state.is_visible &&
                 next->state.mode == WINDOW_MODE_TILING) {
@@ -198,14 +200,20 @@ Window *get_next_showable_tiling_window(Window *window)
 /* Get a tiling window that is not currently shown and mappable. */
 Window *get_previous_showable_tiling_window(Window *window)
 {
-    Window *next;
     Window *valid;
+    Window *next;
 
     if (window == NULL) {
         return last_taken_window;
     }
 
-    while (next = window->next == NULL ? first_window : window->next,
+    /* go forward in the linked list and wrap around, what makes this different
+     * is that we store the last window that matched our criteria but don't
+     * immediately return
+     */
+    valid = NULL;
+    next = window;
+    while (next = next->next == NULL ? first_window : next->next,
             next != window) {
         if (next->state.was_ever_mapped && !next->state.is_visible &&
                 next->state.mode == WINDOW_MODE_TILING) {
@@ -307,9 +315,7 @@ void do_action(const Action *action)
         }
         set_window_mode(focus_window,
                 focus_window->state.mode == WINDOW_MODE_TILING ?
-                (focus_window->state.previous_mode == WINDOW_MODE_TILING ?
-                    WINDOW_MODE_POPUP : focus_window->state.previous_mode) :
-                WINDOW_MODE_TILING, true);
+                WINDOW_MODE_POPUP : WINDOW_MODE_TILING, true);
         break;
 
     /* focus the window above the current window or wrap around at the top */
@@ -354,6 +360,7 @@ void do_action(const Action *action)
         break;
 
     /* move to the frame right of the current one */
+    /* TODO: for all below, do not use get_frame_at_position() */
     case ACTION_MOVE_RIGHT:
         frame = get_frame_at_position(focus_frame->x + focus_frame->width, focus_frame->y);
         if (frame != NULL) {

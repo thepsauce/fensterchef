@@ -54,18 +54,8 @@ bool has_window_border(Window *window);
  */
 void set_window_mode(Window *window, window_mode_t mode, bool force_mode);
 
-/* Show given window but do not assign an id and no size configuring. */
-void show_window_quickly(Window *window);
-
 /* Show the window by positioning it and mapping it to the X server. */
 void show_window(Window *window);
-
-/* Hide a window without focusing another window or filling the tiling gap.
- *
- * The caller must make sure to give another window focus if the given window is
- * the focus window.
- */
-void hide_window_quickly(Window *window);
 
 /* Hide the window by unmapping it from the X server.
  *
@@ -75,5 +65,11 @@ void hide_window_quickly(Window *window);
  * The next window is focused.
  */
 void hide_window(Window *window);
+
+/* Wrapper around `hide_window()` that does not touch the tiling or focus.
+ *
+ * Note: The focus however is removed if @window is the focus.
+ */
+void hide_window_abruptly(Window *window);
 
 #endif

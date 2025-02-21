@@ -64,8 +64,7 @@ void split_frame(Frame *split_from, frame_split_direction_t direction)
 
     if (configuration.tiling.auto_fill_void && last_taken_window != NULL) {
         right->window = last_taken_window;
-        reload_frame(right);
-        show_window_quickly(last_taken_window);
+        show_window(last_taken_window);
         last_taken_window = last_taken_window->previous_taken;
     }
 
@@ -263,7 +262,7 @@ static void unmap_and_destroy_recursively(Frame *frame)
         unmap_and_destroy_recursively(frame->left);
         unmap_and_destroy_recursively(frame->right);
     } else if (frame->window != NULL) {
-        hide_window_quickly(frame->window);
+        hide_window_abruptly(frame->window);
     }
     free(frame);
 }

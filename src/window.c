@@ -48,6 +48,11 @@ Window *create_window(xcb_window_t xcb_window)
 
     set_window_mode(window, predict_window_mode(window), false);
 
+    /* set the initial window size */
+    general_values[0] = configuration.border.size;
+    xcb_configure_window(connection, window->properties.window,
+            XCB_CONFIG_WINDOW_BORDER_WIDTH, general_values);
+
     LOG("created new window wrapping %" PRIu32 "\n", xcb_window);
     return window;
 }
@@ -130,7 +135,7 @@ void destroy_window(Window *window)
     /* really make sure the window is hidden, not sure if this case can ever
      * happen because usually a MapUnnotify event hides the window beforehand
      */
-    hide_window_quickly(window);
+    hide_window_abruptly(window);
 
     /* exceptional state, this should never happen */
     if (window == focus_window) {
@@ -406,13 +411,15 @@ void set_focus_window(Window *window)
         return;
     }
 
+    LOG("focusing window %" PRIu32 "\n", window->number);
+
     if (!does_window_accept_focus(window)) {
-        LOG("window %" PRIu32 " can not be focused\n", window->number);
+        LOG("the window can not be focused\n");
         return;
     }
 
     if (window == focus_window) {
-        LOG("window %" PRIu32 " is already focused\n", window->number);
+        LOG("the window is already focused\n");
         return;
     }
 
@@ -421,16 +428,12 @@ void set_focus_window(Window *window)
     focus_window = window;
     synchronize_root_property(ROOT_PROPERTY_ACTIVE_WINDOW);
 
-    if (window != NULL) {
-        general_values[0] = configuration.border.focus_color;
-        xcb_change_window_attributes(connection, window->properties.window,
-                XCB_CW_BORDER_PIXEL, general_values);
+    general_values[0] = configuration.border.focus_color;
+    xcb_change_window_attributes(connection, window->properties.window,
+            XCB_CW_BORDER_PIXEL, general_values);
 
-        xcb_set_input_focus(connection, XCB_INPUT_FOCUS_POINTER_ROOT,
-                window->properties.window, XCB_CURRENT_TIME);
-
-        LOG("changed focus to %" PRIu32 "\n", window->number);
-    }
+    xcb_set_input_focus(connection, XCB_INPUT_FOCUS_POINTER_ROOT,
+            window->properties.window, XCB_CURRENT_TIME);
 }
 
 /* Focuses the window guaranteed but also focuse the frame of the window if it
