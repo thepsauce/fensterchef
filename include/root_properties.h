@@ -5,6 +5,8 @@
 typedef enum root_property {
     /* _NET_SUPPORTED (supported atoms) */
     ROOT_PROPERTY_SUPPORTED,
+    /* _NET_CLIENT_LIST / _NET_CLINET_LIST_STACKING (list of managed windows) */
+    ROOT_PROPERTY_CLIENT_LIST,
     /* _NET_SUPPORTED (number of desktops) */
     ROOT_PROPERTY_NUMBER_OF_DESKTOPS,
     /* _NET_SUPPORTED (size of the desktop) */

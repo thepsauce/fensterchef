@@ -6,12 +6,32 @@
 #include "utility.h"
 #include "window.h"
 
+/* Fill the frame with the last taken window. */
+void fill_empty_frame(Frame *frame)
+{
+    Window *window, *previous_taken;
+
+    /* check if there is something to fill the void with */
+    if (last_taken_window == NULL) {
+        return;
+    }
+
+    /* these need to be saved like this because `show_window()` unlinks the
+     * window from the taken window list
+     */
+    window = last_taken_window;
+    previous_taken = window->previous_taken;
+
+    frame->window = window;
+    show_window(window);
+    last_taken_window = previous_taken;
+}
+
 /* Split a frame horizontally or vertically. */
 void split_frame(Frame *split_from, frame_split_direction_t direction)
 {
     Frame *left, *right;
-    Frame *next_cur_frame;
-    Window *window;
+    Frame *next_focus_frame;
 
     split_from->split_direction = direction;
 
@@ -58,23 +78,18 @@ void split_frame(Frame *split_from, frame_split_direction_t direction)
     right->parent = split_from;
 
     if (split_from == focus_frame) {
-        next_cur_frame = left;
+        next_focus_frame = left;
     } else {
-        next_cur_frame = focus_frame;
+        next_focus_frame = focus_frame;
     }
 
     if (configuration.tiling.auto_fill_void) {
-        window = get_next_hidden_window(left->window);
-        if (window != NULL) {
-            /* show window in the right frame */
-            focus_frame = right;
-            show_window(window);
-        }
+        fill_empty_frame(right);
     }
 
     reload_frame(left);
 
-    set_focus_frame(next_cur_frame);
+    set_focus_frame(next_focus_frame);
 
     LOG("split %p[%p, %p]\n", (void*) split_from, (void*) left, (void*) right);
 }
@@ -266,7 +281,7 @@ static void unmap_and_destroy_recursively(Frame *frame)
         unmap_and_destroy_recursively(frame->left);
         unmap_and_destroy_recursively(frame->right);
     } else if (frame->window != NULL) {
-        hide_window_quickly(frame->window);
+        hide_window_abruptly(frame->window);
     }
     free(frame);
 }

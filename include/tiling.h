@@ -3,11 +3,14 @@
 
 #include "frame.h"
 
-/* Increases the @edge of @frame by @amount. */
-int32_t bump_frame_edge(Frame *frame, frame_edge_t edge, int32_t amount);
+/* Fill the frame with the last taken window. */
+void fill_empty_frame(Frame *frame);
 
 /* Split a frame horizontally or vertically. */
 void split_frame(Frame *split_from, frame_split_direction_t direction);
+
+/* Increases the @edge of @frame by @amount. */
+int32_t bump_frame_edge(Frame *frame, frame_edge_t edge, int32_t amount);
 
 /* Remove a frame from the screen and hide the inner windows.
  *

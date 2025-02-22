@@ -42,9 +42,9 @@ struct configuration_border {
 
 /* gaps settings for the tiling layout */
 struct configuration_gaps {
-    /* width the inner gaps (between frames) */
+    /* width of the inner gaps (between frames) */
     uint32_t inner;
-    /* width the inner gaps (between frames and monitor boundaries) */
+    /* width of the inner gaps (between frames and monitor boundaries) */
     uint32_t outer;
 };
 

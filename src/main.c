@@ -61,7 +61,7 @@ int main(void)
     /* run the main event loop */
     is_fensterchef_running = true;
     while (next_cycle(NULL) == OK) {
-        (void) 0;
+        /* nothing to do */
     }
 
     quit_fensterchef(EXIT_SUCCESS);

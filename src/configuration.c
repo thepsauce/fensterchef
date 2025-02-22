@@ -85,37 +85,50 @@ void merge_with_default_key_bindings(struct configuration *configuration)
         xcb_keysym_t key_symbol;
         Action action;
     } default_bindings[] = {
+        /* reload the configuration */
         { XCB_MOD_MASK_SHIFT, XK_r, { .code = ACTION_RELOAD_CONFIGURATION } },
 
+        /* close the active window */
         { 0, XK_q, { .code = ACTION_CLOSE_WINDOW } },
 
+        /* minimize the active window */
+        { 0, XK_minus, { .code = ACTION_MINIMIZE_WINDOW } },
+
+        /* go to the next window in the tiling */
         { 0, XK_n, { .code = ACTION_NEXT_WINDOW } },
         { 0, XK_p, { .code = ACTION_PREVIOUS_WINDOW } },
 
+        /* remove the current tiling frame */
         { 0, XK_r, { .code = ACTION_REMOVE_FRAME } },
 
+        /* toggle between tiling and the previous mode */
         { XCB_MOD_MASK_SHIFT, XK_space, { .code = ACTION_TOGGLE_TILING } },
         { 0, XK_space, { .code = ACTION_TRAVERSE_FOCUS } },
 
+        /* toggle between fullscreen and the previous mode */
         { 0, XK_f, { .code = ACTION_TOGGLE_FULLSCREEN } },
 
+        /* split a frame */
         { 0, XK_v, { .code = ACTION_SPLIT_HORIZONTALLY } },
         { 0, XK_s, { .code = ACTION_SPLIT_VERTICALLY } },
 
+        /* move between frames */
         { 0, XK_k, { .code = ACTION_MOVE_UP } },
         { 0, XK_h, { .code = ACTION_MOVE_LEFT } },
         { 0, XK_l, { .code = ACTION_MOVE_RIGHT } },
         { 0, XK_j, { .code = ACTION_MOVE_DOWN } },
 
-        { 0, XK_Left, { ACTION_RESIZE_BY, {
+        /* resizing the top/left edges of a window */
+        { XCB_MOD_MASK_CONTROL, XK_Left, { ACTION_RESIZE_BY, {
                 .quad = { 20, 0, 0, 0 } } } },
-        { 0, XK_Up, { ACTION_RESIZE_BY, {
+        { XCB_MOD_MASK_CONTROL, XK_Up, { ACTION_RESIZE_BY, {
                 .quad = { 0, 20, 0, 0 } } } },
-        { 0, XK_Right, { ACTION_RESIZE_BY, {
+        { XCB_MOD_MASK_CONTROL, XK_Right, { ACTION_RESIZE_BY, {
                 .quad = { -20, 0, 0, 0 } } } },
-        { 0, XK_Down, { ACTION_RESIZE_BY, {
+        { XCB_MOD_MASK_CONTROL, XK_Down, { ACTION_RESIZE_BY, {
                 .quad = { 0, -20, 0, 0 } } } },
 
+        /* resizing the bottom/right edges of a window */
         { XCB_MOD_MASK_SHIFT, XK_Left, { ACTION_RESIZE_BY, {
                 .quad = { 0, 0, -20, 0 } } } },
         { XCB_MOD_MASK_SHIFT, XK_Up, { ACTION_RESIZE_BY, {
@@ -125,15 +138,17 @@ void merge_with_default_key_bindings(struct configuration *configuration)
         { XCB_MOD_MASK_SHIFT, XK_Down, { ACTION_RESIZE_BY, {
                 .quad = { 0, 0, 0, 20 } } } },
 
-        { XCB_MOD_MASK_CONTROL, XK_Left, { ACTION_RESIZE_BY, {
+        /* move a window */
+        { 0, XK_Left, { ACTION_RESIZE_BY, {
                 .quad = { 20, 0, -20, 0 } } } },
-        { XCB_MOD_MASK_CONTROL, XK_Up, { ACTION_RESIZE_BY, {
+        { 0, XK_Up, { ACTION_RESIZE_BY, {
                 .quad = { 0, 20, 0, -20 } } } },
-        { XCB_MOD_MASK_CONTROL, XK_Right, { ACTION_RESIZE_BY, {
+        { 0, XK_Right, { ACTION_RESIZE_BY, {
                 .quad = { -20, 0, 20, 0 } } } },
-        { XCB_MOD_MASK_CONTROL, XK_Down, { ACTION_RESIZE_BY, {
+        { 0, XK_Down, { ACTION_RESIZE_BY, {
                 .quad = { 0, -20, 0, 20 } } } },
 
+        /* inflate/deflate a window */
         { XCB_MOD_MASK_CONTROL, XK_plus, { ACTION_RESIZE_BY, {
                 .quad = { 10, 10, 10, 10 } } } },
         { XCB_MOD_MASK_CONTROL, XK_minus, { ACTION_RESIZE_BY, {
@@ -141,12 +156,16 @@ void merge_with_default_key_bindings(struct configuration *configuration)
         { XCB_MOD_MASK_CONTROL, XK_equal, { ACTION_RESIZE_BY, {
                 .quad = { 10, 10, 10, 10 } } } },
 
+        /* show the interactive window list */
         { 0, XK_w, { .code = ACTION_SHOW_WINDOW_LIST } },
 
+        /* run xterm */
         { 0, XK_Return, { ACTION_RUN, {
                 .string = (uint8_t*) "/usr/bin/xterm" } } },
 
-        { XCB_MOD_MASK_SHIFT, XK_e, { .code = ACTION_QUIT } }
+        /* quit fensterchef */
+        { XCB_MOD_MASK_CONTROL | XCB_MOD_MASK_SHIFT, XK_e,
+            { .code = ACTION_QUIT } }
     };
 
     struct configuration_key *key;
