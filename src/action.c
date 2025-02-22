@@ -24,6 +24,9 @@ static const struct {
     [ACTION_RELOAD_CONFIGURATION] = { "RELOAD-CONFIGURATION", PARSER_DATA_TYPE_VOID },
     [ACTION_CLOSE_WINDOW] = { "CLOSE-WINDOW", PARSER_DATA_TYPE_VOID },
     [ACTION_MINIMIZE_WINDOW] = { "MINIMIZE-WINDOW", PARSER_DATA_TYPE_VOID },
+    [ACTION_FOCUS_WINDOW] = { "FOCUS-WINDOW", PARSER_DATA_TYPE_VOID },
+    [ACTION_INITIATE_MOVE] = { "INITIATE-MOVE", PARSER_DATA_TYPE_VOID },
+    [ACTION_INITIATE_RESIZE] = { "INITIATE-RESIZE", PARSER_DATA_TYPE_VOID },
     [ACTION_NEXT_WINDOW] = { "NEXT-WINDOW", PARSER_DATA_TYPE_VOID },
     [ACTION_PREVIOUS_WINDOW] = { "PREVIOUS-WINDOW", PARSER_DATA_TYPE_VOID },
     [ACTION_REMOVE_FRAME] = { "REMOVE-FRAME", PARSER_DATA_TYPE_VOID },
@@ -65,6 +68,29 @@ action_t convert_string_to_action(const char *string)
 const char *convert_action_to_string(action_t action)
 {
     return action_information[action].name;
+}
+
+/* Create a deep copy of given action array. */
+Action *duplicate_actions(Action *actions, uint32_t number_of_actions)
+{
+    Action *duplicate;
+
+    duplicate = xmemdup(actions, sizeof(*actions) * number_of_actions);
+    for (uint32_t i = 0; i < number_of_actions; i++) {
+        duplicate_data_value(get_action_data_type(duplicate[i].code),
+                &duplicate[i].parameter);
+    }
+    return duplicate;
+}
+
+/* Frees all given actions and the action array itself. */
+void free_actions(Action *actions, uint32_t number_of_actions)
+{
+    for (uint32_t i = 0; i < number_of_actions; i++) {
+        clear_data_value(get_action_data_type(actions[i].code),
+                &actions[i].parameter);
+    }
+    free(actions);
 }
 
 /* Run given shell program. */
@@ -139,18 +165,18 @@ static void show_window_list(void)
 }
 
 /* Resize the current window or current frame if it does not exist. */
-static void resize_frame_or_window_by(int32_t left, int32_t top,
+static void resize_frame_or_window_by(Window *window, int32_t left, int32_t top,
         int32_t right, int32_t bottom)
 {
     Frame *frame;
 
-    if (focus_window == NULL) {
+    if (window == NULL) {
         frame = focus_frame;
         if (frame == NULL) {
             return;
         }
     } else {
-        frame = get_frame_of_window(focus_window);
+        frame = get_frame_of_window(window);
     }
 
     if (frame != NULL) {
@@ -162,17 +188,17 @@ static void resize_frame_or_window_by(int32_t left, int32_t top,
         right += left;
         bottom += top;
         /* check for underflows */
-        if ((int32_t) focus_window->size.width < -right) {
-            right = -focus_window->size.width;
+        if ((int32_t) window->size.width < -right) {
+            right = -window->size.width;
         }
-        if ((int32_t) focus_window->size.height < -bottom) {
-            bottom = -focus_window->size.height;
+        if ((int32_t) window->size.height < -bottom) {
+            bottom = -window->size.height;
         }
-        set_window_size(focus_window,
-                focus_window->position.x - left,
-                focus_window->position.y - top,
-                focus_window->size.width + right,
-                focus_window->size.height + bottom);
+        set_window_size(window,
+                window->position.x - left,
+                window->position.y - top,
+                window->size.width + right,
+                window->size.height + bottom);
     }
 }
 
@@ -253,7 +279,7 @@ void traverse_focus(void)
 }
 
 /* Do the given action. */
-void do_action(const Action *action)
+void do_action(const Action *action, Window *window)
 {
     Frame *frame;
     char *shell;
@@ -275,23 +301,44 @@ void do_action(const Action *action)
 
     /* closes the currently active window */
     case ACTION_CLOSE_WINDOW:
-        if (focus_window == NULL) {
+        if (window == NULL) {
             break;
         }
-        close_window(focus_window);
+        close_window(window);
         break;
 
     /* hide the currently active window */
     case ACTION_MINIMIZE_WINDOW:
-        if (focus_window == NULL) {
+        if (window == NULL) {
             break;
         }
-        hide_window(focus_window);
+        hide_window(window);
         break;
 
     /* go to the next window in the window list */
     case ACTION_NEXT_WINDOW:
         set_active_window(get_next_showable_tiling_window(focus_frame->window));
+        break;
+
+    /* focus a window */
+    case ACTION_FOCUS_WINDOW:
+        set_focus_window(window);
+        break;
+
+    /* start moving a window with the mouse */
+    case ACTION_INITIATE_MOVE:
+        if (window == NULL) {
+            break;
+        }
+        initiate_window_move_resize(window, 0, 0, 0);
+        break;
+
+    /* start resizing a window with the mouse */
+    case ACTION_INITIATE_RESIZE:
+        if (window == NULL) {
+            break;
+        }
+        initiate_window_move_resize(window, 0, 0, 0);
         break;
 
     /* go to the previous window in the window list */
@@ -310,11 +357,11 @@ void do_action(const Action *action)
 
     /* changes a popup window to a tiling window and vise versa */
     case ACTION_TOGGLE_TILING:
-        if (focus_window == NULL) {
+        if (window == NULL) {
             break;
         }
-        set_window_mode(focus_window,
-                focus_window->state.mode == WINDOW_MODE_TILING ?
+        set_window_mode(window,
+                window->state.mode == WINDOW_MODE_TILING ?
                 WINDOW_MODE_POPUP : WINDOW_MODE_TILING, true);
         break;
 
@@ -325,10 +372,10 @@ void do_action(const Action *action)
 
     /* toggles the fullscreen state of the currently focused window */
     case ACTION_TOGGLE_FULLSCREEN:
-        if (focus_window != NULL) {
-            set_window_mode(focus_window,
-                    focus_window->state.mode == WINDOW_MODE_FULLSCREEN ?
-                    focus_window->state.previous_mode : WINDOW_MODE_FULLSCREEN,
+        if (window != NULL) {
+            set_window_mode(window,
+                    window->state.mode == WINDOW_MODE_FULLSCREEN ?
+                    window->state.previous_mode : WINDOW_MODE_FULLSCREEN,
                     true);
         }
         break;
@@ -409,7 +456,7 @@ void do_action(const Action *action)
 
     /* resize the edges of the current window */
     case ACTION_RESIZE_BY:
-        resize_frame_or_window_by(action->parameter.quad[0],
+        resize_frame_or_window_by(window, action->parameter.quad[0],
                 action->parameter.quad[1],
                 action->parameter.quad[2],
                 action->parameter.quad[3]);

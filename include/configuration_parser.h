@@ -6,7 +6,7 @@
 
 #include "bits/configuration_parser_data_type.h"
 
-#include "configuration.h"
+#include "default_configuration.h"
 #include "utility.h"
 
 /* maximum length of an identifier */
@@ -44,6 +44,10 @@ typedef enum {
     PARSER_ERROR_PREMATURE_LINE_END,
     /* invalid syntax for modifiers */
     PARSER_ERROR_INVALID_MODIFIERS,
+    /* invalid button name */
+    PARSER_ERROR_INVALID_BUTTON,
+    /* invalid button flag */
+    PARSER_ERROR_INVALID_BUTTON_FLAG,
     /* invalid key symbol name */
     PARSER_ERROR_INVALID_KEY_SYMBOL,
     /* invalid value for an action */
@@ -71,6 +75,7 @@ typedef enum parser_label {
     PARSER_LABEL_BORDER,
     PARSER_LABEL_GAPS,
     PARSER_LABEL_NOTIFICATION,
+    PARSER_LABEL_MOUSE,
     PARSER_LABEL_KEYBOARD,
 
     PARSER_LABEL_MAX,
@@ -102,6 +107,8 @@ typedef struct parser {
 
     /* parsed data value */
     union parser_data_value data;
+    /* mousebinding, e.g.: MiddleButton close-window */
+    struct configuration_button button;
     /* keybinding, e.g.: n next-window */
     struct configuration_key key;
 } Parser;

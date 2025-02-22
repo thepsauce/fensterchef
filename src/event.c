@@ -7,13 +7,14 @@
 #include <xcb/randr.h>
 
 #include "configuration.h"
+#include "event.h"
 #include "fensterchef.h"
 #include "frame.h"
-#include "event.h"
 #include "keymap.h"
 #include "log.h"
 #include "monitor.h"
 #include "root_properties.h"
+#include "tiling.h"
 #include "utility.h"
 #include "window.h"
 
@@ -123,11 +124,12 @@ int next_cycle(int (*callback)(int cycle_when, xcb_generic_event_t *event))
     return OK;
 }
 
-/* Start resizing given popup window. */
+/* Start moving/resizing given popup window. */
 void initiate_window_move_resize(Window *window,
         wm_move_resize_direction_t direction,
         int32_t start_x, int32_t start_y)
 {
+    /* a window is alread being moved/resized */
     if (move_resize.window != NULL) {
         return;
     }
@@ -152,16 +154,34 @@ void initiate_window_move_resize(Window *window,
 /* Reset the position of the window being moved/resized. */
 static void cancel_window_move_resize(void)
 {
+    Frame *frame;
+
     if (move_resize.window == NULL) {
         return;
     }
 
     /* restore the old position and size */
-    set_window_size(move_resize.window,
-            move_resize.initial_geometry.x,
-            move_resize.initial_geometry.y,
-            move_resize.initial_geometry.width,
-            move_resize.initial_geometry.height);
+    frame = get_frame_of_window(move_resize.window);
+    if (frame != NULL) {
+        bump_frame_edge(frame, FRAME_EDGE_LEFT,
+                move_resize.window->position.x -
+                    move_resize.initial_geometry.x);
+        bump_frame_edge(frame, FRAME_EDGE_TOP,
+                move_resize.window->position.y -
+                    move_resize.initial_geometry.y);
+        bump_frame_edge(frame, FRAME_EDGE_RIGHT,
+                move_resize.initial_geometry.width -
+                    move_resize.window->size.width);
+        bump_frame_edge(frame, FRAME_EDGE_BOTTOM,
+                move_resize.initial_geometry.height -
+                    move_resize.window->size.height);
+    } else {
+        set_window_size(move_resize.window,
+                move_resize.initial_geometry.x,
+                move_resize.initial_geometry.y,
+                move_resize.initial_geometry.width,
+                move_resize.initial_geometry.height);
+    }
 
     /* release mouse events back to the applications */
     xcb_ungrab_pointer(connection, XCB_CURRENT_TIME);
@@ -211,19 +231,77 @@ static void handle_map_request(xcb_map_request_event_t *event)
 static void handle_button_press(xcb_button_press_event_t *event)
 {
     Window *window;
+    struct configuration_button *button;
 
     if (move_resize.window != NULL) {
         cancel_window_move_resize();
         return;
     }
 
-    window = get_window_of_xcb_window(event->child);
-    if (window == NULL) {
-        return;
+    if (event->child == 0) {
+        window = NULL;
+    } else {
+        window = get_window_of_xcb_window(event->child);
+        if (window == NULL) {
+            return;
+        }
     }
 
-    initiate_window_move_resize(window, _NET_WM_MOVERESIZE_MOVE,
-            event->root_x, event->root_y);
+    button = find_configured_button(&configuration, event->state,
+            event->detail, 0);
+    if (button != NULL) {
+        LOG("performing %" PRIu32 " action(s)\n", button->number_of_actions);
+        for (uint32_t i = 0; i < button->number_of_actions; i++) {
+            LOG("performing action %s\n",
+                    convert_action_to_string(button->actions[i].code));
+            do_action(&button->actions[i], window);
+        }
+
+        /* make the event pass through to the underlying window */
+        if ((button->flags & BINDING_FLAG_TRANSPARENT)) {
+            xcb_allow_events(connection, XCB_ALLOW_REPLAY_POINTER, event->time);
+        }
+    }
+}
+
+/* Button releases are only sent when we grabbed them. This only happens
+ * when a popup window is being moved/resized.
+ */
+static void handle_button_release(xcb_button_release_event_t *event)
+{
+    Window *window;
+    struct configuration_button *button;
+
+    if (event->child == 0) {
+        window = NULL;
+    } else {
+        window = get_window_of_xcb_window(event->child);
+        if (window == NULL) {
+            return;
+        }
+    }
+
+    if (move_resize.window != NULL) {
+        /* release mouse events back to the applications */
+        xcb_ungrab_pointer(connection, XCB_CURRENT_TIME);
+        move_resize.window = NULL;
+    }
+
+    button = find_configured_button(&configuration, event->state,
+            event->detail, BINDING_FLAG_RELEASE);
+    if (button != NULL) {
+        LOG("performing %" PRIu32 " action(s)\n", button->number_of_actions);
+        for (uint32_t i = 0; i < button->number_of_actions; i++) {
+            LOG("performing action %s\n",
+                    convert_action_to_string(button->actions[i].code));
+            do_action(&button->actions[i], window);
+        }
+
+        /* make the event pass through to the underlying window */
+        if ((button->flags & BINDING_FLAG_TRANSPARENT)) {
+            xcb_allow_events(connection, XCB_ALLOW_REPLAY_POINTER, event->time);
+        }
+    }
 }
 
 /* Motion notifications (mouse move events) are only sent when we grabbed them.
@@ -232,8 +310,17 @@ static void handle_button_press(xcb_button_press_event_t *event)
 static void handle_motion_notify(xcb_motion_notify_event_t *event)
 {
     Rectangle new_geometry;
+    Frame *frame;
 
     if (move_resize.window == NULL) {
+        return;
+    }
+
+    if (move_resize.direction == 0) {
+        /* TODO: figure out the best direction */
+        move_resize.direction = _NET_WM_MOVERESIZE_MOVE;
+        move_resize.start.x = event->root_x;
+        move_resize.start.y = event->root_y;
         return;
     }
 
@@ -301,23 +388,24 @@ static void handle_motion_notify(xcb_motion_notify_event_t *event)
     case _NET_WM_MOVERESIZE_CANCEL:
         break;
     }
-    /* set the window position to the moved position */
-    set_window_size(move_resize.window,
-            new_geometry.x,
-            new_geometry.y,
-            new_geometry.width,
-            new_geometry.height);
-}
 
-/* Button releases are only sent when we grabbed them. This only happens
- * when a popup window is being moved/resized.
- */
-static void handle_button_release(xcb_button_release_event_t *event)
-{
-    (void) event;
-    /* release mouse events back to the applications */
-    xcb_ungrab_pointer(connection, XCB_CURRENT_TIME);
-    move_resize.window = NULL;
+    frame = get_frame_of_window(move_resize.window);
+    if (frame != NULL) {
+        bump_frame_edge(frame, FRAME_EDGE_LEFT,
+                move_resize.window->position.x - new_geometry.x);
+        bump_frame_edge(frame, FRAME_EDGE_TOP,
+                move_resize.window->position.y - new_geometry.y);
+        bump_frame_edge(frame, FRAME_EDGE_RIGHT,
+                new_geometry.width - move_resize.window->size.width);
+        bump_frame_edge(frame, FRAME_EDGE_BOTTOM,
+                new_geometry.height - move_resize.window->size.height);
+    } else {
+        set_window_size(move_resize.window,
+                new_geometry.x,
+                new_geometry.y,
+                new_geometry.width,
+                new_geometry.height);
+    }
 }
 
 /* Property notifications are sent when a window property changes. */
@@ -381,25 +469,54 @@ static void handle_destroy_notify(xcb_destroy_notify_event_t *event)
     }
 }
 
-/* Key press events are sent when a grabbed key is triggered. */
+/* Key press events are sent when a grabbed key is pressed. */
 void handle_key_press(xcb_key_press_event_t *event)
 {
     struct configuration_key *key;
 
     key = find_configured_key(&configuration, event->state,
-            get_keysym(event->detail));
+            get_keysym(event->detail), 0);
     if (key != NULL) {
         LOG("performing %" PRIu32 " action(s)\n", key->number_of_actions);
         for (uint32_t i = 0; i < key->number_of_actions; i++) {
             LOG("performing action %s\n",
                     convert_action_to_string(key->actions[i].code));
-            do_action(&key->actions[i]);
+            do_action(&key->actions[i], focus_window);
+        }
+
+        /* make the event pass through to the focused client */
+        if ((key->flags & BINDING_FLAG_TRANSPARENT)) {
+            xcb_allow_events(connection, XCB_ALLOW_REPLAY_KEYBOARD,
+                    event->time);
+        }
+    }
+}
+
+/* Key release events are sent when a grabbed key is released. */
+void handle_key_release(xcb_key_release_event_t *event)
+{
+    struct configuration_key *key;
+
+    key = find_configured_key(&configuration, event->state,
+            get_keysym(event->detail), BINDING_FLAG_RELEASE);
+    if (key != NULL) {
+        LOG("performing %" PRIu32 " action(s)\n", key->number_of_actions);
+        for (uint32_t i = 0; i < key->number_of_actions; i++) {
+            LOG("performing action %s\n",
+                    convert_action_to_string(key->actions[i].code));
+            do_action(&key->actions[i], focus_window);
+        }
+
+        /* make the event pass through to the focused client */
+        if ((key->flags & BINDING_FLAG_TRANSPARENT)) {
+            xcb_allow_events(connection, XCB_ALLOW_REPLAY_KEYBOARD,
+                    event->time);
         }
     }
 }
 
 /* Configure requests are received when a window wants to choose its own
- * position and size.
+ * position and size, we just (TODO:) blindly follow for now.
  */
 void handle_configure_request(xcb_configure_request_event_t *event)
 {
@@ -545,16 +662,22 @@ void handle_event(xcb_generic_event_t *event)
     /* a mouse button was pressed */
     case XCB_BUTTON_PRESS:
         handle_button_press((xcb_button_press_event_t*) event);
-        break;
-
-    /* the mouse was moved */
-    case XCB_MOTION_NOTIFY:
-        handle_motion_notify((xcb_motion_notify_event_t*) event);
+        /* continue processing pointer events normally */
+        xcb_allow_events(connection, XCB_ALLOW_ASYNC_POINTER,
+                ((xcb_button_press_event_t*) event)->time);
         break;
 
     /* a mouse button was released */
     case XCB_BUTTON_RELEASE:
         handle_button_release((xcb_button_release_event_t*) event);
+        /* continue processing pointer events normally */
+        xcb_allow_events(connection, XCB_ALLOW_ASYNC_POINTER,
+                ((xcb_button_release_event_t*) event)->time);
+        break;
+
+    /* the mouse was moved */
+    case XCB_MOTION_NOTIFY:
+        handle_motion_notify((xcb_motion_notify_event_t*) event);
         break;
 
     /* a window changed a property */
@@ -585,6 +708,17 @@ void handle_event(xcb_generic_event_t *event)
     /* a key was pressed */
     case XCB_KEY_PRESS:
         handle_key_press((xcb_key_press_event_t*) event);
+        /* continue processing keyboard events normally */
+        xcb_allow_events(connection, XCB_ALLOW_ASYNC_KEYBOARD,
+                ((xcb_key_press_event_t*) event)->time);
+        break;
+
+    /* a key was released */
+    case XCB_KEY_RELEASE:
+        handle_key_release((xcb_key_release_event_t*) event);
+        /* continue processing keyboard events normally */
+        xcb_allow_events(connection, XCB_ALLOW_ASYNC_KEYBOARD,
+                ((xcb_key_release_event_t*) event)->time);
         break;
 
     /* keyboard mapping changed */

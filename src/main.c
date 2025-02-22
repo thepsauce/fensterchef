@@ -1,6 +1,6 @@
 #include <stdlib.h>
 
-#include "configuration.h"
+#include "default_configuration.h"
 #include "event.h"
 #include "fensterchef.h"
 #include "frame.h"

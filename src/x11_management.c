@@ -162,11 +162,6 @@ int initialize_x11(void)
     if (create_utility_windows() != OK) {
         return ERROR;
     }
-
-    /* grabs ALT+Button for moving popup windows */
-    xcb_grab_button(connection, 0, screen->root, XCB_EVENT_MASK_BUTTON_PRESS |
-            XCB_EVENT_MASK_BUTTON_RELEASE, XCB_GRAB_MODE_ASYNC,
-            XCB_GRAB_MODE_ASYNC, screen->root, XCB_NONE, 1, XCB_MOD_MASK_1);
     return OK;
 }
 
