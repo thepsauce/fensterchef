@@ -317,10 +317,14 @@ Window *select_window_from_list(void)
     /* show the window list window on screen */
     xcb_map_window(connection, window_list_window);
 
-    /* take control of the event loop */
+    /* if this is called from a KeyPress event, we need to unfreeze the keyboard
+     * first to receive key events
+     */
+    xcb_allow_events(connection, XCB_ALLOW_ASYNC_KEYBOARD, XCB_CURRENT_TIME);
     window_list.is_open = true;
+    /* take control of the event loop */
     while (next_cycle(window_list_callback) == OK) {
-        (void) 0;
+        /* nothing to be done */
     }
     window_list.is_open = false;
 

@@ -4,8 +4,6 @@
 #include <string.h>
 #include <unistd.h>
 
-#include <X11/keysym.h>
-
 #include "configuration_parser.h"
 #include "fensterchef.h"
 #include "frame.h"
@@ -18,227 +16,8 @@
 /* if the user requested to reload the configuration, handled in `main()` */
 bool reload_requested;
 
-/* the default configuration */
-static const struct configuration default_configuration = {
-    /* default general settings, currently not used for anything */
-    .general = {
-        .unused = 0
-    },
-
-    /* default tiling settings: fill empty frames but never automatically remove
-     * them
-     */
-    .tiling = {
-        .auto_remove_void = false,
-        .auto_fill_void = true
-    },
-
-    /* default font settings: Mono */
-    .font = {
-        .name = (uint8_t*) "Mono"
-    },
-
-    /* default border settings: no borders */
-    .border = {
-        .size = 0,
-    },
-
-    /* default gap settings: no gaps */
-    .gaps = {
-        .inner = 0,
-        .outer = 0
-    },
-
-    /* default notification settings */
-    .notification = {
-        .duration = 3,
-        .padding = 6,
-        .border_color = 0x000000,
-        .border_size = 1,
-        .foreground = 0x000000,
-        .background = 0xffffff,
-    },
-
-    /* default key settings: Mod4 as main modifier, see
-     * `merge_with_default_key_bindings()` for the default key bindings
-     */
-    .keyboard = {
-        .modifiers = XCB_MOD_MASK_4,
-        .ignore_modifiers = XCB_MOD_MASK_LOCK | XCB_MOD_MASK_2 |
-            XCB_MOD_MASK_3 | XCB_MOD_MASK_5,
-    },
-};
-
 /* the currently loaded configuration */
 struct configuration configuration;
-
-/* Puts the keybindings of the default configuration into @configuration without
- * overwriting any keybindings.
- */
-void merge_with_default_key_bindings(struct configuration *configuration)
-{
-    /* default keybindings, note that the modifiers are combined with
-     * @configuration->keyboard.modifiers
-     */
-    struct {
-        uint16_t modifiers;
-        xcb_keysym_t key_symbol;
-        Action action;
-    } default_bindings[] = {
-        /* reload the configuration */
-        { XCB_MOD_MASK_SHIFT, XK_r, { .code = ACTION_RELOAD_CONFIGURATION } },
-
-        /* close the active window */
-        { 0, XK_q, { .code = ACTION_CLOSE_WINDOW } },
-
-        /* minimize the active window */
-        { 0, XK_minus, { .code = ACTION_MINIMIZE_WINDOW } },
-
-        /* go to the next window in the tiling */
-        { 0, XK_n, { .code = ACTION_NEXT_WINDOW } },
-        { 0, XK_p, { .code = ACTION_PREVIOUS_WINDOW } },
-
-        /* remove the current tiling frame */
-        { 0, XK_r, { .code = ACTION_REMOVE_FRAME } },
-
-        /* toggle between tiling and the previous mode */
-        { XCB_MOD_MASK_SHIFT, XK_space, { .code = ACTION_TOGGLE_TILING } },
-        { 0, XK_space, { .code = ACTION_TRAVERSE_FOCUS } },
-
-        /* toggle between fullscreen and the previous mode */
-        { 0, XK_f, { .code = ACTION_TOGGLE_FULLSCREEN } },
-
-        /* split a frame */
-        { 0, XK_v, { .code = ACTION_SPLIT_HORIZONTALLY } },
-        { 0, XK_s, { .code = ACTION_SPLIT_VERTICALLY } },
-
-        /* move between frames */
-        { 0, XK_k, { .code = ACTION_MOVE_UP } },
-        { 0, XK_h, { .code = ACTION_MOVE_LEFT } },
-        { 0, XK_l, { .code = ACTION_MOVE_RIGHT } },
-        { 0, XK_j, { .code = ACTION_MOVE_DOWN } },
-
-        /* resizing the top/left edges of a window */
-        { XCB_MOD_MASK_CONTROL, XK_Left, { ACTION_RESIZE_BY, {
-                .quad = { 20, 0, 0, 0 } } } },
-        { XCB_MOD_MASK_CONTROL, XK_Up, { ACTION_RESIZE_BY, {
-                .quad = { 0, 20, 0, 0 } } } },
-        { XCB_MOD_MASK_CONTROL, XK_Right, { ACTION_RESIZE_BY, {
-                .quad = { -20, 0, 0, 0 } } } },
-        { XCB_MOD_MASK_CONTROL, XK_Down, { ACTION_RESIZE_BY, {
-                .quad = { 0, -20, 0, 0 } } } },
-
-        /* resizing the bottom/right edges of a window */
-        { XCB_MOD_MASK_SHIFT, XK_Left, { ACTION_RESIZE_BY, {
-                .quad = { 0, 0, -20, 0 } } } },
-        { XCB_MOD_MASK_SHIFT, XK_Up, { ACTION_RESIZE_BY, {
-                .quad = { 0, 0, 0, -20 } } } },
-        { XCB_MOD_MASK_SHIFT, XK_Right, { ACTION_RESIZE_BY, {
-                .quad = { 0, 0, 20, 0 } } } },
-        { XCB_MOD_MASK_SHIFT, XK_Down, { ACTION_RESIZE_BY, {
-                .quad = { 0, 0, 0, 20 } } } },
-
-        /* move a window */
-        { 0, XK_Left, { ACTION_RESIZE_BY, {
-                .quad = { 20, 0, -20, 0 } } } },
-        { 0, XK_Up, { ACTION_RESIZE_BY, {
-                .quad = { 0, 20, 0, -20 } } } },
-        { 0, XK_Right, { ACTION_RESIZE_BY, {
-                .quad = { -20, 0, 20, 0 } } } },
-        { 0, XK_Down, { ACTION_RESIZE_BY, {
-                .quad = { 0, -20, 0, 20 } } } },
-
-        /* inflate/deflate a window */
-        { XCB_MOD_MASK_CONTROL, XK_plus, { ACTION_RESIZE_BY, {
-                .quad = { 10, 10, 10, 10 } } } },
-        { XCB_MOD_MASK_CONTROL, XK_minus, { ACTION_RESIZE_BY, {
-                .quad = { -10, -10, -10, -10 } } } },
-        { XCB_MOD_MASK_CONTROL, XK_equal, { ACTION_RESIZE_BY, {
-                .quad = { 10, 10, 10, 10 } } } },
-
-        /* show the interactive window list */
-        { 0, XK_w, { .code = ACTION_SHOW_WINDOW_LIST } },
-
-        /* run xterm */
-        { 0, XK_Return, { ACTION_RUN, {
-                .string = (uint8_t*) "/usr/bin/xterm" } } },
-
-        /* quit fensterchef */
-        { XCB_MOD_MASK_CONTROL | XCB_MOD_MASK_SHIFT, XK_e,
-            { .code = ACTION_QUIT } }
-    };
-
-    struct configuration_key *key;
-    uint32_t new_count;
-    struct configuration_key *next_key;
-
-    /* get the number of keys not defined yet */
-    new_count = configuration->keyboard.number_of_keys;
-    for (uint32_t i = 0; i < SIZE(default_bindings); i++) {
-        const uint16_t modifiers = default_bindings[i].modifiers |
-            configuration->keyboard.modifiers;
-        key = find_configured_key(configuration, modifiers,
-                default_bindings[i].key_symbol);
-        if (key != NULL) {
-            continue;
-        }
-        new_count++;
-    }
-
-    /* shortcut: no keys need to be added */
-    if (new_count == configuration->keyboard.number_of_keys) {
-        return;
-    }
-
-    /* add the new keys on top of the already defined keys */
-    RESIZE(configuration->keyboard.keys, new_count);
-    next_key =
-        &configuration->keyboard.keys[configuration->keyboard.number_of_keys];
-    for (uint32_t i = 0; i < SIZE(default_bindings); i++) {
-        const uint16_t modifiers = default_bindings[i].modifiers |
-            configuration->keyboard.modifiers;
-        key = find_configured_key(configuration, modifiers,
-                default_bindings[i].key_symbol);
-        if (key != NULL) {
-            continue;
-        }
-        next_key->modifiers = modifiers;
-        next_key->key_symbol = default_bindings[i].key_symbol;
-        next_key->actions = xmemdup(&default_bindings[i].action,
-                sizeof(default_bindings[i].action));
-        next_key->number_of_actions = 1;
-        duplicate_data_value(get_action_data_type(next_key->actions[0].code),
-                    &next_key->actions[0].parameter);
-        next_key++;
-    }
-    configuration->keyboard.number_of_keys = new_count;
-}
-
-/* Load the default values into the configuration. */
-void load_default_configuration(void)
-{
-    struct configuration configuration;
-
-    /* create a duplicate of the default configuration */
-    configuration = default_configuration;
-    duplicate_configuration(&configuration);
-
-    /* add the default key bindings */
-    merge_with_default_key_bindings(&configuration);
-
-    set_configuration(&configuration);
-}
-
-/* Duplicate @key into itself. */
-static void duplicate_key(struct configuration_key *key)
-{
-    key->actions = xmemdup(key->actions, sizeof(*key->actions) *
-            key->number_of_actions);
-    for (uint32_t i = 0; i < key->number_of_actions; i++) {
-        duplicate_data_value(get_action_data_type(key->actions[i].code),
-                &key->actions[i].parameter);
-    }
-}
 
 /* Create a deep copy of @duplicate and put it into itself. */
 void duplicate_configuration(struct configuration *duplicate)
@@ -246,11 +25,23 @@ void duplicate_configuration(struct configuration *duplicate)
     if (duplicate->font.name != NULL) {
         duplicate->font.name = (uint8_t*) xstrdup((char*) duplicate->font.name);
     }
+
+    duplicate->mouse.buttons = xmemdup(duplicate->mouse.buttons,
+            sizeof(*duplicate->mouse.buttons) *
+            duplicate->mouse.number_of_buttons);
+    for (uint32_t i = 0; i < duplicate->mouse.number_of_buttons; i++) {
+        struct configuration_button *const button =
+            &duplicate->mouse.buttons[i];
+        button->actions = duplicate_actions(button->actions,
+                button->number_of_actions);
+    }
+
     duplicate->keyboard.keys = xmemdup(duplicate->keyboard.keys,
             sizeof(*duplicate->keyboard.keys) *
             duplicate->keyboard.number_of_keys);
     for (uint32_t i = 0; i < duplicate->keyboard.number_of_keys; i++) {
-        duplicate_key(&duplicate->keyboard.keys[i]);
+        struct configuration_key *const key = &duplicate->keyboard.keys[i];
+        key->actions = duplicate_actions(key->actions, key->number_of_actions);
     }
 }
 
@@ -259,7 +50,8 @@ void clear_configuration(struct configuration *configuration)
 {
     free(configuration->font.name);
     for (uint32_t i = 0; i < configuration->keyboard.number_of_keys; i++) {
-        free_key_actions(&configuration->keyboard.keys[i]);
+        free_actions(configuration->keyboard.keys[i].actions,
+                configuration->keyboard.keys[i].number_of_actions);
     }
     free(configuration->keyboard.keys);
 }
@@ -281,35 +73,98 @@ void reload_user_configuration(void)
     }
 }
 
-/* Helper function to free resources of a key struct. */
-void free_key_actions(struct configuration_key *key)
+/* Get a key from button modifiers and a button index. */
+struct configuration_button *find_configured_button(
+        struct configuration *configuration,
+        uint16_t modifiers, xcb_button_t button_index, uint16_t flags)
 {
-    for (uint32_t i = 0; i < key->number_of_actions; i++) {
-        clear_data_value(get_action_data_type(key->actions[i].code),
-                &key->actions[i].parameter);
+    struct configuration_button *button;
+
+    /* remove the ignored modifiers but also ~0xff which is all the mouse button
+     * masks
+     */
+    modifiers &= ~(configuration->mouse.ignore_modifiers | ~0xff);
+    flags &= ~BINDING_FLAG_TRANSPARENT;
+
+    /* find a matching button (the button AND modifiers must match up) */
+    for (uint32_t i = 0; i < configuration->mouse.number_of_buttons; i++) {
+        button = &configuration->mouse.buttons[i];
+        if (button->index == button_index &&
+                button->modifiers == modifiers &&
+                (button->flags & ~BINDING_FLAG_TRANSPARENT) == flags) {
+            return button;
+        }
     }
-    free(key->actions);
+    return NULL;
+}
+
+/* Grab the mousebindings so we receive MousePress/MouseRelease events for
+ * them.
+ */
+void grab_configured_buttons(void)
+{
+    xcb_window_t root;
+    struct configuration_button *button;
+
+    root = screen->root;
+
+    /* remove all previously grabbed buttons so that we can overwrite them */
+    xcb_ungrab_button(connection, XCB_GRAB_ANY, root, XCB_MOD_MASK_ANY);
+
+    for (uint32_t i = 0; i < configuration.mouse.number_of_buttons; i++) {
+        button = &configuration.mouse.buttons[i];
+        /* use every possible combination of modifiers we do not care about
+         * so that when the user has CAPS LOCK for example, it does not mess
+         * with mousebindings
+         */
+        for (uint32_t j = 0; j < (uint32_t) (1 << 8); j++) {
+            /* check if @j has any outside modifiers */
+            if ((j | configuration.mouse.ignore_modifiers) !=
+                    configuration.mouse.ignore_modifiers) {
+                continue;
+            }
+
+            xcb_grab_button(connection,
+                    1, /* 1 means we specify a window for grabbing */
+                    root, /* this is the window we grab the button for */
+                    (button->flags & BINDING_FLAG_RELEASE) ?
+                    XCB_EVENT_MASK_BUTTON_RELEASE : XCB_EVENT_MASK_BUTTON_PRESS,
+                    /* SYNC means that pointer (mouse) events will be frozen
+                     * until we issue a AllowEvents request
+                     */
+                    XCB_GRAB_MODE_SYNC,
+                    /* do not freeze keyboard events */
+                    XCB_GRAB_MODE_ASYNC,
+                    XCB_NONE, /* no confinement of the pointer */
+                    XCB_NONE, /* no change of cursor */
+                    button->index, (j | button->modifiers));
+        }
+    }
 }
 
 /* Get a key from key modifiers and a key symbol. */
-struct configuration_key *find_configured_key(struct configuration *configuration,
-        uint16_t modifiers, xcb_keysym_t key_symbol)
+struct configuration_key *find_configured_key(
+        struct configuration *configuration,
+        uint16_t modifiers, xcb_keysym_t key_symbol, uint16_t flags)
 {
     struct configuration_key *key;
 
     modifiers &= ~configuration->keyboard.ignore_modifiers;
+    flags &= ~BINDING_FLAG_TRANSPARENT;
 
     /* find a matching key (the keysym AND modifiers must match up) */
     for (uint32_t i = 0; i < configuration->keyboard.number_of_keys; i++) {
         key = &configuration->keyboard.keys[i];
-        if (key->key_symbol == key_symbol && key->modifiers == modifiers) {
+        if (key->key_symbol == key_symbol && key->modifiers == modifiers &&
+                (key->flags & ~BINDING_FLAG_TRANSPARENT) == flags) {
             return key;
         }
     }
     return NULL;
 }
 
-/* Grab the keybinds so we receive the keypress events for them. */
+/* Grab the keybindings so we receive the KeyPress/KeyRelease events for them.
+ */
 void grab_configured_keys(void)
 {
     xcb_window_t root;
@@ -332,7 +187,7 @@ void grab_configured_keys(void)
         for (uint32_t j = 0; keycodes[j] != XCB_NO_SYMBOL; j++) {
             /* use every possible combination of modifiers we do not care about
              * so that when the user has CAPS LOCK for example, it does not mess
-             * with keybinds.
+             * with keybindings.
              */
             for (uint32_t k = 0; k < (uint32_t) (1 << 8); k++) {
                 /* check if @k has any outside modifiers */
@@ -347,13 +202,12 @@ void grab_configured_keys(void)
                         1, /* 1 means we specify a window for grabbing */
                         root, /* this is the window we grab the key for */
                         modifiers, keycodes[j],
-                        /* the ASYNC constants are so that event processing
-                         * continues normally, otherwise we would need to issue
-                         * an AllowEvents request each time we receive KeyPress
-                         * events
-                         */
+                        /* do not freeze pointer (mouse) events */
                         XCB_GRAB_MODE_ASYNC,
-                        XCB_GRAB_MODE_ASYNC);
+                        /* SYNC means that keyboard events will be frozen until
+                         * we issue a AllowEvents request
+                         */
+                        XCB_GRAB_MODE_SYNC);
             }
         }
         free(keycodes);
@@ -465,6 +319,7 @@ void set_configuration(struct configuration *new_configuration)
     xcb_unmap_window(connection, notification_window);
 
     /* just do this without checking if anything changed */
+    grab_configured_buttons();
     grab_configured_keys();
 
     clear_configuration(&old_configuration);
@@ -545,8 +400,7 @@ int load_configuration_file(const char *file_name,
 
     if (error != PARSER_SUCCESS) {
         clear_configuration(parser.configuration);
-        LOG_ERROR(NULL, "got an error reading configuration file: \"%s\"",
-                file_name);
+        LOG("got an error reading configuration file: \"%s\"", file_name);
         return ERROR;
     }
 

@@ -326,18 +326,18 @@ void set_window_mode(Window *window, window_mode_t mode, bool force_mode)
         }
 
         switch (mode) {
-        case WINDOW_MODE_TILING: {
-            Window *const old_window = focus_frame->window;
+        case WINDOW_MODE_TILING:
+            if (focus_frame->window == focus_window) {
+                set_focus_window(window);
+            }
+
+            if (focus_frame->window != NULL) {
+                hide_window_abruptly(focus_frame->window);
+            }
 
             focus_frame->window = window;
             reload_frame(focus_frame);
-
-            set_focus_window(window);
-
-            if (old_window != NULL) {
-                hide_window_abruptly(old_window);
-            }
-        } break;
+            break;
 
         case WINDOW_MODE_POPUP:
             configure_popup_size(window);

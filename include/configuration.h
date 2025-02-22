@@ -64,10 +64,42 @@ struct configuration_notification {
     uint32_t background;
 };
 
+/* if the binding should be for a release event */
+#define BINDING_FLAG_RELEASE 0x1
+/* if the event should be passed down to the window */
+#define BINDING_FLAG_TRANSPARENT 0x2
+
+/* mouse binding */
+struct configuration_button {
+    /* the button modifiers */
+    uint16_t modifiers;
+    /* additional flags */
+    uint16_t flags;
+    /* the actual mouse button index */
+    xcb_button_t index;
+    /* the actions to execute */
+    Action *actions;
+    uint32_t number_of_actions;
+};
+
+/* mouse settings */
+struct configuration_mouse {
+    /* the modifier key applied for all keys (applied at the parsing step) */
+    uint16_t modifiers;
+    /* the modifiers to ignore */
+    uint16_t ignore_modifiers;
+    /* the configured buttons */
+    struct configuration_button *buttons;
+    /* the number of configured buttons */
+    uint32_t number_of_buttons;
+};
+
 /* keybinding */
 struct configuration_key {
     /* the key modifiers */
     uint16_t modifiers;
+    /* additional flags */
+    uint16_t flags;
     /* the key symbol */
     xcb_keysym_t key_symbol;
     /* the actions to execute */
@@ -101,17 +133,11 @@ extern struct configuration {
     struct configuration_gaps gaps;
     /* notifiaction window settings */
     struct configuration_notification notification;
+    /* mouse settings / mousebindings */
+    struct configuration_mouse mouse;
     /* keyboard settings / keybindings */
     struct configuration_keyboard keyboard;
 } configuration;
-
-/* Puts the keybindings of the default configuration into @configuration without
- * overwriting any keybindings.
- */
-void merge_with_default_key_bindings(struct configuration *configuration);
-
-/* Load the default values into the configuration. */
-void load_default_configuration(void);
 
 /* Create a deep copy of @duplicate and put it into itself.
  *
@@ -135,18 +161,27 @@ void clear_configuration(struct configuration *configuration);
  */
 void reload_user_configuration(void);
 
-/* Grab the keybinds so we receive the keypress events for them. */
-void grab_configured_keys(void);
+/* Get a key from button modifiers and a button index.
+ *
+ * Note that this ignores BINDING_FLAG_TRANSPARENT.
+ */
+struct configuration_button *find_configured_button(
+        struct configuration *configuration,
+        uint16_t modifiers, xcb_button_t button_index, uint16_t flags);
 
-/* Helper function to free resources of a key struct. */
-void free_key_actions(struct configuration_key *key);
+/* Grab the mousebindings so we receive the ButtonPress events for them. */
+void grab_configured_buttons(void);
 
 /* Get a key from key modifiers and a key symbol.
  *
- * @return NULL when that key is not binded.
+ * Note that this ignores BINDING_FLAG_TRANSPARENT.
  */
-struct configuration_key *find_configured_key(struct configuration *configuration,
-        uint16_t modifiers, xcb_keysym_t key_symbol);
+struct configuration_key *find_configured_key(
+        struct configuration *configuration,
+        uint16_t modifiers, xcb_keysym_t key_symbol, uint16_t flags);
+
+/* Grab the keybindings so we receive the KeyPress events for them. */
+void grab_configured_keys(void);
 
 /* Compare the current configuration with the new configuration and set it. */
 void set_configuration(struct configuration *configuration);

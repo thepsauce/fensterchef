@@ -1,12 +1,11 @@
 #include <ctype.h>
+#include <stddef.h>
 #include <string.h>
-
-#include <X11/keysym.h>
-#include <X11/Xlib.h> // XStringToKeysym
 
 #include "configuration_parser.h"
 #include "log.h"
 #include "utility.h"
+#include "x11_management.h"
 
 /* conversion from parser error to string */
 static const char *parser_error_strings[] = {
@@ -23,6 +22,8 @@ static const char *parser_error_strings[] = {
     [PARSER_ERROR_BAD_COLOR_FORMAT] = "bad color format (expect #XXXXXX)",
     [PARSER_ERROR_PREMATURE_LINE_END] = "premature line end",
     [PARSER_ERROR_INVALID_MODIFIERS] = "invalid modifiers",
+    [PARSER_ERROR_INVALID_BUTTON] = "invalid button name",
+    [PARSER_ERROR_INVALID_BUTTON_FLAG] = "invalid button flag",
     [PARSER_ERROR_INVALID_KEY_SYMBOL] = "invalid key symbol name",
     [PARSER_ERROR_MISSING_ACTION] = "action value is missing",
     [PARSER_ERROR_INVALID_ACTION] = "invalid action value",
@@ -31,7 +32,9 @@ static const char *parser_error_strings[] = {
 
 /* conversion of string to modifier mask */
 static const struct modifier_string {
+    /* the string representation of the modifier */
     const char *name;
+    /* the modifier bit */
     uint16_t modifier;
 } modifier_strings[] = {
     { "None", 0 },
@@ -51,6 +54,45 @@ static const struct modifier_string {
     { "Mod3", XCB_MOD_MASK_3 },
     { "Mod4", XCB_MOD_MASK_4 },
     { "Mod5", XCB_MOD_MASK_5 }
+
+    /* since two bits are toggle this can not be a modifier */
+#define INVALID_MODIFIER 3
+};
+
+/* conversion from string to button index */
+static const struct button_string {
+    /* the string representation of the button */
+    const char *name;
+    /* the button index */
+    xcb_button_t button_index;
+} button_strings[] = {
+    /* buttons can also be Button<integer> to directly address the index */
+    { "LButton", 1 },
+    { "LeftButton", 1 },
+
+    { "MButton", 2 },
+    { "MiddleButton", 2 },
+
+    { "RButton", 3 },
+    { "RightButton", 3 },
+
+    { "ScrollUp", 4 },
+    { "WheelUp", 4 },
+
+    { "ScrollDown", 5 },
+    { "WheelDown", 5 },
+
+    { "ScrollLeft", 6 },
+    { "WheelLeft", 6 },
+
+    { "ScrollRight", 7 },
+    { "WheelRight", 7 },
+
+#define FIRST_X_BUTTON 8
+#define NUMBER_OF_X_BUTTONS 247
+    /* X buttons (extra buttons on the mouse usually) going from X1 (8) to
+     * X247 (255), they have their own handling and are not listed here
+     */
 };
 
 /* The void data type is just a placeholder, it expects nothing. */
@@ -114,6 +156,192 @@ static struct parser_data_type_information {
         parse_modifiers
     }
 };
+
+/* variables in the form <name> <value> */
+static const struct parser_label_name {
+    const char *name;
+    struct parser_label_variable {
+        /* name of the variable */
+        const char *name;
+        /* type of the variable */
+        parser_data_type_t data_type;
+        /* offset within a `struct configuration` */
+        size_t offset;
+    } variables[8];
+} labels[PARSER_LABEL_MAX] = {
+    [PARSER_LABEL_GENERAL] = {
+        "general", {
+        { "unused", PARSER_DATA_TYPE_INTEGER,
+            offsetof(struct configuration, general.unused) },
+        /* null terminate the end */
+        { NULL, 0, 0 } }
+    },
+
+    [PARSER_LABEL_TILING] = {
+        "tiling", {
+        { "auto-fill-void", PARSER_DATA_TYPE_BOOLEAN,
+            offsetof(struct configuration, tiling.auto_fill_void) },
+        { "auto-remove-void", PARSER_DATA_TYPE_BOOLEAN,
+            offsetof(struct configuration, tiling.auto_remove_void) },
+        /* null terminate the end */
+        { NULL, 0, 0 } }
+    },
+
+    [PARSER_LABEL_FONT] = {
+        "font", {
+        { "name", PARSER_DATA_TYPE_STRING,
+            offsetof(struct configuration, font.name) },
+        /* null terminate the end */
+        { NULL, 0, 0 } }
+    },
+
+    [PARSER_LABEL_BORDER] = {
+        "border", {
+        { "size", PARSER_DATA_TYPE_INTEGER,
+            offsetof(struct configuration, border.size) },
+        { "color", PARSER_DATA_TYPE_COLOR,
+            offsetof(struct configuration, border.color) },
+        { "focus-color", PARSER_DATA_TYPE_COLOR,
+            offsetof(struct configuration, border.focus_color) },
+        /* null terminate the end */
+        { NULL, 0, 0 } }
+    },
+
+    [PARSER_LABEL_GAPS] = {
+        "gaps", {
+        { "inner", PARSER_DATA_TYPE_INTEGER,
+            offsetof(struct configuration, gaps.inner) },
+        { "outer", PARSER_DATA_TYPE_INTEGER,
+            offsetof(struct configuration, gaps.outer) },
+        /* null terminate the end */
+        { NULL, 0, 0 } }
+    },
+
+    [PARSER_LABEL_NOTIFICATION] = {
+        "notification", {
+        { "duration", PARSER_DATA_TYPE_INTEGER,
+            offsetof(struct configuration, notification.duration) },
+        { "padding", PARSER_DATA_TYPE_INTEGER,
+            offsetof(struct configuration, notification.padding) },
+        { "border-color", PARSER_DATA_TYPE_COLOR,
+            offsetof(struct configuration, notification.border_color) },
+        { "border-size", PARSER_DATA_TYPE_INTEGER,
+            offsetof(struct configuration, notification.border_size) },
+        { "background", PARSER_DATA_TYPE_COLOR,
+            offsetof(struct configuration, notification.background) },
+        { "foreground", PARSER_DATA_TYPE_COLOR,
+            offsetof(struct configuration, notification.foreground) },
+        /* null terminate the end */
+        { NULL, 0, 0 } }
+    },
+
+    [PARSER_LABEL_MOUSE] = {
+        "mouse", {
+        { "modifiers", PARSER_DATA_TYPE_MODIFIERS,
+            offsetof(struct configuration, mouse.modifiers) },
+        { "ignore-modifiers", PARSER_DATA_TYPE_MODIFIERS,
+            offsetof(struct configuration, mouse.ignore_modifiers) },
+        /* null terminate the end */
+        { NULL, 0, 0 } }
+    },
+
+    [PARSER_LABEL_KEYBOARD] = {
+        "keyboard", {
+        { "modifiers", PARSER_DATA_TYPE_MODIFIERS,
+            offsetof(struct configuration, keyboard.modifiers) },
+        { "ignore-modifiers", PARSER_DATA_TYPE_MODIFIERS,
+            offsetof(struct configuration, keyboard.ignore_modifiers) },
+        /* null terminate the end */
+        { NULL, 0, 0 } }
+    },
+};
+
+/* Merges the default mousebindings into the current parser mousebindings. */
+static parser_error_t merge_default_mouse(Parser *parser);
+
+/* Merges the default keybindings into the current parser keybindings. */
+static parser_error_t merge_default_keyboard(Parser *parser);
+
+/* the parser commands are in the form <command> <arguments> */
+static const struct parser_command {
+    /* the name of the command */
+    const char *name;
+    /* the procedure to execute (parses and executes the command) */
+    parser_error_t (*procedure)(Parser *parser);
+} commands[PARSER_LABEL_MAX][2] = {
+    [PARSER_LABEL_MOUSE] = {
+        { "merge-default", merge_default_mouse },
+        /* null terminate the end */
+        { NULL, NULL }
+    },
+    [PARSER_LABEL_KEYBOARD] = {
+        { "merge-default", merge_default_keyboard },
+        /* null terminate the end */
+        { NULL, NULL }
+    }
+};
+
+/* Translate a string like "Button1" to a button index. */
+static xcb_button_t translate_string_to_button(const char *string)
+{
+    /* parse indexes starting with "X" */
+    if (tolower(string[0]) == 'x') {
+        uint32_t x_index = 0;
+
+        string++;
+        while (isdigit(string[0])) {
+            x_index *= 10;
+            x_index += string[0] - '0';
+            if (x_index > NUMBER_OF_X_BUTTONS) {
+                return 0;
+            }
+            string++;
+        }
+
+        if (x_index == 0) {
+            return 0;
+        }
+
+        return FIRST_X_BUTTON + x_index - 1;
+    /* parse indexes starting with "button" */
+    } else if (tolower(string[0]) == 'b' &&
+            tolower(string[1]) == 'u' &&
+            tolower(string[2]) == 't' &&
+            tolower(string[3]) == 't' &&
+            tolower(string[4]) == 'o' &&
+            tolower(string[5]) == 'n') {
+        uint32_t index = 0;
+
+        string += sizeof("button") - 1;
+        while (isdigit(string[0])) {
+            index *= 10;
+            index += string[0] - '0';
+            if (index > UINT8_MAX) {
+                return 0;
+            }
+            string++;
+        }
+        return index;
+    }
+
+    for (uint32_t i = 0; i < SIZE(button_strings); i++) {
+        if (strcasecmp(string, button_strings[i].name) == 0) {
+            return button_strings[i].button_index;
+        }
+    }
+    return 0;
+}
+
+/* Translate a string like "Shift" to a modifier bit. */
+static uint16_t translate_string_to_modifier(const char *string)
+{
+    for (uint32_t i = 0; i < SIZE(modifier_strings); i++) {
+        if (strcasecmp(modifier_strings[i].name, string) == 0) {
+            return modifier_strings[i].modifier;
+        }
+    }
+    return INVALID_MODIFIER;
+}
 
 /* Converts @error to a string. */
 const char *parser_string_error(parser_error_t error)
@@ -242,7 +470,7 @@ static parser_error_t parse_boolean(Parser *parser)
 
 /* Parse any text without leading or trailing space.
  *
- * This stops at a semicolon!
+ * Note that this stops at a semicolon.
  */
 static parser_error_t parse_string(Parser *parser)
 {
@@ -355,28 +583,21 @@ static parser_error_t parse_color(Parser *parser)
     return PARSER_SUCCESS;
 }
 
-/* Parse key modifiers, e.g.: Control+Shift. */
+/* Parse key modifiers, e.g.: `Control+Shift`. */
 static parser_error_t parse_modifiers(Parser *parser)
 {
     parser_error_t error;
-    uint32_t string_index;
+    uint16_t modifier;
 
     parser->data.modifiers = 0;
     error = parse_identifier(parser);
     while (error == PARSER_SUCCESS) {
-        /* find the modifier */
-        string_index = (uint32_t) -1;
-        for (uint32_t i = 0; i < SIZE(modifier_strings); i++) {
-            if (strcasecmp(modifier_strings[i].name, parser->identifier) == 0) {
-                string_index = i;
-                break;
-            }
-        }
-        if (string_index == (uint32_t) -1) {
+        modifier = translate_string_to_modifier(parser->identifier);
+        if (modifier == INVALID_MODIFIER) {
             return PARSER_ERROR_INVALID_MODIFIERS;
         }
 
-        parser->data.modifiers |= modifier_strings[string_index].modifier;
+        parser->data.modifiers |= modifier;
 
         /* go to the next '+' */
         if (parse_character(parser) != PARSER_SUCCESS) {
@@ -432,17 +653,19 @@ void clear_data_value(parser_data_type_t type, union parser_data_value *value)
     }
 }
 
-/* Parse a keybinding, e.g.: "Shift+v split-horizontally ; move-right".
+/* Reads modifiers in the from modifier1+modifier2+... but stops at the last
+ * identifier in the list, this be accessible in `parser->identifier`.
  *
- * This function assumes that an identifier was loaded into @parser.
+ * This function assumes that an identifier was loaded into
+ * `parser->identifier`.
  */
-static parser_error_t parse_key(Parser *parser)
+static parser_error_t parse_button_or_key_modifiers(Parser *parser,
+        uint16_t *modifiers)
 {
     parser_error_t error;
-    uint32_t string_index;
-    Action *action;
+    uint16_t modifier;
 
-    parser->key.modifiers = parser->configuration->keyboard.modifiers;
+    *modifiers = 0;
 
     /* first, read the modifiers and key symbol */
     error = PARSER_SUCCESS;
@@ -452,53 +675,73 @@ static parser_error_t parse_key(Parser *parser)
          */
         skip_space(parser);
         if (parser->line[parser->column] != '+') {
-            parser->key.key_symbol = XStringToKeysym(parser->identifier);
-            if (parser->key.key_symbol == NoSymbol) {
-                return PARSER_ERROR_INVALID_KEY_SYMBOL;
-            }
-            break;
+            return PARSER_SUCCESS;
         }
 
-        /* find the modifier */
-        string_index = (uint32_t) -1;
-        for (uint32_t i = 0; i < SIZE(modifier_strings); i++) {
-            if (strcasecmp(modifier_strings[i].name, parser->identifier) == 0) {
-                string_index = i;
-                break;
-            }
-        }
-        if (string_index == (uint32_t) -1) {
+        modifier = translate_string_to_modifier(parser->identifier);
+        if (modifier == INVALID_MODIFIER) {
             return PARSER_ERROR_INVALID_MODIFIERS;
         }
 
-        parser->key.modifiers |= modifier_strings[string_index].modifier;
+        *modifiers |= modifier;
 
         /* skip over '+' */
         parser->column++;
 
         error = parse_identifier(parser);
     }
+    return error;
+}
 
-    /* second, read the actions to perform */
-    parser->key.actions = NULL;
-    parser->key.number_of_actions = 0;
+/* Parse binding flags, e.g.: `--release --transparent` */
+static parser_error_t parse_binding_flags(Parser *parser, uint16_t *flags)
+{
+    parser_error_t error;
+
+    *flags = 0;
+    while (skip_space(parser), parser->line[parser->column] == '-') {
+        error = parse_identifier(parser);
+        if (error != PARSER_SUCCESS) {
+            return error;
+        }
+        if (strcasecmp(parser->identifier, "--release") == 0) {
+            *flags |= BINDING_FLAG_RELEASE;
+        } else if (strcasecmp(parser->identifier, "--transparent") == 0) {
+            *flags |= BINDING_FLAG_TRANSPARENT;
+        } else {
+            return PARSER_ERROR_INVALID_BUTTON_FLAG;
+        }
+    }
+    return PARSER_SUCCESS;
+}
+
+/* Parse a semicolon separated list of actions. */
+static parser_error_t parse_actions(Parser *parser,
+        Action **destination_actions,
+        uint32_t *destination_number_of_actions)
+{
+    parser_error_t error;
+
+    Action *actions = NULL, *action;
+    uint32_t number_of_actions = 0;
+
     while (true) {
         error = parse_identifier(parser);
         if (error == PARSER_ERROR_TOO_LONG) {
-            free_key_actions(&parser->key);
+            free_actions(actions, number_of_actions);
             return error;
         }
         if (error != PARSER_SUCCESS) {
-            free_key_actions(&parser->key);
+            free_actions(actions, number_of_actions);
             return PARSER_ERROR_MISSING_ACTION;
         }
 
-        RESIZE(parser->key.actions, parser->key.number_of_actions + 1);
-        action = &parser->key.actions[parser->key.number_of_actions];
+        RESIZE(actions, number_of_actions + 1);
+        action = &actions[number_of_actions];
 
         action->code = convert_string_to_action(parser->identifier);
         if (action->code == ACTION_NULL) {
-            free_key_actions(&parser->key);
+            free_actions(actions, number_of_actions);
             return PARSER_ERROR_INVALID_ACTION;
         }
         memset(&action->parameter, 0, sizeof(action->parameter));
@@ -507,12 +750,13 @@ static parser_error_t parse_key(Parser *parser)
         if (data_type != PARSER_DATA_TYPE_VOID) {
             error = data_types[data_type].parse(parser);
             if (error != PARSER_SUCCESS) {
+                free_actions(actions, number_of_actions);
                 return error;
             }
             action->parameter = parser->data;
         }
 
-        parser->key.number_of_actions++;
+        number_of_actions++;
 
         skip_space(parser);
         
@@ -522,6 +766,80 @@ static parser_error_t parse_key(Parser *parser)
         parser->column++;
     }
 
+    *destination_actions = actions;
+    *destination_number_of_actions = number_of_actions;
+    return PARSER_SUCCESS;
+}
+
+/* Parse a mousebinding, e.g.: `Button2 close-window`.
+ *
+ * This function assumes that an identifier was loaded into @parser.
+ */
+static parser_error_t parse_button(Parser *parser)
+{
+    parser_error_t error;
+
+    error = parse_button_or_key_modifiers(parser, &parser->button.modifiers);
+    if (error != PARSER_SUCCESS) {
+        return error;
+    }
+    parser->button.modifiers |= parser->configuration->mouse.modifiers;
+
+    parser->button.index = translate_string_to_button(parser->identifier);
+    if (parser->button.index == 0) {
+        return PARSER_ERROR_INVALID_BUTTON;
+    }
+
+    error = parse_binding_flags(parser, &parser->button.flags);
+    if (error != PARSER_SUCCESS) {
+        return error;
+    }
+
+    error = parse_actions(parser, &parser->button.actions,
+            &parser->button.number_of_actions);
+    if (error != PARSER_SUCCESS) {
+        return error;
+    }
+
+    return PARSER_SUCCESS;
+}
+
+/* Parse a keybinding, e.g.: `Shift+v split-horizontally ; move-right`.
+ *
+ * This function assumes that an identifier was loaded into @parser.
+ */
+static parser_error_t parse_key(Parser *parser)
+{
+    parser_error_t error;
+
+    error = parse_button_or_key_modifiers(parser, &parser->key.modifiers);
+    if (error != PARSER_SUCCESS) {
+        return error;
+    }
+    parser->key.modifiers |= parser->configuration->keyboard.modifiers;
+    parser->key.key_symbol = string_to_keysym(parser->identifier);
+    if (parser->key.key_symbol == 0) {
+        return PARSER_ERROR_INVALID_KEY_SYMBOL;
+    }
+
+    error = parse_binding_flags(parser, &parser->key.flags);
+    if (error != PARSER_SUCCESS) {
+        return error;
+    }
+
+    error = parse_actions(parser, &parser->key.actions,
+            &parser->key.number_of_actions);
+    if (error != PARSER_SUCCESS) {
+        return error;
+    }
+
+    return PARSER_SUCCESS;
+}
+
+/* Merges the default keybindings into the current parser keybindings. */
+static parser_error_t merge_default_mouse(Parser *parser)
+{
+    merge_with_default_button_bindings(parser->configuration);
     return PARSER_SUCCESS;
 }
 
@@ -535,111 +853,9 @@ static parser_error_t merge_default_keyboard(Parser *parser)
 /* Parses and handles given textual line. */
 parser_error_t parse_line(Parser *parser)
 {
-    /* variables in the form <name> <value> */
-    static const struct label {
-        const char *name;
-        struct label_variable {
-            /* name of the variable */
-            const char *name;
-            /* type of the variable */
-            parser_data_type_t data_type;
-            /* offset within a `struct configuration` */
-            size_t offset;
-        } variables[8];
-    } labels[PARSER_LABEL_MAX] = {
-        [PARSER_LABEL_GENERAL] = {
-            "general", {
-            { "unused", PARSER_DATA_TYPE_INTEGER,
-                offsetof(struct configuration, general.unused) },
-            /* null terminate the end */
-            { NULL, 0, 0 } }
-        },
-
-        [PARSER_LABEL_TILING] = {
-            "tiling", {
-            { "auto-fill-void", PARSER_DATA_TYPE_BOOLEAN,
-                offsetof(struct configuration, tiling.auto_fill_void) },
-            { "auto-remove-void", PARSER_DATA_TYPE_BOOLEAN,
-                offsetof(struct configuration, tiling.auto_remove_void) },
-            /* null terminate the end */
-            { NULL, 0, 0 } }
-        },
-
-        [PARSER_LABEL_FONT] = {
-            "font", {
-            { "name", PARSER_DATA_TYPE_STRING,
-                offsetof(struct configuration, font.name) },
-            /* null terminate the end */
-            { NULL, 0, 0 } }
-        },
-
-        [PARSER_LABEL_BORDER] = {
-            "border", {
-            { "size", PARSER_DATA_TYPE_INTEGER,
-                offsetof(struct configuration, border.size) },
-            { "color", PARSER_DATA_TYPE_COLOR,
-                offsetof(struct configuration, border.color) },
-            { "focus-color", PARSER_DATA_TYPE_COLOR,
-                offsetof(struct configuration, border.focus_color) },
-            /* null terminate the end */
-            { NULL, 0, 0 } }
-        },
-
-        [PARSER_LABEL_GAPS] = {
-            "gaps", {
-            { "inner", PARSER_DATA_TYPE_INTEGER,
-                offsetof(struct configuration, gaps.inner) },
-            { "outer", PARSER_DATA_TYPE_INTEGER,
-                offsetof(struct configuration, gaps.outer) },
-            /* null terminate the end */
-            { NULL, 0, 0 } }
-        },
-
-        [PARSER_LABEL_NOTIFICATION] = {
-            "notification", {
-            { "duration", PARSER_DATA_TYPE_INTEGER,
-                offsetof(struct configuration, notification.duration) },
-            { "padding", PARSER_DATA_TYPE_INTEGER,
-                offsetof(struct configuration, notification.padding) },
-            { "border-color", PARSER_DATA_TYPE_COLOR,
-                offsetof(struct configuration, notification.border_color) },
-            { "border-size", PARSER_DATA_TYPE_INTEGER,
-                offsetof(struct configuration, notification.border_size) },
-            { "background", PARSER_DATA_TYPE_COLOR,
-                offsetof(struct configuration, notification.background) },
-            { "foreground", PARSER_DATA_TYPE_COLOR,
-                offsetof(struct configuration, notification.foreground) },
-            /* null terminate the end */
-            { NULL, 0, 0 } }
-        },
-
-        [PARSER_LABEL_KEYBOARD] = {
-            "keyboard", {
-            { "modifiers", PARSER_DATA_TYPE_MODIFIERS,
-                offsetof(struct configuration, keyboard.modifiers) },
-            { "ignore-modifiers", PARSER_DATA_TYPE_MODIFIERS,
-                offsetof(struct configuration, keyboard.ignore_modifiers) },
-            /* null terminate the end */
-            { NULL, 0, 0 } }
-        },
-    };
-
-    /* the parser commands are in the form <command> <arguments> */
-    static const struct command {
-        /* the name of the command */
-        const char *name;
-        /* the procedure to execute (parses and executes the command) */
-        parser_error_t (*procedure)(Parser *parser);
-    } commands[PARSER_LABEL_MAX][2] = {
-        [PARSER_LABEL_KEYBOARD] = {
-            { "merge-default", merge_default_keyboard },
-            /* null terminate the end */
-            { NULL, NULL }
-        }
-    };
-
     parser_error_t error;
 
+    struct configuration_button *button;
     struct configuration_key *key;
 
     /* remove leading whitespace */
@@ -692,7 +908,7 @@ parser_error_t parse_line(Parser *parser)
 
     /* check for a variable setting */
     for (uint32_t i = 0; i < SIZE(labels[parser->label].variables); i++) {
-        const struct label_variable *const variable =
+        const struct parser_label_variable *const variable =
             &labels[parser->label].variables[i];
         if (variable->name == NULL) {
             break;
@@ -715,7 +931,7 @@ parser_error_t parse_line(Parser *parser)
 
     /* check for a parser command */
     for (uint32_t i = 0; i < SIZE(commands[parser->label]); i++) {
-        const struct command *const command = &commands[parser->label][i];
+        const struct parser_command *const command = &commands[parser->label][i];
         if (command->name == NULL) {
             break;
         }
@@ -723,6 +939,29 @@ parser_error_t parse_line(Parser *parser)
         if (strcmp(command->name, parser->identifier) == 0) {
             return command->procedure(parser);
         }
+    }
+
+    /* special handling for defining mousebindings */
+    if (parser->label == PARSER_LABEL_MOUSE) {
+        error = parse_button(parser);
+        if (error != PARSER_SUCCESS) {
+            return error;
+        }
+
+        button = find_configured_button(parser->configuration,
+                parser->button.modifiers, parser->button.index,
+                parser->button.flags);
+
+        if (button != NULL) {
+            free_actions(button->actions, button->number_of_actions);
+        } else {
+            RESIZE(parser->configuration->mouse.buttons,
+                    parser->configuration->mouse.number_of_buttons + 1);
+            button = &parser->configuration->mouse.buttons[
+                parser->configuration->mouse.number_of_buttons++];
+        }
+        *button = parser->button;
+        return PARSER_SUCCESS;
     }
 
     /* special handling for defining keybindings */
@@ -733,10 +972,10 @@ parser_error_t parse_line(Parser *parser)
         }
 
         key = find_configured_key(parser->configuration, parser->key.modifiers,
-                parser->key.key_symbol);
+                parser->key.key_symbol, parser->key.flags);
 
         if (key != NULL) {
-            free_key_actions(key);
+            free_actions(key->actions, key->number_of_actions);
         } else {
             RESIZE(parser->configuration->keyboard.keys,
                     parser->configuration->keyboard.number_of_keys + 1);

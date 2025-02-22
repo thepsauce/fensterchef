@@ -2,6 +2,7 @@
 #define ACTION_H
 
 #include "bits/configuration_parser_data_type.h"
+#include "bits/window_typedef.h"
 
 /* action codes
  *
@@ -23,6 +24,12 @@ typedef enum {
     ACTION_CLOSE_WINDOW,
     /* hides the currently active window */
     ACTION_MINIMIZE_WINDOW,
+    /* focus a window */
+    ACTION_FOCUS_WINDOW,
+    /* start moving a window with the mouse */
+    ACTION_INITIATE_MOVE,
+    /* start resizing a window with the mouse */
+    ACTION_INITIATE_RESIZE,
     /* go to the next window in the window list */
     ACTION_NEXT_WINDOW,
     /* go to the previous window in the window list */
@@ -80,7 +87,13 @@ action_t convert_string_to_action(const char *string);
 /* Get a string version of an action. */
 const char *convert_action_to_string(action_t action);
 
-/* Do the given action. */
-void do_action(const Action *action);
+/* Create a deep copy of given action array. */
+Action *duplicate_actions(Action *actions, uint32_t number_of_actions);
+
+/* Free all given actions and the action array itself. */
+void free_actions(Action *actions, uint32_t number_of_actions);
+
+/* Do the given action on the given window. */
+void do_action(const Action *action, Window *window);
 
 #endif

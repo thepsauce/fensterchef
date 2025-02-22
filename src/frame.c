@@ -38,6 +38,7 @@ Frame *get_frame_at_position(int32_t x, int32_t y)
                     frame = frame->right;
                     continue;
                 }
+                return NULL;
             }
             return frame;
         }

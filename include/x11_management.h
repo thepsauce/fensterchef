@@ -351,4 +351,10 @@ bool supports_protocol(XProperties *properties, xcb_atom_t protocol);
 /* Check if @properties includes @window_type. */
 bool has_state(XProperties *properties, xcb_atom_t state);
 
+/* Translate a string to a key symbol.
+ *
+ * *Implemented in string_to_keysym.c*
+ */
+xcb_keysym_t string_to_keysym(const char *string);
+
 #endif
