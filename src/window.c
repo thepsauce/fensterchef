@@ -41,7 +41,7 @@ Window *create_window(xcb_window_t xcb_window)
         /* still continue */
     }
 
-    x_init_properties(&window->properties, xcb_window);
+    init_window_properties(&window->properties, xcb_window);
 
     set_window_mode(window, predict_window_mode(window), false);
 
@@ -63,7 +63,7 @@ void close_window(Window *window)
     /* if either `WM_DELETE_WINDOW` is not supported or a close was requested
      * twice in a row
      */
-    if (!x_supports_protocol(&window->properties, ATOM(WM_DELETE_WINDOW)) ||
+    if (!supports_protocol(&window->properties, ATOM(WM_DELETE_WINDOW)) ||
             (window->state.was_close_requested && current_time <=
                 window->state.user_request_close_time +
                     REQUEST_CLOSE_MAX_DURATION)) {
@@ -113,10 +113,90 @@ void destroy_window(Window *window)
     free(window);
 }
 
+/* Adjust given @x and @y such that it follows the @window_gravity. */
+void adjust_for_window_gravity(Monitor *monitor, int32_t *x, int32_t *y,
+        uint32_t width, uint32_t height, uint32_t window_gravity)
+{
+    switch (window_gravity) {
+    /* attach to the top left */
+    case XCB_GRAVITY_NORTH_WEST:
+        *x = monitor->position.x;
+        *y = monitor->position.y;
+        break;
+
+    /* attach to the top */
+    case XCB_GRAVITY_NORTH:
+        *y = monitor->position.y;
+        break;
+
+    /* attach to the top right */
+    case XCB_GRAVITY_NORTH_EAST:
+        *x = monitor->position.x + monitor->size.width - width;
+        *y = monitor->position.y;
+        break;
+
+    /* attach to the left */
+    case XCB_GRAVITY_WEST:
+        *x = monitor->position.x;
+        break;
+
+    /* put it into the center */
+    case XCB_GRAVITY_CENTER:
+        *x = monitor->position.x + (monitor->size.width - width) / 2;
+        *y = monitor->position.y + (monitor->size.height - height) / 2;
+        break;
+
+    /* attach to the right */
+    case XCB_GRAVITY_EAST:
+        *x = monitor->position.x + monitor->size.width - width;
+        break;
+
+    /* attach to the bottom left */
+    case XCB_GRAVITY_SOUTH_WEST:
+        *x = monitor->position.x;
+        *y = monitor->position.y + monitor->size.height - height;
+        break;
+
+    /* attach to the bottom */
+    case XCB_GRAVITY_SOUTH:
+        *y = monitor->position.y + monitor->size.height - height;
+        break;
+
+    /* attach to the bottom right */
+    case XCB_GRAVITY_SOUTH_EAST:
+        *x = monitor->position.x + monitor->size.width - width;
+        *y = monitor->position.y + monitor->size.width - height;
+        break;
+
+    /* nothing to do */
+    case XCB_GRAVITY_STATIC:
+        break;
+    }
+}
+
 /* Set the position and size of a window. */
 void set_window_size(Window *window, int32_t x, int32_t y, uint32_t width,
         uint32_t height)
 {
+    width = MAX(width, WINDOW_MINIMUM_SIZE);
+    height = MAX(height, WINDOW_MINIMUM_SIZE);
+
+    /* make it so the window does not become too large and that is stays on
+     * screen
+     */
+    width = MIN(width, WINDOW_MAXIMUM_SIZE);
+    height = MIN(height, WINDOW_MAXIMUM_SIZE);
+    if (x + (int32_t) width < WINDOW_MINIMUM_VISIBLE_SIZE) {
+        x = WINDOW_MINIMUM_VISIBLE_SIZE - width;
+    } else if (x + WINDOW_MINIMUM_VISIBLE_SIZE > screen->width_in_pixels) {
+        x = screen->width_in_pixels - WINDOW_MINIMUM_VISIBLE_SIZE;
+    }
+    if (y + (int32_t) height < WINDOW_MINIMUM_VISIBLE_SIZE) {
+        y = WINDOW_MINIMUM_VISIBLE_SIZE - height;
+    } else if (y + WINDOW_MINIMUM_VISIBLE_SIZE > screen->height_in_pixels) {
+        y = screen->height_in_pixels - WINDOW_MINIMUM_VISIBLE_SIZE;
+    }
+
     LOG("configuring size of window %" PRIu32
             " to: %" PRId32 ", %" PRId32 ", %" PRIu32 ", %" PRIu32 "\n",
             window->number, x, y, width, height);
@@ -142,7 +222,7 @@ void set_window_above(Window *window)
     LOG("setting window %" PRIu32 " above all other windows\n", window->number);
 
     /* desktop windows are always at the bottom */
-    if (x_is_window_type(&window->properties,
+    if (has_window_type(&window->properties,
                 ATOM(_NET_WM_WINDOW_TYPE_DESKTOP))) {
         general_values[0] = XCB_STACK_MODE_BELOW;
     } else {
@@ -192,7 +272,7 @@ Window *get_window_of_xcb_window(xcb_window_t xcb_window)
     }
 #ifdef DEBUG
     /* omit log message for the root window */
-    if (xcb_window != x_screen->root) {
+    if (xcb_window != screen->root) {
         LOG("xcb window %" PRIu32 " is not managed\n", xcb_window);
     }
 #endif
@@ -263,7 +343,7 @@ bool does_window_accept_focus(Window *window)
     /* desktop windows are in the background, they are at the bottom and not
      * focusable
      */
-    if (x_is_window_type(&window->properties,
+    if (has_window_type(&window->properties,
                 ATOM(_NET_WM_WINDOW_TYPE_DESKTOP))) {
         return false;
     }

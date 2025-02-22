@@ -8,7 +8,7 @@
 #include "utf8.h"
 #include "utility.h"
 
-/* flag used to configure window position, size and border width */
+/* flag used to configure window position and size */
 #define XCB_CONFIG_SIZE (XCB_CONFIG_WINDOW_X | \
                          XCB_CONFIG_WINDOW_Y | \
                          XCB_CONFIG_WINDOW_WIDTH | \
@@ -56,7 +56,7 @@
     /* a special window indicating the window manager name */ \
     /* WINDOW */ X(_NET_SUPPORTING_WM_CHECK) \
     /* the virtual roots (our window manager does not operate with this) */ \
-    /* WINDOW[] */X(_NET_VIRTUAL_ROOTS) \
+    /* WINDOW[] */ X(_NET_VIRTUAL_ROOTS) \
     /* set by a pager, not our window manager */ \
     /* CARDINAL[4] */ X(_NET_DESKTOP_LAYOUT) \
     /* set if the window manager is in showing desktop mode */ \
@@ -121,7 +121,7 @@
     X(_NET_WM_WINDOW_TYPE_POPUP_MENU) \
     /* tooltip */ \
     X(_NET_WM_WINDOW_TYPE_TOOLTIP) \
-    /* notification windowj */ \
+    /* notification window */ \
     X(_NET_WM_WINDOW_TYPE_NOTIFICATION) \
     /* combo box popup */ \
     X(_NET_WM_WINDOW_TYPE_COMBO) \
@@ -196,7 +196,9 @@ enum {
     ATOM_MAX
 };
 
-/* all x atoms, initially all identifiers are 0 until `x_init()` is called. */
+/* all X atoms, initially all identifiers are 0 until `initialize_x11()` is
+ * called
+ */
 extern struct x_atoms {
     /* name of the atom */
     const char *name;
@@ -204,6 +206,7 @@ extern struct x_atoms {
     xcb_atom_t atom;
 } x_atoms[ATOM_MAX];
 
+/* needed for _NET_WM_STRUT_PARTIAL/_NET_WM_STRUT */
 typedef struct wm_strut_partial {
     /* reserved space on the border of the screen */
     Extents reserved;
@@ -225,12 +228,56 @@ typedef struct wm_strut_partial {
     uint32_t bottom_end_x;
 } wm_strut_partial_t;
 
+/* whether the window has decorations */
+#define MOTIF_WM_HINTS_DECORATIONS (1 << 1)
+
+/* needed for _MOTIF_WM_HINTS to determine if a window wants to hide borders */
+typedef struct motif_wm_hints {
+    /* what fields below are available */
+    uint32_t flags;
+    /* IGNORED */
+    uint32_t functions;
+    /* IGNORED */
+    uint32_t decorations;
+    /* IGNORED */
+    uint32_t input_mode;
+    /* IGNORED */
+    uint32_t status;
+} motif_wm_hints_t;
+
+/* _NET_WM_MOVERESIZE window movement or resizing */
+typedef enum {
+  /* resizing applied on the top left edge */
+  _NET_WM_MOVERESIZE_SIZE_TOPLEFT = 0,
+  /* resizing applied on the top edge */
+  _NET_WM_MOVERESIZE_SIZE_TOP = 1,
+  /* resizing applied on the top right edge */
+  _NET_WM_MOVERESIZE_SIZE_TOPRIGHT = 2,
+  /* resizing applied on the right edge */
+  _NET_WM_MOVERESIZE_SIZE_RIGHT = 3,
+  /* resizing applied on the bottom right edge */
+  _NET_WM_MOVERESIZE_SIZE_BOTTOMRIGHT = 4,
+  /* resizing applied on the bottom edge */
+  _NET_WM_MOVERESIZE_SIZE_BOTTOM = 5,
+  /* resizing applied on the bottom left edge */
+  _NET_WM_MOVERESIZE_SIZE_BOTTOMLEFT = 6,
+  /* resizing applied on the left edge */
+  _NET_WM_MOVERESIZE_SIZE_LEFT = 7,
+  /* movement only */
+  _NET_WM_MOVERESIZE_MOVE = 8,
+  /* size via keyboard */
+  _NET_WM_MOVERESIZE_SIZE_KEYBOARD = 9,
+  /* move via keyboard */
+  _NET_WM_MOVERESIZE_MOVE_KEYBOARD = 10,
+  /* cancel operation */
+  _NET_WM_MOVERESIZE_CANCEL = 11
+} wm_move_resize_direction_t;
+
 /* cache of window properties */
 typedef struct x_properties {
     /* the X window that has these properties */
     xcb_window_t window;
 
-    /** internal porperties */
     /* window name */
     utf8_t *name;
     /* xcb size hints of the window */
@@ -243,22 +290,16 @@ typedef struct x_properties {
     xcb_window_t transient_for;
     /* the types of the window in order of importance */
     xcb_atom_t *types;
-    /* the pid of the window or 0 if none given */
-    uint32_t process_id;
+    /* the states of the window */
+    xcb_atom_t *states;
     /* the protocols the window supports */
     xcb_atom_t *protocols;
     /* the region the window should appear at as fullscreen window */
-    Extents fullscreen_monitor;
-
-    /** external properties **/
-    /* the current desktop of the window (always 0) */
-    uint32_t desktop;
-    /* border sizes around the window (all always 0) */
-    Extents frame_extents;
-
-    /** dual properties (both internal and external) **/
-    /* the states of the window */
-    xcb_atom_t *states;
+    Extents fullscreen_monitors;
+    /* id of the process owning the window */
+    uint32_t process_id;
+    /* the motif wm hints */
+    motif_wm_hints_t motif_wm_hints;
 } XProperties;
 
 /* connection to the xcb server */
@@ -271,7 +312,7 @@ extern int x_file_descriptor;
 extern uint32_t general_values[7];
 
 /* the selected X screen */
-extern xcb_screen_t *x_screen;
+extern xcb_screen_t *screen;
 
 /* supporting wm check window */
 extern xcb_window_t check_window;
@@ -282,7 +323,7 @@ extern xcb_window_t notification_window;
 /* user window list window */
 extern xcb_window_t window_list_window;
 
-/* Checks if given strut has any reserved space. */
+/* Check if given strut has any reserved space. */
 static inline bool is_strut_empty(wm_strut_partial_t *strut)
 {
     return strut->reserved.left == 0 && strut->reserved.top == 0 &&
@@ -290,24 +331,24 @@ static inline bool is_strut_empty(wm_strut_partial_t *strut)
 }
 
 /* Initialize the X connection and the X atoms. */
-int x_initialize(void);
+int initialize_x11(void);
 
 /* Try to take control of the window manager role. */
-int x_take_control(void);
+int take_control(void);
 
 /* Initialize all properties within @properties. */
-void x_init_properties(XProperties *properties, xcb_window_t window);
+void init_window_properties(XProperties *properties, xcb_window_t window);
 
 /* Update the property with @properties corresponding to given atom. */
-bool x_cache_window_property(XProperties *properties, xcb_atom_t atom);
+bool cache_window_property(XProperties *properties, xcb_atom_t atom);
 
 /* Check if @properties includes @window_type. */
-bool x_is_window_type(XProperties *properties, xcb_atom_t window_type);
+bool has_window_type(XProperties *properties, xcb_atom_t window_type);
 
 /* Check if @properties includes @protocol. */
-bool x_supports_protocol(XProperties *properties, xcb_atom_t protocol);
+bool supports_protocol(XProperties *properties, xcb_atom_t protocol);
 
 /* Check if @properties includes @window_type. */
-bool x_is_state(XProperties *properties, xcb_atom_t state);
+bool has_state(XProperties *properties, xcb_atom_t state);
 
 #endif

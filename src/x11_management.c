@@ -1,3 +1,4 @@
+#include <inttypes.h>
 #include <string.h>
 
 #include "log.h"
@@ -22,7 +23,7 @@ xcb_connection_t *connection;
 int x_file_descriptor;
 
 /* the selected x screen */
-xcb_screen_t *x_screen;
+xcb_screen_t *screen;
 
 /* general purpose values for xcb function calls */
 uint32_t general_values[7];
@@ -43,7 +44,7 @@ struct x_atoms x_atoms[] = {
 };
 
 /* Get the screen with given screen number. */
-static xcb_screen_t *x_get_screen(int screen_number)
+static xcb_screen_t *get_screen(int screen_number)
 {
     const xcb_setup_t *setup;
     xcb_screen_iterator_t i;
@@ -69,7 +70,7 @@ static int create_utility_windows(void)
     check_window = xcb_generate_id(connection);
     error = xcb_request_check(connection, xcb_create_window_checked(connection,
                 XCB_COPY_FROM_PARENT, check_window,
-                x_screen->root, -1, -1, 1, 1, 0,
+                screen->root, -1, -1, 1, 1, 0,
                 XCB_WINDOW_CLASS_COPY_FROM_PARENT, XCB_COPY_FROM_PARENT,
                 0, NULL));
     if (error != NULL) {
@@ -88,7 +89,7 @@ static int create_utility_windows(void)
     notification_window = xcb_generate_id(connection);
     error = xcb_request_check(connection, xcb_create_window_checked(connection,
                 XCB_COPY_FROM_PARENT, notification_window,
-                x_screen->root, -1, -1, 1, 1, 0,
+                screen->root, -1, -1, 1, 1, 0,
                 XCB_WINDOW_CLASS_COPY_FROM_PARENT, XCB_COPY_FROM_PARENT,
                 0, NULL));
     if (error != NULL) {
@@ -101,7 +102,7 @@ static int create_utility_windows(void)
     general_values[0] = XCB_EVENT_MASK_KEY_PRESS; /* need key press events */
     error = xcb_request_check(connection, xcb_create_window_checked(connection,
                 XCB_COPY_FROM_PARENT, window_list_window,
-                x_screen->root, -1, -1, 1, 1, 0,
+                screen->root, -1, -1, 1, 1, 0,
                 XCB_WINDOW_CLASS_COPY_FROM_PARENT, XCB_COPY_FROM_PARENT,
                 XCB_CW_EVENT_MASK, general_values));
     if (error != NULL) {
@@ -111,8 +112,8 @@ static int create_utility_windows(void)
     return OK;
 }
 
-/* Initialize the xcb connection and the xcb atoms. */
-int x_initialize(void)
+/* Initialize the X server connection and the X atoms. */
+int initialize_x11(void)
 {
     int screen_number;
     xcb_intern_atom_cookie_t atom_cookies[ATOM_MAX];
@@ -132,8 +133,8 @@ int x_initialize(void)
 
     x_file_descriptor = xcb_get_file_descriptor(connection);
 
-    x_screen = x_get_screen(screen_number);
-    if (x_screen == NULL) {
+    screen = get_screen(screen_number);
+    if (screen == NULL) {
         LOG_ERROR(NULL, "there is no screen %d", screen_number);
         return ERROR;
     }
@@ -163,14 +164,14 @@ int x_initialize(void)
     }
 
     /* grabs ALT+Button for moving popup windows */
-    xcb_grab_button(connection, 0, x_screen->root, XCB_EVENT_MASK_BUTTON_PRESS |
+    xcb_grab_button(connection, 0, screen->root, XCB_EVENT_MASK_BUTTON_PRESS |
             XCB_EVENT_MASK_BUTTON_RELEASE, XCB_GRAB_MODE_ASYNC,
-            XCB_GRAB_MODE_ASYNC, x_screen->root, XCB_NONE, 1, XCB_MOD_MASK_1);
+            XCB_GRAB_MODE_ASYNC, screen->root, XCB_NONE, 1, XCB_MOD_MASK_1);
     return OK;
 }
 
 /* Try to take control of the window manager role. */
-int x_take_control(void)
+int take_control(void)
 {
     xcb_generic_error_t *error;
 
@@ -179,7 +180,7 @@ int x_take_control(void)
      */
     general_values[0] = ROOT_EVENT_MASK;
     error = xcb_request_check(connection,
-            xcb_change_window_attributes_checked(connection, x_screen->root,
+            xcb_change_window_attributes_checked(connection, screen->root,
                 XCB_CW_EVENT_MASK, general_values));
     if (error != NULL) {
         LOG_ERROR(error, "could not change root window mask");
@@ -188,37 +189,8 @@ int x_take_control(void)
     return OK;
 }
 
-/* Checks if an atom is within the given list of atoms. */
-static inline bool x_is_atom_included(const xcb_atom_t *atoms, xcb_atom_t atom)
-{
-    for (; atoms[0] != XCB_NONE; atoms++) {
-        if (atoms[0] == atom) {
-            return true;
-        }
-    }
-    return false;
-}
-
-/* Check if @properties includes @window_type. */
-bool x_is_window_type(XProperties *properties, xcb_atom_t window_type)
-{
-    return x_is_atom_included(properties->types, window_type);
-}
-
-/* Check if @properties includes @protocol. */
-bool x_supports_protocol(XProperties *properties, xcb_atom_t protocol)
-{
-    return x_is_atom_included(properties->protocols, protocol);
-}
-
-/* Check if @properties includes @window_type. */
-bool x_is_state(XProperties *properties, xcb_atom_t state)
-{
-    return x_is_atom_included(properties->states, state);
-}
-
 /* Wrapper around getting a cookie and reply for a GetProperty request. */
-static inline xcb_get_property_reply_t *x_get_property(xcb_window_t window,
+static inline xcb_get_property_reply_t *get_property(xcb_window_t window,
         xcb_atom_t property, xcb_atom_t type, uint8_t format, uint32_t length,
         xcb_generic_error_t **error)
 {
@@ -228,31 +200,33 @@ static inline xcb_get_property_reply_t *x_get_property(xcb_window_t window,
     cookie = xcb_get_property(connection, false, window, property, type, 0,
             length);
     reply = xcb_get_property_reply(connection, cookie, error);
-    if (reply == NULL) {
+    if (reply == NULL || reply->format == 0) {
+        free(reply);
         return NULL;
     }
     /* check if the property is in the needed format and if it is long enough */
     if (reply->format != format || (length != UINT32_MAX &&
                 (uint32_t) xcb_get_property_value_length(reply) <
                 length * format / 8)) {
+        LOG("window %" PRIu32 " has misformatted property\n", window);
         free(reply);
         return NULL;
     }
     return reply;
 }
 
-/* Update the name of given window. */
-static void x_update_window_name(XProperties *properties)
+/* Update the name within @properties. */
+static void update_window_name(XProperties *properties)
 {
     xcb_get_property_reply_t *name;
 
     free(properties->name);
 
-    name = x_get_property(properties->window, ATOM(_NET_WM_NAME),
+    name = get_property(properties->window, ATOM(_NET_WM_NAME),
             XCB_GET_PROPERTY_TYPE_ANY, 8, UINT32_MAX, NULL);
     if (name == NULL) {
         /* fall back to WM_NAME */
-        name = x_get_property(properties->window, XCB_ATOM_WM_NAME,
+        name = get_property(properties->window, XCB_ATOM_WM_NAME,
                 XCB_GET_PROPERTY_TYPE_ANY, 8, UINT32_MAX, NULL);
         if (name == NULL) {
             properties->name = NULL;
@@ -267,8 +241,8 @@ static void x_update_window_name(XProperties *properties)
     free(name);
 }
 
-/* Update the size_hints of given window. */
-static void x_update_window_size_hints(XProperties *properties)
+/* Update the size_hints within @properties. */
+static void update_window_size_hints(XProperties *properties)
 {
     xcb_get_property_cookie_t size_hints_cookie;
 
@@ -280,8 +254,8 @@ static void x_update_window_size_hints(XProperties *properties)
     }
 }
 
-/* Update the hints of given window. */
-static void x_update_window_hints(XProperties *properties)
+/* Update the hints within @properties. */
+static void update_window_hints(XProperties *properties)
 {
     xcb_get_property_cookie_t hints_cookie;
 
@@ -292,22 +266,22 @@ static void x_update_window_hints(XProperties *properties)
     }
 }
 
-/* Update the strut partial property of given window. */
-static void x_update_window_strut(XProperties *properties)
+/* Update the strut partial property within @properties. */
+static void update_window_strut(XProperties *properties)
 {
     wm_strut_partial_t new_strut;
     xcb_get_property_reply_t *strut;
 
     memset(&new_strut, 0, sizeof(new_strut));
 
-    strut = x_get_property(properties->window,
+    strut = get_property(properties->window,
             ATOM(_NET_WM_STRUT_PARTIAL), XCB_ATOM_CARDINAL, 32,
             sizeof(wm_strut_partial_t) / sizeof(uint32_t), NULL);
     if (strut == NULL) {
         /* _NET_WM_STRUT is older than _NET_WM_STRUT_PARTIAL, fall back to it
          * when there is no strut partial
          */
-        strut = x_get_property(properties->window,
+        strut = get_property(properties->window,
                 ATOM(_NET_WM_STRUT), XCB_ATOM_CARDINAL, 32,
                 sizeof(Extents) / sizeof(uint32_t), NULL);
         if (strut == NULL) {
@@ -324,7 +298,7 @@ static void x_update_window_strut(XProperties *properties)
 }
 
 /* Get a window property as list of atoms. */
-static inline xcb_atom_t *x_get_atom_list(xcb_window_t window, xcb_atom_t atom)
+static inline xcb_atom_t *get_atom_list(xcb_window_t window, xcb_atom_t atom)
 {
     xcb_get_property_cookie_t cookie;
     xcb_get_property_reply_t *reply;
@@ -334,7 +308,7 @@ static inline xcb_atom_t *x_get_atom_list(xcb_window_t window, xcb_atom_t atom)
             0, UINT32_MAX);
     reply = xcb_get_property_reply(connection, cookie, NULL);
     if (reply == NULL) {
-        return xcalloc(1, sizeof(*atoms));
+        return NULL;
     }
     atoms = xmalloc(xcb_get_property_value_length(reply) + sizeof(*atoms));
     memcpy(atoms, xcb_get_property_value(reply),
@@ -344,22 +318,24 @@ static inline xcb_atom_t *x_get_atom_list(xcb_window_t window, xcb_atom_t atom)
     return atoms;
 }
 
-/* Update the types property of given window. */
-static void x_update_window_type(XProperties *properties)
+/* Update the types property within @properties. */
+static void update_window_type(XProperties *properties)
 {
-    properties->types = x_get_atom_list(properties->window,
+    free(properties->types);
+    properties->types = get_atom_list(properties->window,
             ATOM(_NET_WM_WINDOW_TYPE));
 }
 
-/* Update the states property of given window. */
-static void x_update_window_state(XProperties *properties)
+/* Update the states property within @properties. */
+static void update_window_state(XProperties *properties)
 {
-    properties->states = x_get_atom_list(properties->window,
+    free(properties->states);
+    properties->states = get_atom_list(properties->window,
             ATOM(_NET_WM_STATE));
 }
 
-/* Update the transient_for property of given window. */
-static void x_update_window_transient_for(XProperties *properties)
+/* Update the transient_for property within @properties. */
+static void update_window_transient_for(XProperties *properties)
 {
     xcb_get_property_cookie_t transient_for_cookie;
 
@@ -371,12 +347,12 @@ static void x_update_window_transient_for(XProperties *properties)
     }
 }
 
-/* Update the process_id property of given window. */
-static void x_update_window_pid(XProperties *properties)
+/* Update the process_id property within @properties. */
+static void update_window_pid(XProperties *properties)
 {
     xcb_get_property_reply_t *pid;
 
-    pid = x_get_property(properties->window, ATOM(_NET_WM_PID),
+    pid = get_property(properties->window, ATOM(_NET_WM_PID),
             XCB_ATOM_CARDINAL, 32, 1, NULL);
     if (pid == NULL) {
         properties->process_id = 0;
@@ -386,92 +362,98 @@ static void x_update_window_pid(XProperties *properties)
     }
 }
 
-/* Update the protocols property of given window. */
-static void x_update_window_protocols(XProperties *properties)
+/* Update the protocols property within @properties. */
+static void update_window_protocols(XProperties *properties)
 {
-    xcb_get_property_cookie_t protocols_cookie;
-    xcb_icccm_get_wm_protocols_reply_t protocols;
-
-    protocols_cookie = xcb_icccm_get_wm_protocols(connection,
-            properties->window, ATOM(WM_PROTOCOLS));
-    if (!xcb_icccm_get_wm_protocols_reply(connection, protocols_cookie,
-                &protocols, NULL)) {
-        properties->protocols = xcalloc(1, sizeof(*properties->protocols));
-        return;
-    }
-
-    properties->protocols = xmalloc(sizeof(*protocols.atoms) *
-            (protocols.atoms_len + 1));
-    memcpy(properties->protocols, protocols.atoms, sizeof(*protocols.atoms) *
-            protocols.atoms_len);
-    properties->protocols[protocols.atoms_len] = XCB_NONE;
-
-    xcb_icccm_get_wm_protocols_reply_wipe(&protocols);
+    free(properties->protocols);
+    properties->protocols = get_atom_list(properties->window,
+            ATOM(WM_PROTOCOLS));
 }
 
-/* Update the fullscreen monitors property of given window. */
-static void x_update_window_fullscreen_monitors(XProperties *properties)
+/* Update the fullscreen monitors property within @properties. */
+static void update_window_fullscreen_monitors(XProperties *properties)
 {
     xcb_get_property_reply_t *monitors;
 
-    monitors = x_get_property(properties->window,
+    monitors = get_property(properties->window,
             ATOM(_NET_WM_FULLSCREEN_MONITORS), XCB_ATOM_CARDINAL, 32,
-            sizeof(properties->fullscreen_monitor) / sizeof(uint32_t), NULL);
+            sizeof(properties->fullscreen_monitors) / sizeof(uint32_t), NULL);
     if (monitors == NULL) {
-        memset(&properties->fullscreen_monitor, 0,
-                sizeof(properties->fullscreen_monitor));
+        memset(&properties->fullscreen_monitors, 0,
+                sizeof(properties->fullscreen_monitors));
     } else {
-        properties->fullscreen_monitor =
+        properties->fullscreen_monitors =
             *(Extents*) xcb_get_property_value(monitors);
         free(monitors);
     }
 }
 
+/* Update the motif wm hints within @properties. */
+static void update_motif_wm_hints(XProperties *properties)
+{
+    xcb_get_property_reply_t *motif_wm_hints;
+
+    motif_wm_hints = get_property(properties->window,
+            ATOM(_MOTIF_WM_HINTS), ATOM(_MOTIF_WM_HINTS), 32,
+            sizeof(properties->motif_wm_hints) / sizeof(uint32_t), NULL);
+    if (motif_wm_hints == NULL) {
+        properties->motif_wm_hints.flags = 0;
+    } else {
+        properties->motif_wm_hints =
+            *(motif_wm_hints_t*) xcb_get_property_value(motif_wm_hints);
+        free(motif_wm_hints);
+    }
+}
+
 /* Update the property with @properties corresponding to given atom. */
-bool x_cache_window_property(XProperties *properties, xcb_atom_t atom)
+bool cache_window_property(XProperties *properties, xcb_atom_t atom)
 {
     /* this is spaced out because it was very difficult to read with the eyes */
     if (atom == XCB_ATOM_WM_NAME || atom == ATOM(_NET_WM_NAME)) {
 
-        x_update_window_name(properties);
+        update_window_name(properties);
 
     } else if (atom == XCB_ATOM_WM_NORMAL_HINTS ||
             atom == XCB_ATOM_WM_SIZE_HINTS) {
 
-        x_update_window_size_hints(properties);
+        update_window_size_hints(properties);
 
     } else if (atom == XCB_ATOM_WM_HINTS) {
 
-        x_update_window_hints(properties);
+        update_window_hints(properties);
 
     } else if (atom == ATOM(_NET_WM_STRUT) ||
             atom == ATOM(_NET_WM_STRUT_PARTIAL)) {
 
-        x_update_window_strut(properties);
+        update_window_strut(properties);
 
     } else if (atom == ATOM(_NET_WM_WINDOW_TYPE)) {
 
-        x_update_window_type(properties);
+        update_window_type(properties);
 
     } else if (atom == ATOM(_NET_WM_STATE)) {
 
-        x_update_window_state(properties);
+        update_window_state(properties);
 
     } else if (atom == XCB_ATOM_WM_TRANSIENT_FOR) {
 
-        x_update_window_transient_for(properties);
+        update_window_transient_for(properties);
 
     } else if (atom == ATOM(_NET_WM_PID)) {
 
-        x_update_window_pid(properties);
+        update_window_pid(properties);
 
     } else if (atom == ATOM(WM_PROTOCOLS)) {
 
-        x_update_window_protocols(properties);
+        update_window_protocols(properties);
 
     } else if (atom == ATOM(_NET_WM_FULLSCREEN_MONITORS)) {
 
-        x_update_window_fullscreen_monitors(properties);
+        update_window_fullscreen_monitors(properties);
+
+    } else if (atom == ATOM(_MOTIF_WM_HINTS)) {
+
+        update_motif_wm_hints(properties);
 
     } else {
         return false;
@@ -480,23 +462,61 @@ bool x_cache_window_property(XProperties *properties, xcb_atom_t atom)
 }
 
 /* Initialize all properties within @properties. */
-void x_init_properties(XProperties *properties, xcb_window_t window)
+void init_window_properties(XProperties *properties, xcb_window_t window)
 {
-    static void (*const updaters[])(XProperties *properties) = {
-        x_update_window_name,
-        x_update_window_size_hints,
-        x_update_window_hints,
-        x_update_window_strut,
-        x_update_window_type,
-        x_update_window_state,
-        x_update_window_transient_for,
-        x_update_window_pid,
-        x_update_window_protocols,
-        x_update_window_fullscreen_monitors,
-    };
+    xcb_list_properties_cookie_t list_properties_cookie;
+    xcb_list_properties_reply_t *list_properties;
+    xcb_atom_t *atoms;
+    int atom_count;
 
     properties->window = window;
-    for (uint32_t i = 0; i < SIZE(updaters); i++) {
-        updaters[i](properties);
+
+    /* get a list of properties currently set on the window */
+    list_properties_cookie = xcb_list_properties(connection, window);
+    list_properties = xcb_list_properties_reply(connection,
+            list_properties_cookie, NULL);
+    if (list_properties == NULL) {
+        return;
     }
+
+    /* cache all properties */
+    atoms = xcb_list_properties_atoms(list_properties);
+    atom_count = xcb_list_properties_atoms_length(list_properties);
+    for (int i = 0; i < atom_count; i++) {
+        cache_window_property(properties, atoms[i]);
+    }
+
+    free(list_properties);
+}
+
+/* Checks if an atom is within the given list of atoms. */
+static inline bool is_atom_included(const xcb_atom_t *atoms, xcb_atom_t atom)
+{
+    if (atoms == NULL) {
+        return false;
+    }
+    for (; atoms[0] != XCB_NONE; atoms++) {
+        if (atoms[0] == atom) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/* Check if @properties includes @window_type. */
+bool has_window_type(XProperties *properties, xcb_atom_t window_type)
+{
+    return is_atom_included(properties->types, window_type);
+}
+
+/* Check if @properties includes @protocol. */
+bool supports_protocol(XProperties *properties, xcb_atom_t protocol)
+{
+    return is_atom_included(properties->protocols, protocol);
+}
+
+/* Check if @properties includes @window_type. */
+bool has_state(XProperties *properties, xcb_atom_t state)
+{
+    return is_atom_included(properties->states, state);
 }

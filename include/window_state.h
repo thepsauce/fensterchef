@@ -20,9 +20,6 @@ typedef enum window_mode {
     WINDOW_MODE_MAX,
 } window_mode_t;
 
-#define DOES_WINDOW_MODE_HAVE_BORDER(mode) \
-    ((mode) == WINDOW_MODE_TILING || (mode) == WINDOW_MODE_POPUP)
-
 /* The state of the window signals our window manager what kind of window it is
  * and how the window should behave.
  */
@@ -37,9 +34,9 @@ typedef struct window_state {
     bool was_close_requested;
     /* when the user requested to close the window */
     time_t user_request_close_time;
-    /* the current window state */
+    /* the current window mode */
     window_mode_t mode;
-    /* the previous window state */
+    /* the previous window mode */
     window_mode_t previous_mode;
 } WindowState;
 
@@ -47,6 +44,9 @@ typedef struct window_state {
  * properties.
  */
 window_mode_t predict_window_mode(Window *window);
+
+/* Check if @window has a visible border currently. */
+bool has_window_border(Window *window);
 
 /* Change the mode to given value and reconfigures the window if it is visible.
  *

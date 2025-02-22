@@ -12,6 +12,9 @@
 /* maximum length of an identifier */
 #define PARSER_IDENTIFIER_LIMIT 64
 
+/* maximum value for an integer */
+#define PARSER_INTEGER_LIMIT 1000000
+
 /* parser error codes
  * 
  * NOTE: After editing an error code, also edit the parser_error_strings[] in
@@ -107,8 +110,6 @@ typedef struct parser {
 const char *parser_string_error(parser_error_t error);
 
 /* Read the next line from the file.
- *
- * Skips any empty lines.
  *
  * @return if there is any line left.
  */

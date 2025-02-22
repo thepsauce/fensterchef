@@ -33,15 +33,17 @@ uint8_t randr_event_base;
 /* signals whether the alarm signal was received */
 volatile sig_atomic_t timer_expired_signal;
 
-/* this is used for moving a popup window */
+/* this is used for moving/resizing a popup window */
 static struct {
-    /* the initial position of the moved window (for ESCAPE cancellation) */
-    Position start;
-    /* previous mouse position, needed to compute the mouse motion */
-    Position old_mouse;
     /* the window that is being moved */
-    xcb_window_t xcb_window;
-} selected_window;
+    Window *window;
+    /* how to move or resize the window */
+    wm_move_resize_direction_t direction;
+    /* initial position and size of the window */
+    Rectangle initial_geometry;
+    /* the initial position of the mouse */
+    Position start;
+} move_resize;
 
 /* Handle an incoming alarm. */
 static void alarm_handler(int signal)
@@ -50,8 +52,8 @@ static void alarm_handler(int signal)
     timer_expired_signal = true;
 }
 
-/* Create signal handlers and prepares for calling `next_cycle()`. */
-int prepare_cycles(void)
+/* Create a signal handler for `SIGALRM`. */
+int initialize_signal_handlers(void)
 {
     struct sigaction action;
 
@@ -121,6 +123,51 @@ int next_cycle(int (*callback)(int cycle_when, xcb_generic_event_t *event))
     return OK;
 }
 
+/* Start resizing given popup window. */
+void initiate_window_move_resize(Window *window,
+        wm_move_resize_direction_t direction,
+        int32_t start_x, int32_t start_y)
+{
+    if (move_resize.window != NULL) {
+        return;
+    }
+
+    move_resize.window = window;
+    move_resize.direction = direction;
+    move_resize.initial_geometry.x = window->position.x;
+    move_resize.initial_geometry.y = window->position.y;
+    move_resize.initial_geometry.width = window->size.width;
+    move_resize.initial_geometry.height = window->size.height;
+    move_resize.start.x = start_x;
+    move_resize.start.y = start_y;
+
+    /* grab mouse events, we will then receive all mouse events */
+    xcb_grab_pointer(connection, false, screen->root,
+            XCB_EVENT_MASK_BUTTON_PRESS | XCB_EVENT_MASK_BUTTON_RELEASE |
+                XCB_EVENT_MASK_BUTTON_MOTION,
+            XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC, screen->root,
+            XCB_NONE, XCB_CURRENT_TIME);
+}
+
+/* Reset the position of the window being moved/resized. */
+static void cancel_window_move_resize(void)
+{
+    if (move_resize.window == NULL) {
+        return;
+    }
+
+    /* restore the old position and size */
+    set_window_size(move_resize.window,
+            move_resize.initial_geometry.x,
+            move_resize.initial_geometry.y,
+            move_resize.initial_geometry.width,
+            move_resize.initial_geometry.height);
+
+    /* release mouse events back to the applications */
+    xcb_ungrab_pointer(connection, XCB_CURRENT_TIME);
+    move_resize.window = NULL;
+}
+
 /* Create notifications are sent when a client creates a window on our
  * connection.
  */
@@ -165,24 +212,18 @@ static void handle_button_press(xcb_button_press_event_t *event)
 {
     Window *window;
 
-    window = get_window_of_xcb_window(event->child);
-    if (window == NULL || window->state.mode != WINDOW_MODE_POPUP) {
+    if (move_resize.window != NULL) {
+        cancel_window_move_resize();
         return;
     }
 
-    selected_window.start.x = event->root_y;
-    selected_window.start.y = event->root_y;
+    window = get_window_of_xcb_window(event->child);
+    if (window == NULL) {
+        return;
+    }
 
-    selected_window.old_mouse.x = event->root_x;
-    selected_window.old_mouse.y = event->root_y;
-
-    selected_window.xcb_window = event->child;
-
-    /* grab mouse events, we will then receive all mouse events */
-    xcb_grab_pointer(connection, 0, event->root,
-            XCB_EVENT_MASK_BUTTON_RELEASE | XCB_EVENT_MASK_BUTTON_MOTION,
-            XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC, event->root,
-            XCB_NONE, XCB_CURRENT_TIME);
+    initiate_window_move_resize(window, _NET_WM_MOVERESIZE_MOVE,
+            event->root_x, event->root_y);
 }
 
 /* Motion notifications (mouse move events) are only sent when we grabbed them.
@@ -190,36 +231,93 @@ static void handle_button_press(xcb_button_press_event_t *event)
  */
 static void handle_motion_notify(xcb_motion_notify_event_t *event)
 {
-    xcb_get_geometry_reply_t *geometry;
+    Rectangle new_geometry;
 
-    /* get the current size of the window */
-    geometry = xcb_get_geometry_reply(connection,
-            xcb_get_geometry(connection, selected_window.xcb_window), NULL);
-    if (geometry == NULL) {
-        /* release mouse events back to the applications */
-        xcb_ungrab_pointer(connection, XCB_CURRENT_TIME);
-        selected_window.xcb_window = XCB_NONE;
+    if (move_resize.window == NULL) {
         return;
     }
-    /* set the window position to the moved position */
-    general_values[0] = geometry->x + (event->root_x - selected_window.old_mouse.x);
-    general_values[1] = geometry->y + (event->root_y - selected_window.old_mouse.y);
-    xcb_configure_window(connection, selected_window.xcb_window,
-            XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y, general_values);
 
-    selected_window.old_mouse.x = event->root_x;
-    selected_window.old_mouse.y = event->root_y;
+    new_geometry = move_resize.initial_geometry;
+    switch (move_resize.direction) {
+    /* the top left corner of the window is being moved */
+    case _NET_WM_MOVERESIZE_SIZE_TOPLEFT:
+        new_geometry.x -= move_resize.start.x - event->root_x;
+        new_geometry.y -= move_resize.start.y - event->root_y;
+        new_geometry.width += move_resize.start.x - event->root_x;
+        new_geometry.height += move_resize.start.y - event->root_y;
+        break;
+
+    /* the top size of the window is being moved */
+    case _NET_WM_MOVERESIZE_SIZE_TOP:
+        new_geometry.y -= move_resize.start.y - event->root_y;
+        new_geometry.height += move_resize.start.y - event->root_y;
+        break;
+
+    /* the top right corner of the window is being moved */
+    case _NET_WM_MOVERESIZE_SIZE_TOPRIGHT:
+        new_geometry.y -= move_resize.start.y - event->root_y;
+        new_geometry.width -= move_resize.start.x - event->root_x;
+        new_geometry.height += move_resize.start.y - event->root_y;
+        break;
+
+    /* the right side of the window is being moved */
+    case _NET_WM_MOVERESIZE_SIZE_RIGHT:
+        new_geometry.width -= move_resize.start.x - event->root_x;
+        break;
+
+    /* the bottom right corner of the window is being moved */
+    case _NET_WM_MOVERESIZE_SIZE_BOTTOMRIGHT:
+        new_geometry.width -= move_resize.start.x - event->root_x;
+        new_geometry.height -= move_resize.start.y - event->root_y;
+        break;
+
+    /* the bottom side of the window is being moved */
+    case _NET_WM_MOVERESIZE_SIZE_BOTTOM:
+        new_geometry.height -= move_resize.start.y - event->root_y;
+        break;
+
+    /* the bottom left corner of the window is being moved */
+    case _NET_WM_MOVERESIZE_SIZE_BOTTOMLEFT:
+        new_geometry.x -= move_resize.start.x - event->root_x;
+        new_geometry.width += move_resize.start.x - event->root_x;
+        new_geometry.height -= move_resize.start.y - event->root_y;
+        break;
+
+    /* the bottom left corner of the window is being moved */
+    case _NET_WM_MOVERESIZE_SIZE_LEFT:
+        new_geometry.x -= move_resize.start.x - event->root_x;
+        new_geometry.width += move_resize.start.x - event->root_x;
+        break;
+
+    /* the entire window is being moved */
+    case _NET_WM_MOVERESIZE_MOVE:
+        new_geometry.x -= move_resize.start.x - event->root_x;
+        new_geometry.y -= move_resize.start.y - event->root_y;
+        break;
+
+    /* these are not relevant for mouse moving/resizing */
+    case _NET_WM_MOVERESIZE_SIZE_KEYBOARD:
+    case _NET_WM_MOVERESIZE_MOVE_KEYBOARD:
+    case _NET_WM_MOVERESIZE_CANCEL:
+        break;
+    }
+    /* set the window position to the moved position */
+    set_window_size(move_resize.window,
+            new_geometry.x,
+            new_geometry.y,
+            new_geometry.width,
+            new_geometry.height);
 }
 
 /* Button releases are only sent when we grabbed them. This only happens
- * when a popup window is being moved.
+ * when a popup window is being moved/resized.
  */
 static void handle_button_release(xcb_button_release_event_t *event)
 {
     (void) event;
     /* release mouse events back to the applications */
     xcb_ungrab_pointer(connection, XCB_CURRENT_TIME);
-    selected_window.xcb_window = XCB_NONE;
+    move_resize.window = NULL;
 }
 
 /* Property notifications are sent when a window property changes. */
@@ -232,7 +330,7 @@ static void handle_property_notify(xcb_property_notify_event_t *event)
         return;
     }
 
-    if (!x_cache_window_property(&window->properties, event->atom)) {
+    if (!cache_window_property(&window->properties, event->atom)) {
         /* nothing we know of changed */
         return;
     }
@@ -255,17 +353,19 @@ void handle_unmap_notify(xcb_unmap_notify_event_t *event)
 {
     Window *window;
 
-    /* if the currently moved window is unmapped */
-    if (event->window == selected_window.xcb_window) {
-        /* release mouse events back to the applications */
-        xcb_ungrab_pointer(connection, XCB_CURRENT_TIME);
-        selected_window.xcb_window = XCB_NONE;
+    window = get_window_of_xcb_window(event->window);
+    if (window == NULL) {
+        return;
     }
 
-    window = get_window_of_xcb_window(event->window);
-    if (window != NULL) {
-        hide_window(window);
+    /* if the currently moved window is unmapped */
+    if (window == move_resize.window) {
+        /* release mouse events back to the applications */
+        xcb_ungrab_pointer(connection, XCB_CURRENT_TIME);
+        move_resize.window = NULL;
     }
+
+    hide_window(window);
 }
 
 /* Destroy notifications are sent when a window leaves the X server.
@@ -370,6 +470,48 @@ void handle_mapping_notify(xcb_mapping_notify_event_t *event)
     refresh_keymap(event);
 }
 
+/* Client messages are sent by a client to our window manager to request certain
+ * things.
+ */
+void handle_client_message(xcb_client_message_event_t *event)
+{
+    Window *window;
+    int32_t x, y;
+    uint32_t width, height;
+
+    window = get_window_of_xcb_window(event->window);
+    if (window == NULL) {
+        return;
+    }
+
+    /* request to close the window */
+    if (event->type == ATOM(_NET_CLOSE_WINDOW)) {
+        close_window(window);
+    /* request to move and resize the window */
+    } else if (event->type == ATOM(_NET_MOVERESIZE_WINDOW)) {
+        x = event->data.data32[1];
+        y = event->data.data32[2];
+        width = event->data.data32[3];
+        height = event->data.data32[4];
+        adjust_for_window_gravity(
+                get_monitor_from_rectangle(x, y, width, height),
+                &x, &y, width, height, event->data.data32[0]);
+        set_window_size(window, x, y, width, height);
+    /* request to dynamically move and resize the window */
+    } else if (event->type == ATOM(_NET_WM_MOVERESIZE)) {
+        if (window->state.mode != WINDOW_MODE_POPUP) {
+            return;
+        }
+        if (event->data.data32[2] == _NET_WM_MOVERESIZE_CANCEL) {
+            cancel_window_move_resize();
+            return;
+        }
+        initiate_window_move_resize(window, event->data.data32[2],
+                event->data.data32[0], event->data.data32[1]);
+    }
+    /* TODO: handle more client messages */
+}
+
 /* Handle the given xcb event.
  *
  * Descriptions for each event are above each handler.
@@ -378,17 +520,16 @@ void handle_event(xcb_generic_event_t *event)
 {
     uint8_t type;
 
+    LOG("");
+    log_event(event);
+
     /* remove the most significant bit, this gets the actual event type */
     type = (event->response_type & ~0x80);
 
-    if (type >= randr_event_base) {
-        /* TODO: there are more randr events? what do they mean? */
+    if (type == randr_event_base + XCB_RANDR_SCREEN_CHANGE_NOTIFY) {
         handle_screen_change((xcb_randr_screen_change_notify_event_t*) event);
         return;
     }
-
-    LOG("");
-    log_event(event);
 
     switch (type) {
     /* a window was created */
@@ -449,6 +590,11 @@ void handle_event(xcb_generic_event_t *event)
     /* keyboard mapping changed */
     case XCB_MAPPING_NOTIFY:
         handle_mapping_notify((xcb_mapping_notify_event_t*) event);
+        break;
+
+    /* a client sent us a message */
+    case XCB_CLIENT_MESSAGE:
+        handle_client_message((xcb_client_message_event_t*) event);
         break;
     }
 }

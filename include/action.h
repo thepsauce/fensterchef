@@ -53,6 +53,8 @@ typedef enum {
     ACTION_SHOW_MESSAGE,
     /* show a notification with a message extracted from a shell program */
     ACTION_SHOW_MESSAGE_RUN,
+    /* resize the edges of the current window */
+    ACTION_RESIZE_BY,
     /* quits fensterchef */
     ACTION_QUIT,
 
