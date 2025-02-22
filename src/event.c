@@ -154,16 +154,34 @@ void initiate_window_move_resize(Window *window,
 /* Reset the position of the window being moved/resized. */
 static void cancel_window_move_resize(void)
 {
+    Frame *frame;
+
     if (move_resize.window == NULL) {
         return;
     }
 
     /* restore the old position and size */
-    set_window_size(move_resize.window,
-            move_resize.initial_geometry.x,
-            move_resize.initial_geometry.y,
-            move_resize.initial_geometry.width,
-            move_resize.initial_geometry.height);
+    frame = get_frame_of_window(move_resize.window);
+    if (frame != NULL) {
+        bump_frame_edge(frame, FRAME_EDGE_LEFT,
+                move_resize.window->position.x -
+                    move_resize.initial_geometry.x);
+        bump_frame_edge(frame, FRAME_EDGE_TOP,
+                move_resize.window->position.y -
+                    move_resize.initial_geometry.y);
+        bump_frame_edge(frame, FRAME_EDGE_RIGHT,
+                move_resize.initial_geometry.width -
+                    move_resize.window->size.width);
+        bump_frame_edge(frame, FRAME_EDGE_BOTTOM,
+                move_resize.initial_geometry.height -
+                    move_resize.window->size.height);
+    } else {
+        set_window_size(move_resize.window,
+                move_resize.initial_geometry.x,
+                move_resize.initial_geometry.y,
+                move_resize.initial_geometry.width,
+                move_resize.initial_geometry.height);
+    }
 
     /* release mouse events back to the applications */
     xcb_ungrab_pointer(connection, XCB_CURRENT_TIME);
@@ -242,7 +260,6 @@ static void handle_button_press(xcb_button_press_event_t *event)
         /* make the event pass through to the underlying window */
         if ((button->flags & BINDING_FLAG_TRANSPARENT)) {
             xcb_allow_events(connection, XCB_ALLOW_REPLAY_POINTER, event->time);
-            return;
         }
     }
 }
@@ -283,7 +300,6 @@ static void handle_button_release(xcb_button_release_event_t *event)
         /* make the event pass through to the underlying window */
         if ((button->flags & BINDING_FLAG_TRANSPARENT)) {
             xcb_allow_events(connection, XCB_ALLOW_REPLAY_POINTER, event->time);
-            return;
         }
     }
 }
@@ -472,7 +488,6 @@ void handle_key_press(xcb_key_press_event_t *event)
         if ((key->flags & BINDING_FLAG_TRANSPARENT)) {
             xcb_allow_events(connection, XCB_ALLOW_REPLAY_KEYBOARD,
                     event->time);
-            return;
         }
     }
 }
@@ -496,13 +511,12 @@ void handle_key_release(xcb_key_release_event_t *event)
         if ((key->flags & BINDING_FLAG_TRANSPARENT)) {
             xcb_allow_events(connection, XCB_ALLOW_REPLAY_KEYBOARD,
                     event->time);
-            return;
         }
     }
 }
 
 /* Configure requests are received when a window wants to choose its own
- * position and size.
+ * position and size, we just (TODO:) blindly follow for now.
  */
 void handle_configure_request(xcb_configure_request_event_t *event)
 {
