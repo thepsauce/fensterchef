@@ -76,7 +76,7 @@ static void run_shell(const char *shell)
 }
 
 /* Run a shell and get the output. */
-static char *run_shell_get_output(const char *shell)
+static char *run_shell_and_get_output(const char *shell)
 {
     FILE *process;
     char *line;
@@ -119,7 +119,7 @@ static void set_active_window(Window *window)
     set_focus_window_with_frame(window);
 }
 
-/* Shows the user the window list and lets the user select a window to focus. */
+/* Show the user the window list and let the user select a window to focus. */
 static void show_window_list(void)
 {
     Window *window;
@@ -400,7 +400,7 @@ void do_action(const Action *action)
 
     /* show a message by getting output from a shell script */
     case ACTION_SHOW_MESSAGE_RUN:
-        shell = run_shell_get_output((char*) action->parameter.string);
+        shell = run_shell_and_get_output((char*) action->parameter.string);
         set_notification((utf8_t*) shell,
                 focus_frame->x + focus_frame->width / 2,
                 focus_frame->y + focus_frame->height / 2);

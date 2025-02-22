@@ -60,6 +60,9 @@ struct window {
      * 1. They were mapped before.
      * 2. They are now invisible.
      * 3. They are a tiling window.
+     *
+     * The list can be thought of growing backward:
+     *   ... <- previous_taken <- last_taken_window
      */
     /* the previous taken window in the taken window linked list */
     Window *previous_taken;

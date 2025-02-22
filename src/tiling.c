@@ -6,6 +6,27 @@
 #include "utility.h"
 #include "window.h"
 
+/* Fill the frame with the last taken window. */
+void fill_empty_frame(Frame *frame)
+{
+    Window *window, *previous_taken;
+
+    /* check if there is something to fill the void with */
+    if (last_taken_window == NULL) {
+        return;
+    }
+
+    /* these need to be saved like this because `show_window()` unlinks the
+     * window from the taken window list
+     */
+    window = last_taken_window;
+    previous_taken = window->previous_taken;
+
+    frame->window = window;
+    show_window(window);
+    last_taken_window = previous_taken;
+}
+
 /* Split a frame horizontally or vertically. */
 void split_frame(Frame *split_from, frame_split_direction_t direction)
 {
@@ -62,10 +83,8 @@ void split_frame(Frame *split_from, frame_split_direction_t direction)
         next_focus_frame = focus_frame;
     }
 
-    if (configuration.tiling.auto_fill_void && last_taken_window != NULL) {
-        right->window = last_taken_window;
-        show_window(last_taken_window);
-        last_taken_window = last_taken_window->previous_taken;
+    if (configuration.tiling.auto_fill_void) {
+        fill_empty_frame(right);
     }
 
     reload_frame(left);

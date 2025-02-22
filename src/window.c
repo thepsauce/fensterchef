@@ -127,6 +127,8 @@ void unlink_window_from_taken_list(Window *window)
             previous->previous_taken = window->previous_taken;
         }
     }
+
+    window->previous_taken = NULL;
 }
 
 /* Destroys given window and removes it from the window linked list. */

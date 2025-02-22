@@ -320,11 +320,8 @@ void set_window_mode(Window *window, window_mode_t mode, bool force_mode)
         if (window->state.mode == WINDOW_MODE_TILING) {
             Frame *const frame = get_frame_of_window(window);
             frame->window = NULL;
-            if (configuration.tiling.auto_fill_void &&
-                    last_taken_window != NULL) {
-                frame->window = last_taken_window;
-                show_window(last_taken_window);
-                last_taken_window = last_taken_window->previous_taken;
+            if (configuration.tiling.auto_fill_void) {
+                fill_empty_frame(frame);
             }
         }
 
@@ -511,6 +508,9 @@ void show_window(Window *window)
 
     xcb_map_window(connection, window->properties.window);
 
+    /* the window is now shown, no longer need it in here */
+    unlink_window_from_taken_list(window);
+
     /* this is delayed because we always want to map first */
     if (previous != NULL) {
         hide_window_abruptly(previous);
@@ -549,13 +549,9 @@ void hide_window(Window *window)
                 remove_frame(frame);
             }
         } else if (configuration.tiling.auto_fill_void) {
-            if (last_taken_window != NULL) {
-                frame->window = last_taken_window;
-                show_window(last_taken_window);
-                if (window == focus_window) {
-                    set_focus_window(last_taken_window);
-                }
-                last_taken_window = last_taken_window->previous_taken;
+            fill_empty_frame(frame);
+            if (window == focus_window) {
+                set_focus_window(frame->window);
             }
         }
 
@@ -597,6 +593,11 @@ void hide_window(Window *window)
 void hide_window_abruptly(Window *window)
 {
     window_mode_t previous_mode;
+
+    /* do nothing if the window is already hidden */
+    if (!window->state.is_visible) {
+        return;
+    }
 
     previous_mode = window->state.mode;
     window->state.mode = WINDOW_MODE_MAX;

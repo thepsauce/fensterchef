@@ -54,7 +54,10 @@ bool has_window_border(Window *window);
  */
 void set_window_mode(Window *window, window_mode_t mode, bool force_mode);
 
-/* Show the window by positioning it and mapping it to the X server. */
+/* Show the window by positioning it and mapping it to the X server.
+ *
+ * Note that this removes the given window from the taken window list.
+ */
 void show_window(Window *window);
 
 /* Hide the window by unmapping it from the X server.
