@@ -7,6 +7,8 @@
 #include <ft2build.h>
 #include FT_FREETYPE_H
 
+#include <fontconfig/fontconfig.h>
+
 #include <xcb/xcb.h>
 #include <xcb/render.h>
 

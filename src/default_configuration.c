@@ -48,6 +48,7 @@ static const struct configuration default_configuration = {
      * `merge_with_default_button_bindings()` for the default mouse bindings
      */
     .mouse = {
+        .resize_tolerance = 8,
         .modifiers = XCB_MOD_MASK_4,
         .ignore_modifiers = XCB_MOD_MASK_LOCK | XCB_MOD_MASK_2 |
             XCB_MOD_MASK_3 | XCB_MOD_MASK_5,
@@ -81,7 +82,9 @@ void merge_with_default_button_bindings(struct configuration *configuration)
         /* the singular action to execute */
         Action action;
     } default_bindings[] = {
-        { 0, 0, 2, { .code = ACTION_CLOSE_WINDOW } },
+        { 0, 0, 1, { .code = ACTION_INITIATE_RESIZE } },
+        { 0, 0, 2, { .code = ACTION_MINIMIZE_WINDOW } },
+        { 0, 0, 3, { .code = ACTION_INITIATE_MOVE } },
     };
 
     struct configuration_button *button;
@@ -167,10 +170,12 @@ void merge_with_default_key_bindings(struct configuration *configuration)
 
         /* toggle between tiling and the previous mode */
         { XCB_MOD_MASK_SHIFT, 0, XK_space, { .code = ACTION_TOGGLE_TILING } },
-        { 0, 0, XK_space, { .code = ACTION_TRAVERSE_FOCUS } },
 
         /* toggle between fullscreen and the previous mode */
         { 0, 0, XK_f, { .code = ACTION_TOGGLE_FULLSCREEN } },
+
+        /* focus from tiling to non tiling and vise versa */
+        { 0, 0, XK_space, { .code = ACTION_TOGGLE_FOCUS } },
 
         /* split a frame */
         { 0, 0, XK_v, { .code = ACTION_SPLIT_HORIZONTALLY } },

@@ -29,14 +29,14 @@ static struct window_list {
 /* Check if @window should appear in the window list. */
 static inline bool is_valid_for_display(Window *window)
 {
-    return window->state.was_ever_mapped && does_window_accept_focus(window);
+    return does_window_accept_focus(window);
 }
 
 /* Get character indicating the window state. */
 static inline char get_indicator_character(Window *window)
 {
     return !window->state.is_visible ? '-' :
-            window->state.mode == WINDOW_MODE_POPUP ?
+            window->state.mode == WINDOW_MODE_FLOATING ?
                 (window == focus_window ? '#' : '=') :
             window->state.mode == WINDOW_MODE_FULLSCREEN ?
                 (window == focus_window ? '@' : 'F') :
@@ -51,8 +51,8 @@ static int render_window_list(void)
     struct text_measure     measure;
     uint32_t                height_per_item;
     uint32_t                max_width;
-    struct frame            *primary_frame;
-    uint32_t                index;
+    Frame                   *root_frame;
+    uint32_t                index = 0;
     uint32_t                maximum_item;
     xcb_rectangle_t         rectangle;
     xcb_render_color_t      background_color;
@@ -90,10 +90,10 @@ static int render_window_list(void)
     height_per_item = measure.ascent - measure.descent +
         configuration.notification.padding;
 
-    primary_frame = get_primary_monitor()->frame;
+    root_frame = get_root_frame(focus_frame);
 
     /* the number of items that can fit on screen */
-    maximum_item = (primary_frame->height -
+    maximum_item = (root_frame->height -
             configuration.notification.border_size) / height_per_item;
     maximum_item = MIN(maximum_item, window_count);
 
@@ -105,13 +105,13 @@ static int render_window_list(void)
         window_list.vertical_scrolling = index - maximum_item + 1;
     }
 
-    /* set the list position and size so it is in the top right of the primary
-     * monitor
+    /* set the list position and size so it is in the top right of the monitor
+     * containing the root frame
      */
-    general_values[0] = primary_frame->x + primary_frame->width - max_width -
+    general_values[0] = root_frame->x + root_frame->width - max_width -
         configuration.notification.padding / 2 -
         configuration.notification.border_size * 2;
-    general_values[1] = primary_frame->y;
+    general_values[1] = root_frame->y;
     general_values[2] = max_width + configuration.notification.padding / 2;
     general_values[3] = maximum_item * height_per_item;
     general_values[4] = XCB_STACK_MODE_ABOVE;
@@ -119,8 +119,8 @@ static int render_window_list(void)
             XCB_CONFIG_SIZE | XCB_CONFIG_WINDOW_STACK_MODE, general_values);
 
     /* focus the window list */
-    xcb_set_input_focus(connection, XCB_INPUT_FOCUS_POINTER_ROOT,
-            window_list_window, XCB_CURRENT_TIME);
+    xcb_set_input_focus(connection, XCB_INPUT_FOCUS_NONE, window_list_window,
+            XCB_CURRENT_TIME);
 
     /* render the items showing the window names */
     rectangle.x = 0;
@@ -134,15 +134,16 @@ static int render_window_list(void)
         }
 
         index++;
-        /* if the window is above the scrolling, ignore it */
+        /* if the item is above the scrolling, ignore it */
         if (index <= window_list.vertical_scrolling) {
             continue;
         }
-        /* if the window is below the visible region, stop */
+        /* if the item is below the visible region, stop */
         if (index > window_list.vertical_scrolling + maximum_item) {
             break;
         }
 
+        /* use normal or inverted colors */
         if (window != window_list.selected) {
             pen = stock_objects[STOCK_BLACK_PEN];
             convert_color_to_xcb_color(&background_color,
@@ -153,6 +154,7 @@ static int render_window_list(void)
                     configuration.notification.foreground);
         }
 
+        /* draw the text centered within the item */
         snprintf((char*) buffer, sizeof(buffer), "%" PRIu32 "%c%s",
                 window->number, get_indicator_character(window),
                 window->properties.name);
@@ -161,6 +163,7 @@ static int render_window_list(void)
                 pen, configuration.notification.padding / 2,
                 rectangle.y + measure.ascent +
                     configuration.notification.padding / 2);
+
         rectangle.y += rectangle.height;
     }
     return OK;
@@ -317,9 +320,10 @@ Window *select_window_from_list(void)
     /* show the window list window on screen */
     xcb_map_window(connection, window_list_window);
 
-    /* if this is called from a KeyPress event, we need to unfreeze the keyboard
-     * first to receive key events
+    /* if this is called from an event, we need to unfreeze the keyboard and
+     * pointer first to receive events
      */
+    xcb_allow_events(connection, XCB_ALLOW_ASYNC_POINTER, XCB_CURRENT_TIME);
     xcb_allow_events(connection, XCB_ALLOW_ASYNC_KEYBOARD, XCB_CURRENT_TIME);
     window_list.is_open = true;
     /* take control of the event loop */
@@ -331,10 +335,13 @@ Window *select_window_from_list(void)
     /* hide the window list window from the screen */
     xcb_unmap_window(connection, window_list_window);
 
-    /* refocus the old window */
-    if (focus_window != NULL) {
-        xcb_set_input_focus(connection, XCB_INPUT_FOCUS_POINTER_ROOT,
-            focus_window->properties.window, XCB_CURRENT_TIME);
+    /* give the focus back */
+    if (focus_window == NULL) {
+        xcb_set_input_focus(connection, XCB_INPUT_FOCUS_NONE,
+                check_window, XCB_CURRENT_TIME);
+    } else {
+        xcb_set_input_focus(connection, XCB_INPUT_FOCUS_NONE,
+                focus_window->properties.window, XCB_CURRENT_TIME);
     }
 
     return window_list.selected;

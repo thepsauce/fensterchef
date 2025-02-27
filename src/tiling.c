@@ -2,30 +2,10 @@
 
 #include "configuration.h"
 #include "log.h"
+#include "stash_frame.h"
 #include "tiling.h"
 #include "utility.h"
 #include "window.h"
-
-/* Fill the frame with the last taken window. */
-void fill_empty_frame(Frame *frame)
-{
-    Window *window, *previous_taken;
-
-    /* check if there is something to fill the void with */
-    if (last_taken_window == NULL) {
-        return;
-    }
-
-    /* these need to be saved like this because `show_window()` unlinks the
-     * window from the taken window list
-     */
-    window = last_taken_window;
-    previous_taken = window->previous_taken;
-
-    frame->window = window;
-    show_window(window);
-    last_taken_window = previous_taken;
-}
 
 /* Split a frame horizontally or vertically. */
 void split_frame(Frame *split_from, frame_split_direction_t direction)
@@ -33,47 +13,24 @@ void split_frame(Frame *split_from, frame_split_direction_t direction)
     Frame *left, *right;
     Frame *next_focus_frame;
 
-    split_from->split_direction = direction;
-
     left = xcalloc(1, sizeof(*left));
     right = xcalloc(1, sizeof(*right));
 
-    switch (direction) {
-    /* left to right split */
-    case FRAME_SPLIT_HORIZONTALLY:
-        left->x = split_from->x;
-        left->width = split_from->width / 2;
-        right->x = left->x + left->width;
-        right->width = split_from->width -
-            left->width;
-
-        left->y = split_from->y;
-        left->height = split_from->height;
-        right->y = split_from->y;
-        right->height = split_from->height;
-        break;
-
-    /* top to bottom split */
-    case FRAME_SPLIT_VERTICALLY:
-        left->y = split_from->y;
-        left->height = split_from->height / 2;
-        right->y = left->y + left->height;
-        right->height = split_from->height -
-            left->height;
-
-        left->x = split_from->x;
-        left->width = split_from->width;
-        right->x = split_from->x;
-        right->width = split_from->width;
-        break;
+    /* let `left` take the children or window */
+    if (split_from->left != NULL) {
+        left->split_direction = split_from->split_direction;
+        left->left = split_from->left;
+        left->right = split_from->right;
+        left->left->parent = left;
+        left->right->parent = left;
+    } else {
+        left->window = split_from->window;
+        split_from->window = NULL;
     }
 
-    left->window = split_from->window;
-
-    split_from->window = NULL;
+    split_from->split_direction = direction;
     split_from->left = left;
     split_from->right = right;
-
     left->parent = split_from;
     right->parent = split_from;
 
@@ -83,15 +40,17 @@ void split_frame(Frame *split_from, frame_split_direction_t direction)
         next_focus_frame = focus_frame;
     }
 
-    if (configuration.tiling.auto_fill_void) {
-        fill_empty_frame(right);
-    }
+    /* size the child frames */
+    resize_frame(split_from, split_from->x, split_from->y, split_from->width,
+            split_from->height);
 
-    reload_frame(left);
+    if (configuration.tiling.auto_fill_void) {
+        fill_void_with_stash(right);
+    }
 
     set_focus_frame(next_focus_frame);
 
-    LOG("split %p[%p, %p]\n", (void*) split_from, (void*) left, (void*) right);
+    LOG("split %F(%F, %F)\n", split_from, left, right);
 }
 
 /* Get the frame on the left of @frame. */
@@ -151,12 +110,13 @@ Frame *get_right_or_below_frame(Frame *frame,
     return NULL;
 }
 
-/* Get the frame on the left of @frame. */
-Frame *get_right_frame(Frame *frame) {
+/* Get the frame on the right of @frame. */
+Frame *get_right_frame(Frame *frame)
+{
     return get_right_or_below_frame(frame, FRAME_SPLIT_VERTICALLY);
 }
 
-/* Get the frame above @frame. */
+/* Get the frame below @frame. */
 Frame *get_below_frame(Frame *frame)
 {
     return get_right_or_below_frame(frame, FRAME_SPLIT_HORIZONTALLY);
@@ -165,6 +125,9 @@ Frame *get_below_frame(Frame *frame)
 /* Get the minimum size the given frame should have. */
 static void get_minimum_frame_size(Frame *frame, Size *size)
 {
+    Frame *root;
+
+    root = get_root_frame(frame);
     if (frame->left != NULL) {
         Size left_size, right_size;
 
@@ -181,9 +144,27 @@ static void get_minimum_frame_size(Frame *frame, Size *size)
         size->width = FRAME_MINIMUM_SIZE;
         size->height = FRAME_MINIMUM_SIZE;
     }
+
+    if (frame->x == root->x) {
+        size->width += configuration.gaps.outer;
+    } else {
+        size->width += configuration.gaps.inner;
+    }
+    if (frame->x + frame->width == root->x + root->width) {
+        size->width += configuration.gaps.outer;
+    }
+
+    if (frame->y == root->y) {
+        size->height += configuration.gaps.outer;
+    } else {
+        size->height += configuration.gaps.inner;
+    }
+    if (frame->y + frame->height == root->y + root->height) {
+        size->height += configuration.gaps.outer;
+    }
 }
 
-/* Increases the @edge of @frame by @amount. */
+/* Increase the @edge of @frame by @amount. */
 int32_t bump_frame_edge(Frame *frame, frame_edge_t edge, int32_t amount)
 {
     Frame *right;
@@ -272,28 +253,13 @@ int32_t bump_frame_edge(Frame *frame, frame_edge_t edge, int32_t amount)
     return amount;
 }
 
-/* Destroys a frame and all sub frames while also unmapping the associated
- * windows if any are there.
- */
-static void unmap_and_destroy_recursively(Frame *frame)
-{
-    if (frame->left != NULL) {
-        unmap_and_destroy_recursively(frame->left);
-        unmap_and_destroy_recursively(frame->right);
-    } else if (frame->window != NULL) {
-        hide_window_abruptly(frame->window);
-    }
-    free(frame);
-}
-
-/* Remove a frame from the screen and hide the inner windows. */
-int remove_frame(Frame *frame)
+/* Remove an empty frame from the screen. */
+int remove_void(Frame *frame)
 {
     Frame *parent, *other;
-    int32_t center_x, center_y;
 
     if (frame->parent == NULL) {
-        LOG("attempted to remove the root frame\n");
+        LOG("can not remove the root frame %F\n", frame);
         return ERROR;
     }
 
@@ -304,30 +270,25 @@ int remove_frame(Frame *frame)
     } else {
         other = parent->left;
     }
-    parent->window = other->window;
+
     parent->left = other->left;
     parent->right = other->right;
-    free(other);
-
-    if (parent->left != NULL) {
+    if (other->left != NULL) {
+        parent->split_direction = other->split_direction;
         parent->left->parent = parent;
         parent->right->parent = parent;
+    } else {
+        parent->window = other->window;
     }
+
+    free(other);
 
     resize_frame(parent, parent->x, parent->y, parent->width, parent->height);
 
-    LOG("frame %p was removed\n", (void*) frame);
+    LOG("frame %F was removed\n", frame);
 
-    unmap_and_destroy_recursively(frame);
+    free(frame);
 
-    center_x = parent->x + parent->width / 2;
-    center_y = parent->y + parent->height / 2;
-    set_focus_frame(get_frame_at_position(center_x, center_y));
+    set_focus_frame(parent);
     return OK;
-}
-
-/* Destroy a frame and all child frames and hide all inner windows. */
-void abandon_frame(Frame *frame)
-{
-    unmap_and_destroy_recursively(frame);
 }

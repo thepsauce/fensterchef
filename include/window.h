@@ -38,34 +38,24 @@ struct window {
     WindowState state;
 
     /* current window position and size */
-    Position position;
-    Size size;
+    int32_t x;
+    int32_t y;
+    uint32_t width;
+    uint32_t height;
 
-    /* position and size when the window was in popup mode */
-    Position popup_position;
-    Size popup_size;
+    /* position and size when the window was in floating mode */
+    Rectangle floating;
 
     /* the id of this window */
     uint32_t number;
 
-    /* All windows that were ever mapped are part of the Z ordered linked list
-     * even when they are hidden now.
+    /* All windows are part of the Z ordered linked list even when they are
+     * hidden now.
      */
     /* the window above this window */
     Window *below;
     /* the window below this window */
     Window *above;
-
-    /* Windows are part of the taken linked list if and only if:
-     * 1. They were mapped before.
-     * 2. They are now invisible.
-     * 3. They are a tiling window.
-     *
-     * The list can be thought of growing backward:
-     *   ... <- previous_taken <- last_taken_window
-     */
-    /* the previous taken window in the taken window linked list */
-    Window *previous_taken;
 
     /* the next window in the linked list (sorted by the window number) */
     Window *next;
@@ -75,9 +65,6 @@ struct window {
  * with respect to the window number
  */
 extern Window *first_window;
-
-/* the last window in the taken window linked list */
-extern Window *last_taken_window;
 
 /* the currently focused window */
 extern Window *focus_window;
@@ -94,12 +81,6 @@ Window *create_window(xcb_window_t xcb);
  */
 void close_window(Window *window);
 
-/* Remove @window from the Z linked list. */
-void unlink_window_from_z_list(Window *window);
-
-/* Remove @window from the taken linked list. */
-void unlink_window_from_taken_list(Window *window);
-
 /* Destroy given window and removes it from the window linked list.
  * This does NOT destroy the underlying xcb window.
  */
@@ -113,8 +94,14 @@ void adjust_for_window_gravity(Monitor *monitor, int32_t *x, int32_t *y,
 void set_window_size(Window *window, int32_t x, int32_t y, uint32_t width,
         uint32_t height);
 
-/* Put the window on top of all other windows. */
-void set_window_above(Window *window);
+/* Get the window below all other windows. */
+Window *get_bottom_window(void);
+
+/* Get the window on top of all other windows. */
+Window *get_top_window(void);
+
+/* Put the window on the best suited Z stack position. */
+void update_window_layer(Window *window);
 
 /* Get the internal window that has the associated xcb window.
  *
@@ -133,10 +120,5 @@ bool does_window_accept_focus(Window *window);
 
 /* Set the window that is in focus. */
 void set_focus_window(Window *window);
-
-/* Focuses the window guaranteed but also focuse the frame of the window if it
- * has one.
- */
-void set_focus_window_with_frame(Window *window);
 
 #endif

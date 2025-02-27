@@ -2,7 +2,6 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
-#include <unistd.h>
 
 #include "configuration_parser.h"
 #include "fensterchef.h"
@@ -19,13 +18,11 @@ bool reload_requested;
 /* the currently loaded configuration */
 struct configuration configuration;
 
-/* Create a deep copy of @duplicate and put it into itself. */
-void duplicate_configuration(struct configuration *duplicate)
+/* Copy the button bindings of @duplicate into itself. */
+static void duplicate_configuration_button_bindings(
+        struct configuration *duplicate)
 {
-    if (duplicate->font.name != NULL) {
-        duplicate->font.name = (uint8_t*) xstrdup((char*) duplicate->font.name);
-    }
-
+    /* duplicate mouse button bindings */
     duplicate->mouse.buttons = xmemdup(duplicate->mouse.buttons,
             sizeof(*duplicate->mouse.buttons) *
             duplicate->mouse.number_of_buttons);
@@ -35,7 +32,13 @@ void duplicate_configuration(struct configuration *duplicate)
         button->actions = duplicate_actions(button->actions,
                 button->number_of_actions);
     }
+}
 
+/* Copy the key bindings of @duplicate into itself. */
+static void duplicate_configuration_key_bindings(
+        struct configuration *duplicate)
+{
+    /* duplicate key bindings */
     duplicate->keyboard.keys = xmemdup(duplicate->keyboard.keys,
             sizeof(*duplicate->keyboard.keys) *
             duplicate->keyboard.number_of_keys);
@@ -43,6 +46,16 @@ void duplicate_configuration(struct configuration *duplicate)
         struct configuration_key *const key = &duplicate->keyboard.keys[i];
         key->actions = duplicate_actions(key->actions, key->number_of_actions);
     }
+}
+
+/* Create a deep copy of @duplicate and put it into itself. */
+void duplicate_configuration(struct configuration *duplicate)
+{
+    if (duplicate->font.name != NULL) {
+        duplicate->font.name = (uint8_t*) xstrdup((char*) duplicate->font.name);
+    }
+    duplicate_configuration_button_bindings(duplicate);
+    duplicate_configuration_key_bindings(duplicate);
 }
 
 /* Clear the resources given configuration occupies. */
@@ -255,6 +268,22 @@ void set_configuration(struct configuration *new_configuration)
         }
     }
 
+    /* check if the border color changed */
+    if (old_configuration.border.color != configuration.border.color ||
+            old_configuration.border.focus_color !=
+                configuration.border.focus_color) {
+        for (Window *window = first_window; window != NULL;
+                window = window->next) {
+            if (window == focus_window) {
+                general_values[0] = configuration.border.focus_color;
+            } else {
+                general_values[0] = configuration.border.color;
+            }
+            xcb_change_window_attributes(connection, window->properties.window,
+                XCB_CW_BORDER_PIXEL, general_values);
+        }
+    }
+
     /* check if border size or gaps change and reload all frames */
     if (old_configuration.border.size != configuration.border.size ||
             old_configuration.gaps.inner != configuration.gaps.inner ||
@@ -313,11 +342,6 @@ void set_configuration(struct configuration *new_configuration)
                 XCB_GC_FOREGROUND | XCB_GC_BACKGROUND, general_values);
     }
 
-    /* cancel the alarm */
-    alarm(0);
-    /* hide the notification window */
-    xcb_unmap_window(connection, notification_window);
-
     /* just do this without checking if anything changed */
     grab_configured_buttons();
     grab_configured_keys();
@@ -332,24 +356,25 @@ int load_configuration_file(const char *file_name,
     Parser parser;
     parser_error_t error;
 
+    memset(&parser, 0, sizeof(parser));
+
     parser.file = fopen(file_name, "r");
     if (parser.file == NULL) {
-        LOG_ERROR(NULL, "could not open %s: %s\n", file_name, strerror(errno));
+        LOG_ERROR("could not open %s: %s\n", file_name, strerror(errno));
         return ERROR;
     }
 
     parser.line_capacity = 128;
     parser.line = xmalloc(parser.line_capacity);
-    parser.line_number = 0;
 
     parser.configuration = destination_configuration;
     *parser.configuration = configuration;
-    /* disregard all previous keybinds */
+    /* disregard all previous bindings */
+    parser.configuration->mouse.buttons = NULL;
+    parser.configuration->mouse.number_of_buttons = 0;
     parser.configuration->keyboard.keys = NULL;
     parser.configuration->keyboard.number_of_keys = 0;
     duplicate_configuration(parser.configuration);
-
-    parser.label = PARSER_LABEL_NONE;
 
     /* parse file line by line */
     while (read_next_line(&parser)) {
@@ -400,11 +425,29 @@ int load_configuration_file(const char *file_name,
 
     if (error != PARSER_SUCCESS) {
         clear_configuration(parser.configuration);
-        LOG("got an error reading configuration file: \"%s\"", file_name);
+        LOG("got an error reading configuration file: %s\n", file_name);
         return ERROR;
     }
 
-    LOG("successfully read configuration file: \"%s\"\n", file_name);
+    /* set the existing button bindings if no mouse section is specified */
+    if (!parser.has_label[PARSER_LABEL_MOUSE]) {
+        parser.configuration->mouse.buttons =
+            configuration.mouse.buttons;
+        parser.configuration->mouse.number_of_buttons =
+            configuration.mouse.number_of_buttons;
+        duplicate_configuration_button_bindings(parser.configuration);
+    }
+
+    /* set the existing key bindings if no keyboard section is specified */
+    if (!parser.has_label[PARSER_LABEL_KEYBOARD]) {
+        parser.configuration->keyboard.keys =
+            configuration.keyboard.keys;
+        parser.configuration->keyboard.number_of_keys =
+            configuration.keyboard.number_of_keys;
+        duplicate_configuration_key_bindings(parser.configuration);
+    }
+
+    LOG("successfully read configuration file: %s\n", file_name);
 
     return OK;
 }

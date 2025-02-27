@@ -7,6 +7,7 @@
 #include "fensterchef.h"
 #include "frame.h"
 #include "log.h"
+#include "stash_frame.h"
 #include "tiling.h"
 #include "utility.h"
 #include "window_list.h"
@@ -22,6 +23,8 @@ static const struct {
 
     [ACTION_NONE] = { "NONE", PARSER_DATA_TYPE_VOID },
     [ACTION_RELOAD_CONFIGURATION] = { "RELOAD-CONFIGURATION", PARSER_DATA_TYPE_VOID },
+    [ACTION_PARENT] = { "PARENT", PARSER_DATA_TYPE_VOID },
+    [ACTION_CHILD] = { "CHILD", PARSER_DATA_TYPE_VOID },
     [ACTION_CLOSE_WINDOW] = { "CLOSE-WINDOW", PARSER_DATA_TYPE_VOID },
     [ACTION_MINIMIZE_WINDOW] = { "MINIMIZE-WINDOW", PARSER_DATA_TYPE_VOID },
     [ACTION_FOCUS_WINDOW] = { "FOCUS-WINDOW", PARSER_DATA_TYPE_VOID },
@@ -31,8 +34,8 @@ static const struct {
     [ACTION_PREVIOUS_WINDOW] = { "PREVIOUS-WINDOW", PARSER_DATA_TYPE_VOID },
     [ACTION_REMOVE_FRAME] = { "REMOVE-FRAME", PARSER_DATA_TYPE_VOID },
     [ACTION_TOGGLE_TILING] = { "TOGGLE-TILING", PARSER_DATA_TYPE_VOID },
-    [ACTION_TRAVERSE_FOCUS] = { "TRAVERSE-FOCUS", PARSER_DATA_TYPE_VOID },
     [ACTION_TOGGLE_FULLSCREEN] = { "TOGGLE-FULLSCREEN", PARSER_DATA_TYPE_VOID },
+    [ACTION_TOGGLE_FOCUS] = { "TOGGLE-FOCUS", PARSER_DATA_TYPE_VOID },
     [ACTION_SPLIT_HORIZONTALLY] = { "SPLIT-HORIZONTALLY", PARSER_DATA_TYPE_VOID },
     [ACTION_SPLIT_VERTICALLY] = { "SPLIT-VERTICALLY", PARSER_DATA_TYPE_VOID },
     [ACTION_MOVE_UP] = { "MOVE-UP", PARSER_DATA_TYPE_VOID },
@@ -54,7 +57,7 @@ parser_data_type_t get_action_data_type(action_t action)
 }
 
 /* Get an action from a string. */
-action_t convert_string_to_action(const char *string)
+action_t string_to_action(const char *string)
 {
     for (action_t i = ACTION_FIRST_ACTION; i < ACTION_MAX; i++) {
         if (strcasecmp(action_information[i].name, string) == 0) {
@@ -65,7 +68,7 @@ action_t convert_string_to_action(const char *string)
 }
 
 /* Get a string version of an action. */
-const char *convert_action_to_string(action_t action)
+const char *action_to_string(action_t action)
 {
     return action_information[action].name;
 }
@@ -127,40 +130,18 @@ static char *run_shell_and_get_output(const char *shell)
     return line;
 }
 
-/* Show the given window and focus it.
- *
- * @window can be NULL to emit a message to the user.
- */
-static void set_active_window(Window *window)
-{
-    if (window == NULL) {
-        set_notification((utf8_t*) "No other window",
-                focus_frame->x + focus_frame->width / 2,
-                focus_frame->y + focus_frame->height / 2);
-        return;
-    }
-
-    show_window(window);
-    set_window_above(window);
-    set_focus_window_with_frame(window);
-}
-
 /* Show the user the window list and let the user select a window to focus. */
 static void show_window_list(void)
 {
     Window *window;
 
     window = select_window_from_list();
-    if (window == NULL) {
+    if (window == NULL || window == focus_window) {
         return;
     }
 
-    if (window->state.is_visible) {
-        set_window_above(window);
-    } else {
-        show_window(window);
-    }
-
+    update_window_layer(window);
+    show_window(window);
     set_focus_window_with_frame(window);
 }
 
@@ -188,94 +169,97 @@ static void resize_frame_or_window_by(Window *window, int32_t left, int32_t top,
         right += left;
         bottom += top;
         /* check for underflows */
-        if ((int32_t) window->size.width < -right) {
-            right = -window->size.width;
+        if ((int32_t) window->width < -right) {
+            right = -window->width;
         }
-        if ((int32_t) window->size.height < -bottom) {
-            bottom = -window->size.height;
+        if ((int32_t) window->height < -bottom) {
+            bottom = -window->height;
         }
         set_window_size(window,
-                window->position.x - left,
-                window->position.y - top,
-                window->size.width + right,
-                window->size.height + bottom);
+                window->x - left,
+                window->y - top,
+                window->width + right,
+                window->height + bottom);
     }
 }
 
-/* Get a tiling window that is not currently shown and mappable. */
-Window *get_next_showable_tiling_window(Window *window)
+/* Get a tiling window that is not currently shown and put it into the frame. */
+void set_showable_tiling_window(bool previous)
 {
-    Window *next;
+    Frame *stash;
+    Window *start, *next;
 
-    if (window == NULL) {
-        return last_taken_window;
-    }
+    start = focus_frame->window;
+    if (focus_frame->window == NULL) {
+        stash = stash_frame_later(focus_frame);
+        fill_void_with_stash(focus_frame);
+        link_frame_into_stash(stash);
+        /* focus an inner window that might have appeared */
+        if (focus_frame->window != NULL) {
+            set_focus_window(focus_frame->window);
+            return;
+        }
+        /* either the frame has children or there is no window to fill it with
+         */
+        if (focus_frame->left != NULL || first_window == NULL) {
+            return;
+        }
 
-    /* go forward in the linked list and wrap around */
-    next = window;
-    while (next = next->next == NULL ? first_window : next->next,
-            next != window) {
-        if (next->state.was_ever_mapped && !next->state.is_visible &&
-                next->state.mode == WINDOW_MODE_TILING) {
-            return next;
+        next = first_window;
+        /* as a fallback, try to find any window that could go into the void */
+        do {
+            if (!next->state.is_visible &&
+                    next->state.mode == WINDOW_MODE_TILING) {
+                focus_frame->window = next;
+                if (!previous) {
+                    break;
+                }
+            }
+            next = next->next;
+        } while (next != NULL);
+    } else {
+        next = start;
+        /* find a window after the current window that fits */
+        while (next = next->next == NULL ? first_window : next->next,
+                next != start) {
+            if (!next->state.is_visible &&
+                    next->state.mode == WINDOW_MODE_TILING) {
+                focus_frame->window = next;
+                if (!previous) {
+                    break;
+                }
+            }
         }
     }
-    return NULL;
-}
 
-/* Get a tiling window that is not currently shown and mappable. */
-Window *get_previous_showable_tiling_window(Window *window)
-{
-    Window *valid;
-    Window *next;
-
-    if (window == NULL) {
-        return last_taken_window;
-    }
-
-    /* go forward in the linked list and wrap around, what makes this different
-     * is that we store the last window that matched our criteria but don't
-     * immediately return
-     */
-    valid = NULL;
-    next = window;
-    while (next = next->next == NULL ? first_window : next->next,
-            next != window) {
-        if (next->state.was_ever_mapped && !next->state.is_visible &&
-                next->state.mode == WINDOW_MODE_TILING) {
-            valid = next;
-        }
-    }
-    return valid;
-}
-
-/* Focus the window above the current window or wrap around at the top. */
-void traverse_focus(void)
-{
-    Window *window, *valid;
-
-    if (focus_window == NULL) {
+    /* check if there even is any other window */
+    if (next == start) {
         return;
     }
-    /* try to get a visible window above this window */
-    window = focus_window->above;
-    while (window != NULL && !window->state.is_visible) {
-        window = window->above;
-    }
 
-    /* if none found, wrap around and get the bottom window */
-    if (window == NULL) {
-        window = focus_window->below;
-        valid = NULL;
-        while (window != NULL) {
-            if (window->state.is_visible) {
-                valid = window;
-            }
-            window = window->below;
-        }
-        window = valid;
+    reload_frame(focus_frame);
+    show_window(focus_frame->window);
+    set_focus_window(focus_frame->window);
+
+    if (start != NULL) {
+        hide_window_abruptly(start);
     }
-    set_active_window(window);
+}
+
+/* Change the focus from tiling to non tiling or vise versa. */
+void toggle_focus(void)
+{
+    Window *window;
+
+    if (focus_window == NULL ||
+            focus_window->state.mode == WINDOW_MODE_TILING) {
+        window = get_top_window();
+        if (window != NULL) {
+            set_focus_window_with_frame(window);
+        }
+    } else {
+        set_focus_frame(focus_frame);
+    }
 }
 
 /* Do the given action. */
@@ -287,7 +271,7 @@ void do_action(const Action *action, Window *window)
     switch (action->code) {
     /* invalid action value */
     case ACTION_NULL:
-        LOG_ERROR(NULL, "tried to do NULL action");
+        LOG_ERROR("tried to do NULL action");
         break;
 
     /* do nothing */
@@ -297,6 +281,22 @@ void do_action(const Action *action, Window *window)
     /* reload the configuration file */
     case ACTION_RELOAD_CONFIGURATION:
         reload_requested = true;
+        break;
+
+    /* move the focus to the parent frame */
+    case ACTION_PARENT:
+        if (focus_frame->parent != NULL) {
+            focus_frame = focus_frame->parent;
+        }
+        set_focus_frame(focus_frame);
+        break;
+
+    /* move the focus to the child frame */
+    case ACTION_CHILD:
+        if (focus_frame->left != NULL) {
+            focus_frame = focus_frame->left;
+        }
+        set_focus_frame(focus_frame);
         break;
 
     /* closes the currently active window */
@@ -315,14 +315,12 @@ void do_action(const Action *action, Window *window)
         hide_window(window);
         break;
 
-    /* go to the next window in the window list */
-    case ACTION_NEXT_WINDOW:
-        set_active_window(get_next_showable_tiling_window(focus_frame->window));
-        break;
-
     /* focus a window */
     case ACTION_FOCUS_WINDOW:
         set_focus_window(window);
+        if (window != NULL) {
+            update_window_layer(window);
+        }
         break;
 
     /* start moving a window with the mouse */
@@ -330,7 +328,7 @@ void do_action(const Action *action, Window *window)
         if (window == NULL) {
             break;
         }
-        initiate_window_move_resize(window, 0, 0, 0);
+        initiate_window_move_resize(window, _NET_WM_MOVERESIZE_MOVE, -1, -1);
         break;
 
     /* start resizing a window with the mouse */
@@ -338,36 +336,33 @@ void do_action(const Action *action, Window *window)
         if (window == NULL) {
             break;
         }
-        initiate_window_move_resize(window, 0, 0, 0);
+        initiate_window_move_resize(window, _NET_WM_MOVERESIZE_AUTO, -1, -1);
+        break;
+
+    /* go to the next window in the window list */
+    case ACTION_NEXT_WINDOW:
+        set_showable_tiling_window(false);
         break;
 
     /* go to the previous window in the window list */
     case ACTION_PREVIOUS_WINDOW:
-        set_active_window(get_previous_showable_tiling_window(focus_frame->window));
+        set_showable_tiling_window(true);
         break;
 
     /* remove the current frame */
     case ACTION_REMOVE_FRAME:
-        if (remove_frame(focus_frame) != 0) {
-            set_notification((utf8_t*) "Can not remove the last frame",
-                    focus_frame->x + focus_frame->width / 2,
-                    focus_frame->y + focus_frame->height / 2);
-        }
+        (void) stash_frame(focus_frame);
+        (void) remove_void(focus_frame);
         break;
 
-    /* changes a popup window to a tiling window and vise versa */
+    /* changes a non tiling window to a tiling window and vise versa */
     case ACTION_TOGGLE_TILING:
         if (window == NULL) {
             break;
         }
         set_window_mode(window,
                 window->state.mode == WINDOW_MODE_TILING ?
-                WINDOW_MODE_POPUP : WINDOW_MODE_TILING, true);
-        break;
-
-    /* focus the window above the current window or wrap around at the top */
-    case ACTION_TRAVERSE_FOCUS:
-        traverse_focus();
+                WINDOW_MODE_FLOATING : WINDOW_MODE_TILING);
         break;
 
     /* toggles the fullscreen state of the currently focused window */
@@ -375,9 +370,13 @@ void do_action(const Action *action, Window *window)
         if (window != NULL) {
             set_window_mode(window,
                     window->state.mode == WINDOW_MODE_FULLSCREEN ?
-                    window->state.previous_mode : WINDOW_MODE_FULLSCREEN,
-                    true);
+                    window->state.previous_mode : WINDOW_MODE_FULLSCREEN);
         }
+        break;
+
+    /* change the focus from tiling to non tiling or vise versa */
+    case ACTION_TOGGLE_FOCUS:
+        toggle_focus();
         break;
 
     /* split the current frame horizontally */

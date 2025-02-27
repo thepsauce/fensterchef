@@ -1,0 +1,49 @@
+#ifndef STASH_FRAME_H
+#define STASH_FRAME_H
+
+#include "frame.h"
+
+/* Take frame away from the screen, this leaves a singular empty frame.
+ *
+ * @frame is made into a completely empty frame as all children and windows are
+ * taken out.
+ *
+ * Consider using `link_into_stash()` after calling this.
+ *
+ * @return may be NULL if the frame is not worth stashing.
+ */
+Frame *stash_frame_later(Frame *frame);
+
+/* Links a frame into the stash linked list.
+ *
+ * @frame may be NULL, then nothing happens.
+ *
+ * Use this on frames returned by `stash_frame_later()`.
+ */
+void link_frame_into_stash(Frame *frame);
+
+/* Take frame away from the screen, this leaves a singular empty frame.
+ *
+ * This is a simple wrapper around `stash_frame_later()` that calls
+ * `link_into_stash()` immediately.
+ *
+ * @return the stashed frame, there is actually no reason to do anything with
+ *         this beside checking if it's NULL.
+ */
+Frame *stash_frame(Frame *frame);
+
+/* Pop a frame from the stashed frame list.
+ *
+ * The caller may use `replace_frame()` with this frame and then free it.
+ *
+ * @return NULL when there are no stashed frames.
+ */
+Frame *pop_stashed_frame(void);
+
+/* Puts a frame from the stash into given @frame.
+ *
+ * @frame must be empty with no windows or children.
+ */
+void fill_void_with_stash(Frame *frame);
+
+#endif

@@ -8,8 +8,8 @@
 /* Set the root property _NET_SUPPORTED atom list to the supported atoms. */
 static void synchronize_supported(void)
 {
-    /* set the supported atoms of our window manager, this list was created and
-     * understood with the help of:
+    /* set the supported ewmh atoms of our window manager, ewmh support was easy
+     * to add with the help of:
      * https://specifications.freedesktop.org/wm-spec/latest/index.html#id-1.2
      */
     const xcb_atom_t supported_atoms[] = {
@@ -49,7 +49,6 @@ static void synchronize_supported(void)
         ATOM(_NET_WM_DESKTOP),
 
         ATOM(_NET_WM_WINDOW_TYPE),
-        ATOM(_NET_WM_WINDOW_TYPE_DESKTOP),
         ATOM(_NET_WM_WINDOW_TYPE_DOCK),
         ATOM(_NET_WM_WINDOW_TYPE_TOOLBAR),
         ATOM(_NET_WM_WINDOW_TYPE_MENU),
@@ -65,19 +64,9 @@ static void synchronize_supported(void)
         ATOM(_NET_WM_WINDOW_TYPE_NORMAL),
 
         ATOM(_NET_WM_STATE),
-        ATOM(_NET_WM_STATE_MODAL),
-        ATOM(_NET_WM_STATE_STICKY),
         ATOM(_NET_WM_STATE_MAXIMIZED_VERT),
         ATOM(_NET_WM_STATE_MAXIMIZED_HORZ),
-        ATOM(_NET_WM_STATE_SHADED),
-        ATOM(_NET_WM_STATE_SKIP_TASKBAR),
-        ATOM(_NET_WM_STATE_SKIP_PAGER),
-        ATOM(_NET_WM_STATE_HIDDEN),
         ATOM(_NET_WM_STATE_FULLSCREEN),
-        ATOM(_NET_WM_STATE_ABOVE),
-        ATOM(_NET_WM_STATE_BELOW),
-        ATOM(_NET_WM_STATE_DEMANDS_ATTENTION),
-        ATOM(_NET_WM_STATE_FOCUSED),
 
         ATOM(_NET_WM_STRUT),
         ATOM(_NET_WM_STRUT_PARTIAL),
@@ -85,8 +74,6 @@ static void synchronize_supported(void)
         ATOM(_NET_FRAME_EXTENTS),
 
         ATOM(_NET_WM_FULLSCREEN_MONITORS),
-
-        XCB_ATOM_WM_TRANSIENT_FOR,
     };
 
     /* set all atoms our window manager supports */
@@ -116,7 +103,8 @@ static int compare_window_z_order(const Window **a, const Window **b)
     return -1;
 }
 
-/* Set the root property _NET_CLIENT_LIST and _NET_CLIENT_LIST_STACKING. */
+/* Set the root properties `_NET_CLIENT_LIST` and `_NET_CLIENT_LIST_STACKING`.
+ */
 static void synchronize_client_list(void)
 {
     uint32_t number_of_windows = 0;
@@ -124,18 +112,12 @@ static void synchronize_client_list(void)
     xcb_window_t *xcb_windows;
 
     for (Window *window = first_window; window != NULL; window = window->next) {
-        if (!window->state.was_ever_mapped) {
-            continue;
-        }
         number_of_windows++;
     }
 
     windows = xreallocarray(NULL, number_of_windows, sizeof(*windows));
     number_of_windows = 0;
     for (Window *window = first_window; window != NULL; window = window->next) {
-        if (!window->state.was_ever_mapped) {
-            continue;
-        }
         windows[number_of_windows++] = window;
     }
 
@@ -160,6 +142,7 @@ static void synchronize_client_list(void)
             number_of_windows, xcb_windows);
 
     free(windows);
+    free(xcb_windows);
 }
 
 /* Set the root property _NET_WORK_AREA to the usable area (screen size minus
@@ -182,8 +165,7 @@ static void synchronize_work_area(void)
     rectangle.width = screen->width_in_pixels - right - left;
     rectangle.height = screen->height_in_pixels - bottom - top;
     xcb_change_property(connection, XCB_PROP_MODE_REPLACE, screen->root,
-            ATOM(_NET_WORKAREA), XCB_ATOM_CARDINAL, 8 * sizeof(uint32_t),
-            sizeof(rectangle) / sizeof(uint32_t), &rectangle);
+            ATOM(_NET_WORKAREA), XCB_ATOM_CARDINAL, 32, 4, &rectangle);
 }
 
 /* Synchronize a root property with the X property. */
@@ -193,7 +175,7 @@ void synchronize_root_property(root_property_t property)
 
     const uint32_t zero = 0;
     const uint32_t one = 1;
-    const Position origin = { 0, 0 };
+    const Point origin = { 0, 0 };
 
     Size geometry;
 
@@ -211,7 +193,8 @@ void synchronize_root_property(root_property_t property)
     /* the number of desktops, just set it to 1 */
     case ROOT_PROPERTY_NUMBER_OF_DESKTOPS:
         xcb_change_property(connection, XCB_PROP_MODE_REPLACE, screen->root,
-                ATOM(_NET_NUMBER_OF_DESKTOPS), XCB_ATOM_CARDINAL, 32, 1, &one);
+                ATOM(_NET_NUMBER_OF_DESKTOPS), XCB_ATOM_CARDINAL, 32,
+                1, &one);
         break;
 
     /* the size of a desktop, we do not support large desktops */
@@ -219,21 +202,22 @@ void synchronize_root_property(root_property_t property)
         geometry.width = screen->width_in_pixels;
         geometry.height = screen->height_in_pixels;
         xcb_change_property(connection, XCB_PROP_MODE_REPLACE, screen->root,
-                ATOM(_NET_DESKTOP_GEOMETRY), XCB_ATOM_CARDINAL, 32, 2,
-                &geometry);
+                ATOM(_NET_DESKTOP_GEOMETRY), XCB_ATOM_CARDINAL, 32,
+                2, &geometry);
         break;
 
     /* viewport of each desktop, just set it to (0, 0) for the only desktop */
     case ROOT_PROPERTY_DESKTOP_VIEWPORT:
         xcb_change_property(connection, XCB_PROP_MODE_REPLACE, screen->root,
-                ATOM(_NET_DESKTOP_VIEWPORT), XCB_ATOM_CARDINAL, 32, 2,
-                &origin);
+                ATOM(_NET_DESKTOP_VIEWPORT), XCB_ATOM_CARDINAL, 32,
+                2, &origin);
         break;
 
     /* the currently selected desktop, always 0 */
     case ROOT_PROPERTY_CURRENT_DESKTOP:
         xcb_change_property(connection, XCB_PROP_MODE_REPLACE, screen->root,
-                ATOM(_NET_CURRENT_DESKTOP), XCB_ATOM_CARDINAL, 32, 1, &zero);
+                ATOM(_NET_CURRENT_DESKTOP), XCB_ATOM_CARDINAL, 32,
+                1, &zero);
         break;
 
     /* the name of each desktop */

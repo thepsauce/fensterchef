@@ -1,82 +1,28 @@
 #include <inttypes.h>
 
 #include "configuration.h"
-#include "fensterchef.h"
 #include "frame.h"
 #include "log.h"
 #include "monitor.h"
 #include "root_properties.h"
+#include "stash_frame.h"
 #include "tiling.h"
 #include "utility.h"
 #include "window.h"
 
-/* The whole purpose of this file is to detect the initial state of a window
- * and to handle a case where a window changes its window state.
+/* The whole purpose of this file is to handle window state changes
+ * This includes visibility and window mode.
  */
 
-/* Predicts what kind of mode the window should be in.
- * TODO: should this be adjustable in the user configuration?
- */
-window_mode_t predict_window_mode(Window *window)
-{
-    /* direct checks */
-    if (has_state(&window->properties, ATOM(_NET_WM_STATE_FULLSCREEN))) {
-        return WINDOW_MODE_FULLSCREEN;
-    }
-    if (has_window_type(&window->properties, ATOM(_NET_WM_WINDOW_TYPE_DOCK))) {
-        return WINDOW_MODE_DOCK;
-    }
-
-    /* if this window has strut, it must be a dock window */
-    if (!is_strut_empty(&window->properties.strut)) {
-        return WINDOW_MODE_DOCK;
-    }
-
-    /* transient windows are popup windows */
-    if (window->properties.transient_for != 0) {
-        return WINDOW_MODE_POPUP;
-    }
-
-    /* tiling windows have the normal window type */
-    if (has_window_type(&window->properties,
-                ATOM(_NET_WM_WINDOW_TYPE_NORMAL))) {
-        return WINDOW_MODE_TILING;
-    }
-
-    /* popup windows have an equal minimum and maximum size */
-    if ((window->properties.size_hints.flags &
-                (XCB_ICCCM_SIZE_HINT_P_MIN_SIZE |
-                 XCB_ICCCM_SIZE_HINT_P_MAX_SIZE)) ==
-                (XCB_ICCCM_SIZE_HINT_P_MIN_SIZE |
-                 XCB_ICCCM_SIZE_HINT_P_MAX_SIZE) &&
-            (window->properties.size_hints.min_width ==
-                window->properties.size_hints.max_width ||
-            window->properties.size_hints.min_height ==
-                window->properties.size_hints.max_height)) {
-        return WINDOW_MODE_POPUP;
-    }
-
-    /* popup windows have a special window type */
-    if (window->properties.types != NULL) {
-        return WINDOW_MODE_POPUP;
-    }
-
-    /* fall back to tiling window */
-    return WINDOW_MODE_TILING;
-}
-
-/* Check if @window has a visible border currently. */
+/* Check if @window should have a border. */
 bool has_window_border(Window *window)
 {
-    if (!window->state.is_visible) {
-        return false;
-    }
     /* tiling windows always have a border */
     if (window->state.mode == WINDOW_MODE_TILING) {
         return true;
     }
     /* fullscreen and dock windows have no border */
-    if (window->state.mode != WINDOW_MODE_POPUP) {
+    if (window->state.mode != WINDOW_MODE_FLOATING) {
         return false;
     }
     /* if the window has borders itself (not set by the window manager) */
@@ -88,25 +34,25 @@ bool has_window_border(Window *window)
 }
 
 /* Set the window size and position according to the size hints. */
-static void configure_popup_size(Window *window)
+static void configure_floating_size(Window *window)
 {
     Monitor *monitor;
     int32_t x, y;
     uint32_t width, height;
 
-    monitor = get_monitor_from_rectangle(window->position.x, window->position.y,
-            window->size.width, window->size.height);
+    monitor = get_monitor_from_rectangle(window->x, window->y,
+            window->width, window->height);
 
-    /* if the window never had a popup size, use the size hints to get a size
+    /* if the window never had a floating size, use the size hints to get a size
      * that the window prefers
      */
-    if (window->popup_size.width == 0) {
+    if (window->floating.width == 0) {
         if ((window->properties.size_hints.flags & XCB_ICCCM_SIZE_HINT_P_SIZE)) {
             width = window->properties.size_hints.width;
             height = window->properties.size_hints.height;
         } else {
-            width = monitor->size.width * 2 / 3;
-            height = monitor->size.height * 2 / 3;
+            width = monitor->width * 2 / 3;
+            height = monitor->height * 2 / 3;
         }
 
         if ((window->properties.size_hints.flags & XCB_ICCCM_SIZE_HINT_P_MIN_SIZE)) {
@@ -123,19 +69,19 @@ static void configure_popup_size(Window *window)
             x = window->properties.size_hints.x;
             y = window->properties.size_hints.y;
         } else {
-            x = monitor->position.x + (monitor->size.width - width) / 2;
-            y = monitor->position.y + (monitor->size.height - height) / 2;
+            x = monitor->x + (monitor->width - width) / 2;
+            y = monitor->y + (monitor->height - height) / 2;
         }
 
-        window->popup_position.x = x;
-        window->popup_position.y = y;
-        window->popup_size.width = width;
-        window->popup_size.height = height;
+        window->floating.x = x;
+        window->floating.y = y;
+        window->floating.width = width;
+        window->floating.height = height;
     } else {
-        x = window->popup_position.x;
-        y = window->popup_position.y;
-        width = window->popup_size.width;
-        height = window->popup_size.height;
+        x = window->floating.x;
+        y = window->floating.y;
+        width = window->floating.width;
+        height = window->floating.height;
     }
 
     /* consider the window gravity, i.e. where the window wants to be */
@@ -162,10 +108,10 @@ static void configure_fullscreen_size(Window *window)
                 window->properties.fullscreen_monitors.bottom -
                     window->properties.fullscreen_monitors.left);
     } else {
-        monitor = get_monitor_from_rectangle(window->position.x,
-                window->position.y, window->size.width, window->size.height);
-        set_window_size(window, monitor->position.x, monitor->position.y,
-                monitor->size.width, monitor->size.height);
+        monitor = get_monitor_from_rectangle(window->x,
+                window->y, window->width, window->height);
+        set_window_size(window, monitor->x, monitor->y,
+                monitor->width, monitor->height);
     }
 }
 
@@ -188,8 +134,8 @@ static void configure_dock_size(Window *window)
         x = window->properties.size_hints.x;
         y = window->properties.size_hints.y;
     } else {
-        x = window->position.x;
-        y = window->position.y;
+        x = window->x;
+        y = window->y;
     }
 
     monitor = get_monitor_from_rectangle(x, y, 1, 1);
@@ -200,19 +146,19 @@ static void configure_dock_size(Window *window)
      */
     if (width == 0 || height == 0) {
         if (window->properties.strut.reserved.left != 0) {
-            x = monitor->position.x;
+            x = monitor->x;
             y = window->properties.strut.left_start_y;
             width = window->properties.strut.reserved.left;
             height = window->properties.strut.left_end_y -
                 window->properties.strut.left_start_y + 1;
         } else if (window->properties.strut.reserved.top != 0) {
             x = window->properties.strut.top_start_x;
-            y = monitor->position.y;
+            y = monitor->y;
             width = window->properties.strut.top_end_x -
                 window->properties.strut.top_start_x + 1;
             height = window->properties.strut.reserved.top;
         } else if (window->properties.strut.reserved.right != 0) {
-            x = monitor->position.x + monitor->size.width -
+            x = monitor->x + monitor->width -
                 window->properties.strut.reserved.right;
             y = window->properties.strut.right_start_y;
             width = window->properties.strut.reserved.right;
@@ -220,13 +166,15 @@ static void configure_dock_size(Window *window)
                 window->properties.strut.right_start_y + 1;
         } else if (window->properties.strut.reserved.bottom != 0) {
             x = window->properties.strut.bottom_start_x;
-            y = monitor->position.y + monitor->size.height -
+            y = monitor->y + monitor->height -
                 window->properties.strut.reserved.bottom;
             width = window->properties.strut.bottom_end_x -
                 window->properties.strut.bottom_start_x + 1;
             height = window->properties.strut.reserved.bottom;
         } else {
-            /* TODO: what to do here? */
+            /* TODO: what to do here? what is a dock window without defined size
+             * hints AND without any strut? does it exist?
+             */
             width = 64;
             height = 32;
         }
@@ -242,20 +190,19 @@ static void configure_dock_size(Window *window)
     set_window_size(window, x, y, width, height);
 }
 
-/* Synchronize the _NET_WM_ALLOWED actions X property. */
-void synchronize_allowed_actions(Window *window)
+/* Synchronize the `_NET_WM_ALLOWED_ACTIONS` X property. */
+static void synchronize_allowed_actions(Window *window)
 {
     const xcb_atom_t atom_lists[WINDOW_MODE_MAX][16] = {
         [WINDOW_MODE_TILING] = {
             ATOM(_NET_WM_ACTION_MAXIMIZE_HORZ),
             ATOM(_NET_WM_ACTION_MAXIMIZE_VERT),
             ATOM(_NET_WM_ACTION_FULLSCREEN),
-            ATOM(_NET_WM_ACTION_CHANGE_DESKTOP),
             ATOM(_NET_WM_ACTION_CLOSE),
             XCB_NONE,
         },
 
-        [WINDOW_MODE_POPUP] = {
+        [WINDOW_MODE_FLOATING] = {
             ATOM(_NET_WM_ACTION_MOVE),
             ATOM(_NET_WM_ACTION_RESIZE),
             ATOM(_NET_WM_ACTION_MINIMIZE),
@@ -264,7 +211,6 @@ void synchronize_allowed_actions(Window *window)
             ATOM(_NET_WM_ACTION_MAXIMIZE_HORZ),
             ATOM(_NET_WM_ACTION_MAXIMIZE_VERT),
             ATOM(_NET_WM_ACTION_FULLSCREEN),
-            ATOM(_NET_WM_ACTION_CHANGE_DESKTOP),
             ATOM(_NET_WM_ACTION_CLOSE),
             ATOM(_NET_WM_ACTION_ABOVE),
             ATOM(_NET_WM_ACTION_BELOW),
@@ -272,7 +218,6 @@ void synchronize_allowed_actions(Window *window)
         },
 
         [WINDOW_MODE_FULLSCREEN] = {
-            ATOM(_NET_WM_ACTION_CHANGE_DESKTOP),
             ATOM(_NET_WM_ACTION_CLOSE),
             ATOM(_NET_WM_ACTION_ABOVE),
             ATOM(_NET_WM_ACTION_BELOW),
@@ -296,57 +241,139 @@ void synchronize_allowed_actions(Window *window)
 
     xcb_change_property(connection, XCB_PROP_MODE_REPLACE,
             window->properties.window, ATOM(_NET_WM_ALLOWED_ACTIONS),
-            XCB_ATOM_ATOM, 32, list_length * sizeof(*list), list);
+            XCB_ATOM_ATOM, 32, list_length, list);
+}
+
+/* Add window states to the window properties. */
+static void add_window_states(Window *window, xcb_atom_t *states,
+        uint32_t number_of_states)
+{
+    uint32_t effective_count = 0;
+
+    /* for each state in `states`, either add it or filter it out */
+    for (uint32_t i = 0, j; i < number_of_states; i++) {
+        /* filter out the states already in the window properties */
+        if (has_state(&window->properties, states[i])) {
+            continue;
+        }
+
+        j = 0;
+
+        /* add the state to the window properties */
+        if (window->properties.states != NULL) {
+            /* find the number of elements */
+            for (; window->properties.states[j] != XCB_NONE; j++) {
+                /* nothing */
+            }
+        }
+
+        RESIZE(window->properties.states, j + 2);
+        window->properties.states[j] = states[i];
+        window->properties.states[j + 1] = XCB_NONE;
+
+        states[effective_count++] = states[i];
+    }
+
+    /* append the properties to the list in the X server */
+    xcb_change_property(connection, XCB_PROP_MODE_APPEND,
+            window->properties.window, ATOM(_NET_WM_STATE),
+            XCB_ATOM_ATOM, 32, effective_count, states);
+}
+
+/* Remove window states from the window properties. */
+static void remove_window_states(Window *window, xcb_atom_t *states,
+        uint32_t number_of_states)
+{
+    uint32_t i;
+    uint32_t effective_count = 0;
+
+    /* if no states are there, nothing can be removed */
+    if (window->properties.states == NULL) {
+        return;
+    }
+
+    /* filter out all states in the window properties that are in `states` */
+    for (i = 0; window->properties.states[i] != XCB_NONE; i++) {
+        uint32_t j;
+
+        /* check if the state exists in `states`... */
+        for (j = 0; j < number_of_states; j++) {
+            if (states[j] == window->properties.states[i]) {
+                break;
+            }
+        }
+
+        /* ...if not, add it */
+        if (j == number_of_states) {
+            window->properties.states[effective_count++] =
+                window->properties.states[i];
+        }
+    }
+
+    /* check if anything changed */
+    if (effective_count == i) {
+        return;
+    }
+
+    /* terminate the end with `XCB_NONE` */
+    window->properties.states[effective_count] = XCB_NONE;
+
+    /* replace the atom list on the X server */
+    xcb_change_property(connection, XCB_PROP_MODE_REPLACE,
+            window->properties.window, ATOM(_NET_WM_STATE),
+            XCB_ATOM_ATOM, 32, effective_count,
+            window->properties.states);
 }
 
 /* Changes the window state to given value and reconfigures the window only
  * if the mode changed.
  */
-void set_window_mode(Window *window, window_mode_t mode, bool force_mode)
+void set_window_mode(Window *window, window_mode_t mode)
 {
-    if (window->state.mode == mode ||
-            (window->state.is_mode_forced && !force_mode)) {
+    xcb_atom_t states[3];
+
+    if (window->state.mode == mode) {
         return;
     }
 
-    LOG("transition window mode of %" PRIu32 " from %u to %u (%s)\n",
-            window->number, window->state.mode, mode,
-            force_mode ? "forced" : "not forced");
+    LOG("transition window mode of %W from %m to %m\n", window,
+            window->state.mode, mode);
 
-    window->state.is_mode_forced = force_mode;
+    window->state.previous_mode = window->state.mode;
+    window->state.mode = mode;
 
     if (window->state.is_visible) {
         /* pop out from tiling layout */
-        if (window->state.mode == WINDOW_MODE_TILING) {
+        if (window->state.previous_mode == WINDOW_MODE_TILING) {
+            /* make sure no shortcut is taken in `get_frame_of_window()` */
+            window->state.mode = WINDOW_MODE_TILING;
             Frame *const frame = get_frame_of_window(window);
+            window->state.mode = mode;
             frame->window = NULL;
             if (configuration.tiling.auto_fill_void) {
-                fill_empty_frame(frame);
+                fill_void_with_stash(frame);
             }
         }
 
         switch (mode) {
+        /* replace the focused frame with a frame containing the window */
         case WINDOW_MODE_TILING:
-            if (focus_frame->window == focus_window) {
-                set_focus_window(window);
-            }
-
-            if (focus_frame->window != NULL) {
-                hide_window_abruptly(focus_frame->window);
-            }
-
+            stash_frame(focus_frame);
             focus_frame->window = window;
             reload_frame(focus_frame);
             break;
 
-        case WINDOW_MODE_POPUP:
-            configure_popup_size(window);
+        /* set the floating size */
+        case WINDOW_MODE_FLOATING:
+            configure_floating_size(window);
             break;
 
+        /* set the fullscreen size */
         case WINDOW_MODE_FULLSCREEN:
             configure_fullscreen_size(window);
             break;
 
+        /* set the dock size */
         case WINDOW_MODE_DOCK:
             configure_dock_size(window);
             break;
@@ -355,52 +382,31 @@ void set_window_mode(Window *window, window_mode_t mode, bool force_mode)
         case WINDOW_MODE_MAX:
             break;
         }
-
-        set_window_above(window);
-    } else {
-        /* make sure the window is no longer in the taken list */
-        if (window->state.mode == WINDOW_MODE_TILING) {
-            unlink_window_from_taken_list(window);
-        }
     }
 
-    /* set the window border */
-    switch (mode) {
-    /* tiling windows have the default window border */
-    case WINDOW_MODE_TILING:
+    /* update the window states */
+    if (mode == WINDOW_MODE_FULLSCREEN) {
+        states[0] = ATOM(_NET_WM_STATE_FULLSCREEN);
+        states[1] = ATOM(_NET_WM_STATE_MAXIMIZED_HORZ);
+        states[2] = ATOM(_NET_WM_STATE_MAXIMIZED_VERT);
+        add_window_states(window, states, SIZE(states));
+    } else if (window->state.previous_mode == WINDOW_MODE_FULLSCREEN) {
+        states[0] = ATOM(_NET_WM_STATE_FULLSCREEN);
+        states[1] = ATOM(_NET_WM_STATE_MAXIMIZED_HORZ);
+        states[2] = ATOM(_NET_WM_STATE_MAXIMIZED_VERT);
+        remove_window_states(window, states, SIZE(states));
+    }
+
+    /* update the window border */
+    if (has_window_border(window)) {
         general_values[0] = configuration.border.size;
-        xcb_configure_window(connection, window->properties.window,
-                XCB_CONFIG_WINDOW_BORDER_WIDTH, general_values);
-        break;
-
-    /* popup windows usually have a window border but... */
-    case WINDOW_MODE_POPUP:
-        /* ...windows that set this flag have their own border/frame */
-        if ((window->properties.motif_wm_hints.flags &
-                    MOTIF_WM_HINTS_DECORATIONS)) {
-            general_values[0] = 0;
-        } else {
-            general_values[0] = configuration.border.size;
-        }
-        xcb_configure_window(connection, window->properties.window,
-                XCB_CONFIG_WINDOW_BORDER_WIDTH, general_values);
-        break;
-
-    /* these windows have no border */
-    case WINDOW_MODE_FULLSCREEN:
-    case WINDOW_MODE_DOCK:
+    } else {
         general_values[0] = 0;
-        xcb_configure_window(connection, window->properties.window,
-                XCB_CONFIG_WINDOW_BORDER_WIDTH, general_values);
-        break;
-
-    /* not a real window mode */
-    case WINDOW_MODE_MAX:
-        break;
     }
+    xcb_configure_window(connection, window->properties.window,
+            XCB_CONFIG_WINDOW_BORDER_WIDTH, general_values);
 
-    window->state.previous_mode = window->state.mode;
-    window->state.mode = mode;
+    update_window_layer(window);
 
     synchronize_allowed_actions(window);
 }
@@ -408,87 +414,32 @@ void set_window_mode(Window *window, window_mode_t mode, bool force_mode)
 /* Show the window by mapping it to the X server. */
 void show_window(Window *window)
 {
-    Window *last, *previous;
-
     if (window->state.is_visible) {
-        LOG("tried to show already shown window: %" PRIu32 "\n",
-                window->number);
+        LOG("tried to show already shown window %W\n", window);
         return;
     }
 
-    /* assign the first id to the window if it is first mapped */
-    if (!window->state.was_ever_mapped) {
-        for (last = first_window; last->next != NULL; last = last->next) {
-            if (last->number + 1 < last->next->number) {
-                break;
-            }
-        }
-        window->number = last->number + 1;
-
-        LOG("assigned id %" PRIu32 " to window wrapping %" PRIu32 "\n",
-                window->number, window->properties.window);
-
-        /* reinsert the window into the main linked list */
-        if (last != window) {
-            if (window != first_window) {
-                previous = first_window;
-                while (previous->next != window) {
-                    previous = previous->next;
-                }
-                previous->next = window->next;
-            } else {
-                first_window = window->next;
-            }
-            window->next = last->next;
-            last->next = window;
-        }
-
-        /* note: when a window is mapped first, it is at the top automatically
-         */
-        /* find a window that was ever mapped */
-        previous = first_window;
-        while (previous != NULL) {
-            if (previous->state.was_ever_mapped) {
-                break;
-            }
-            previous = previous->next;
-        }
-        /* link it into the Z linked list */
-        if (previous != NULL) {
-            while (previous->above != NULL) {
-                previous = previous->above;
-            }
-            previous->above = window;
-            window->below = previous;
-        }
-
-        window->state.was_ever_mapped = true;
-
-        synchronize_root_property(ROOT_PROPERTY_CLIENT_LIST);
-    }
-
-    LOG("showing window with id: %" PRIu32 "\n", window->number);
+    LOG("showing window %W\n", window);
 
     window->state.is_visible = true;
 
-    previous = NULL;
     switch (window->state.mode) {
     /* the window has to become part of the tiling layout */
     case WINDOW_MODE_TILING: {
         Frame *const frame = get_frame_of_window(window);
+        /* special case when the window was retrieved through a stashed frame */
         if (frame != NULL) {
             reload_frame(frame);
             break;
         }
-        previous = focus_frame->window;
-
+        stash_frame(focus_frame);
         focus_frame->window = window;
         reload_frame(focus_frame);
     } break;
 
-    /* the window has to show as popup window */
-    case WINDOW_MODE_POPUP:
-        configure_popup_size(window);
+    /* the window has to show as floating window */
+    case WINDOW_MODE_FLOATING:
+        configure_floating_size(window);
         break;
 
     /* the window has to show as fullscreen window */
@@ -506,34 +457,32 @@ void show_window(Window *window)
         break;
     }
 
+    /* this clips the window onto screen */
+    set_window_size(window, window->x, window->y, window->width,
+            window->height);
+
     xcb_map_window(connection, window->properties.window);
 
-    /* the window is now shown, no longer need it in here */
-    unlink_window_from_taken_list(window);
-
-    /* this is delayed because we always want to map first */
-    if (previous != NULL) {
-        hide_window_abruptly(previous);
-    }
-
-    /* check if strut have appeared */
+    /* check if strut has appeared */
     if (!is_strut_empty(&window->properties.strut)) {
         reconfigure_monitor_frame_sizes();
         synchronize_root_property(ROOT_PROPERTY_WORK_AREA);
     }
+
+    LOG("window %W is now shown\n", window);
 }
 
 /* Hide the window by unmapping it from the X server. */
 void hide_window(Window *window)
 {
-    Frame *frame;
-
-    LOG("hiding window with id: %" PRIu32 "\n", window->number);
+    Frame *frame, *stash;
 
     if (!window->state.is_visible) {
-        LOG("the window is already hidden window\n");
+        LOG("window %W is already hidden\n", window);
         return;
     }
+
+    LOG("hiding window %W\n", window);
 
     window->state.is_visible = false;
 
@@ -542,36 +491,57 @@ void hide_window(Window *window)
     case WINDOW_MODE_TILING:
         frame = get_frame_of_window(window);
 
-        frame->window = NULL;
-
+        stash = stash_frame_later(frame);
         if (configuration.tiling.auto_remove_void) {
             if (frame->parent != NULL) {
-                remove_frame(frame);
+                remove_void(frame);
             }
         } else if (configuration.tiling.auto_fill_void) {
-            fill_empty_frame(frame);
+            fill_void_with_stash(frame);
             if (window == focus_window) {
                 set_focus_window(frame->window);
             }
         }
+        link_frame_into_stash(stash);
 
         /* make sure no broken focus remains */
         if (window == focus_window) {
             set_focus_window(NULL);
         }
-
-        /* link into the taken window list */
-        window->previous_taken = last_taken_window;
-        last_taken_window = window;
         break;
 
     /* need to just focus a different window */
-    case WINDOW_MODE_POPUP:
+    case WINDOW_MODE_FLOATING:
     case WINDOW_MODE_FULLSCREEN:
     case WINDOW_MODE_DOCK:
         if (window == focus_window) {
-            set_focus_window_with_frame(window->below == NULL ? window->above :
-                    window->below);
+            Window *next;
+
+            /* first get a top window that is visible and not the current window
+             */
+            next = get_top_window();
+            if (next == window) {
+                while (next != NULL && !next->state.is_visible) {
+                    next = next->below;
+                }
+                /* if no such window exists or it is a tiling window, then we
+                 * get the bottom window instead
+                 */
+                if (next == NULL || next->state.mode == WINDOW_MODE_TILING) {
+                    next = get_bottom_window();
+                    while (next != NULL && !next->state.is_visible) {
+                        if (next->state.mode != WINDOW_MODE_TILING) {
+                            next = NULL;
+                            break;
+                        }
+                        next = next->above;
+                    }
+                    if (next == window) {
+                        next = NULL;
+                    }
+                }
+            }
+            set_focus_window_with_frame(next);
         }
         break;
 
@@ -587,6 +557,8 @@ void hide_window(Window *window)
         reconfigure_monitor_frame_sizes();
         synchronize_root_property(ROOT_PROPERTY_WORK_AREA);
     }
+
+    LOG("window %W is now hidden\n", window);
 }
 
 /* Wrapper around `hide_window()` that does not touch the tiling or focus. */
@@ -604,9 +576,6 @@ void hide_window_abruptly(Window *window)
     hide_window(window);
     window->state.mode = previous_mode;
 
-    /* link into the taken window list */
-    window->previous_taken = last_taken_window;
-    last_taken_window = window;
     /* make sure there is no invalid focus window */
     if (window == focus_window) {
         set_focus_window(NULL);

@@ -1,5 +1,3 @@
-#include <stdlib.h>
-
 #include "default_configuration.h"
 #include "event.h"
 #include "fensterchef.h"
@@ -17,7 +15,7 @@ int main(void)
 {
     /* initialize the X connection, X atoms and create utility windows */
     if (initialize_x11() != OK) {
-        return ERROR;
+        quit_fensterchef(EXIT_FAILURE);
     }
 
     /* try to take control of the windows and start managing */
@@ -30,11 +28,8 @@ int main(void)
         quit_fensterchef(EXIT_FAILURE);
     }
 
-    /* try to initialize randr */
+    /* initialize randr if possible and the initial frames */
     initialize_monitors();
-
-    /* log the screen information */
-    log_screen();
 
     /* initialize graphical stock objects used for rendering */
     if (initialize_renderer() != OK) {
@@ -55,14 +50,11 @@ int main(void)
     /* set the X properties on the root window */
     synchronize_all_root_properties();
 
-    /* select the first frame */
-    focus_frame = get_primary_monitor()->frame;
-
     /* run the main event loop */
     is_fensterchef_running = true;
     while (next_cycle(NULL) == OK) {
         /* nothing to do */
     }
 
-    quit_fensterchef(EXIT_SUCCESS);
+    quit_fensterchef(is_fensterchef_running ? EXIT_FAILURE : EXIT_SUCCESS);
 }
