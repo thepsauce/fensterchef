@@ -50,8 +50,11 @@ int main(void)
     /* set the X properties on the root window */
     synchronize_all_root_properties();
 
-    /* run the main event loop */
+    /* before entering the loop, flush all the initialization calls */
+    xcb_flush(connection);
+
     is_fensterchef_running = true;
+    /* run the main event loop */
     while (next_cycle(NULL) == OK) {
         /* nothing to do */
     }
