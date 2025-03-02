@@ -207,6 +207,7 @@ static void unlink_window_from_z_list(Window *window)
 /* Destroys given window and removes it from the window linked list. */
 void destroy_window(Window *window)
 {
+    Frame *frame;
     Window *previous;
 
     /* really make sure the window is hidden, not sure if this case can ever
@@ -218,6 +219,13 @@ void destroy_window(Window *window)
     if (window == focus_window) {
         focus_window = NULL;
         LOG_ERROR("destroying window with focus\n");
+    }
+
+    /* this should also never happen but we check just in case */
+    frame = get_frame_of_window(window);
+    if (frame != NULL) {
+        frame->window = NULL;
+        LOG_ERROR("window being destroyed is still within a frame\n");
     }
 
     LOG("destroying window %W\n", window);

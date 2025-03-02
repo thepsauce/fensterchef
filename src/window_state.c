@@ -415,14 +415,13 @@ void show_window(Window *window)
         return;
     }
 
-    window->state.is_visible = true;
-
     switch (window->state.mode) {
     /* the window has to become part of the tiling layout */
     case WINDOW_MODE_TILING: {
         Frame *const frame = get_frame_of_window(window);
-        /* special case when the window was retrieved through a stashed frame */
+        /* we never would want this to happen */
         if (frame != NULL) {
+            LOG_ERROR("window %W is already in frame %F\n", window, frame);
             reload_frame(frame);
             break;
         }
@@ -451,6 +450,8 @@ void show_window(Window *window)
         break;
     }
 
+    window->state.is_visible = true;
+
     /* this clips the window onto screen */
     place_window_in_bounds(NULL, window);
 }
@@ -463,8 +464,6 @@ void hide_window(Window *window)
     if (!window->state.is_visible) {
         return;
     }
-
-    window->state.is_visible = false;
 
     switch (window->state.mode) {
     /* the window is replaced by another window in the tiling layout */
@@ -521,6 +520,8 @@ void hide_window(Window *window)
     case WINDOW_MODE_MAX:
         break;
     }
+
+    window->state.is_visible = false;
 }
 
 /* Hide the window without touching the tiling or focus. */

@@ -283,7 +283,7 @@ int next_cycle(void)
         has_timer_expired = false;
     }
 
-    /* flush after every series event so all changes are reflected */
+    /* flush after every series of events so all changes are reflected */
     xcb_flush(connection);
 
     return OK;
@@ -766,6 +766,7 @@ static void handle_configure_request(xcb_configure_request_event_t *event)
 {
     Window *window;
     int value_index = 0;
+    uint32_t mask = 0;
 
     window = get_window_of_xcb_window(event->window);
     if (window != NULL && window->state.mode != WINDOW_MODE_FLOATING) {
@@ -774,20 +775,23 @@ static void handle_configure_request(xcb_configure_request_event_t *event)
 
     if ((event->value_mask & XCB_CONFIG_WINDOW_X)) {
         general_values[value_index++] = event->x;
+        mask |= XCB_CONFIG_WINDOW_X;
     }
     if ((event->value_mask & XCB_CONFIG_WINDOW_Y)) {
         general_values[value_index++] = event->y;
+        mask |= XCB_CONFIG_WINDOW_Y;
     }
     if ((event->value_mask & XCB_CONFIG_WINDOW_WIDTH)) {
         general_values[value_index++] = event->width;
+        mask |= XCB_CONFIG_WINDOW_WIDTH;
     }
     if ((event->value_mask & XCB_CONFIG_WINDOW_HEIGHT)) {
         general_values[value_index++] = event->height;
+        mask |= XCB_CONFIG_WINDOW_HEIGHT;
     }
     /* ignore border width, stacking etc. */
 
-    xcb_configure_window(connection, event->window, event->value_mask,
-            general_values);
+    xcb_configure_window(connection, event->window, mask, general_values);
 }
 
 /* Client messages are sent by a client to our window manager to request certain
@@ -833,7 +837,7 @@ static void handle_client_message(xcb_client_message_event_t *event)
         }
         initiate_window_move_resize(window, event->data.data32[2],
                 event->data.data32[0], event->data.data32[1]);
-    /* a window wants to be iconified */
+    /* a window wants to be iconified or put into normal state (shown) */
     } else if (event->type == ATOM(WM_CHANGE_STATE)) {
         switch (event->data.data32[0]) {
         /* hide the window */
@@ -845,6 +849,7 @@ static void handle_client_message(xcb_client_message_event_t *event)
         /* make the window normal again (show it) */
         case XCB_ICCCM_WM_STATE_NORMAL:
             show_window(window);
+            break;
         }
     /* a window wants to change a window state */
     } else if (event->type == ATOM(_NET_WM_STATE)) {

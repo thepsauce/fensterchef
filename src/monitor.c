@@ -233,6 +233,8 @@ Monitor *query_monitors(void)
             continue;
         }
 
+        LOG("output %.*s: %R\n", crtc->x, crtc->y, crtc->width, crtc->height);
+
         /* add the monitor to the linked list */
         if (first_monitor == NULL) {
             first_monitor = create_monitor(name, name_length);

@@ -86,8 +86,8 @@ static xcb_render_pictformat_t get_picture_format(uint8_t depth)
 /* Free all data used by the font. */
 static void free_font(void)
 {
-    /* check if the font is already freed, we do not allow fonts with no font
-     * faces
+    /* check if the font is already freed (we do not allow fonts with no font
+     * faces)
      */
     if (font.faces == NULL) {
         return;

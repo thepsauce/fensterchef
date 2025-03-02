@@ -4,17 +4,6 @@
 /* the last frame in the frame stashed linked list */
 static Frame *last_stashed_frame;
 
-/* Show all windows in @frame and child frames. */
-static void show_inner_windows(Frame *frame)
-{
-    if (frame->left != NULL) {
-        show_inner_windows(frame->left);
-        show_inner_windows(frame->right);
-    } else if (frame->window != NULL) {
-        show_window(frame->window);
-    }
-}
-
 /* Hide all windows in @frame and child frames. */
 static void hide_inner_windows(Frame *frame)
 {
@@ -33,8 +22,6 @@ Frame *stash_frame_later(Frame *frame)
     if (frame->left == NULL && frame->window == NULL) {
         return NULL;
     }
-
-    hide_inner_windows(frame);
 
     /* reparent the child frames */
     Frame *const stash = xcalloc(1, sizeof(*stash));
@@ -68,6 +55,8 @@ void link_frame_into_stash(Frame *frame)
 /* Take @frame away from the screen, this leaves a singular empty frame. */
 Frame *stash_frame(Frame *frame)
 {
+    hide_inner_windows(frame);
+
     Frame *const stash = stash_frame_later(frame);
     if (stash == NULL) {
         return NULL;
@@ -111,6 +100,16 @@ static uint32_t validate_inner_windows(Frame *frame)
     return 0;
 }
 
+/* Frees @frame and all child frames. */
+static void free_frame_recursively(Frame *frame)
+{
+    if (frame->left != NULL) {
+        free_frame_recursively(frame->left);
+        free_frame_recursively(frame->right);
+    }
+    free(frame);
+}
+
 /* Put the child frames or window into @frame of the recently saved frame. */
 Frame *pop_stashed_frame(void)
 {
@@ -122,17 +121,13 @@ Frame *pop_stashed_frame(void)
      * completely empty
      */
     while (pop != NULL) {
-        if (pop->left != NULL) {
-            break;
-        }
-
         if (validate_inner_windows(pop) > 0) {
             break;
         }
 
         Frame *const free_me = pop;
         pop = pop->previous_stashed;
-        free(free_me);
+        free_frame_recursively(free_me);
     }
 
     if (pop == NULL) {
@@ -141,6 +136,18 @@ Frame *pop_stashed_frame(void)
         last_stashed_frame = pop->previous_stashed;
     }
     return pop;
+}
+
+/* Show all windows in @frame and child frames. */
+static void show_inner_windows(Frame *frame)
+{
+    if (frame->left != NULL) {
+        show_inner_windows(frame->left);
+        show_inner_windows(frame->right);
+    } else if (frame->window != NULL) {
+        reload_frame(frame);
+        frame->window->state.is_visible = true;
+    }
 }
 
 /* Puts a frame from the stash into given @frame. */
