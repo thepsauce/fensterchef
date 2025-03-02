@@ -24,8 +24,9 @@ static const struct {
 
     [ACTION_NONE] = { "NONE", PARSER_DATA_TYPE_VOID },
     [ACTION_RELOAD_CONFIGURATION] = { "RELOAD-CONFIGURATION", PARSER_DATA_TYPE_VOID },
-    [ACTION_PARENT] = { "PARENT", PARSER_DATA_TYPE_VOID },
-    [ACTION_CHILD] = { "CHILD", PARSER_DATA_TYPE_VOID },
+    [ACTION_PARENT_FRAME] = { "PARENT-FRAME", PARSER_DATA_TYPE_VOID },
+    [ACTION_CHILD_FRAME] = { "CHILD-FRAME", PARSER_DATA_TYPE_VOID },
+    [ACTION_ROOT_FRAME] = { "ROOT-FRAME", PARSER_DATA_TYPE_VOID },
     [ACTION_CLOSE_WINDOW] = { "CLOSE-WINDOW", PARSER_DATA_TYPE_VOID },
     [ACTION_MINIMIZE_WINDOW] = { "MINIMIZE-WINDOW", PARSER_DATA_TYPE_VOID },
     [ACTION_FOCUS_WINDOW] = { "FOCUS-WINDOW", PARSER_DATA_TYPE_VOID },
@@ -290,7 +291,7 @@ void do_action(const Action *action, Window *window)
         break;
 
     /* move the focus to the parent frame */
-    case ACTION_PARENT:
+    case ACTION_PARENT_FRAME:
         if (focus_frame->parent != NULL) {
             focus_frame = focus_frame->parent;
         }
@@ -298,11 +299,16 @@ void do_action(const Action *action, Window *window)
         break;
 
     /* move the focus to the child frame */
-    case ACTION_CHILD:
+    case ACTION_CHILD_FRAME:
         if (focus_frame->left != NULL) {
             focus_frame = focus_frame->left;
         }
         set_focus_frame(focus_frame);
+        break;
+
+    /* move the focus to the root frame */
+    case ACTION_ROOT_FRAME:
+        set_focus_frame(get_root_frame(focus_frame));
         break;
 
     /* closes the currently active window */

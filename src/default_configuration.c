@@ -159,6 +159,11 @@ void merge_with_default_key_bindings(struct configuration *configuration)
         /* reload the configuration */
         { XCB_MOD_MASK_SHIFT, 0, XK_r, { .code = ACTION_RELOAD_CONFIGURATION } },
 
+        /* move the focus to a child or parent frame */
+        { 0, 0, XK_a, { .code = ACTION_PARENT_FRAME } },
+        { 0, 0, XK_b, { .code = ACTION_CHILD_FRAME } },
+        { XCB_MOD_MASK_SHIFT, 0, XK_a, { .code = ACTION_ROOT_FRAME } },
+
         /* close the active window */
         { 0, 0, XK_q, { .code = ACTION_CLOSE_WINDOW } },
 

@@ -51,11 +51,13 @@ extern log_severity_t log_severity;
 #define LOG_ERROR(...) \
     log_formatted(SEVERITY_ERROR, __FILE__, __LINE__, __VA_ARGS__)
 
+/* printf format specifiers that can be used */
+#define PRINTF_FORMAT_SPECIFIERS "diuoxfegcsp"
+
 /* Print a formatted string to standard error output.
  *
  * The following format specifiers are supported on top of the reqular
- * printf-format specifiers (some printf-format specifiers might be
- * overwritten):
+ * format specifiers (some printf format specifiers might be overwritten):
  * %P   int32_t, int32_t        X+Y
  * %S   uint32_t, uint32_t      WIDTHxHEIGHT
  * %R   uint32_t[4]             X+Y+WIDTHxHEIGHT

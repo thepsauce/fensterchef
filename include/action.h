@@ -21,9 +21,11 @@ typedef enum {
     /* reload the configuration file */
     ACTION_RELOAD_CONFIGURATION,
     /* move the focus to the parent frame */
-    ACTION_PARENT,
+    ACTION_PARENT_FRAME,
     /* move the focus to the child frame */
-    ACTION_CHILD,
+    ACTION_CHILD_FRAME,
+    /* move the focus to the root frame */
+    ACTION_ROOT_FRAME,
     /* closes the currently active window */
     ACTION_CLOSE_WINDOW,
     /* hides the currently active window */

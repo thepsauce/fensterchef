@@ -1,5 +1,6 @@
 #include <inttypes.h>
 #include <stdarg.h>
+#include <string.h>
 #include <time.h>
 
 #include <xcb/randr.h>
@@ -1349,25 +1350,36 @@ void log_formatted(log_severity_t severity, const char *file, int line,
                 log_screen(va_arg(list, xcb_screen_t*));
                 break;
 
-            /* standard formatters */
+            /* standard print format specifiers */
             default: {
-                uint32_t i;
+                uint32_t i = 0;
 
                 fputs(COLOR(GREEN), stderr);
-                /* we go forward until a letter, this means that %ld will not
-                 * work but it is good enough
+
+                /* move a segment of `format` into `buffer` and feed it into the
+                 * real `printf()`
                  */
-                buffer[0] = format[0];
-                for (i = 1; i < sizeof(buffer) - 1; ) {
-                    buffer[i++] = format[1];
-                    if (isalpha(format[1])) {
+                do {
+                    buffer[i] = format[i];
+                    if (strchr(PRINTF_FORMAT_SPECIFIERS, format[i]) != NULL) {
+                        buffer[i + 1] = '\0';
+                        vfprintf(stderr, buffer, list);
+                        fputs(CLEAR_COLOR, stderr);
+                        format += i - 1;
+                        /* all clean */
+                        i = 0;
                         break;
                     }
-                    format++;
+                    i++;
+                } while (format[i] != '\0' && i < sizeof(buffer) - 2);
+
+                /* if anything is weird print the rest of the format string */
+                if (i > 0) {
+                    fputs(format, stderr);
+                    while (format[2] != '\0') {
+                        format++;
+                    }
                 }
-                buffer[i] = '\0';
-                vfprintf(stderr, buffer, list);
-                fputs(CLEAR_COLOR, stderr);
                 break;
             }
             }
