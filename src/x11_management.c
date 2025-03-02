@@ -150,11 +150,13 @@ static int create_utility_windows(void)
 
     /* create a notification window for showing the user messages */
     notification.id = xcb_generate_id(connection);
+    /* indicate to not manage the window */
+    general_values[0] = true;
     error = xcb_request_check(connection, xcb_create_window_checked(connection,
                 XCB_COPY_FROM_PARENT, notification.id,
                 screen->root, -1, -1, 1, 1, 0,
                 XCB_WINDOW_CLASS_COPY_FROM_PARENT, XCB_COPY_FROM_PARENT,
-                0, NULL));
+                XCB_CW_OVERRIDE_REDIRECT, general_values));
     if (error != NULL) {
         LOG_ERROR("could not create notification window: %E\n", error);
         free(error);
@@ -201,6 +203,36 @@ int take_control(void)
     xcb_set_input_focus(connection, XCB_INPUT_FOCUS_NONE,
             wm_check_window, XCB_CURRENT_TIME);
     return OK;
+}
+
+/* Go through all existing windows and manage them. */
+void query_existing_windows(void)
+{
+    xcb_query_tree_cookie_t tree_cookie;
+    xcb_query_tree_reply_t *tree;
+    xcb_window_t *windows;
+    int length;
+    Window *window;
+
+    /* get a list of child windows of the root in bottom-to-top stacking order
+     */
+    tree_cookie = xcb_query_tree(connection, screen->root);
+    tree = xcb_query_tree_reply(connection, tree_cookie, NULL);
+    /* not sure what this implies, maybe the connection is broken */
+    if (tree == NULL) {
+        return;
+    }
+
+    windows = xcb_query_tree_children(tree);
+    length = xcb_query_tree_children_length(tree);
+    for (int i = 0; i < length; i++) {
+        window = create_window(windows[i]);
+        if (window != NULL && window->client.is_mapped) {
+            show_window(window);
+        }
+    }
+
+    free(tree);
 }
 
 /* Set the initial root window properties. */

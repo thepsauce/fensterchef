@@ -28,14 +28,16 @@ int initialize_window_list(void)
     const char *window_list_name = "[fensterchef] window list";
 
     window_list.client.id = xcb_generate_id(connection);
+    /* indicate to not manage the window */
+    general_values[0] = true;
     /* get key press events, focus change events and expose events */
-    general_values[0] = XCB_EVENT_MASK_KEY_PRESS | XCB_EVENT_MASK_EXPOSURE |
+    general_values[1] = XCB_EVENT_MASK_KEY_PRESS | XCB_EVENT_MASK_EXPOSURE |
         XCB_EVENT_MASK_FOCUS_CHANGE;
     error = xcb_request_check(connection, xcb_create_window_checked(connection,
                 XCB_COPY_FROM_PARENT, window_list.client.id,
                 screen->root, -1, -1, 1, 1, 0,
                 XCB_WINDOW_CLASS_INPUT_OUTPUT, XCB_COPY_FROM_PARENT,
-                XCB_CW_EVENT_MASK, general_values));
+                XCB_CW_OVERRIDE_REDIRECT | XCB_CW_EVENT_MASK, general_values));
     if (error != NULL) {
         LOG_ERROR("could not create window list window: %E\n", error);
         free(error);

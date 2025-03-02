@@ -332,8 +332,16 @@ int initialize_x11(void);
 
 /* Try to take control of the window manager role (also initialize the
  * fensterchef windows).
+ *
+ * Call this after `initialize_x11()`
  */
 int take_control(void);
+
+/* Go through all already existing windows and manage them.
+ *
+ * Call this after the `initialize_monitors()`.
+ */
+void query_existing_windows(void);
 
 /* Set the initial root window properties. */
 void initialize_root_properties(void);

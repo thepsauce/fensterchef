@@ -49,6 +49,9 @@ int main(void)
     load_default_configuration();
     reload_user_configuration();
 
+    /* manage the windows that are already there */
+    query_existing_windows();
+
     /* before entering the loop, flush all the initialization calls */
     xcb_flush(connection);
 
