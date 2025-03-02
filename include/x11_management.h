@@ -9,12 +9,6 @@
 #include "utility.h"
 #include "window_state.h"
 
-/* flag used to configure window position and size */
-#define XCB_CONFIG_SIZE (XCB_CONFIG_WINDOW_X | \
-                         XCB_CONFIG_WINDOW_Y | \
-                         XCB_CONFIG_WINDOW_WIDTH | \
-                         XCB_CONFIG_WINDOW_HEIGHT)
-
 /* expands to all atoms, this system with `X()` makes it easy to maintain
  *
  * atom types:
@@ -292,33 +286,21 @@ typedef enum {
 /* a state should be toggled (removed if it exists and added otherwise) */
 #define _NET_WM_STATE_TOGGLE 2
 
-/* cache of window properties */
-typedef struct x_properties {
-    /* the X window that has these properties */
-    xcb_window_t window;
-
-    /* window name */
-    utf8_t *name;
-    /* xcb size hints of the window */
-    xcb_size_hints_t size_hints;
-    /* special window manager hints */
-    xcb_icccm_wm_hints_t hints;
-    /* window strut (reserved region on the screen) */
-    wm_strut_partial_t strut;
-    /* the window this window is transient for */
-    xcb_window_t transient_for;
-    /* the protocols the window supports */
-    xcb_atom_t *protocols;
-    /* the region the window should appear at as fullscreen window */
-    Extents fullscreen_monitors;
-    /* id of the process owning the window */
-    uint32_t process_id;
-    /* the motif window manager hints */
-    motif_wm_hints_t motif_wm_hints;
-
-    /* the window states */
-    xcb_atom_t *states;
-} XProperties;
+typedef struct x_client {
+    /* the id of the window */
+    xcb_window_t id;
+    /* if the window is mapped (visible) */
+    bool is_mapped;
+    /* position and size of the window */
+    int32_t x;
+    int32_t y;
+    uint32_t width;
+    uint32_t height;
+    /* the size of the border */
+    uint32_t border_width;
+    /* the color of the border */
+    uint32_t border_color;
+} XClient;
 
 /* connection to the X server */
 extern xcb_connection_t *connection;
@@ -333,13 +315,13 @@ extern uint32_t general_values[7];
 extern xcb_screen_t *screen;
 
 /* supporting wm check window */
-extern xcb_window_t check_window;
+extern xcb_window_t wm_check_window;
 
 /* user notification window */
-extern xcb_window_t notification_window;
+extern XClient notification;
 
 /* user window list window */
-extern xcb_window_t window_list_window;
+extern XClient window_list;
 
 /* Check if given strut has any reserved space. */
 static inline bool is_strut_empty(wm_strut_partial_t *strut)
@@ -356,20 +338,35 @@ int initialize_x11(void);
  */
 int take_control(void);
 
-/* Initialize all properties within @properties and return the mode the window
+/* Set the initial root window properties. */
+void initialize_root_properties(void);
+
+/* Shows the client on the X server. */
+void map_client(XClient *client);
+
+/* Hides the client on the X server. */
+void unmap_client(XClient *client);
+
+/* Set the size of a window associated to the X server. */
+void configure_client(XClient *client, int32_t x, int32_t y, uint32_t width,
+        uint32_t height, uint32_t border_width);
+
+/* Set the client border color. */
+void change_client_attributes(XClient *client, uint32_t border_color);
+
+/* Initialize all properties within @window and return the mode the window
  * should be in initially.
  */
-window_mode_t initialize_window_properties(XProperties *properties,
-        xcb_window_t window);
+window_mode_t initialize_window_properties(Window *window);
 
 /* Update the property with @properties corresponding to given atom. */
-bool cache_window_property(XProperties *properties, xcb_atom_t atom);
+bool cache_window_property(Window *window, xcb_atom_t atom);
 
 /* Check if @properties includes @protocol. */
-bool supports_protocol(XProperties *properties, xcb_atom_t protocol);
+bool supports_protocol(Window *window, xcb_atom_t protocol);
 
 /* Check if @properties includes @state. */
-bool has_state(XProperties *properties, xcb_atom_t state);
+bool has_state(Window *window, xcb_atom_t state);
 
 /* Translate a string to a key symbol.
  *

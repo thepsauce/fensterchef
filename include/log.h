@@ -43,13 +43,13 @@ extern log_severity_t log_severity;
 
 #endif
 
-/* wrappers around `formatted_log` for different severities */
+/* wrappers around `log_formatted` for different severities */
 #define LOG_VERBOSE(...) \
-    formatted_log(SEVERITY_VERBOSE, __FILE__, __LINE__, __VA_ARGS__)
+    log_formatted(SEVERITY_VERBOSE, __FILE__, __LINE__, __VA_ARGS__)
 #define LOG(...) \
-    formatted_log(SEVERITY_INFO, __FILE__, __LINE__, __VA_ARGS__)
+    log_formatted(SEVERITY_INFO, __FILE__, __LINE__, __VA_ARGS__)
 #define LOG_ERROR(...) \
-    formatted_log(SEVERITY_ERROR, __FILE__, __LINE__, __VA_ARGS__)
+    log_formatted(SEVERITY_ERROR, __FILE__, __LINE__, __VA_ARGS__)
 
 /* Print a formatted string to standard error output.
  *
@@ -70,7 +70,7 @@ extern log_severity_t log_severity;
  * %E   xcb_generic_error_t*    ERROR
  * %C   xcb_screen_t*           SCREEN
  */
-void formatted_log(log_severity_t severity, const char *file, int line,
+void log_formatted(log_severity_t severity, const char *file, int line,
         const char *format, ...);
 
 #endif

@@ -8,24 +8,27 @@
 /* this is the first index of a randr event */
 extern uint8_t randr_event_base;
 
+/* if the user requested to reload the configuration */
+extern bool is_reload_requested;
+
+/* if the user requested to show the window list */
+extern bool is_window_list_requested;
+
+/* if the client list has changed (if stacking changed, windows were removed or
+ * added)
+ */
+extern bool has_client_list_changed;
+
 /* Create a signal handler for `SIGALRM`. */
 int initialize_signal_handlers(void);
-
-/* called before processing any events or signals */
-#define CYCLE_PREPARE 0
-
-/* called before processing each X event */
-#define CYCLE_EVENT 1
 
 /* Runs the next cycle of the event loop. This handles signals and all events
  * that are currently queued.
  *
- * @callback is the function called before processing any events or signals:
- *      `(*callback)(CYCLE_PREPARE, NULL);`
- *      and then before any event is handled with `handle_event(event)`:
- *      `(*callback)(CYCLE_EVENT, event);`.
+ * @callback may be NULL and is the function called before any event is handled
+ *           with `handle_event()`.
  */
-int next_cycle(int (*callback)(int cycle_when, xcb_generic_event_t *event));
+int next_cycle(int (*callback)(xcb_generic_event_t *event));
 
 /* Start resizing a window using the mouse. */
 void initiate_window_move_resize(Window *window,

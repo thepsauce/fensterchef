@@ -3,6 +3,7 @@
 
 #include "log.h"
 #include "fensterchef.h"
+#include "window.h"
 #include "x11_management.h"
 
 /* event mask for the root window; with this event mask, we get the following
@@ -37,13 +38,13 @@ xcb_screen_t *screen;
 uint32_t general_values[7];
 
 /* supporting wm check window */
-xcb_window_t check_window;
+xcb_window_t wm_check_window;
 
 /* user notification window */
-xcb_window_t notification_window;
+XClient notification;
 
 /* user window list window */
-xcb_window_t window_list_window;
+XClient window_list;
 
 struct x_atoms x_atoms[] = {
 #define X(atom) { #atom, 0 },
@@ -123,12 +124,12 @@ static int create_utility_windows(void)
 {
     xcb_generic_error_t *error;
 
-    /* create the check window, this can be used by other applications to
+    /* create the wm check window, this can be used by other applications to
      * identify our window manager, we also use it as fallback focus
      */
-    check_window = xcb_generate_id(connection);
+    wm_check_window = xcb_generate_id(connection);
     error = xcb_request_check(connection, xcb_create_window_checked(connection,
-                XCB_COPY_FROM_PARENT, check_window,
+                XCB_COPY_FROM_PARENT, wm_check_window,
                 screen->root, -1, -1, 1, 1, 0,
                 XCB_WINDOW_CLASS_INPUT_ONLY, XCB_COPY_FROM_PARENT,
                 0, NULL));
@@ -138,20 +139,20 @@ static int create_utility_windows(void)
         return ERROR;
     }
     /* set the check window name to the name of fensterchef */
-    xcb_icccm_set_wm_name(connection, check_window,
+    xcb_icccm_set_wm_name(connection, wm_check_window,
             ATOM(UTF8_STRING), 8, strlen(FENSTERCHEF_NAME), FENSTERCHEF_NAME);
     /* the check window has itself as supporting wm check window */
     xcb_change_property(connection, XCB_PROP_MODE_REPLACE,
-            check_window, ATOM(_NET_SUPPORTING_WM_CHECK),
-            XCB_ATOM_WINDOW, 32, 1, &check_window);
+            wm_check_window, ATOM(_NET_SUPPORTING_WM_CHECK),
+            XCB_ATOM_WINDOW, 32, 1, &wm_check_window);
 
     /* map the window so it can receive focus */
-    xcb_map_window(connection, check_window);
+    xcb_map_window(connection, wm_check_window);
 
     /* create a notification window for showing the user messages */
-    notification_window = xcb_generate_id(connection);
+    notification.id = xcb_generate_id(connection);
     error = xcb_request_check(connection, xcb_create_window_checked(connection,
-                XCB_COPY_FROM_PARENT, notification_window,
+                XCB_COPY_FROM_PARENT, notification.id,
                 screen->root, -1, -1, 1, 1, 0,
                 XCB_WINDOW_CLASS_COPY_FROM_PARENT, XCB_COPY_FROM_PARENT,
                 0, NULL));
@@ -160,12 +161,16 @@ static int create_utility_windows(void)
         free(error);
         return ERROR;
     }
+    notification.x = -1;
+    notification.y = -1;
+    notification.width = 1;
+    notification.height = 1;
 
     /* create a window list for selecting windows from a list */
-    window_list_window = xcb_generate_id(connection);
+    window_list.id = xcb_generate_id(connection);
     general_values[0] = XCB_EVENT_MASK_KEY_PRESS; /* need key press events */
     error = xcb_request_check(connection, xcb_create_window_checked(connection,
-                XCB_COPY_FROM_PARENT, window_list_window,
+                XCB_COPY_FROM_PARENT, window_list.id,
                 screen->root, -1, -1, 1, 1, 0,
                 XCB_WINDOW_CLASS_INPUT_OUTPUT, XCB_COPY_FROM_PARENT,
                 XCB_CW_EVENT_MASK, general_values));
@@ -174,6 +179,10 @@ static int create_utility_windows(void)
         free(error);
         return ERROR;
     }
+    window_list.x = -1;
+    window_list.y = -1;
+    window_list.width = 1;
+    window_list.height = 1;
     return OK;
 }
 
@@ -200,9 +209,205 @@ int take_control(void)
         return ERROR;
     }
 
+    /* intialize the focus */
     xcb_set_input_focus(connection, XCB_INPUT_FOCUS_NONE,
-            check_window, XCB_CURRENT_TIME);
+            wm_check_window, XCB_CURRENT_TIME);
     return OK;
+}
+
+/* Set the initial root window properties. */
+void initialize_root_properties(void)
+{
+    /* set the supported ewmh atoms of our window manager, ewmh support was easy
+     * to add with the help of:
+     * https://specifications.freedesktop.org/wm-spec/latest/index.html#id-1.2
+     */
+    const xcb_atom_t supported_atoms[] = {
+        ATOM(_NET_SUPPORTED),
+
+        ATOM(_NET_CLIENT_LIST),
+        ATOM(_NET_CLIENT_LIST_STACKING),
+
+        ATOM(_NET_NUMBER_OF_DESKTOPS),
+
+        ATOM(_NET_DESKTOP_GEOMETRY),
+        ATOM(_NET_DESKTOP_VIEWPORT),
+
+        ATOM(_NET_CURRENT_DESKTOP),
+        ATOM(_NET_DESKTOP_NAMES),
+
+        ATOM(_NET_ACTIVE_WINDOW),
+
+        ATOM(_NET_WORKAREA),
+
+        ATOM(_NET_SUPPORTING_WM_CHECK),
+
+        ATOM(_NET_SHOWING_DESKTOP),
+
+        ATOM(_NET_CLOSE_WINDOW),
+
+        ATOM(_NET_MOVERESIZE_WINDOW),
+
+        ATOM(_NET_WM_MOVERESIZE),
+
+        ATOM(_NET_RESTACK_WINDOW),
+
+        ATOM(_NET_REQUEST_FRAME_EXTENTS),
+
+        ATOM(_NET_WM_NAME),
+
+        ATOM(_NET_WM_DESKTOP),
+
+        ATOM(_NET_WM_WINDOW_TYPE),
+        ATOM(_NET_WM_WINDOW_TYPE_DOCK),
+        ATOM(_NET_WM_WINDOW_TYPE_TOOLBAR),
+        ATOM(_NET_WM_WINDOW_TYPE_MENU),
+        ATOM(_NET_WM_WINDOW_TYPE_UTILITY),
+        ATOM(_NET_WM_WINDOW_TYPE_SPLASH),
+        ATOM(_NET_WM_WINDOW_TYPE_DIALOG),
+        ATOM(_NET_WM_WINDOW_TYPE_DROPDOWN_MENU),
+        ATOM(_NET_WM_WINDOW_TYPE_POPUP_MENU),
+        ATOM(_NET_WM_WINDOW_TYPE_TOOLTIP),
+        ATOM(_NET_WM_WINDOW_TYPE_NOTIFICATION),
+        ATOM(_NET_WM_WINDOW_TYPE_COMBO),
+        ATOM(_NET_WM_WINDOW_TYPE_DND),
+        ATOM(_NET_WM_WINDOW_TYPE_NORMAL),
+
+        ATOM(_NET_WM_STATE),
+        ATOM(_NET_WM_STATE_MAXIMIZED_VERT),
+        ATOM(_NET_WM_STATE_MAXIMIZED_HORZ),
+        ATOM(_NET_WM_STATE_FULLSCREEN),
+
+        ATOM(_NET_WM_STRUT),
+        ATOM(_NET_WM_STRUT_PARTIAL),
+
+        ATOM(_NET_FRAME_EXTENTS),
+
+        ATOM(_NET_WM_FULLSCREEN_MONITORS),
+    };
+    xcb_change_property(connection, XCB_PROP_MODE_REPLACE, screen->root,
+            ATOM(_NET_SUPPORTED), XCB_ATOM_ATOM, 32,
+            SIZE(supported_atoms), supported_atoms);
+
+    /* the wm check window */
+    xcb_change_property(connection, XCB_PROP_MODE_REPLACE,
+            screen->root, ATOM(_NET_SUPPORTING_WM_CHECK), XCB_ATOM_WINDOW,
+            32, 1, &wm_check_window);
+
+    /* the current desktop, always 0 */
+    const uint32_t zero = 0;
+    xcb_change_property(connection, XCB_PROP_MODE_REPLACE, screen->root,
+            ATOM(_NET_CURRENT_DESKTOP), XCB_ATOM_CARDINAL, 32,
+            1, &zero);
+
+    /* origin of the viewport, always (0, 0) */
+    const Point origin = { 0, 0 };
+    xcb_change_property(connection, XCB_PROP_MODE_REPLACE, screen->root,
+            ATOM(_NET_DESKTOP_VIEWPORT), XCB_ATOM_CARDINAL, 32,
+            2, &origin);
+
+    /* size of the desktop, large desktops are however not supported */
+    const Size geometry = {
+        screen->width_in_pixels,
+        screen->height_in_pixels
+    };
+    xcb_change_property(connection, XCB_PROP_MODE_REPLACE, screen->root,
+            ATOM(_NET_DESKTOP_GEOMETRY), XCB_ATOM_CARDINAL, 32,
+            2, &geometry);
+
+    /* the number of desktops, always 1 */
+    const uint32_t one = 1;
+    xcb_change_property(connection, XCB_PROP_MODE_REPLACE, screen->root,
+            ATOM(_NET_NUMBER_OF_DESKTOPS), XCB_ATOM_CARDINAL, 32,
+            1, &one);
+
+    /* set the name of the only desktop */
+    const char *const desktop_name = "0";
+    xcb_change_property(connection, XCB_PROP_MODE_REPLACE, screen->root,
+            ATOM(_NET_DESKTOP_NAMES), ATOM(UTF8_STRING), 8,
+            strlen(desktop_name), desktop_name);
+
+    /* set the active window */
+    xcb_change_property(connection, XCB_PROP_MODE_REPLACE, screen->root,
+            ATOM(_NET_ACTIVE_WINDOW), XCB_ATOM_WINDOW, 32, 1, &screen->root);
+
+    /* set the work area */
+    const Rectangle workarea = {
+        0, 0,
+        screen->width_in_pixels, screen->height_in_pixels
+    };
+    xcb_change_property(connection, XCB_PROP_MODE_REPLACE, screen->root,
+            ATOM(_NET_WORKAREA), XCB_ATOM_CARDINAL, 32, 4, &workarea);
+}
+/* Shows the client on the X server. */
+void map_client(XClient *client)
+{
+    if (client->is_mapped) {
+        return;
+    }
+    client->is_mapped = true;
+
+    LOG("showing client %w\n", client->id);
+
+    xcb_map_window(connection, client->id);
+}
+
+/* Hides the client on the X server. */
+void unmap_client(XClient *client)
+{
+    if (!client->is_mapped) {
+        return;
+    }
+    client->is_mapped = false;
+
+    LOG("hiding client %w\n", client->id);
+
+    xcb_unmap_window(connection, client->id);
+}
+
+/* Set the size of a window associated to the X server. */
+void configure_client(XClient *client, int32_t x, int32_t y, uint32_t width,
+        uint32_t height, uint32_t border_width)
+{
+    if (client->x == x && client->y == y && client->width == width &&
+            client->height == height && client->border_width == border_width) {
+        return;
+    }
+
+    LOG("configuring client %w to %R %" PRIu32 "\n", client->id,
+            x, y, width, height, border_width);
+
+    client->x = x;
+    client->y = y;
+    client->width = width;
+    client->height = height;
+    client->border_width = border_width;
+
+    general_values[0] = x;
+    general_values[1] = y;
+    general_values[2] = width;
+    general_values[3] = height;
+    general_values[4] = border_width;
+    xcb_configure_window(connection, client->id,
+            XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y |
+            XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT |
+            XCB_CONFIG_WINDOW_BORDER_WIDTH, general_values);
+}
+
+/* Set the client border color. */
+void change_client_attributes(XClient *client, uint32_t border_color)
+{
+    if (client->border_color == border_color) {
+        return;
+    }
+    client->border_color = border_color;
+
+    LOG("changing attributes of client %w to %#x\n", client->id,
+            (unsigned) border_color);
+
+    general_values[0] = border_color;
+    xcb_change_window_attributes(connection, client->id,
+            XCB_CW_BORDER_PIXEL, general_values);
 }
 
 /* Wrapper around getting a cookie and reply for a GetProperty request. */
@@ -231,25 +436,25 @@ static inline xcb_get_property_reply_t *get_property(xcb_window_t window,
 }
 
 /* Update the name within @properties. */
-static void update_window_name(XProperties *properties)
+static void update_window_name(Window *window)
 {
     xcb_get_property_reply_t *name;
 
-    free(properties->name);
+    free(window->name);
 
-    name = get_property(properties->window, ATOM(_NET_WM_NAME),
+    name = get_property(window->client.id, ATOM(_NET_WM_NAME),
             XCB_GET_PROPERTY_TYPE_ANY, 8, UINT32_MAX, NULL);
     if (name == NULL) {
         /* fall back to `WM_NAME` */
-        name = get_property(properties->window, XCB_ATOM_WM_NAME,
+        name = get_property(window->client.id, XCB_ATOM_WM_NAME,
                 XCB_GET_PROPERTY_TYPE_ANY, 8, UINT32_MAX, NULL);
         if (name == NULL) {
-            properties->name = NULL;
+            window->name = NULL;
             return;
         }
     }
 
-    properties->name = (utf8_t*) xstrndup(
+    window->name = (utf8_t*) xstrndup(
             xcb_get_property_value(name),
             xcb_get_property_value_length(name));
 
@@ -257,46 +462,46 @@ static void update_window_name(XProperties *properties)
 }
 
 /* Update the size_hints within @properties. */
-static void update_window_size_hints(XProperties *properties)
+static void update_window_size_hints(Window *window)
 {
     xcb_get_property_cookie_t size_hints_cookie;
 
     size_hints_cookie = xcb_icccm_get_wm_size_hints(connection,
-            properties->window, XCB_ATOM_WM_NORMAL_HINTS);
+            window->client.id, XCB_ATOM_WM_NORMAL_HINTS);
     if (!xcb_icccm_get_wm_size_hints_reply(connection, size_hints_cookie,
-                &properties->size_hints, NULL)) {
-        properties->size_hints.flags = 0;
+                &window->size_hints, NULL)) {
+        window->size_hints.flags = 0;
     }
 }
 
 /* Update the hints within @properties. */
-static void update_window_hints(XProperties *properties)
+static void update_window_hints(Window *window)
 {
     xcb_get_property_cookie_t hints_cookie;
 
-    hints_cookie = xcb_icccm_get_wm_hints(connection, properties->window);
+    hints_cookie = xcb_icccm_get_wm_hints(connection, window->client.id);
     if (!xcb_icccm_get_wm_hints_reply(connection, hints_cookie,
-                &properties->hints, NULL)) {
-        properties->hints.flags = 0;
+                &window->hints, NULL)) {
+        window->hints.flags = 0;
     }
 }
 
 /* Update the strut partial property within @properties. */
-static void update_window_strut(XProperties *properties)
+static void update_window_strut(Window *window)
 {
     wm_strut_partial_t new_strut;
     xcb_get_property_reply_t *strut;
 
     memset(&new_strut, 0, sizeof(new_strut));
 
-    strut = get_property(properties->window,
+    strut = get_property(window->client.id,
             ATOM(_NET_WM_STRUT_PARTIAL), XCB_ATOM_CARDINAL, 32,
             sizeof(wm_strut_partial_t) / sizeof(uint32_t), NULL);
     if (strut == NULL) {
         /* `_NET_WM_STRUT` is older than `_NET_WM_STRUT_PARTIAL`, fall back to
          * it when there is no strut partial
          */
-        strut = get_property(properties->window,
+        strut = get_property(window->client.id,
                 ATOM(_NET_WM_STRUT), XCB_ATOM_CARDINAL, 32,
                 sizeof(Extents) / sizeof(uint32_t), NULL);
         if (strut == NULL) {
@@ -309,7 +514,7 @@ static void update_window_strut(XProperties *properties)
 
     free(strut);
 
-    properties->strut = new_strut;
+    window->strut = new_strut;
 }
 
 /* Get a window property as list of atoms. */
@@ -334,117 +539,98 @@ static inline xcb_atom_t *get_atom_list(xcb_window_t window, xcb_atom_t atom)
 }
 
 /* Update the `transient_for` property within @properties. */
-static void update_window_transient_for(XProperties *properties)
+static void update_window_transient_for(Window *window)
 {
     xcb_get_property_cookie_t transient_for_cookie;
 
     transient_for_cookie = xcb_icccm_get_wm_transient_for(connection,
-            properties->window);
+            window->client.id);
     if (!xcb_icccm_get_wm_transient_for_reply(connection, transient_for_cookie,
-                &properties->transient_for, NULL)) {
-        properties->transient_for = 0;
-    }
-}
-
-/* Update the `process_id` property within @properties. */
-static void update_window_pid(XProperties *properties)
-{
-    xcb_get_property_reply_t *pid;
-
-    pid = get_property(properties->window, ATOM(_NET_WM_PID),
-            XCB_ATOM_CARDINAL, 32, 1, NULL);
-    if (pid == NULL) {
-        properties->process_id = 0;
-    } else {
-        properties->process_id = *(uint32_t*) xcb_get_property_value(pid);
-        free(pid);
+                &window->transient_for, NULL)) {
+        window->transient_for = 0;
     }
 }
 
 /* Update the `protocols` property within @properties. */
-static void update_window_protocols(XProperties *properties)
+static void update_window_protocols(Window *window)
 {
-    free(properties->protocols);
-    properties->protocols = get_atom_list(properties->window,
+    free(window->protocols);
+    window->protocols = get_atom_list(window->client.id,
             ATOM(WM_PROTOCOLS));
 }
 
 /* Update the `fullscreen_monitors` property within @properties. */
-static void update_window_fullscreen_monitors(XProperties *properties)
+static void update_window_fullscreen_monitors(Window *window)
 {
     xcb_get_property_reply_t *monitors;
 
-    monitors = get_property(properties->window,
+    monitors = get_property(window->client.id,
             ATOM(_NET_WM_FULLSCREEN_MONITORS), XCB_ATOM_CARDINAL, 32,
-            sizeof(properties->fullscreen_monitors) / sizeof(uint32_t), NULL);
+            sizeof(window->fullscreen_monitors) / sizeof(uint32_t), NULL);
     if (monitors == NULL) {
-        memset(&properties->fullscreen_monitors, 0,
-                sizeof(properties->fullscreen_monitors));
+        memset(&window->fullscreen_monitors, 0,
+                sizeof(window->fullscreen_monitors));
     } else {
-        properties->fullscreen_monitors =
+        window->fullscreen_monitors =
             *(Extents*) xcb_get_property_value(monitors);
         free(monitors);
     }
 }
 
 /* Update the `motif_wm_hints` within @properties. */
-static void update_motif_wm_hints(XProperties *properties)
+static void update_motif_wm_hints(Window *window)
 {
     xcb_get_property_reply_t *motif_wm_hints;
 
-    motif_wm_hints = get_property(properties->window,
+    motif_wm_hints = get_property(window->client.id,
             ATOM(_MOTIF_WM_HINTS), ATOM(_MOTIF_WM_HINTS), 32,
-            sizeof(properties->motif_wm_hints) / sizeof(uint32_t), NULL);
+            sizeof(window->motif_wm_hints) / sizeof(uint32_t), NULL);
     if (motif_wm_hints == NULL) {
-        properties->motif_wm_hints.flags = 0;
+        window->motif_wm_hints.flags = 0;
     } else {
-        properties->motif_wm_hints =
+        window->motif_wm_hints =
             *(motif_wm_hints_t*) xcb_get_property_value(motif_wm_hints);
         free(motif_wm_hints);
     }
 }
 
-/* Update the property with @properties corresponding to given atom. */
-bool cache_window_property(XProperties *properties, xcb_atom_t atom)
+/* Update the property within @window corresponding to given atom. */
+bool cache_window_property(Window *window, xcb_atom_t atom)
 {
     /* this is spaced out because it was very difficult to read with the eyes */
     if (atom == XCB_ATOM_WM_NAME || atom == ATOM(_NET_WM_NAME)) {
 
-        update_window_name(properties);
+        update_window_name(window);
 
     } else if (atom == XCB_ATOM_WM_NORMAL_HINTS ||
             atom == XCB_ATOM_WM_SIZE_HINTS) {
 
-        update_window_size_hints(properties);
+        update_window_size_hints(window);
 
     } else if (atom == XCB_ATOM_WM_HINTS) {
 
-        update_window_hints(properties);
+        update_window_hints(window);
 
     } else if (atom == ATOM(_NET_WM_STRUT) ||
             atom == ATOM(_NET_WM_STRUT_PARTIAL)) {
 
-        update_window_strut(properties);
+        update_window_strut(window);
 
     } else if (atom == XCB_ATOM_WM_TRANSIENT_FOR) {
 
-        update_window_transient_for(properties);
-
-    } else if (atom == ATOM(_NET_WM_PID)) {
-
-        update_window_pid(properties);
+        update_window_transient_for(window);
 
     } else if (atom == ATOM(WM_PROTOCOLS)) {
 
-        update_window_protocols(properties);
+        update_window_protocols(window);
 
     } else if (atom == ATOM(_NET_WM_FULLSCREEN_MONITORS)) {
 
-        update_window_fullscreen_monitors(properties);
+        update_window_fullscreen_monitors(window);
 
     } else if (atom == ATOM(_MOTIF_WM_HINTS)) {
 
-        update_motif_wm_hints(properties);
+        update_motif_wm_hints(window);
 
     } else {
         return false;
@@ -467,8 +653,7 @@ static bool is_atom_included(const xcb_atom_t *atoms, xcb_atom_t atom)
 }
 
 /* Initialize all properties within @properties. */
-window_mode_t initialize_window_properties(XProperties *properties,
-        xcb_window_t window)
+window_mode_t initialize_window_properties(Window *window)
 {
     xcb_list_properties_cookie_t list_properties_cookie;
     xcb_list_properties_reply_t *list_properties;
@@ -476,16 +661,14 @@ window_mode_t initialize_window_properties(XProperties *properties,
     int atom_count;
     xcb_atom_t *states = NULL;
     xcb_atom_t *types = NULL;
-    window_mode_t predicted_mode;
-
-    properties->window = window;
+    window_mode_t predicted_mode = WINDOW_MODE_TILING;
 
     /* get a list of properties currently set on the window */
-    list_properties_cookie = xcb_list_properties(connection, window);
+    list_properties_cookie = xcb_list_properties(connection, window->client.id);
     list_properties = xcb_list_properties_reply(connection,
             list_properties_cookie, NULL);
     if (list_properties == NULL) {
-        return WINDOW_MODE_TILING;
+        return predicted_mode;
     }
 
     /* cache all properties */
@@ -493,11 +676,11 @@ window_mode_t initialize_window_properties(XProperties *properties,
     atom_count = xcb_list_properties_atoms_length(list_properties);
     for (int i = 0; i < atom_count; i++) {
         if (atoms[i] == ATOM(_NET_WM_STATE)) {
-            states = get_atom_list(window, ATOM(_NET_WM_STATE));
+            states = get_atom_list(window->client.id, ATOM(_NET_WM_STATE));
         } else if (atoms[i] == ATOM(_NET_WM_WINDOW_TYPE)) {
-            types = get_atom_list(window, ATOM(_NET_WM_WINDOW_TYPE));
+            types = get_atom_list(window->client.id, ATOM(_NET_WM_WINDOW_TYPE));
         } else {
-            cache_window_property(properties, atoms[i]);
+            cache_window_property(window, atoms[i]);
         }
     }
 
@@ -507,34 +690,29 @@ window_mode_t initialize_window_properties(XProperties *properties,
     } else if (is_atom_included(types, ATOM(_NET_WM_WINDOW_TYPE_DOCK))) {
         predicted_mode = WINDOW_MODE_DOCK;
     /* if this window has strut, it must be a dock window */
-    } else if (!is_strut_empty(&properties->strut)) {
+    } else if (!is_strut_empty(&window->strut)) {
         predicted_mode = WINDOW_MODE_DOCK;
     /* transient windows are floating windows */
-    } else if (properties->transient_for != 0) {
+    } else if (window->transient_for != 0) {
         predicted_mode = WINDOW_MODE_FLOATING;
     /* floating windows have an equal minimum and maximum size */
-    } else if ((properties->size_hints.flags &
+    } else if ((window->size_hints.flags &
                 (XCB_ICCCM_SIZE_HINT_P_MIN_SIZE |
                  XCB_ICCCM_SIZE_HINT_P_MAX_SIZE)) ==
                 (XCB_ICCCM_SIZE_HINT_P_MIN_SIZE |
                  XCB_ICCCM_SIZE_HINT_P_MAX_SIZE) &&
-            (properties->size_hints.min_width ==
-                properties->size_hints.max_width ||
-            properties->size_hints.min_height ==
-                properties->size_hints.max_height)) {
+            (window->size_hints.min_width ==
+                window->size_hints.max_width ||
+            window->size_hints.min_height ==
+                window->size_hints.max_height)) {
         predicted_mode = WINDOW_MODE_FLOATING;
-    /* tiling windows have the normal window type */
-    } else if (is_atom_included(types, ATOM(_NET_WM_WINDOW_TYPE_NORMAL))) {
-        predicted_mode = WINDOW_MODE_TILING;
-    /* floating windows have a special window type */
-    } else if (types != NULL) {
+    /* floating windows have a window type that is not the normal window type */
+    } else if (types != NULL &&
+            !is_atom_included(types, ATOM(_NET_WM_WINDOW_TYPE_NORMAL))) {
         predicted_mode = WINDOW_MODE_FLOATING;
-    /* fall back to tiling window */
-    } else {
-        predicted_mode = WINDOW_MODE_TILING;
     }
 
-    properties->states = states;
+    window->states = states;
 
     free(types);
     free(list_properties);
@@ -543,13 +721,13 @@ window_mode_t initialize_window_properties(XProperties *properties,
 }
 
 /* Check if @properties includes @protocol. */
-bool supports_protocol(XProperties *properties, xcb_atom_t protocol)
+bool supports_protocol(Window *window, xcb_atom_t protocol)
 {
-    return is_atom_included(properties->protocols, protocol);
+    return is_atom_included(window->protocols, protocol);
 }
 
 /* Check if @properties includes @state. */
-bool has_state(XProperties *properties, xcb_atom_t state)
+bool has_state(Window *window, xcb_atom_t state)
 {
-    return is_atom_included(properties->states, state);
+    return is_atom_included(window->states, state);
 }

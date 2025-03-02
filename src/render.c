@@ -99,26 +99,39 @@ static void free_font(void)
     free(font.faces);
     font.faces = NULL;
     font.number_of_faces = 0;
-    xcb_render_free_glyph_set(connection, font.glyphset);
     FcCharSetDestroy(font.charset);
 }
 
 /* Initializes all parts needed for drawing fonts. */
 static int initialize_font_drawing(void)
 {
-    FT_Error error;
+    FT_Error ft_error;
+    xcb_generic_error_t *error;
 
     /* initialize the freetype library */
-    error = FT_Init_FreeType(&font.library);
-    if (error != FT_Err_Ok) {
-        LOG_ERROR("could not initialize freetype: %u", error);
+    ft_error = FT_Init_FreeType(&font.library);
+    if (ft_error != FT_Err_Ok) {
+        LOG_ERROR("could not initialize freetype: %u", ft_error);
         return ERROR;
     }
 
     /* initialize fontconfig, this reads the font configuration database */
     if (FcInit() == FcFalse) {
-        LOG_ERROR("could not initialize freetype: %u", error);
+        LOG_ERROR("could not initialize fontconfig\n");
         FT_Done_FreeType(font.library);
+        return ERROR;
+    }
+
+    /* create the glyphset which will store the glyph pixel data */
+    font.glyphset = xcb_generate_id(connection);
+    error = xcb_request_check(connection,
+                xcb_render_create_glyph_set_checked(connection,
+                    font.glyphset, get_picture_format(8)));
+    if (error != NULL) {
+        LOG_ERROR("could not create a glyphset for rendering: %E\n", error);
+        free(error);
+        FT_Done_FreeType(font.library);
+        FcFini();
         return ERROR;
     }
     return OK;
@@ -221,12 +234,18 @@ void deinitialize_renderer(void)
     }
 
     free_font();
+    xcb_render_free_glyph_set(connection, font.glyphset);
 
     FT_Done_FreeType(font.library);
     FcFini();
 }
 
-/* Creates a picture for the given window (or retrieves it from the cache). */
+/* Creates a picture for the given window (or retrieves it from the cache).
+ *
+ * The cached items do not need to be cleared ever since they are only for the
+ * two fensterchef windows (notification and window list) which only get cleared
+ * whin fensterchef quits.
+ */
 xcb_render_picture_t cache_window_picture(xcb_drawable_t xcb_drawable)
 {
     struct window_picture_cache *last;
@@ -405,15 +424,13 @@ static FT_Face create_font_face(FcPattern *pattern)
 /* This sets the globally used font for rendering. */
 int set_font(const utf8_t *query)
 {
+    FT_Face *faces;
+    uint32_t number_of_faces;
     utf8_t *part;
     FcBool status;
     FcPattern *finding_pattern, *pattern;
     FcResult result;
     FT_Face face;
-    FT_Face *faces;
-    uint32_t number_of_faces;
-    xcb_render_glyphset_t glyphset;
-    xcb_generic_error_t *error;
 
     if (!font.available) {
         return ERROR;
@@ -486,18 +503,6 @@ int set_font(const utf8_t *query)
             return ERROR;
         }
 
-        /* create the glyphset which will store the glyph pixel data */
-        glyphset = xcb_generate_id(connection);
-        error = xcb_request_check(connection,
-                    xcb_render_create_glyph_set_checked(connection,
-                        glyphset, get_picture_format(8)));
-        if (error != NULL) {
-            LOG_ERROR("could not create the glyphset: %E\n", error);
-            free(error);
-            FT_Done_Face(face);
-            return ERROR;
-        }
-
         RESIZE(faces, number_of_faces + 1);
         faces[number_of_faces++] = face;
     }
@@ -513,7 +518,6 @@ int set_font(const utf8_t *query)
 
     font.faces = faces;
     font.number_of_faces = number_of_faces;
-    font.glyphset = glyphset;
     font.charset = FcCharSetCreate();
     return OK;
 }
@@ -607,7 +611,6 @@ static int cache_glyph(uint32_t glyph, FT_Pos *advance)
     xcb_render_glyphinfo_t glyph_info;
     uint32_t stride;
     uint8_t *temporary_bitmap;
-    xcb_generic_error_t *error;
 
     if (glyph == 0) {
         return ERROR;
@@ -641,18 +644,11 @@ static int cache_glyph(uint32_t glyph, FT_Pos *advance)
     }
 
     /* add the glyph to the glyph set */
-    error = xcb_request_check(connection,
-            xcb_render_add_glyphs_checked(connection,
-                font.glyphset, 1, &glyph, &glyph_info,
-                stride * glyph_info.height, temporary_bitmap));
-    free(temporary_bitmap);
+    xcb_render_add_glyphs(connection,
+            font.glyphset, 1, &glyph, &glyph_info,
+            stride * glyph_info.height, temporary_bitmap);
 
-    if (error != NULL) {
-        LOG_ERROR("could not add glyph U+%08x to the glyphset: %E\n",
-                (unsigned) glyph, error);
-        free(error);
-        return ERROR;
-    }
+    free(temporary_bitmap);
 
     *advance = glyph_info.x_off;
 
@@ -682,7 +678,6 @@ int draw_text(xcb_drawable_t xcb_drawable, const utf8_t *utf8, uint32_t length,
     } glyphs;
     FT_Pos advance;
     uint32_t text_width;
-    xcb_generic_error_t *error = NULL;
 
     if (!font.available) {
         return ERROR;
@@ -701,6 +696,7 @@ int draw_text(xcb_drawable_t xcb_drawable, const utf8_t *utf8, uint32_t length,
 
     glyphs.header.x = x;
     glyphs.header.y = y;
+    /* load the glyphs and send them in chunks to the X server */
     for (uint32_t i = 0; i < length; ) {
         text_width = 0;
         /* iterate over all glyphs and load them */
@@ -722,28 +718,22 @@ int draw_text(xcb_drawable_t xcb_drawable, const utf8_t *utf8, uint32_t length,
             text_width += advance;
         }
 
-        /* send a render request to the x renderer */
-        error = xcb_request_check(connection,
-                    xcb_render_composite_glyphs_32_checked(connection,
-                        XCB_RENDER_PICT_OP_OVER, /* C = Ca + Cb * (1 - Aa) */
-                        foreground, /* source picture */
-                        picture, /* destination picture */
-                        0, /* mask format */
-                        font.glyphset,
-                        0, 0, /* source position */
-                        sizeof(glyphs.header) +
-                            sizeof(uint32_t) * glyphs.header.count,
-                        (uint8_t*) &glyphs));
-        if (error != NULL) {
-            LOG_ERROR("could not render composite glyphs: %E\n", error);
-            free(error);
-            break;
-        }
+        /* send a render request to the X renderer */
+        xcb_render_composite_glyphs_32(connection,
+                XCB_RENDER_PICT_OP_OVER, /* C = Ca + Cb * (1 - Aa) */
+                foreground, /* source picture */
+                picture, /* destination picture */
+                0, /* mask format */
+                font.glyphset,
+                0, 0, /* source position */
+                sizeof(glyphs.header) +
+                    sizeof(uint32_t) * glyphs.header.count,
+                (uint8_t*) &glyphs);
 
         glyphs.header.x += text_width;
     }
 
-    return error == NULL ? OK : ERROR;
+    return OK;
 }
 
 /* Measure a text that has no new lines. */

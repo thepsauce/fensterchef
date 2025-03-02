@@ -4,7 +4,6 @@
 #include "frame.h"
 #include "log.h"
 #include "monitor.h"
-#include "root_properties.h"
 #include "stash_frame.h"
 #include "tiling.h"
 #include "utility.h"
@@ -26,7 +25,7 @@ bool has_window_border(Window *window)
         return false;
     }
     /* if the window has borders itself (not set by the window manager) */
-    if ((window->properties.motif_wm_hints.flags &
+    if ((window->motif_wm_hints.flags &
                 MOTIF_WM_HINTS_DECORATIONS)) {
         return false;
     }
@@ -47,27 +46,27 @@ static void configure_floating_size(Window *window)
      * that the window prefers
      */
     if (window->floating.width == 0) {
-        if ((window->properties.size_hints.flags & XCB_ICCCM_SIZE_HINT_P_SIZE)) {
-            width = window->properties.size_hints.width;
-            height = window->properties.size_hints.height;
+        if ((window->size_hints.flags & XCB_ICCCM_SIZE_HINT_P_SIZE)) {
+            width = window->size_hints.width;
+            height = window->size_hints.height;
         } else {
             width = monitor->width * 2 / 3;
             height = monitor->height * 2 / 3;
         }
 
-        if ((window->properties.size_hints.flags & XCB_ICCCM_SIZE_HINT_P_MIN_SIZE)) {
-            width = MAX(width, (uint32_t) window->properties.size_hints.min_width);
-            height = MAX(height, (uint32_t) window->properties.size_hints.min_height);
+        if ((window->size_hints.flags & XCB_ICCCM_SIZE_HINT_P_MIN_SIZE)) {
+            width = MAX(width, (uint32_t) window->size_hints.min_width);
+            height = MAX(height, (uint32_t) window->size_hints.min_height);
         }
 
-        if ((window->properties.size_hints.flags & XCB_ICCCM_SIZE_HINT_P_MAX_SIZE)) {
-            width = MIN(width, (uint32_t) window->properties.size_hints.max_width);
-            height = MIN(height, (uint32_t) window->properties.size_hints.max_height);
+        if ((window->size_hints.flags & XCB_ICCCM_SIZE_HINT_P_MAX_SIZE)) {
+            width = MIN(width, (uint32_t) window->size_hints.max_width);
+            height = MIN(height, (uint32_t) window->size_hints.max_height);
         }
 
-        if ((window->properties.size_hints.flags & XCB_ICCCM_SIZE_HINT_P_POSITION)) {
-            x = window->properties.size_hints.x;
-            y = window->properties.size_hints.y;
+        if ((window->size_hints.flags & XCB_ICCCM_SIZE_HINT_P_POSITION)) {
+            x = window->size_hints.x;
+            y = window->size_hints.y;
         } else {
             x = monitor->x + (monitor->width - width) / 2;
             y = monitor->y + (monitor->height - height) / 2;
@@ -85,10 +84,9 @@ static void configure_floating_size(Window *window)
     }
 
     /* consider the window gravity, i.e. where the window wants to be */
-    if ((window->properties.size_hints.flags &
-                XCB_ICCCM_SIZE_HINT_P_WIN_GRAVITY)) {
+    if ((window->size_hints.flags & XCB_ICCCM_SIZE_HINT_P_WIN_GRAVITY)) {
         adjust_for_window_gravity(monitor, &x, &y, width, height,
-                window->properties.size_hints.win_gravity);
+                window->size_hints.win_gravity);
     }
 
     set_window_size(window, x, y, width, height);
@@ -99,14 +97,14 @@ static void configure_fullscreen_size(Window *window)
 {
     Monitor *monitor;
 
-    if (window->properties.fullscreen_monitors.top !=
-            window->properties.fullscreen_monitors.bottom) {
-        set_window_size(window, window->properties.fullscreen_monitors.left,
-                window->properties.fullscreen_monitors.top,
-                window->properties.fullscreen_monitors.right -
-                    window->properties.fullscreen_monitors.left,
-                window->properties.fullscreen_monitors.bottom -
-                    window->properties.fullscreen_monitors.left);
+    if (window->fullscreen_monitors.top !=
+            window->fullscreen_monitors.bottom) {
+        set_window_size(window, window->fullscreen_monitors.left,
+                window->fullscreen_monitors.top,
+                window->fullscreen_monitors.right -
+                    window->fullscreen_monitors.left,
+                window->fullscreen_monitors.bottom -
+                    window->fullscreen_monitors.left);
     } else {
         monitor = get_monitor_from_rectangle(window->x,
                 window->y, window->width, window->height);
@@ -122,17 +120,17 @@ static void configure_dock_size(Window *window)
     int32_t x, y;
     uint32_t width, height;
 
-    if ((window->properties.size_hints.flags & XCB_ICCCM_SIZE_HINT_P_SIZE)) {
-        width = window->properties.size_hints.width;
-        height = window->properties.size_hints.height;
+    if ((window->size_hints.flags & XCB_ICCCM_SIZE_HINT_P_SIZE)) {
+        width = window->size_hints.width;
+        height = window->size_hints.height;
     } else {
         width = 0;
         height = 0;
     }
 
-    if ((window->properties.size_hints.flags & XCB_ICCCM_SIZE_HINT_P_POSITION)) {
-        x = window->properties.size_hints.x;
-        y = window->properties.size_hints.y;
+    if ((window->size_hints.flags & XCB_ICCCM_SIZE_HINT_P_POSITION)) {
+        x = window->size_hints.x;
+        y = window->size_hints.y;
     } else {
         x = window->x;
         y = window->y;
@@ -145,32 +143,28 @@ static void configure_dock_size(Window *window)
      * occupy screen space, then it should be within that occupied space
      */
     if (width == 0 || height == 0) {
-        if (window->properties.strut.reserved.left != 0) {
+        if (window->strut.reserved.left != 0) {
             x = monitor->x;
-            y = window->properties.strut.left_start_y;
-            width = window->properties.strut.reserved.left;
-            height = window->properties.strut.left_end_y -
-                window->properties.strut.left_start_y + 1;
-        } else if (window->properties.strut.reserved.top != 0) {
-            x = window->properties.strut.top_start_x;
+            y = window->strut.left_start_y;
+            width = window->strut.reserved.left;
+            height = window->strut.left_end_y - window->strut.left_start_y + 1;
+        } else if (window->strut.reserved.top != 0) {
+            x = window->strut.top_start_x;
             y = monitor->y;
-            width = window->properties.strut.top_end_x -
-                window->properties.strut.top_start_x + 1;
-            height = window->properties.strut.reserved.top;
-        } else if (window->properties.strut.reserved.right != 0) {
-            x = monitor->x + monitor->width -
-                window->properties.strut.reserved.right;
-            y = window->properties.strut.right_start_y;
-            width = window->properties.strut.reserved.right;
-            height = window->properties.strut.right_end_y -
-                window->properties.strut.right_start_y + 1;
-        } else if (window->properties.strut.reserved.bottom != 0) {
-            x = window->properties.strut.bottom_start_x;
-            y = monitor->y + monitor->height -
-                window->properties.strut.reserved.bottom;
-            width = window->properties.strut.bottom_end_x -
-                window->properties.strut.bottom_start_x + 1;
-            height = window->properties.strut.reserved.bottom;
+            width = window->strut.top_end_x - window->strut.top_start_x + 1;
+            height = window->strut.reserved.top;
+        } else if (window->strut.reserved.right != 0) {
+            x = monitor->x + monitor->width - window->strut.reserved.right;
+            y = window->strut.right_start_y;
+            width = window->strut.reserved.right;
+            height = window->strut.right_end_y -
+                window->strut.right_start_y + 1;
+        } else if (window->strut.reserved.bottom != 0) {
+            x = window->strut.bottom_start_x;
+            y = monitor->y + monitor->height - window->strut.reserved.bottom;
+            width = window->strut.bottom_end_x -
+                window->strut.bottom_start_x + 1;
+            height = window->strut.reserved.bottom;
         } else {
             /* TODO: what to do here? what is a dock window without defined size
              * hints AND without any strut? does it exist?
@@ -181,10 +175,10 @@ static void configure_dock_size(Window *window)
     }
 
     /* consider the window gravity, i.e. where the window wants to be */
-    if ((window->properties.size_hints.flags &
+    if ((window->size_hints.flags &
                 XCB_ICCCM_SIZE_HINT_P_WIN_GRAVITY)) {
         adjust_for_window_gravity(monitor, &x, &y, width, height,
-            window->properties.size_hints.win_gravity);
+            window->size_hints.win_gravity);
     }
 
     set_window_size(window, x, y, width, height);
@@ -240,7 +234,7 @@ static void synchronize_allowed_actions(Window *window)
     }
 
     xcb_change_property(connection, XCB_PROP_MODE_REPLACE,
-            window->properties.window, ATOM(_NET_WM_ALLOWED_ACTIONS),
+            window->client.id, ATOM(_NET_WM_ALLOWED_ACTIONS),
             XCB_ATOM_ATOM, 32, list_length, list);
 }
 
@@ -253,30 +247,30 @@ static void add_window_states(Window *window, xcb_atom_t *states,
     /* for each state in `states`, either add it or filter it out */
     for (uint32_t i = 0, j; i < number_of_states; i++) {
         /* filter out the states already in the window properties */
-        if (has_state(&window->properties, states[i])) {
+        if (has_state(window, states[i])) {
             continue;
         }
 
         j = 0;
 
         /* add the state to the window properties */
-        if (window->properties.states != NULL) {
+        if (window->states != NULL) {
             /* find the number of elements */
-            for (; window->properties.states[j] != XCB_NONE; j++) {
+            for (; window->states[j] != XCB_NONE; j++) {
                 /* nothing */
             }
         }
 
-        RESIZE(window->properties.states, j + 2);
-        window->properties.states[j] = states[i];
-        window->properties.states[j + 1] = XCB_NONE;
+        RESIZE(window->states, j + 2);
+        window->states[j] = states[i];
+        window->states[j + 1] = XCB_NONE;
 
         states[effective_count++] = states[i];
     }
 
     /* append the properties to the list in the X server */
     xcb_change_property(connection, XCB_PROP_MODE_APPEND,
-            window->properties.window, ATOM(_NET_WM_STATE),
+            window->client.id, ATOM(_NET_WM_STATE),
             XCB_ATOM_ATOM, 32, effective_count, states);
 }
 
@@ -288,25 +282,25 @@ static void remove_window_states(Window *window, xcb_atom_t *states,
     uint32_t effective_count = 0;
 
     /* if no states are there, nothing can be removed */
-    if (window->properties.states == NULL) {
+    if (window->states == NULL) {
         return;
     }
 
     /* filter out all states in the window properties that are in `states` */
-    for (i = 0; window->properties.states[i] != XCB_NONE; i++) {
+    for (i = 0; window->states[i] != XCB_NONE; i++) {
         uint32_t j;
 
         /* check if the state exists in `states`... */
         for (j = 0; j < number_of_states; j++) {
-            if (states[j] == window->properties.states[i]) {
+            if (states[j] == window->states[i]) {
                 break;
             }
         }
 
         /* ...if not, add it */
         if (j == number_of_states) {
-            window->properties.states[effective_count++] =
-                window->properties.states[i];
+            window->states[effective_count++] =
+                window->states[i];
         }
     }
 
@@ -316,13 +310,13 @@ static void remove_window_states(Window *window, xcb_atom_t *states,
     }
 
     /* terminate the end with `XCB_NONE` */
-    window->properties.states[effective_count] = XCB_NONE;
+    window->states[effective_count] = XCB_NONE;
 
     /* replace the atom list on the X server */
     xcb_change_property(connection, XCB_PROP_MODE_REPLACE,
-            window->properties.window, ATOM(_NET_WM_STATE),
+            window->client.id, ATOM(_NET_WM_STATE),
             XCB_ATOM_ATOM, 32, effective_count,
-            window->properties.states);
+            window->states);
 }
 
 /* Changes the window state to given value and reconfigures the window only
@@ -339,7 +333,12 @@ void set_window_mode(Window *window, window_mode_t mode)
     LOG("transition window mode of %W from %m to %m\n", window,
             window->state.mode, mode);
 
-    window->state.previous_mode = window->state.mode;
+    /* this is true if the window is being initialized */
+    if (window->state.mode == WINDOW_MODE_MAX) {
+        window->state.previous_mode = mode;
+    } else {
+        window->state.previous_mode = window->state.mode;
+    }
     window->state.mode = mode;
 
     if (window->state.is_visible) {
@@ -399,12 +398,10 @@ void set_window_mode(Window *window, window_mode_t mode)
 
     /* update the window border */
     if (has_window_border(window)) {
-        general_values[0] = configuration.border.size;
+        window->border_size = configuration.border.size;
     } else {
-        general_values[0] = 0;
+        window->border_size = 0;
     }
-    xcb_configure_window(connection, window->properties.window,
-            XCB_CONFIG_WINDOW_BORDER_WIDTH, general_values);
 
     update_window_layer(window);
 
@@ -415,11 +412,8 @@ void set_window_mode(Window *window, window_mode_t mode)
 void show_window(Window *window)
 {
     if (window->state.is_visible) {
-        LOG("tried to show already shown window %W\n", window);
         return;
     }
-
-    LOG("showing window %W\n", window);
 
     window->state.is_visible = true;
 
@@ -458,31 +452,17 @@ void show_window(Window *window)
     }
 
     /* this clips the window onto screen */
-    set_window_size(window, window->x, window->y, window->width,
-            window->height);
-
-    xcb_map_window(connection, window->properties.window);
-
-    /* check if strut has appeared */
-    if (!is_strut_empty(&window->properties.strut)) {
-        reconfigure_monitor_frame_sizes();
-        synchronize_root_property(ROOT_PROPERTY_WORK_AREA);
-    }
-
-    LOG("window %W is now shown\n", window);
+    place_window_in_bounds(NULL, window);
 }
 
-/* Hide the window by unmapping it from the X server. */
+/* Hide @window and adjust the tiling and focus. */
 void hide_window(Window *window)
 {
     Frame *frame, *stash;
 
     if (!window->state.is_visible) {
-        LOG("window %W is already hidden\n", window);
         return;
     }
-
-    LOG("hiding window %W\n", window);
 
     window->state.is_visible = false;
 
@@ -517,31 +497,23 @@ void hide_window(Window *window)
         if (window == focus_window) {
             Window *next;
 
-            /* first get a top window that is visible and not the current window
-             */
-            next = get_top_window();
-            if (next == window) {
-                while (next != NULL && !next->state.is_visible) {
-                    next = next->below;
+            /* first get a top window that is visible and not a tiling window */
+            for (next = top_window; next != NULL; next = next->below) {
+                if (next->state.mode == WINDOW_MODE_TILING) {
+                    next = NULL;
+                    break;
                 }
-                /* if no such window exists or it is a tiling window, then we
-                 * get the bottom window instead
-                 */
-                if (next == NULL || next->state.mode == WINDOW_MODE_TILING) {
-                    next = get_bottom_window();
-                    while (next != NULL && !next->state.is_visible) {
-                        if (next->state.mode != WINDOW_MODE_TILING) {
-                            next = NULL;
-                            break;
-                        }
-                        next = next->above;
-                    }
-                    if (next == window) {
-                        next = NULL;
-                    }
+                if (next != window && next->state.is_visible) {
+                    break;
                 }
             }
-            set_focus_window_with_frame(next);
+
+            /* if no such window exists, then we focus the current frame */
+            if (next == NULL) {
+                set_focus_frame(focus_frame);
+            } else {
+                set_focus_window_with_frame(next);
+            }
         }
         break;
 
@@ -549,32 +521,17 @@ void hide_window(Window *window)
     case WINDOW_MODE_MAX:
         break;
     }
-
-    xcb_unmap_window(connection, window->properties.window);
-
-    /* check if strut has disappeared */
-    if (!is_strut_empty(&window->properties.strut)) {
-        reconfigure_monitor_frame_sizes();
-        synchronize_root_property(ROOT_PROPERTY_WORK_AREA);
-    }
-
-    LOG("window %W is now hidden\n", window);
 }
 
-/* Wrapper around `hide_window()` that does not touch the tiling or focus. */
+/* Hide the window without touching the tiling or focus. */
 void hide_window_abruptly(Window *window)
 {
-    window_mode_t previous_mode;
-
     /* do nothing if the window is already hidden */
     if (!window->state.is_visible) {
         return;
     }
 
-    previous_mode = window->state.mode;
-    window->state.mode = WINDOW_MODE_MAX;
-    hide_window(window);
-    window->state.mode = previous_mode;
+    window->state.is_visible = false;
 
     /* make sure there is no invalid focus window */
     if (window == focus_window) {

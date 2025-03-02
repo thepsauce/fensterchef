@@ -3,7 +3,7 @@
 
 #include "window.h"
 
-/* Shows a windows list where the user can select a window from. */
-Window *select_window_from_list(void);
+/* Shows the window list and shows/focuses the selected window. */
+void show_list_and_show_selected_window(void);
 
 #endif

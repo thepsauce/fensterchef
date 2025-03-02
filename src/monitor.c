@@ -251,51 +251,6 @@ Monitor *query_monitors(void)
     return first_monitor;
 }
 
-/* Updates the strut of all monitors and then correctly sizes the frame. */
-void reconfigure_monitor_frame_sizes(void)
-{
-    Monitor *monitor;
-
-    /* reset all extents */
-    for (monitor = first_monitor; monitor != NULL;
-            monitor = monitor->next) {
-        monitor->strut.left = 0;
-        monitor->strut.top = 0;
-        monitor->strut.right = 0;
-        monitor->strut.bottom = 0;
-    }
-
-    /* work out the new extents based on the window defined extents */
-    for (Window *window = first_window; window != NULL;
-            window = window->next) {
-        if (!window->state.is_visible ||
-                is_strut_empty(&window->properties.strut)) {
-            continue;
-        }
-        /* only slash off from the monitor that has the strut, this is non
-         * standard behavior as strut are for screens and not monitors
-         */
-        monitor = get_monitor_from_rectangle(window->x,
-                window->y, window->width, window->height);
-        monitor->strut.left += window->properties.strut.reserved.left;
-        monitor->strut.top += window->properties.strut.reserved.top;
-        monitor->strut.right += window->properties.strut.reserved.right;
-        monitor->strut.bottom += window->properties.strut.reserved.bottom;
-    }
-
-    /* resize all frames to their according size */
-    for (monitor = first_monitor; monitor != NULL;
-            monitor = monitor->next) {
-        resize_frame(monitor->frame,
-                monitor->x + monitor->strut.left,
-                monitor->y + monitor->strut.top,
-                monitor->width - monitor->strut.right -
-                    monitor->strut.left,
-                monitor->height - monitor->strut.bottom -
-                    monitor->strut.top);
-    }
-}
-
 /* Merges given monitor linked list into the screen.
  *
  * The main purpose of this function is to essentially make the linked in screen
@@ -307,7 +262,7 @@ void reconfigure_monitor_frame_sizes(void)
 void merge_monitors(Monitor *monitors)
 {
     if (monitors == NULL) {
-        monitors = create_monitor("default", (uint32_t) -1);
+        monitors = create_monitor("default", UINT32_MAX);
         monitors->width = screen->width_in_pixels;
         monitors->height = screen->height_in_pixels;
     }
@@ -353,16 +308,6 @@ void merge_monitors(Monitor *monitors)
             monitor->frame = xcalloc(1, sizeof(*monitor->frame));
             fill_void_with_stash(monitor->frame);
         }
-    }
-
-    reconfigure_monitor_frame_sizes();
-
-    /* make sure all windows' geometries are visible, for example when a monitor
-     * was turned off
-     */
-    for (Window *window = first_window; window != NULL; window = window->next) {
-        set_window_size(window, window->x, window->y, window->width,
-                window->height);
     }
 
     /* if the focus frame was abonded, focus a different one */

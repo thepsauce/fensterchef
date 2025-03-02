@@ -961,7 +961,8 @@ parser_error_t parse_line(Parser *parser)
             RESIZE(parser->configuration->mouse.buttons,
                     parser->configuration->mouse.number_of_buttons + 1);
             button = &parser->configuration->mouse.buttons[
-                parser->configuration->mouse.number_of_buttons++];
+                parser->configuration->mouse.number_of_buttons];
+            parser->configuration->mouse.number_of_buttons++;
         }
         *button = parser->button;
         return PARSER_SUCCESS;
@@ -983,7 +984,8 @@ parser_error_t parse_line(Parser *parser)
             RESIZE(parser->configuration->keyboard.keys,
                     parser->configuration->keyboard.number_of_keys + 1);
             key = &parser->configuration->keyboard.keys[
-                parser->configuration->keyboard.number_of_keys++];
+                parser->configuration->keyboard.number_of_keys];
+            parser->configuration->keyboard.number_of_keys++;
         }
         *key = parser->key;
         return PARSER_SUCCESS;

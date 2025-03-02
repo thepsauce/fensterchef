@@ -56,7 +56,7 @@ void set_window_mode(Window *window, window_mode_t mode);
  */
 void show_window(Window *window);
 
-/* Hide the window by unmapping it from the X server.
+/* Hide @window and adjust the tiling and focus.
  *
  * When the window is a tiling window, this places the next available window in
  * the formed gap.
@@ -65,7 +65,7 @@ void show_window(Window *window);
  */
 void hide_window(Window *window);
 
-/* Wrapper around `hide_window()` that does not touch the tiling or focus.  *
+/* Hide the window without touching the tiling or focus.
  * Note: The focus however is removed if @window is the focus.
  */
 void hide_window_abruptly(Window *window);

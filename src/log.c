@@ -375,18 +375,18 @@ static void log_xcb_window(xcb_window_t xcb_window)
 {
     log_hexadecimal(xcb_window);
     fputs(COLOR(YELLOW), stderr);
-    if (xcb_window == check_window) {
+    if (xcb_window == wm_check_window) {
         fputs("<check>", stderr);
-    } else if (xcb_window == window_list_window) {
+    } else if (xcb_window == window_list.id) {
         fputs("<window list>", stderr);
-    } else if (xcb_window == notification_window) {
+    } else if (xcb_window == notification.id) {
         fputs("<notification>", stderr);
     } else if (xcb_window == screen->root) {
         fputs("<root>", stderr);
     } else {
         for (Window *window = first_window; window != NULL;
                 window = window->next) {
-            if (window->properties.window == xcb_window) {
+            if (window->client.id == xcb_window) {
                 fprintf(stderr, "<%" PRIu32 ">", window->number);
                 break;
             }
@@ -1162,7 +1162,7 @@ static void log_error(xcb_generic_error_t *error)
 /* Log a window to standard error output. */
 static void log_window(const Window *window)
 {
-    log_hexadecimal(window->properties.window);
+    log_hexadecimal(window->client.id);
     fprintf(stderr, COLOR(YELLOW) "<%" PRIu32 ">" CLEAR_COLOR, window->number);
 }
 
@@ -1234,7 +1234,7 @@ static void log_screen(xcb_screen_t *screen)
 }
 
 /* Print a formatted string to standard error output. */
-void formatted_log(log_severity_t severity, const char *file, int line,
+void log_formatted(log_severity_t severity, const char *file, int line,
         const char *format, ...)
 {
     va_list list;

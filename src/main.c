@@ -6,7 +6,6 @@
 #include "log.h"
 #include "monitor.h"
 #include "render.h"
-#include "root_properties.h"
 #include "x11_management.h"
 #include "xalloc.h"
 
@@ -28,27 +27,27 @@ int main(void)
         quit_fensterchef(EXIT_FAILURE);
     }
 
-    /* initialize randr if possible and the initial frames */
-    initialize_monitors();
-
     /* initialize graphical stock objects used for rendering */
     if (initialize_renderer() != OK) {
         quit_fensterchef(EXIT_FAILURE);
     }
-
-    /* load the default configuration and the user configuration, this also
-     * initializes the keybindings and font
-     */
-    load_default_configuration();
-    reload_user_configuration();
 
     /* set the signal handlers */
     if (initialize_signal_handlers() != OK) {
         quit_fensterchef(EXIT_FAILURE);
     }
 
+    /* initialize randr if possible and the initial frames */
+    initialize_monitors();
+
     /* set the X properties on the root window */
-    synchronize_all_root_properties();
+    initialize_root_properties();
+
+    /* load the default configuration and the user configuration, this also
+     * initializes the bindings and font
+     */
+    load_default_configuration();
+    reload_user_configuration();
 
     /* before entering the loop, flush all the initialization calls */
     xcb_flush(connection);

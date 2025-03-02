@@ -70,7 +70,7 @@ void resize_frame(Frame *frame, int32_t x, int32_t y,
     switch (frame->split_direction) {
     /* left to right split */
     case FRAME_SPLIT_HORIZONTALLY:
-        /* keep ration when resizing of use the default 1/2 ratio */
+        /* keep ration when resizing or use the default 1/2 ratio */
         left_size = left->width == 0 || right->width == 0 ? width / 2 :
             width * left->width / (left->width + right->width);
         resize_frame(left, x, y, left_size, height);
@@ -79,7 +79,7 @@ void resize_frame(Frame *frame, int32_t x, int32_t y,
 
     /* top to bottom split */
     case FRAME_SPLIT_VERTICALLY:
-        /* keep ratio when resizing of use the default 1/2 ratio */
+        /* keep ratio when resizing or use the default 1/2 ratio */
         left_size = left->height == 0 || right->height == 0 ? height / 2 :
             height * left->height / (left->height + right->height);
         resize_frame(left, x, y, width, left_size);

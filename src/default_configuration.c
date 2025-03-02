@@ -2,6 +2,7 @@
 
 #include "default_configuration.h"
 #include "utility.h"
+#include "utf8.h"
 
 /* the default configuration */
 static const struct configuration default_configuration = {
@@ -20,7 +21,7 @@ static const struct configuration default_configuration = {
 
     /* default font settings: Mono */
     .font = {
-        .name = (uint8_t*) "Mono"
+        .name = (utf8_t*) "Mono"
     },
 
     /* default border settings: no borders */
@@ -82,8 +83,11 @@ void merge_with_default_button_bindings(struct configuration *configuration)
         /* the singular action to execute */
         Action action;
     } default_bindings[] = {
+        /* start moving or resizing a window (depends on the mouse position) */
         { 0, 0, 1, { .code = ACTION_INITIATE_RESIZE } },
+        /* minimize (hide) a window */
         { 0, 0, 2, { .code = ACTION_MINIMIZE_WINDOW } },
+        /* start moving a window */
         { 0, 0, 3, { .code = ACTION_INITIATE_MOVE } },
     };
 
@@ -293,7 +297,8 @@ void load_default_configuration(void)
     configuration = default_configuration;
     duplicate_configuration(&configuration);
 
-    /* add the default key bindings */
+    /* add the default bindings */
+    merge_with_default_button_bindings(&configuration);
     merge_with_default_key_bindings(&configuration);
 
     set_configuration(&configuration);

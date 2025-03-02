@@ -29,8 +29,6 @@ static void hide_inner_windows(Frame *frame)
 /* Take @frame away from the screen, this leaves a singular empty frame. */
 Frame *stash_frame_later(Frame *frame)
 {
-    Frame *stash;
-
     /* check if it is worth saving this frame */
     if (frame->left == NULL && frame->window == NULL) {
         return NULL;
@@ -39,7 +37,7 @@ Frame *stash_frame_later(Frame *frame)
     hide_inner_windows(frame);
 
     /* reparent the child frames */
-    stash = xcalloc(1, sizeof(*stash));
+    Frame *const stash = xcalloc(1, sizeof(*stash));
     if (frame->left != NULL) {
         stash->split_direction = frame->split_direction;
         stash->left = frame->left;
@@ -70,9 +68,7 @@ void link_frame_into_stash(Frame *frame)
 /* Take @frame away from the screen, this leaves a singular empty frame. */
 Frame *stash_frame(Frame *frame)
 {
-    Frame *stash;
-
-    stash = stash_frame_later(frame);
+    Frame *const stash = stash_frame_later(frame);
     if (stash == NULL) {
         return NULL;
     }
@@ -87,9 +83,7 @@ Frame *stash_frame(Frame *frame)
  */
 static bool is_window_valid(Window *window)
 {
-    Window *other;
-
-    for (other = first_window; other != NULL; other = other->next) {
+    for (Window *other = first_window; other != NULL; other = other->next) {
         if (other == window) {
             return window->state.mode == WINDOW_MODE_TILING &&
                 !window->state.is_visible;
@@ -98,17 +92,23 @@ static bool is_window_valid(Window *window)
     return false;
 }
 
-/* Make sure all window pointers are still valid. */
-static void validate_inner_windows(Frame *frame)
+/* Make sure all window pointers are still valid.
+ *
+ * @return the number of valid windows.
+ */
+static uint32_t validate_inner_windows(Frame *frame)
 {
     if (frame->left != NULL) {
-        validate_inner_windows(frame->left);
-        validate_inner_windows(frame->right);
+        return validate_inner_windows(frame->left) +
+            validate_inner_windows(frame->right);
     } else if (frame->window != NULL) {
         if (!is_window_valid(frame->window)) {
             frame->window = NULL;
+            return 0;
         }
+        return 1;
     }
+    return 0;
 }
 
 /* Put the child frames or window into @frame of the recently saved frame. */
@@ -118,14 +118,15 @@ Frame *pop_stashed_frame(void)
 
     pop = last_stashed_frame;
     /* find the first valid frame in the pop list, it might be that a stashed
-     * frame got invalidated because it lost an inner window and is now
+     * frame got invalidated because it lost all inner window and is now
      * completely empty
      */
     while (pop != NULL) {
         if (pop->left != NULL) {
             break;
         }
-        if (is_window_valid(pop->window)) {
+
+        if (validate_inner_windows(pop) > 0) {
             break;
         }
 
@@ -137,8 +138,6 @@ Frame *pop_stashed_frame(void)
     if (pop == NULL) {
         last_stashed_frame = NULL;
     } else {
-        validate_inner_windows(pop);
-
         last_stashed_frame = pop->previous_stashed;
     }
     return pop;

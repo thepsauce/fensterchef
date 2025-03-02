@@ -12,9 +12,6 @@
 #include "utility.h"
 #include "window.h"
 
-/* if the user requested to reload the configuration, handled in `main()` */
-bool reload_requested;
-
 /* the currently loaded configuration */
 struct configuration configuration;
 
@@ -255,35 +252,6 @@ void set_configuration(struct configuration *new_configuration)
         set_font(configuration.font.name);
     }
 
-    /* check if border size changed and update the border size of all windows */
-    if (old_configuration.border.size != configuration.border.size) {
-        for (Window *window = first_window; window != NULL;
-                window = window->next) {
-            if (!has_window_border(window)) {
-                continue;
-            }
-            general_values[0] = configuration.border.size;
-            xcb_configure_window(connection, window->properties.window,
-                    XCB_CONFIG_WINDOW_BORDER_WIDTH, general_values);
-        }
-    }
-
-    /* check if the border color changed */
-    if (old_configuration.border.color != configuration.border.color ||
-            old_configuration.border.focus_color !=
-                configuration.border.focus_color) {
-        for (Window *window = first_window; window != NULL;
-                window = window->next) {
-            if (window == focus_window) {
-                general_values[0] = configuration.border.focus_color;
-            } else {
-                general_values[0] = configuration.border.color;
-            }
-            xcb_change_window_attributes(connection, window->properties.window,
-                XCB_CW_BORDER_PIXEL, general_values);
-        }
-    }
-
     /* check if border size or gaps change and reload all frames */
     if (old_configuration.border.size != configuration.border.size ||
             old_configuration.gaps.inner != configuration.gaps.inner ||
@@ -294,24 +262,30 @@ void set_configuration(struct configuration *new_configuration)
         }
     }
 
-    /* check if notification border color changed */
-    if (old_configuration.notification.border_color !=
-            configuration.notification.border_color) {
-        general_values[0] = configuration.notification.border_color;
-        xcb_change_window_attributes(connection, notification_window,
-                XCB_CW_BORDER_PIXEL, general_values);
-        xcb_change_window_attributes(connection, window_list_window,
-                XCB_CW_BORDER_PIXEL, general_values);
+    /* refresh the border size and color of all windows */
+    for (Window *window = first_window; window != NULL; window = window->next) {
+        if (window == focus_window) {
+            window->border_color = configuration.border.focus_color;
+        } else {
+            window->border_color = configuration.border.color;
+        }
+        window->border_size = configuration.border.size;
     }
-    /* check if notification border size changed */
-    if (old_configuration.notification.border_size !=
-            configuration.notification.border_size) {
-        general_values[0] = configuration.notification.border_size;
-        xcb_configure_window(connection, notification_window,
-                XCB_CONFIG_WINDOW_BORDER_WIDTH, general_values);
-        xcb_configure_window(connection, window_list_window,
-                XCB_CONFIG_WINDOW_BORDER_WIDTH, general_values);
-    }
+
+    /* change border color and size of the notification window */
+    change_client_attributes(&notification,
+            configuration.notification.border_color);
+    configure_client(&notification, notification.x, notification.y,
+            notification.width, notification.height,
+            configuration.notification.border_size);
+
+    /* change border color and size of the window list window */
+    change_client_attributes(&window_list,
+            configuration.notification.border_color);
+    configure_client(&window_list, window_list.x, window_list.y,
+            window_list.width, window_list.height,
+            configuration.notification.border_size);
+
     /* check if notification background changed */
     if (old_configuration.notification.background !=
             configuration.notification.background) {
@@ -342,10 +316,11 @@ void set_configuration(struct configuration *new_configuration)
                 XCB_GC_FOREGROUND | XCB_GC_BACKGROUND, general_values);
     }
 
-    /* just do this without checking if anything changed */
+    /* re-grab all bindings */
     grab_configured_buttons();
     grab_configured_keys();
 
+    /* free the resources of the old configuration */
     clear_configuration(&old_configuration);
 }
 

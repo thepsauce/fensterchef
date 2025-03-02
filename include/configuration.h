@@ -7,9 +7,6 @@
 #include "action.h"
 #include "keymap.h"
 
-/* if the user requested to reload the configuration, handled in `main()` */
-extern bool reload_requested;
-
 /* general settings */
 struct configuration_general {
     /* currently no members */

@@ -13,10 +13,10 @@
 #include "keymap.h"
 #include "log.h"
 #include "monitor.h"
-#include "root_properties.h"
 #include "tiling.h"
 #include "utility.h"
 #include "window.h"
+#include "window_list.h"
 
 /* This file handles all kinds of X events.
  *
@@ -32,7 +32,18 @@
 uint8_t randr_event_base;
 
 /* signals whether the alarm signal was received */
-volatile sig_atomic_t timer_expired_signal;
+volatile sig_atomic_t has_timer_expired;
+
+/* if the user requested to reload the configuration */
+bool is_reload_requested;
+
+/* if the user requested to show the window list */
+bool is_window_list_requested;
+
+/* if the client list has changed (if stacking changed, windows were removed or
+ * added)
+ */
+bool has_client_list_changed;
 
 /* this is used for moving/resizing a floating window */
 static struct {
@@ -50,7 +61,7 @@ static struct {
 static void alarm_handler(int signal)
 {
     (void) signal;
-    timer_expired_signal = true;
+    has_timer_expired = true;
 }
 
 /* Create a signal handler for `SIGALRM`. */
@@ -68,15 +79,165 @@ int initialize_signal_handlers(void)
         LOG_ERROR("could not create alarm handler\n");
         return ERROR;
     }
-    /* I also thought of adding a signal handler for SIGCHLD which gets
-     * triggered when a child process finishes but my assumption is that the
-     * children get cleaned up automatically when not specifying any handler
-     */
     return OK;
 }
 
+/* Set the input focus on the X server. */
+static void synchronize_focus_with_server(Window *old_focus_window)
+{
+    /* give the new window focus */
+    if (old_focus_window != focus_window) {
+        xcb_window_t focus_id;
+
+        if (focus_window == NULL) {
+            LOG("removed focus from all windows\n");
+            focus_id = screen->root;
+        } else {
+            focus_id = focus_window->client.id;
+        }
+
+        xcb_set_input_focus(connection, XCB_INPUT_FOCUS_NONE, focus_id,
+                XCB_CURRENT_TIME);
+
+        xcb_change_property(connection, XCB_PROP_MODE_REPLACE, screen->root,
+                ATOM(_NET_ACTIVE_WINDOW), XCB_ATOM_WINDOW, 32, 1, &focus_id);
+    }
+}
+
+/* Synchronize the local data with the X server. */
+static void synchronize_with_server(void)
+{
+    /* a list of window ids that is synchronized with the actual windows */
+    static struct {
+        /* the id of the window */
+        xcb_window_t *ids;
+        /* the number of allocated ids */
+        uint32_t length;
+    } client_list;
+
+    /* the old work area */
+    static Rectangle workarea;
+
+    Monitor *monitor;
+    Rectangle rectangle;
+
+    /* reset all extents before recomputing */
+    for (monitor = first_monitor; monitor != NULL; monitor = monitor->next) {
+        monitor->strut.left = 0;
+        monitor->strut.top = 0;
+        monitor->strut.right = 0;
+        monitor->strut.bottom = 0;
+    }
+
+    rectangle.x = 0;
+    rectangle.y = 0;
+    rectangle.width = 0;
+    rectangle.height = 0;
+    /* figure out if any strut changed and put windows in bound */
+    for (Window *window = first_window; window != NULL; window = window->next) {
+        if (!window->state.is_visible) {
+            continue;
+        }
+        monitor = get_monitor_from_rectangle(window->x,
+                window->y, window->width, window->height);
+        place_window_in_bounds(monitor, window);
+
+        monitor->strut.left += window->strut.reserved.left;
+        monitor->strut.top += window->strut.reserved.top;
+        monitor->strut.right += window->strut.reserved.right;
+        monitor->strut.bottom += window->strut.reserved.bottom;
+
+        rectangle.x += window->strut.reserved.left;
+        rectangle.y += window->strut.reserved.top;
+        rectangle.width += window->strut.reserved.right;
+        rectangle.height += window->strut.reserved.bottom;
+    }
+
+    rectangle.width = screen->width_in_pixels - rectangle.x - rectangle.width;
+    rectangle.height = screen->height_in_pixels - rectangle.y -
+        rectangle.height;
+    if (rectangle.x != workarea.x ||
+            rectangle.y != workarea.y ||
+            rectangle.width != workarea.width ||
+            rectangle.height != workarea.height) {
+        workarea = rectangle;
+        xcb_change_property(connection, XCB_PROP_MODE_REPLACE, screen->root,
+                ATOM(_NET_WORKAREA), XCB_ATOM_CARDINAL, 32, 4, &workarea);
+    }
+
+    /* resize all frames to their according size */
+    for (monitor = first_monitor; monitor != NULL; monitor = monitor->next) {
+        resize_frame(monitor->frame,
+                monitor->x + monitor->strut.left,
+                monitor->y + monitor->strut.top,
+                monitor->width - monitor->strut.right -
+                    monitor->strut.left,
+                monitor->height - monitor->strut.bottom -
+                    monitor->strut.top);
+    }
+
+    /* configure all windows and make map them */
+    for (Window *window = top_window; window != NULL; window = window->below) {
+        if (!window->state.is_visible) {
+            continue;
+        }
+        configure_client(&window->client, window->x, window->y,
+                window->width, window->height, window->border_size);
+        change_client_attributes(&window->client, window->border_color);
+        map_client(&window->client);
+    }
+
+    /* unmap all invisible windows */
+    for (Window *window = bottom_window; window != NULL;
+            window = window->above) {
+        if (!window->state.is_visible) {
+            unmap_client(&window->client);
+        }
+    }
+
+    /* update the client list properties */
+    if (has_client_list_changed) {
+        Window *window;
+        uint32_t number_of_windows = 0;
+        uint32_t index = 0;
+
+        for (window = first_window; window != NULL; window = window->next) {
+            number_of_windows++;
+        }
+
+        if (number_of_windows > client_list.length) {
+            client_list.length = number_of_windows;
+            RESIZE(client_list.ids, client_list.length);
+        }
+
+        index = 0;
+        /* sort the list in order of the Z stacking */
+        for (window = oldest_window; window != NULL; window = window->newer) {
+            client_list.ids[index] = window->client.id;
+            index++;
+        }
+        /* set the `_NET_CLIENT_LIST` property */
+        xcb_change_property(connection, XCB_PROP_MODE_REPLACE, screen->root,
+                ATOM(_NET_CLIENT_LIST), XCB_ATOM_WINDOW, 32,
+                number_of_windows, client_list.ids);
+
+        index = 0;
+        /* sort the list in order of the Z stacking */
+        for (window = bottom_window; window != NULL; window = window->above) {
+            client_list.ids[index] = window->client.id;
+            index++;
+        }
+        /* set the `_NET_CLIENT_LIST_STACKING` property */
+        xcb_change_property(connection, XCB_PROP_MODE_REPLACE, screen->root,
+                ATOM(_NET_CLIENT_LIST_STACKING), XCB_ATOM_WINDOW, 32,
+                number_of_windows, client_list.ids);
+
+        has_client_list_changed = false;
+    }
+}
+
 /* Run the next cycle of the event loop. */
-int next_cycle(int (*callback)(int cycle_when, xcb_generic_event_t *event))
+int next_cycle(int (*callback)(xcb_generic_event_t *event))
 {
     int connection_error;
     Window *old_focus_window;
@@ -86,12 +247,8 @@ int next_cycle(int (*callback)(int cycle_when, xcb_generic_event_t *event))
     connection_error = xcb_connection_has_error(connection);
     if (!is_fensterchef_running || connection_error > 0) {
         if (connection_error > 0) {
-            LOG("connection error: %X\n", connection_error);
+            LOG_ERROR("connection error: %X\n", connection_error);
         }
-        return ERROR;
-    }
-
-    if (callback != NULL && (*callback)(CYCLE_PREPARE, NULL) != OK) {
         return ERROR;
     }
 
@@ -108,47 +265,37 @@ int next_cycle(int (*callback)(int cycle_when, xcb_generic_event_t *event))
     if (select(x_file_descriptor + 1, &set, NULL, NULL, NULL) > 0) {
         /* handle all received events */
         while (event = xcb_poll_for_event(connection), event != NULL) {
-            if (callback != NULL && (*callback)(CYCLE_EVENT, event) != OK) {
+            if (callback != NULL && (*callback)(event) != OK) {
                 return ERROR;
             }
 
             handle_event(event);
 
-            if (reload_requested) {
+            if (is_reload_requested) {
                 reload_user_configuration();
-                reload_requested = false;
+                is_reload_requested = false;
             }
 
             free(event);
         }
 
-        /* give the new window focus */
-        if (old_focus_window != focus_window) {
-            if (focus_window == NULL) {
-                LOG("removed focus from all windows\n");
-                xcb_set_input_focus(connection, XCB_INPUT_FOCUS_NONE,
-                        check_window, XCB_CURRENT_TIME);
-            } else {
-                general_values[0] = configuration.border.focus_color;
-                xcb_change_window_attributes(connection,
-                        focus_window->properties.window, XCB_CW_BORDER_PIXEL,
-                        general_values);
-
-                xcb_set_input_focus_checked(connection, XCB_INPUT_FOCUS_NONE,
-                        focus_window->properties.window, XCB_CURRENT_TIME);
-            }
-            synchronize_root_property(ROOT_PROPERTY_ACTIVE_WINDOW);
-        }
+        synchronize_with_server();
     }
 
-    if (timer_expired_signal) {
-        LOG("triggered alarm: hiding notification window\n");
-        /* hide the notification window */
-        xcb_unmap_window(connection, notification_window);
-        timer_expired_signal = false;
+    if (has_timer_expired) {
+        unmap_client(&notification);
+        has_timer_expired = false;
     }
 
-    /* flush after every event so all changes are reflected */
+
+    if (is_window_list_requested) {
+        show_list_and_show_selected_window();
+        is_window_list_requested = false;
+    }
+
+    synchronize_focus_with_server(old_focus_window);
+
+    /* flush after every series event so all changes are reflected */
     xcb_flush(connection);
 
     return OK;
@@ -266,7 +413,7 @@ static void cancel_window_move_resize(void)
 
     LOG("cancelling move/resize for %W\n", move_resize.window);
 
-    /* restore the old position and size */
+    /* restore the old position and size as good as we can */
     frame = get_frame_of_window(move_resize.window);
     if (frame != NULL) {
         bump_frame_edge(frame, FRAME_EDGE_LEFT,
@@ -276,11 +423,13 @@ static void cancel_window_move_resize(void)
                 move_resize.window->y -
                     move_resize.initial_geometry.y);
         bump_frame_edge(frame, FRAME_EDGE_RIGHT,
-                move_resize.initial_geometry.width -
-                    move_resize.window->width);
+                (move_resize.initial_geometry.x +
+                 move_resize.initial_geometry.width) -
+                    (move_resize.window->x + move_resize.window->width));
         bump_frame_edge(frame, FRAME_EDGE_BOTTOM,
-                move_resize.initial_geometry.height -
-                    move_resize.window->height);
+                (move_resize.initial_geometry.y +
+                 move_resize.initial_geometry.height) -
+                    (move_resize.window->y + move_resize.window->height));
     } else {
         set_window_size(move_resize.window,
                 move_resize.initial_geometry.x,
@@ -417,68 +566,109 @@ static void handle_button_release(xcb_button_release_event_t *event)
 static void handle_motion_notify(xcb_motion_notify_event_t *event)
 {
     Rectangle new_geometry;
+    Size minimum, maximum;
+    int32_t delta_x, delta_y;
+    int32_t left_delta, top_delta, right_delta, bottom_delta;
     Frame *frame;
 
     if (move_resize.window == NULL) {
+        LOG_ERROR("receiving motion events without a window to move?\n");
         return;
     }
 
     new_geometry = move_resize.initial_geometry;
+
+    get_minimum_window_size(move_resize.window, &minimum);
+    get_maximum_window_size(move_resize.window, &maximum);
+
+    delta_x = move_resize.start.x - event->root_x;
+    delta_y = move_resize.start.y - event->root_y;
+
+    /* prevent overflows and clip so that moving an edge when no more size is
+     * available does not move the window
+     */
+    if (delta_x < 0) {
+        left_delta = -MIN((uint32_t) -delta_x,
+                new_geometry.width - minimum.width);
+    } else {
+        left_delta = MIN((uint32_t) delta_x,
+                maximum.width - new_geometry.width);
+    }
+    if (delta_y < 0) {
+        top_delta = -MIN((uint32_t) -delta_y,
+                new_geometry.height - minimum.height);
+    } else {
+        top_delta = MIN((uint32_t) delta_y,
+                maximum.height - new_geometry.height);
+    }
+
+    /* prevent overflows */
+    if (delta_x > 0) {
+        right_delta = MIN((uint32_t) delta_x, new_geometry.width);
+    } else {
+        right_delta = delta_x;
+    }
+    if (delta_y > 0) {
+        bottom_delta = MIN((uint32_t) delta_y, new_geometry.height);
+    } else {
+        bottom_delta = delta_y;
+    }
+
     switch (move_resize.direction) {
     /* the top left corner of the window is being moved */
     case _NET_WM_MOVERESIZE_SIZE_TOPLEFT:
-        new_geometry.x -= move_resize.start.x - event->root_x;
-        new_geometry.y -= move_resize.start.y - event->root_y;
-        new_geometry.width += move_resize.start.x - event->root_x;
-        new_geometry.height += move_resize.start.y - event->root_y;
+        new_geometry.x -= left_delta;
+        new_geometry.width += left_delta;
+        new_geometry.y -= top_delta;
+        new_geometry.height += top_delta;
         break;
 
     /* the top size of the window is being moved */
     case _NET_WM_MOVERESIZE_SIZE_TOP:
-        new_geometry.y -= move_resize.start.y - event->root_y;
-        new_geometry.height += move_resize.start.y - event->root_y;
+        new_geometry.y -= top_delta;
+        new_geometry.height += top_delta;
         break;
 
     /* the top right corner of the window is being moved */
     case _NET_WM_MOVERESIZE_SIZE_TOPRIGHT:
-        new_geometry.y -= move_resize.start.y - event->root_y;
-        new_geometry.width -= move_resize.start.x - event->root_x;
-        new_geometry.height += move_resize.start.y - event->root_y;
+        new_geometry.width -= right_delta;
+        new_geometry.y -= top_delta;
+        new_geometry.height += top_delta;
         break;
 
     /* the right side of the window is being moved */
     case _NET_WM_MOVERESIZE_SIZE_RIGHT:
-        new_geometry.width -= move_resize.start.x - event->root_x;
+        new_geometry.width -= right_delta;
         break;
 
     /* the bottom right corner of the window is being moved */
     case _NET_WM_MOVERESIZE_SIZE_BOTTOMRIGHT:
-        new_geometry.width -= move_resize.start.x - event->root_x;
-        new_geometry.height -= move_resize.start.y - event->root_y;
+        new_geometry.width -= right_delta;
+        new_geometry.height -= bottom_delta;
         break;
 
     /* the bottom side of the window is being moved */
     case _NET_WM_MOVERESIZE_SIZE_BOTTOM:
-        new_geometry.height -= move_resize.start.y - event->root_y;
+        new_geometry.height -= bottom_delta;
         break;
 
     /* the bottom left corner of the window is being moved */
     case _NET_WM_MOVERESIZE_SIZE_BOTTOMLEFT:
-        new_geometry.x -= move_resize.start.x - event->root_x;
-        new_geometry.width += move_resize.start.x - event->root_x;
-        new_geometry.height -= move_resize.start.y - event->root_y;
+        new_geometry.x -= left_delta;
+        new_geometry.width += left_delta;
+        new_geometry.height -= bottom_delta;
         break;
 
     /* the bottom left corner of the window is being moved */
     case _NET_WM_MOVERESIZE_SIZE_LEFT:
-        new_geometry.x -= move_resize.start.x - event->root_x;
-        new_geometry.width += move_resize.start.x - event->root_x;
+        new_geometry.x -= left_delta;
+        new_geometry.width += left_delta;
         break;
 
     /* the entire window is being moved */
     case _NET_WM_MOVERESIZE_MOVE:
-        new_geometry.x -= move_resize.start.x - event->root_x;
-        new_geometry.y -= move_resize.start.y - event->root_y;
+        new_geometry.x -= delta_x;
+        new_geometry.y -= delta_y;
         break;
 
     /* these are not relevant for mouse moving/resizing */
@@ -510,35 +700,6 @@ static void handle_motion_notify(xcb_motion_notify_event_t *event)
     }
 }
 
-/* FocusIn events are sent when a window received focus. */
-static void handle_focus_in(xcb_focus_in_event_t *event)
-{
-    Window *window;
-
-    /* when a window receives focus because of an grabbing, we assume all is
-     * fine and the focus will return to our window soon
-     */
-    if (event->mode != XCB_NOTIFY_MODE_NORMAL) {
-        return;
-    }
-
-    window = get_window_of_xcb_window(event->event);
-    if (window == NULL) {
-        return;
-    }
-
-    /* someone is trying to steal the focus, stop them from doing that */
-    if (window != focus_window) {
-        if (focus_window == NULL) {
-            xcb_set_input_focus(connection, XCB_INPUT_FOCUS_NONE,
-                    check_window, XCB_CURRENT_TIME);
-        } else {
-            xcb_set_input_focus(connection, XCB_INPUT_FOCUS_NONE,
-                    focus_window->properties.window, XCB_CURRENT_TIME);
-        }
-    }
-}
-
 /* Unmap notifications are sent after a window decided it wanted to not be seen
  * anymore.
  */
@@ -550,6 +711,8 @@ static void handle_unmap_notify(xcb_unmap_notify_event_t *event)
     if (window == NULL) {
         return;
     }
+
+    window->client.is_mapped = false;
 
     /* if the currently moved window is unmapped */
     if (window == move_resize.window) {
@@ -576,8 +739,11 @@ static void handle_map_request(xcb_map_request_event_t *event)
     if (window == NULL) {
         return;
     }
+
     show_window(window);
-    set_focus_window(window);
+    if (does_window_accept_focus(window)) {
+        set_focus_window_with_frame(window);
+    }
 }
 
 /* Destroy notifications are sent when a window leaves the X server.
@@ -602,7 +768,7 @@ static void handle_property_notify(xcb_property_notify_event_t *event)
     if (window == NULL) {
         return;
     }
-    cache_window_property(&window->properties, event->atom);
+    cache_window_property(window, event->atom);
 }
 
 /* Configure requests are received when a window wants to choose its own
@@ -681,10 +847,15 @@ static void handle_client_message(xcb_client_message_event_t *event)
                 event->data.data32[0], event->data.data32[1]);
     /* a window wants to be iconified */
     } else if (event->type == ATOM(WM_CHANGE_STATE)) {
-        if (event->data.data32[0] == XCB_ICCCM_WM_STATE_ICONIC ||
-                event->data.data32[0] == XCB_ICCCM_WM_STATE_WITHDRAWN) {
+        switch (event->data.data32[0]) {
+        /* hide the window */
+        case XCB_ICCCM_WM_STATE_ICONIC:
+        case XCB_ICCCM_WM_STATE_WITHDRAWN:
             hide_window_abruptly(window);
-        } else {
+            break;
+
+        /* make the window normal again (show it) */
+        case XCB_ICCCM_WM_STATE_NORMAL:
             show_window(window);
         }
     /* a window wants to change a window state */
@@ -805,11 +976,6 @@ void handle_event(xcb_generic_event_t *event)
     /* the mouse was moved */
     case XCB_MOTION_NOTIFY:
         handle_motion_notify((xcb_motion_notify_event_t*) event);
-        break;
-
-    /* a window took focus */
-    case XCB_FOCUS_IN:
-        handle_focus_in((xcb_focus_in_event_t*) event);
         break;
 
     /* a window was destroyed */

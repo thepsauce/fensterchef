@@ -2,16 +2,23 @@
 #include <string.h>
 
 #include "configuration.h"
+#include "event.h"
 #include "frame.h"
 #include "log.h"
 #include "monitor.h"
 #include "window.h"
-#include "root_properties.h"
 #include "xalloc.h"
 
-/* the first window in the linked list, the list is sorted increasingly
- * with respect to the window number
- */
+/* the window that was created before any other */
+Window *oldest_window;
+
+/* the window at the bottom of the Z stack */
+Window *bottom_window;
+
+/* the window at the top of the Z stack */
+Window *top_window;
+
+/* the first window in the number linked list */
 Window *first_window;
 
 /* the currently focused window */
@@ -64,27 +71,35 @@ Window *create_window(xcb_window_t xcb_window)
 
     /* set the border color */
     general_values[0] = configuration.border.color;
-    /* we want to know if the focus changes in the window or if any properties
-     * change
-     */
-    general_values[1] = XCB_EVENT_MASK_PROPERTY_CHANGE |
-        XCB_EVENT_MASK_FOCUS_CHANGE;
+    /* we want to know if if any properties change */
+    general_values[1] = XCB_EVENT_MASK_PROPERTY_CHANGE;
     xcb_change_window_attributes(connection, xcb_window,
             XCB_CW_BORDER_PIXEL | XCB_CW_EVENT_MASK, general_values);
 
     window = xcalloc(1, sizeof(*window));
 
-    window->creation_time = time(NULL);
-    /* start off with an invalid mode, this gets set below */
-    window->state.mode = WINDOW_MODE_MAX;
-    window->x = geometry->x;
-    window->y = geometry->y;
-    window->width = geometry->width;
-    window->height = geometry->height;
+    window->client.id = xcb_window;
+    window->client.x = geometry->x;
+    window->client.y = geometry->x;
+    window->client.width = geometry->width;
+    window->client.height = geometry->height;
+    window->client.border_color = configuration.border.color;
 
     free(geometry);
 
+    /* start off with an invalid mode, this gets set below */
+    window->state.mode = WINDOW_MODE_MAX;
+    window->x = window->client.x;
+    window->y = window->client.y;
+    window->width = window->client.width;
+    window->height = window->client.height;
+    window->border_color = window->client.border_color;
+
+    /* link into the Z, age and number linked lists */
     if (first_window == NULL) {
+        oldest_window = window;
+        bottom_window = window;
+        top_window = window;
         first_window = window;
         window->number = FIRST_WINDOW_NUMBER;
     } else {
@@ -111,14 +126,21 @@ Window *create_window(xcb_window_t xcb_window)
         }
         previous->above = window;
         window->below = previous;
+
+        /* put the window into the age linked list */
+        previous = oldest_window;
+        while (previous->newer != NULL) {
+            previous = previous->newer;
+        }
+        previous->newer = window;
     }
 
     /* initialize the window mode and Z position */
-    mode = initialize_window_properties(&window->properties, xcb_window);
+    mode = initialize_window_properties(window);
     set_window_mode(window, mode);
     update_window_layer(window);
 
-    synchronize_root_property(ROOT_PROPERTY_CLIENT_LIST);
+    has_client_list_changed = true;
 
     LOG("created new window %W\n", window);
     return window;
@@ -138,23 +160,23 @@ void close_window(Window *window)
     /* if either `WM_DELETE_WINDOW` is not supported or a close was requested
      * twice in a row
      */
-    if (!supports_protocol(&window->properties, ATOM(WM_DELETE_WINDOW)) ||
+    if (!supports_protocol(window, ATOM(WM_DELETE_WINDOW)) ||
             (window->state.was_close_requested && current_time <=
                 window->state.user_request_close_time +
                     REQUEST_CLOSE_MAX_DURATION)) {
-        xcb_kill_client(connection, window->properties.window);
+        xcb_kill_client(connection, window->client.id);
         return;
     }
 
     /* bake an event for running a protocol on the window */
     event = (xcb_client_message_event_t*) event_data;
     event->response_type = XCB_CLIENT_MESSAGE;
-    event->window = window->properties.window;
+    event->window = window->client.id;
     event->type = ATOM(WM_PROTOCOLS);
     event->format = 32;
     memset(&event->data, 0, sizeof(event->data));
     event->data.data32[0] = ATOM(WM_DELETE_WINDOW);
-    xcb_send_event(connection, false, window->properties.window,
+    xcb_send_event(connection, false, window->client.id,
             XCB_EVENT_MASK_NO_EVENT, (char*) event);
 
     window->state.was_close_requested = true;
@@ -171,8 +193,15 @@ static void unlink_window_from_z_list(Window *window)
         window->above->below = window->below;
     }
 
-    window->below = NULL;
+    if (window == bottom_window) {
+        bottom_window = window->above;
+    }
+    if (window == top_window) {
+        top_window = window->below;
+    }
+
     window->above = NULL;
+    window->below = NULL;
 }
 
 /* Destroys given window and removes it from the window linked list. */
@@ -191,9 +220,23 @@ void destroy_window(Window *window)
         LOG_ERROR("destroying window with focus\n");
     }
 
+    LOG("destroying window %W\n", window);
+
+    /* remove from the z linked list */
     unlink_window_from_z_list(window);
 
-    /* remove window from the window linked list */
+    /* remove from the age linked list */
+    if (oldest_window == window) {
+        oldest_window = oldest_window->newer;
+    } else {
+        previous = oldest_window;
+        while (previous->newer != window) {
+            previous = previous->newer;
+        }
+        previous->newer = window->newer;
+    }
+
+    /* remove from the number linked list */
     if (first_window == window) {
         first_window = first_window->next;
     } else {
@@ -204,9 +247,7 @@ void destroy_window(Window *window)
         previous->next = window->next;
     }
 
-    synchronize_root_property(ROOT_PROPERTY_CLIENT_LIST);
-
-    LOG("destroyed window %W\n", window);
+    has_client_list_changed = true;
 
     free(window);
 }
@@ -272,168 +313,137 @@ void adjust_for_window_gravity(Monitor *monitor, int32_t *x, int32_t *y,
     }
 }
 
+/* Get the minimum size the window can have. */
+void get_minimum_window_size(const Window *window, Size *size)
+{
+    uint32_t width = 0, height = 0;
+
+    if (window->state.mode != WINDOW_MODE_TILING) {
+        if ((window->size_hints.flags & XCB_ICCCM_SIZE_HINT_P_MIN_SIZE)) {
+            width = window->size_hints.min_width;
+            height = window->size_hints.min_height;
+        }
+    }
+    size->width = MAX(width, WINDOW_MINIMUM_SIZE);
+    size->height = MAX(height, WINDOW_MINIMUM_SIZE);
+}
+
+/* Get the maximum size the window can have. */
+void get_maximum_window_size(const Window *window, Size *size)
+{
+    uint32_t width = UINT32_MAX, height = UINT32_MAX;
+
+    if ((window->size_hints.flags & XCB_ICCCM_SIZE_HINT_P_MAX_SIZE)) {
+        width = window->size_hints.max_width;
+        height = window->size_hints.max_height;
+    }
+    size->width = MIN(width, WINDOW_MAXIMUM_SIZE);
+    size->height = MIN(height, WINDOW_MAXIMUM_SIZE);
+}
+
+/* Move the window such that it is in bounds of @monitor. */
+void place_window_in_bounds(Monitor *monitor, Window *window)
+{
+    /* do not move dock windows */
+    if (window->state.mode == WINDOW_MODE_DOCK) {
+        return;
+    }
+
+    if (monitor == NULL) {
+        monitor = get_monitor_from_rectangle(window->x,
+                window->y, window->width, window->height);
+    }
+
+    /* place the window so that it is visible */
+    if (window->x + (int32_t) window->width <
+            monitor->x + WINDOW_MINIMUM_VISIBLE_SIZE) {
+        window->x = monitor->x + WINDOW_MINIMUM_VISIBLE_SIZE - window->width;
+    } else if (window->x + WINDOW_MINIMUM_VISIBLE_SIZE >=
+            monitor->x + (int32_t) monitor->width) {
+        window->x = monitor->x + monitor->width - WINDOW_MINIMUM_VISIBLE_SIZE;
+    }
+    if (window->y + (int32_t) window->height <
+            monitor->y + WINDOW_MINIMUM_VISIBLE_SIZE) {
+        window->y = monitor->y + WINDOW_MINIMUM_VISIBLE_SIZE - window->height;
+    } else if (window->y + WINDOW_MINIMUM_VISIBLE_SIZE >=
+            monitor->y + (int32_t) monitor->height) {
+        window->y = monitor->y + monitor->height - WINDOW_MINIMUM_VISIBLE_SIZE;
+    }
+}
+
 /* Set the position and size of a window. */
 void set_window_size(Window *window, int32_t x, int32_t y, uint32_t width,
         uint32_t height)
 {
-    Monitor *monitor;
+    Size minimum, maximum;
+
+    get_minimum_window_size(window, &minimum);
+    get_maximum_window_size(window, &maximum);
 
     /* make sure the window does not become too large or too small */
-    width = MIN(width, WINDOW_MAXIMUM_SIZE);
-    height = MIN(height, WINDOW_MAXIMUM_SIZE);
-    width = MAX(width, WINDOW_MINIMUM_SIZE);
-    height = MAX(height, WINDOW_MINIMUM_SIZE);
-
-    /* adjust with the window's specified maximum/minimum size... */
-    if ((window->properties.size_hints.flags &
-                XCB_ICCCM_SIZE_HINT_P_MAX_SIZE)) {
-        width = MIN(width,
-                (uint32_t) window->properties.size_hints.max_width);
-        height = MIN(height,
-                (uint32_t) window->properties.size_hints.max_height);
-    }
-    /* ...but do not maximize tiling windows, it looks quite ugly */
-    if (window->state.mode != WINDOW_MODE_TILING) {
-        if ((window->properties.size_hints.flags &
-                    XCB_ICCCM_SIZE_HINT_P_MIN_SIZE)) {
-            width = MAX(width,
-                    (uint32_t) window->properties.size_hints.min_width);
-            height = MAX(height,
-                    (uint32_t) window->properties.size_hints.min_height);
-        }
-    }
-
-    monitor = get_monitor_from_rectangle(x, y, width, height);
-    /* place the window so that it is visible */
-    if (x + (int32_t) width < monitor->x + WINDOW_MINIMUM_VISIBLE_SIZE) {
-        x = monitor->x + WINDOW_MINIMUM_VISIBLE_SIZE - width;
-    } else if (x + WINDOW_MINIMUM_VISIBLE_SIZE >=
-            monitor->x + (int32_t) monitor->width) {
-        x = monitor->x + monitor->width - WINDOW_MINIMUM_VISIBLE_SIZE;
-    }
-    if (y + (int32_t) height < monitor->y + WINDOW_MINIMUM_VISIBLE_SIZE) {
-        y = monitor->y + WINDOW_MINIMUM_VISIBLE_SIZE - height;
-    } else if (y + WINDOW_MINIMUM_VISIBLE_SIZE >=
-            monitor->y + (int32_t) monitor->height) {
-        y = monitor->y + monitor->height - WINDOW_MINIMUM_VISIBLE_SIZE;
-    }
-
-    /* do not bother notifying the X server if nothing changed */
-    if (window->x == x && window->y == y &&
-            window->width == width && window->height == height) {
-        LOG("size of window %W remains %R\n", window,
-                x, y, width, height);
-        return;
-    }
-
-    LOG("configuring size of window %W to %R\n", window,
-            x, y, width, height);
+    width = MIN(width, maximum.width);
+    height = MIN(height, maximum.height);
+    width = MAX(width, minimum.width);
+    height = MAX(height, minimum.height);
 
     window->x = x;
     window->y = y;
     window->width = width;
     window->height = height;
-
-    general_values[0] = x;
-    general_values[1] = y;
-    general_values[2] = width;
-    general_values[3] = height;
-    xcb_configure_window(connection, window->properties.window,
-            XCB_CONFIG_SIZE, general_values);
-}
-
-/* Get the window below all other windows. */
-Window *get_bottom_window(void)
-{
-    Window *window;
-
-    if (first_window == NULL) {
-        return NULL;
-    }
-    window = first_window;
-    while (window->below != NULL) {
-        window = window->below;
-    }
-    while (window != NULL && !window->state.is_visible) {
-        window = window->above;
-    }
-    return window;
-}
-
-/* Get the window on top of all other windows. */
-Window *get_top_window(void)
-{
-    Window *window;
-
-    if (first_window == NULL) {
-        return NULL;
-    }
-    window = first_window;
-    while (window->above != NULL) {
-        window = window->above;
-    }
-    while (window != NULL && !window->state.is_visible) {
-        window = window->below;
-    }
-    return window;
 }
 
 /* Put the window on the best suited Z stack position. */
 void update_window_layer(Window *window)
 {
     if (window->state.mode == WINDOW_MODE_TILING) {
-        Window *bottom;
-
-        /* check if the window is already at the bottom */
-        if (window->below == NULL) {
+        if (window == bottom_window) {
             return;
         }
 
         LOG("setting window %W below all other windows\n", window);
 
         general_values[0] = XCB_STACK_MODE_BELOW;
-        xcb_configure_window(connection, window->properties.window,
+        xcb_configure_window(connection, window->client.id,
                 XCB_CONFIG_WINDOW_STACK_MODE, general_values);
 
-        for (bottom = window; bottom->below != NULL; bottom = bottom->below) {
-            /* nothing */
-        }
+        /* link onto the bottom of the Z linked list */
         unlink_window_from_z_list(window);
-        bottom->below = window;
-        window->above = bottom;
+        bottom_window->below = window;
+        window->above = bottom_window;
+        bottom_window = window;
     } else {
-        Window *top;
-
-        /* check if the window is already at the top */
-        if (window->above == NULL) {
+        if (window == top_window) {
             return;
         }
 
         LOG("setting window %W above all other windows\n", window);
 
         general_values[0] = XCB_STACK_MODE_ABOVE;
-        xcb_configure_window(connection, window->properties.window,
+        xcb_configure_window(connection, window->client.id,
                 XCB_CONFIG_WINDOW_STACK_MODE, general_values);
 
-        for (top = window; top->above != NULL; top = top->above) {
-            /* nothing */
-        }
+        /* link onto the top of the Z linked list */
         unlink_window_from_z_list(window);
-        top->above = window;
-        window->below = top;
+        top_window->above = window;
+        window->below = top_window;
+        top_window = window;
     }
 
     /* put windows that are transient for this window above it */
     for (Window *below = window->below; below != NULL; ) {
-        if (below->properties.transient_for == window->properties.window) {
-            general_values[0] = window->properties.window;
+        if (below->transient_for == window->client.id) {
+            general_values[0] = window->client.id;
             general_values[1] = XCB_STACK_MODE_ABOVE;
-            xcb_configure_window(connection, window->properties.window,
+            xcb_configure_window(connection, window->client.id,
                     XCB_CONFIG_WINDOW_SIBLING | XCB_CONFIG_WINDOW_STACK_MODE,
                     general_values);
 
             unlink_window_from_z_list(below);
-            below->above = window->above;
+            if (window->above == NULL) {
+                top_window = below;
+            } else {
+                below->above = window->above;
+            }
             below->below = window;
             window->above = below;
             below = window->below;
@@ -442,7 +452,7 @@ void update_window_layer(Window *window)
         }
     }
 
-    synchronize_root_property(ROOT_PROPERTY_CLIENT_LIST);
+    has_client_list_changed = true;
 }
 
 /* Get the internal window that has the associated xcb window. */
@@ -450,7 +460,7 @@ Window *get_window_of_xcb_window(xcb_window_t xcb_window)
 {
     for (Window *window = first_window; window != NULL;
             window = window->next) {
-        if (window->properties.window == xcb_window) {
+        if (window->client.id == xcb_window) {
             return window;
         }
     }
@@ -501,28 +511,18 @@ bool does_window_accept_focus(Window *window)
         return false;
     }
 
-    return !(window->properties.hints.flags & XCB_ICCCM_WM_HINT_INPUT) ||
-            window->properties.hints.input != 0;
-}
-
-static void lose_focus(Window *window)
-{
-    if (window == NULL) {
-        return;
-    }
-
-    general_values[0] = configuration.border.color;
-    xcb_change_window_attributes(connection,
-            window->properties.window,
-            XCB_CW_BORDER_PIXEL, general_values);
+    return !(window->hints.flags & XCB_ICCCM_WM_HINT_INPUT) ||
+            window->hints.input != 0;
 }
 
 /* Set the window that is in focus to @window. */
 void set_focus_window(Window *window)
 {
     if (window == NULL) {
-        lose_focus(focus_window);
-        focus_window = NULL;
+        if (focus_window != NULL) {
+            focus_window->border_color = configuration.border.color;
+            focus_window = NULL;
+        }
         return;
     }
 
@@ -530,6 +530,10 @@ void set_focus_window(Window *window)
 
     if (!does_window_accept_focus(window)) {
         LOG("the window can not be focused\n");
+        if (focus_window != NULL) {
+            focus_window->border_color = configuration.border.color;
+            focus_window = NULL;
+        }
         return;
     }
 
@@ -538,7 +542,11 @@ void set_focus_window(Window *window)
         return;
     }
 
-    lose_focus(focus_window);
+    if (focus_window != NULL) {
+        focus_window->border_color = configuration.border.color;
+    }
 
     focus_window = window;
+
+    window->border_color = configuration.border.focus_color;
 }

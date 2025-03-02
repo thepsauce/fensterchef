@@ -1,5 +1,6 @@
 #include <unistd.h>
-#include <string.h> // strcmp
+#include <string.h> // strcmp()
+#include <sys/wait.h> // wait()
 
 #include "action.h"
 #include "configuration.h"
@@ -99,8 +100,30 @@ void free_actions(Action *actions, uint32_t number_of_actions)
 /* Run given shell program. */
 static void run_shell(const char *shell)
 {
-    if (fork() == 0) {
-        execl("/bin/sh", "sh", "-c", shell, (char*) NULL);
+    int child_process_id;
+
+    /* using `fork()` twice and `_exit()` will give the child process to the
+     * init system so we do not need to worry about cleaning up dead child
+     * processes
+     */
+
+    /* create a child process */
+    child_process_id = fork();
+    if (child_process_id == 0) {
+        /* this code is executed in the child */
+
+        /* create a grandchild process */
+        if (fork() == 0) {
+            /* this code is executed in the grandchild process */
+            execl("/bin/sh", "sh", "-c", shell, (char*) NULL);
+            /* this point is not reached because `execl()` replaces the process
+             */
+        } else {
+            _exit(0);
+        }
+    } else {
+        /* wait until the child process exits */
+        waitpid(child_process_id, NULL, 0);
     }
 }
 
@@ -115,9 +138,12 @@ static char *run_shell_and_get_output(const char *shell)
     if (process == NULL) {
         return NULL;
     }
+
     capacity = 128;
     line = xmalloc(capacity);
     length = 0;
+    /* read all output from the process, stopping at the end (EOF) or a new line
+     */
     for (int c; (c = fgetc(process)) != EOF && c != '\n'; ) {
         if (length + 1 == capacity) {
             capacity *= 2;
@@ -128,21 +154,6 @@ static char *run_shell_and_get_output(const char *shell)
     line[length] = '\0';
     pclose(process);
     return line;
-}
-
-/* Show the user the window list and let the user select a window to focus. */
-static void show_window_list(void)
-{
-    Window *window;
-
-    window = select_window_from_list();
-    if (window == NULL || window == focus_window) {
-        return;
-    }
-
-    update_window_layer(window);
-    show_window(window);
-    set_focus_window_with_frame(window);
 }
 
 /* Resize the current window or current frame if it does not exist. */
@@ -183,66 +194,47 @@ static void resize_frame_or_window_by(Window *window, int32_t left, int32_t top,
     }
 }
 
-/* Get a tiling window that is not currently shown and put it into the frame. */
+/* Get a tiling window that is not currently shown and put it into the focus
+ * frame.
+ */
 void set_showable_tiling_window(bool previous)
 {
-    Frame *stash;
-    Window *start, *next;
+    Window *start, *next, *valid_window = NULL;
 
-    start = focus_frame->window;
     if (focus_frame->window == NULL) {
-        stash = stash_frame_later(focus_frame);
-        fill_void_with_stash(focus_frame);
-        link_frame_into_stash(stash);
-        /* focus an inner window that might have appeared */
-        if (focus_frame->window != NULL) {
-            set_focus_window(focus_frame->window);
-            return;
-        }
-        /* either the frame has children or there is no window to fill it with
-         */
-        if (focus_frame->left != NULL || first_window == NULL) {
-            return;
-        }
-
+        start = NULL;
         next = first_window;
-        /* as a fallback, try to find any window that could go into the void */
-        do {
-            if (!next->state.is_visible &&
-                    next->state.mode == WINDOW_MODE_TILING) {
-                focus_frame->window = next;
-                if (!previous) {
-                    break;
-                }
-            }
-            next = next->next;
-        } while (next != NULL);
     } else {
-        next = start;
-        /* find a window after the current window that fits */
-        while (next = next->next == NULL ? first_window : next->next,
-                next != start) {
-            if (!next->state.is_visible &&
-                    next->state.mode == WINDOW_MODE_TILING) {
-                focus_frame->window = next;
-                if (!previous) {
-                    break;
-                }
+        start = focus_frame->window;
+        next = start->next;
+    }
+
+    /* go through all windows in a cyclic manner */
+    for (;; next = next->next) {
+        /* wrap around */
+        if (start != NULL && next == NULL) {
+            next = first_window;
+        }
+
+        /* check if we went around */
+        if (next == start) {
+            break;
+        }
+
+        if (!next->state.is_visible && next->state.mode == WINDOW_MODE_TILING) {
+            valid_window = next;
+            /* if the previous window is requested, we need to go further to
+             * find the window before the current window
+             */
+            if (!previous) {
+                break;
             }
         }
     }
 
-    /* check if there even is any other window */
-    if (next == start) {
-        return;
-    }
-
-    reload_frame(focus_frame);
-    show_window(focus_frame->window);
-    set_focus_window(focus_frame->window);
-
-    if (start != NULL) {
-        hide_window_abruptly(start);
+    if (valid_window != NULL) {
+        show_window(valid_window);
+        set_focus_window(valid_window);
     }
 }
 
@@ -253,7 +245,17 @@ void toggle_focus(void)
 
     if (focus_window == NULL ||
             focus_window->state.mode == WINDOW_MODE_TILING) {
-        window = get_top_window();
+        /* the the first window on the Z stack that is visible */
+        for (window = top_window; window != NULL; window = window->below) {
+            if (window->state.mode == WINDOW_MODE_TILING) {
+                window = NULL;
+                break;
+            }
+            if (window->state.is_visible) {
+                break;
+            }
+        }
+
         if (window != NULL) {
             set_focus_window_with_frame(window);
         }
@@ -280,7 +282,11 @@ void do_action(const Action *action, Window *window)
 
     /* reload the configuration file */
     case ACTION_RELOAD_CONFIGURATION:
-        reload_requested = true;
+        /* this needs to be delayed because if this is called by a binding and
+         * the configuration is immediately reloaded, the pointer to the binding
+         * becomes invalid and a crash occurs
+         */
+        is_reload_requested = true;
         break;
 
     /* move the focus to the parent frame */
@@ -424,7 +430,11 @@ void do_action(const Action *action, Window *window)
 
     /* show the interactive window list */
     case ACTION_SHOW_WINDOW_LIST:
-        show_window_list();
+        /* this needs to be delayed because if this is called by a binding and
+         * the configuration is reloaded by the user, the pointer to the binding
+         * becomes invalid and a crash occurs
+         */
+        is_window_list_requested = true;
         break;
 
     /* quit fensterchef */
