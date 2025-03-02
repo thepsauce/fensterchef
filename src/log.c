@@ -11,6 +11,7 @@
 #include "frame.h"
 #include "log.h"
 #include "window.h"
+#include "window_list.h"
 #include "x11_management.h"
 
 /* the severity of the logging */
@@ -377,7 +378,7 @@ static void log_xcb_window(xcb_window_t xcb_window)
     fputs(COLOR(YELLOW), stderr);
     if (xcb_window == wm_check_window) {
         fputs("<check>", stderr);
-    } else if (xcb_window == window_list.id) {
+    } else if (xcb_window == window_list.client.id) {
         fputs("<window list>", stderr);
     } else if (xcb_window == notification.id) {
         fputs("<notification>", stderr);

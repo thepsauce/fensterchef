@@ -54,7 +54,7 @@ int main(void)
 
     is_fensterchef_running = true;
     /* run the main event loop */
-    while (next_cycle(NULL) == OK) {
+    while (next_cycle() == OK) {
         /* nothing to do */
     }
 

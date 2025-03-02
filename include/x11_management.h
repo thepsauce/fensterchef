@@ -320,9 +320,6 @@ extern xcb_window_t wm_check_window;
 /* user notification window */
 extern XClient notification;
 
-/* user window list window */
-extern XClient window_list;
-
 /* Check if given strut has any reserved space. */
 static inline bool is_strut_empty(wm_strut_partial_t *strut)
 {

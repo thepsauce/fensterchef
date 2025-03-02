@@ -37,9 +37,6 @@ volatile sig_atomic_t has_timer_expired;
 /* if the user requested to reload the configuration */
 bool is_reload_requested;
 
-/* if the user requested to show the window list */
-bool is_window_list_requested;
-
 /* if the client list has changed (if stacking changed, windows were removed or
  * added)
  */
@@ -80,28 +77,6 @@ int initialize_signal_handlers(void)
         return ERROR;
     }
     return OK;
-}
-
-/* Set the input focus on the X server. */
-static void synchronize_focus_with_server(Window *old_focus_window)
-{
-    /* give the new window focus */
-    if (old_focus_window != focus_window) {
-        xcb_window_t focus_id;
-
-        if (focus_window == NULL) {
-            LOG("removed focus from all windows\n");
-            focus_id = screen->root;
-        } else {
-            focus_id = focus_window->client.id;
-        }
-
-        xcb_set_input_focus(connection, XCB_INPUT_FOCUS_NONE, focus_id,
-                XCB_CURRENT_TIME);
-
-        xcb_change_property(connection, XCB_PROP_MODE_REPLACE, screen->root,
-                ATOM(_NET_ACTIVE_WINDOW), XCB_ATOM_WINDOW, 32, 1, &focus_id);
-    }
 }
 
 /* Synchronize the local data with the X server. */
@@ -236,8 +211,30 @@ static void synchronize_with_server(void)
     }
 }
 
+/* Set the input focus on the X server. */
+static void synchronize_focus_with_server(Window *old_focus_window)
+{
+    /* give the new window focus */
+    if (old_focus_window != focus_window) {
+        xcb_window_t focus_id;
+
+        if (focus_window == NULL) {
+            LOG("removed focus from all windows\n");
+            focus_id = screen->root;
+        } else {
+            focus_id = focus_window->client.id;
+        }
+
+        xcb_set_input_focus(connection, XCB_INPUT_FOCUS_NONE, focus_id,
+                XCB_CURRENT_TIME);
+
+        xcb_change_property(connection, XCB_PROP_MODE_REPLACE, screen->root,
+                ATOM(_NET_ACTIVE_WINDOW), XCB_ATOM_WINDOW, 32, 1, &focus_id);
+    }
+}
+
 /* Run the next cycle of the event loop. */
-int next_cycle(int (*callback)(xcb_generic_event_t *event))
+int next_cycle(void)
 {
     int connection_error;
     Window *old_focus_window;
@@ -265,9 +262,7 @@ int next_cycle(int (*callback)(xcb_generic_event_t *event))
     if (select(x_file_descriptor + 1, &set, NULL, NULL, NULL) > 0) {
         /* handle all received events */
         while (event = xcb_poll_for_event(connection), event != NULL) {
-            if (callback != NULL && (*callback)(event) != OK) {
-                return ERROR;
-            }
+            handle_window_list_event(event);
 
             handle_event(event);
 
@@ -280,20 +275,13 @@ int next_cycle(int (*callback)(xcb_generic_event_t *event))
         }
 
         synchronize_with_server();
+        synchronize_focus_with_server(old_focus_window);
     }
 
     if (has_timer_expired) {
         unmap_client(&notification);
         has_timer_expired = false;
     }
-
-
-    if (is_window_list_requested) {
-        show_list_and_show_selected_window();
-        is_window_list_requested = false;
-    }
-
-    synchronize_focus_with_server(old_focus_window);
 
     /* flush after every series event so all changes are reflected */
     xcb_flush(connection);

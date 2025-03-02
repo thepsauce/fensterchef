@@ -11,9 +11,6 @@ extern uint8_t randr_event_base;
 /* if the user requested to reload the configuration */
 extern bool is_reload_requested;
 
-/* if the user requested to show the window list */
-extern bool is_window_list_requested;
-
 /* if the client list has changed (if stacking changed, windows were removed or
  * added)
  */
@@ -25,10 +22,9 @@ int initialize_signal_handlers(void);
 /* Runs the next cycle of the event loop. This handles signals and all events
  * that are currently queued.
  *
- * @callback may be NULL and is the function called before any event is handled
- *           with `handle_event()`.
+ * It also delegates events to the window list if it is mapped.
  */
-int next_cycle(int (*callback)(xcb_generic_event_t *event));
+int next_cycle(void);
 
 /* Start resizing a window using the mouse. */
 void initiate_window_move_resize(Window *window,

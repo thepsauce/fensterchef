@@ -4,6 +4,7 @@
 #include "log.h"
 #include "fensterchef.h"
 #include "window.h"
+#include "window_list.h"
 #include "x11_management.h"
 
 /* event mask for the root window; with this event mask, we get the following
@@ -42,9 +43,6 @@ xcb_window_t wm_check_window;
 
 /* user notification window */
 XClient notification;
-
-/* user window list window */
-XClient window_list;
 
 struct x_atoms x_atoms[] = {
 #define X(atom) { #atom, 0 },
@@ -122,6 +120,7 @@ int initialize_x11(void)
 /* Create the check, notification and window list windows. */
 static int create_utility_windows(void)
 {
+    const char *notification_name = "[fensterchef] notification";
     xcb_generic_error_t *error;
 
     /* create the wm check window, this can be used by other applications to
@@ -165,24 +164,13 @@ static int create_utility_windows(void)
     notification.y = -1;
     notification.width = 1;
     notification.height = 1;
+    xcb_icccm_set_wm_name(connection, notification.id,
+            ATOM(UTF8_STRING), 8, strlen(notification_name), notification_name);
 
-    /* create a window list for selecting windows from a list */
-    window_list.id = xcb_generate_id(connection);
-    general_values[0] = XCB_EVENT_MASK_KEY_PRESS; /* need key press events */
-    error = xcb_request_check(connection, xcb_create_window_checked(connection,
-                XCB_COPY_FROM_PARENT, window_list.id,
-                screen->root, -1, -1, 1, 1, 0,
-                XCB_WINDOW_CLASS_INPUT_OUTPUT, XCB_COPY_FROM_PARENT,
-                XCB_CW_EVENT_MASK, general_values));
-    if (error != NULL) {
-        LOG_ERROR("could not create window list window: %E\n", error);
-        free(error);
+    /* create the window list */
+    if (initialize_window_list() != OK) {
         return ERROR;
     }
-    window_list.x = -1;
-    window_list.y = -1;
-    window_list.width = 1;
-    window_list.height = 1;
     return OK;
 }
 

@@ -11,6 +11,7 @@
 #include "render.h"
 #include "utility.h"
 #include "window.h"
+#include "window_list.h"
 
 /* the currently loaded configuration */
 struct configuration configuration;
@@ -280,11 +281,11 @@ void set_configuration(struct configuration *new_configuration)
             configuration.notification.border_size);
 
     /* change border color and size of the window list window */
-    change_client_attributes(&window_list,
+    change_client_attributes(&window_list.client,
             configuration.notification.border_color);
-    configure_client(&window_list, window_list.x, window_list.y,
-            window_list.width, window_list.height,
-            configuration.notification.border_size);
+    configure_client(&window_list.client, window_list.client.x,
+            window_list.client.y, window_list.client.width,
+            window_list.client.height, configuration.notification.border_size);
 
     /* check if notification background changed */
     if (old_configuration.notification.background !=

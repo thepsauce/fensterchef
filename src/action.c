@@ -428,13 +428,11 @@ void do_action(const Action *action, Window *window)
         }
         break;
 
-    /* show the interactive window list */
+    /* toggle visibility of the interactive window list */
     case ACTION_SHOW_WINDOW_LIST:
-        /* this needs to be delayed because if this is called by a binding and
-         * the configuration is reloaded by the user, the pointer to the binding
-         * becomes invalid and a crash occurs
-         */
-        is_window_list_requested = true;
+        if (show_window_list() == ERROR) {
+            unmap_client(&window_list.client);
+        }
         break;
 
     /* quit fensterchef */
