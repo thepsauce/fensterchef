@@ -7,13 +7,13 @@
 
 typedef enum {
     /* everything gets logged */
-    SEVERITY_VERBOSE,
+    SEVERITY_ALL,
     /* only information gets logged */
     SEVERITY_INFO,
     /* only errors get logged */
     SEVERITY_ERROR,
     /* log nothing */
-    SEVERITY_IGNORE,
+    SEVERITY_NOTHING,
 } log_severity_t;
 
 /* the severity of the logging */
@@ -45,7 +45,7 @@ extern log_severity_t log_severity;
 
 /* wrappers around `log_formatted` for different severities */
 #define LOG_VERBOSE(...) \
-    log_formatted(SEVERITY_VERBOSE, __FILE__, __LINE__, __VA_ARGS__)
+    log_formatted(SEVERITY_ALL, __FILE__, __LINE__, __VA_ARGS__)
 #define LOG(...) \
     log_formatted(SEVERITY_INFO, __FILE__, __LINE__, __VA_ARGS__)
 #define LOG_ERROR(...) \

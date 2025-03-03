@@ -5,19 +5,26 @@
 #include "keymap.h"
 #include "log.h"
 #include "monitor.h"
+#include "program_options.h"
 #include "render.h"
 #include "x11_management.h"
 #include "xalloc.h"
 
 /* FENSTERCHEF main entry point. */
-int main(void)
+int main(int argc, char **argv)
 {
-    /* initialize the X connection, X atoms and create utility windows */
+    /* parse the program arguments */
+    if (parse_program_arguments(argc, argv) != OK) {
+        exit(EXIT_FAILURE);
+    }
+
+    /* initialize the X connection and X atoms */
     if (initialize_x11() != OK) {
         quit_fensterchef(EXIT_FAILURE);
     }
 
-    /* try to take control of the windows and start managing */
+    /* try to take control of the window manager role and create utility windows
+     */
     if (take_control() != OK) {
         quit_fensterchef(EXIT_FAILURE);
     }

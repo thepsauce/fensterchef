@@ -9,6 +9,9 @@
 /* true while the window manager is running */
 bool is_fensterchef_running;
 
+/* the path of the configuration file */
+const char *fensterchef_configuration = FENSTERCHEF_CONFIGURATION;
+
 /* Close the connection to xcb and exit the program with given exit code. */
 void quit_fensterchef(int exit_code)
 {

@@ -70,18 +70,26 @@ void clear_configuration(struct configuration *configuration)
 /* Load the user configuration and merge it into the current configuration. */
 void reload_user_configuration(void)
 {
-    const char *home;
     char *path;
     struct configuration configuration;
 
-    home = getenv("HOME");
-    if (home != NULL) {
-        path = xasprintf("%s/" FENSTERCHEF_CONFIGURATION, home);
-        if (load_configuration_file(path, &configuration) == OK) {
-            set_configuration(&configuration);
+    if (fensterchef_configuration[0] == '~' &&
+            fensterchef_configuration[1] == '/') {
+        const char *const home = getenv("HOME");
+        if (home == NULL) {
+            LOG("could not get home directory ($HOME is unset)\n");
+        } else {
+            path = xasprintf("%s/%s", home, &fensterchef_configuration[2]);
         }
-        free(path);
+    } else {
+        path = xstrdup(fensterchef_configuration);
     }
+
+    if (load_configuration_file(path, &configuration) == OK) {
+        set_configuration(&configuration);
+    }
+
+    free(path);
 }
 
 /* Get a key from button modifiers and a button index. */
@@ -336,7 +344,8 @@ int load_configuration_file(const char *file_name,
 
     parser.file = fopen(file_name, "r");
     if (parser.file == NULL) {
-        LOG_ERROR("could not open %s: %s\n", file_name, strerror(errno));
+        LOG_ERROR("could not open configuration file %s: %s\n",
+                file_name, strerror(errno));
         return ERROR;
     }
 
