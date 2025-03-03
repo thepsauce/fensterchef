@@ -265,10 +265,166 @@ void toggle_focus(void)
     }
 }
 
+/* Move the focus to the frame above (with wrap around). */
+static void move_to_above_frame(void)
+{
+    Frame *frame;
+
+    /* if a group of frames is focused, focus within them if the split direction
+     * is aligned with the movement
+     */
+    if (focus_frame->left != NULL &&
+            focus_frame->split_direction == FRAME_SPLIT_VERTICALLY) {
+        frame = focus_frame->left;
+    } else {
+        frame = get_above_frame(focus_frame);
+        if (frame == NULL) {
+            Monitor *const monitor = get_monitor_from_rectangle(
+                    focus_frame->x, focus_frame->y - 1, 1, 1);
+            if (monitor == NULL) {
+                return;
+            }
+            frame = monitor->frame;
+        }
+    }
+
+    const int x = focus_frame->x + focus_frame->width / 2;
+    /* move into the most bottom frame */
+    while (frame->left != NULL) {
+        if (frame->split_direction == FRAME_SPLIT_HORIZONTALLY) {
+            if (frame->left->x + (int32_t) frame->left->width >= x) {
+                frame = frame->left;
+            } else {
+                frame = frame->right;
+            }
+        } else {
+            frame = frame->right;
+        }
+    }
+    set_focus_frame(frame);
+}
+
+/* Move the focus to the frame left (with wrap around). */
+static void move_to_left_frame(void)
+{
+    Frame *frame;
+
+    /* if a group of frames is focused, focus within them if the split direction
+     * is aligned with the movement
+     */
+    if (focus_frame->left != NULL &&
+            focus_frame->split_direction == FRAME_SPLIT_HORIZONTALLY) {
+        frame = focus_frame->left;
+    } else {
+        frame = get_left_frame(focus_frame);
+        if (frame == NULL) {
+            Monitor *const monitor = get_monitor_from_rectangle(
+                    focus_frame->x - 1, focus_frame->y, 1, 1);
+            /* the movement is at the edge of the screen */
+            if (monitor == NULL) {
+                return;
+            }
+            frame = monitor->frame;
+        }
+    }
+
+    const int y = focus_frame->y + focus_frame->height / 2;
+    /* move into the most right frame */
+    while (frame->left != NULL) {
+        if (frame->split_direction == FRAME_SPLIT_VERTICALLY) {
+            if (frame->left->y + (int32_t) frame->left->height >= y) {
+                frame = frame->left;
+            } else {
+                frame = frame->right;
+            }
+        } else {
+            frame = frame->right;
+        }
+    }
+    set_focus_frame(frame);
+}
+
+/* Move the focus to the frame right (with wrap around). */
+static void move_to_right_frame(void)
+{
+    Frame *frame;
+
+    /* if a group of frames is focused, focus within them if the split direction
+     * is aligned with the movement
+     */
+    if (focus_frame->left != NULL &&
+            focus_frame->split_direction == FRAME_SPLIT_HORIZONTALLY) {
+        frame = focus_frame->right;
+    } else {
+        frame = get_right_frame(focus_frame);
+        if (frame == NULL) {
+            Monitor *const monitor = get_monitor_from_rectangle(
+                    focus_frame->x + focus_frame->width, focus_frame->y, 1, 1);
+            if (monitor == NULL) {
+                return;
+            }
+            frame = monitor->frame;
+        }
+    }
+
+    const int y = focus_frame->y + focus_frame->height / 2;
+    /* move into the most left frame */
+    while (frame->left != NULL) {
+        if (frame->split_direction == FRAME_SPLIT_VERTICALLY) {
+            if (frame->left->y + (int32_t) frame->left->height >= y) {
+                frame = frame->left;
+            } else {
+                frame = frame->right;
+            }
+        } else {
+            frame = frame->left;
+        }
+    }
+    set_focus_frame(frame);
+}
+
+/* Move the focus to the frame below (with wrap around). */
+static void move_to_below_frame(void)
+{
+    Frame *frame;
+
+    /* if a group of frames is focused, focus within them if the split direction
+     * is aligned with the movement
+     */
+    if (focus_frame->left != NULL &&
+            focus_frame->split_direction == FRAME_SPLIT_VERTICALLY) {
+        frame = focus_frame->right;
+    } else {
+        frame = get_below_frame(focus_frame);
+        if (frame == NULL) {
+            Monitor *const monitor = get_monitor_from_rectangle(
+                    focus_frame->x, focus_frame->y + focus_frame->height, 1, 1);
+            if (monitor == NULL) {
+                return;
+            }
+            frame = monitor->frame;
+        }
+    }
+
+    const int x = focus_frame->x + focus_frame->width / 2;
+    /* move into the most top frame */
+    while (frame->left != NULL) {
+        if (frame->split_direction == FRAME_SPLIT_HORIZONTALLY) {
+            if (frame->left->x + (int32_t) frame->left->width >= x) {
+                frame = frame->left;
+            } else {
+                frame = frame->right;
+            }
+        } else {
+            frame = frame->left;
+        }
+    }
+    set_focus_frame(frame);
+}
+
 /* Do the given action. */
 void do_action(const Action *action, Window *window)
 {
-    Frame *frame;
     char *shell;
 
     switch (action->code) {
@@ -403,35 +559,22 @@ void do_action(const Action *action, Window *window)
 
     /* move to the frame above the current one */
     case ACTION_MOVE_UP:
-        frame = get_frame_at_position(focus_frame->x, focus_frame->y - 1);
-        if (frame != NULL) {
-            set_focus_frame(frame);
-        }
+        move_to_above_frame();
         break;
 
     /* move to the frame left of the current one */
     case ACTION_MOVE_LEFT:
-        frame = get_frame_at_position(focus_frame->x - 1, focus_frame->y);
-        if (frame != NULL) {
-            set_focus_frame(frame);
-        }
+        move_to_left_frame();
         break;
 
     /* move to the frame right of the current one */
-    /* TODO: for all below, do not use get_frame_at_position() */
     case ACTION_MOVE_RIGHT:
-        frame = get_frame_at_position(focus_frame->x + focus_frame->width, focus_frame->y);
-        if (frame != NULL) {
-            set_focus_frame(frame);
-        }
+        move_to_right_frame();
         break;
 
     /* move to the frame below the current one */
     case ACTION_MOVE_DOWN:
-        frame = get_frame_at_position(focus_frame->x, focus_frame->y + focus_frame->height);
-        if (frame != NULL) {
-            set_focus_frame(frame);
-        }
+        move_to_below_frame();
         break;
 
     /* toggle visibility of the interactive window list */
