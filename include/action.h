@@ -60,6 +60,14 @@ typedef enum {
     ACTION_MOVE_RIGHT,
     /* move to the frame below the current one */
     ACTION_MOVE_DOWN,
+    /* exchange the current frame with the above one */
+    ACTION_EXCHANGE_UP,
+    /* exchange the current frame with the left one */
+    ACTION_EXCHANGE_LEFT,
+    /* exchange the current frame with the right one */
+    ACTION_EXCHANGE_RIGHT,
+    /* exchange the current frame with the below one */
+    ACTION_EXCHANGE_DOWN,
     /* show the interactive window list */
     ACTION_SHOW_WINDOW_LIST,
     /* run a shell program */
