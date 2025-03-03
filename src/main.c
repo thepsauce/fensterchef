@@ -1,5 +1,3 @@
-#include <stdlib.h>
-
 #include "default_configuration.h"
 #include "event.h"
 #include "fensterchef.h"
@@ -8,7 +6,6 @@
 #include "log.h"
 #include "monitor.h"
 #include "render.h"
-#include "root_properties.h"
 #include "x11_management.h"
 #include "xalloc.h"
 
@@ -17,7 +14,7 @@ int main(void)
 {
     /* initialize the X connection, X atoms and create utility windows */
     if (initialize_x11() != OK) {
-        return ERROR;
+        quit_fensterchef(EXIT_FAILURE);
     }
 
     /* try to take control of the windows and start managing */
@@ -30,39 +27,36 @@ int main(void)
         quit_fensterchef(EXIT_FAILURE);
     }
 
-    /* try to initialize randr */
-    initialize_monitors();
-
-    /* log the screen information */
-    log_screen();
-
     /* initialize graphical stock objects used for rendering */
     if (initialize_renderer() != OK) {
         quit_fensterchef(EXIT_FAILURE);
     }
-
-    /* load the default configuration and the user configuration, this also
-     * initializes the keybindings and font
-     */
-    load_default_configuration();
-    reload_user_configuration();
 
     /* set the signal handlers */
     if (initialize_signal_handlers() != OK) {
         quit_fensterchef(EXIT_FAILURE);
     }
 
+    /* initialize randr if possible and the initial frames */
+    initialize_monitors();
+
     /* set the X properties on the root window */
-    synchronize_all_root_properties();
+    initialize_root_properties();
 
-    /* select the first frame */
-    focus_frame = get_primary_monitor()->frame;
+    /* load the default configuration and the user configuration, this also
+     * initializes the bindings and font
+     */
+    load_default_configuration();
+    reload_user_configuration();
 
-    /* run the main event loop */
+    /* before entering the loop, flush all the initialization calls */
+    xcb_flush(connection);
+
     is_fensterchef_running = true;
-    while (next_cycle(NULL) == OK) {
+    /* run the main event loop */
+    while (next_cycle() == OK) {
         /* nothing to do */
     }
 
-    quit_fensterchef(EXIT_SUCCESS);
+    quit_fensterchef(is_fensterchef_running ? EXIT_FAILURE : EXIT_SUCCESS);
 }

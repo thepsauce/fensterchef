@@ -9,8 +9,8 @@
 typedef enum window_mode {
     /* the window is part of the tiling layout (if visible) */
     WINDOW_MODE_TILING,
-    /* the window is a popup window */
-    WINDOW_MODE_POPUP,
+    /* the window is a floating window */
+    WINDOW_MODE_FLOATING,
     /* the window is a fullscreen window */
     WINDOW_MODE_FULLSCREEN,
     /* the window is attached to an edge of the screen, usually not focusable */
@@ -24,12 +24,8 @@ typedef enum window_mode {
  * and how the window should behave.
  */
 typedef struct window_state {
-    /* if the window was ever mapped */
-    bool was_ever_mapped;
     /* if the window is visible (mapped) */
     bool is_visible;
-    /* if the window was forced to be a certain mode */
-    bool is_mode_forced;
     /* if the user ever requested to close the window */
     bool was_close_requested;
     /* when the user requested to close the window */
@@ -52,7 +48,7 @@ bool has_window_border(Window *window);
  *
  * @force_mode is used to force the change of the window mode.
  */
-void set_window_mode(Window *window, window_mode_t mode, bool force_mode);
+void set_window_mode(Window *window, window_mode_t mode);
 
 /* Show the window by positioning it and mapping it to the X server.
  *
@@ -60,7 +56,7 @@ void set_window_mode(Window *window, window_mode_t mode, bool force_mode);
  */
 void show_window(Window *window);
 
-/* Hide the window by unmapping it from the X server.
+/* Hide @window and adjust the tiling and focus.
  *
  * When the window is a tiling window, this places the next available window in
  * the formed gap.
@@ -69,8 +65,7 @@ void show_window(Window *window);
  */
 void hide_window(Window *window);
 
-/* Wrapper around `hide_window()` that does not touch the tiling or focus.
- *
+/* Hide the window without touching the tiling or focus.
  * Note: The focus however is removed if @window is the focus.
  */
 void hide_window_abruptly(Window *window);

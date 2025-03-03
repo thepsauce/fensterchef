@@ -16,18 +16,21 @@
 /* Get the size of a statically sized array. */
 #define SIZE(a) (sizeof(a)/sizeof(*(a)))
 
-/* Turns the first argument into a string. */
-#define STRINGIFY(str) #str
+/* Turn the argument into a string. */
+#define _STRINGIFY(str) #str
+#define STRINGIFY(str) _STRINGIFY(str)
 
-/* Resize allocated memory to given size.
+/* Resize allocated array to given number of elements.
  *
  * Usage:
  * ```
- * uint32_t *integers = xmalloc(60);
+ * uint32_t *integers = xmalloc(60 * sizeof(*integers));
  *
  * RESIZE(integers, 120);
  *
  * integers[0] = 64;
+ * ...
+ * integers[119] = 8449;
  * ```
  */
 #define RESIZE(p, a) \
@@ -50,7 +53,7 @@
     } else { \
         (a) = MIN(_c, c); \
     } \
-} while (0)
+} while (false)
 
 /* Check if the multiplication overflows and store the result in @c. */
 #define OVERFLOW_MULTIPLY(a, b, c) \
@@ -66,7 +69,7 @@ typedef struct position {
     int32_t x;
     /* vertical position */
     int32_t y;
-} Position;
+} Point;
 
 /* a size of width x height */
 typedef struct size {

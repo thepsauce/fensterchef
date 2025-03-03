@@ -1,12 +1,6 @@
 #ifndef FENSTERCHEF_H
 #define FENSTERCHEF_H
 
-#include <fontconfig/fontconfig.h>
-
-#include <xcb/xcb.h>
-#include <xcb/xcb_ewmh.h>
-#include <xcb/render.h>
-
 #include <stdbool.h>
 #include <stdio.h>
 

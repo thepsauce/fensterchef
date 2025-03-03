@@ -20,6 +20,12 @@ typedef enum {
     ACTION_NONE = ACTION_FIRST_ACTION,
     /* reload the configuration file */
     ACTION_RELOAD_CONFIGURATION,
+    /* move the focus to the parent frame */
+    ACTION_PARENT_FRAME,
+    /* move the focus to the child frame */
+    ACTION_CHILD_FRAME,
+    /* move the focus to the root frame */
+    ACTION_ROOT_FRAME,
     /* closes the currently active window */
     ACTION_CLOSE_WINDOW,
     /* hides the currently active window */
@@ -36,12 +42,12 @@ typedef enum {
     ACTION_PREVIOUS_WINDOW,
     /* remove the current frame */
     ACTION_REMOVE_FRAME,
-    /* changes a popup window to a tiling window and vise versa */
+    /* changes a non tiling window to a tiling window and vise versa */
     ACTION_TOGGLE_TILING,
-    /* changes the window that was in focus before the current one */
-    ACTION_TRAVERSE_FOCUS,
     /* toggles the fullscreen state of the currently focused window */
     ACTION_TOGGLE_FULLSCREEN,
+    /* change the focus from tiling to non tiling or vise versa */
+    ACTION_TOGGLE_FOCUS,
     /* split the current frame horizontally */
     ACTION_SPLIT_HORIZONTALLY,
     /* split the current frame vertically */
@@ -82,10 +88,10 @@ typedef struct action {
 parser_data_type_t get_action_data_type(action_t action);
 
 /* Get an action from a string (case insensitive). */
-action_t convert_string_to_action(const char *string);
+action_t string_to_action(const char *string);
 
 /* Get a string version of an action. */
-const char *convert_action_to_string(action_t action);
+const char *action_to_string(action_t action);
 
 /* Create a deep copy of given action array. */
 Action *duplicate_actions(Action *actions, uint32_t number_of_actions);

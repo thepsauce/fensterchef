@@ -15,17 +15,16 @@ typedef struct monitor {
     char *name;
 
     /* if this is the primary monitor */
-    unsigned primary : 1;
-
-    /* temporary flag for merging */
-    unsigned is_free : 1;
+    bool is_primary;
 
     /* region of the monitor to cut off */
     Extents strut;
 
     /* the position and size of the monitor */
-    Position position;
-    Size size;
+    int32_t x;
+    int32_t y;
+    uint32_t width;
+    uint32_t height;
 
     /* root frame */
     Frame *frame;
@@ -34,7 +33,7 @@ typedef struct monitor {
     struct monitor *next;
 } Monitor;
 
-/* the first monitor in the linked list */
+/* the first monitor in the monitor linked list */
 extern Monitor *first_monitor;
 
 /* Try to initialize randr and the internal monitor linked list. */

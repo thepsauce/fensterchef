@@ -2,6 +2,7 @@
 
 #include "default_configuration.h"
 #include "utility.h"
+#include "utf8.h"
 
 /* the default configuration */
 static const struct configuration default_configuration = {
@@ -20,7 +21,7 @@ static const struct configuration default_configuration = {
 
     /* default font settings: Mono */
     .font = {
-        .name = (uint8_t*) "Mono"
+        .name = (utf8_t*) "Mono"
     },
 
     /* default border settings: no borders */
@@ -48,6 +49,7 @@ static const struct configuration default_configuration = {
      * `merge_with_default_button_bindings()` for the default mouse bindings
      */
     .mouse = {
+        .resize_tolerance = 8,
         .modifiers = XCB_MOD_MASK_4,
         .ignore_modifiers = XCB_MOD_MASK_LOCK | XCB_MOD_MASK_2 |
             XCB_MOD_MASK_3 | XCB_MOD_MASK_5,
@@ -81,7 +83,12 @@ void merge_with_default_button_bindings(struct configuration *configuration)
         /* the singular action to execute */
         Action action;
     } default_bindings[] = {
-        { 0, 0, 2, { .code = ACTION_CLOSE_WINDOW } },
+        /* start moving or resizing a window (depends on the mouse position) */
+        { 0, 0, 1, { .code = ACTION_INITIATE_RESIZE } },
+        /* minimize (hide) a window */
+        { 0, 0, 2, { .code = ACTION_MINIMIZE_WINDOW } },
+        /* start moving a window */
+        { 0, 0, 3, { .code = ACTION_INITIATE_MOVE } },
     };
 
     struct configuration_button *button;
@@ -152,6 +159,11 @@ void merge_with_default_key_bindings(struct configuration *configuration)
         /* reload the configuration */
         { XCB_MOD_MASK_SHIFT, 0, XK_r, { .code = ACTION_RELOAD_CONFIGURATION } },
 
+        /* move the focus to a child or parent frame */
+        { 0, 0, XK_a, { .code = ACTION_PARENT_FRAME } },
+        { 0, 0, XK_b, { .code = ACTION_CHILD_FRAME } },
+        { XCB_MOD_MASK_SHIFT, 0, XK_a, { .code = ACTION_ROOT_FRAME } },
+
         /* close the active window */
         { 0, 0, XK_q, { .code = ACTION_CLOSE_WINDOW } },
 
@@ -167,10 +179,12 @@ void merge_with_default_key_bindings(struct configuration *configuration)
 
         /* toggle between tiling and the previous mode */
         { XCB_MOD_MASK_SHIFT, 0, XK_space, { .code = ACTION_TOGGLE_TILING } },
-        { 0, 0, XK_space, { .code = ACTION_TRAVERSE_FOCUS } },
 
         /* toggle between fullscreen and the previous mode */
         { 0, 0, XK_f, { .code = ACTION_TOGGLE_FULLSCREEN } },
+
+        /* focus from tiling to non tiling and vise versa */
+        { 0, 0, XK_space, { .code = ACTION_TOGGLE_FOCUS } },
 
         /* split a frame */
         { 0, 0, XK_v, { .code = ACTION_SPLIT_HORIZONTALLY } },
@@ -288,7 +302,8 @@ void load_default_configuration(void)
     configuration = default_configuration;
     duplicate_configuration(&configuration);
 
-    /* add the default key bindings */
+    /* add the default bindings */
+    merge_with_default_button_bindings(&configuration);
     merge_with_default_key_bindings(&configuration);
 
     set_configuration(&configuration);

@@ -7,9 +7,6 @@
 #include "action.h"
 #include "keymap.h"
 
-/* if the user requested to reload the configuration, handled in `main()` */
-extern bool reload_requested;
-
 /* general settings */
 struct configuration_general {
     /* currently no members */
@@ -84,6 +81,8 @@ struct configuration_button {
 
 /* mouse settings */
 struct configuration_mouse {
+    /* how many pixels off the edges of windows should be used for resizing */
+    int32_t resize_tolerance;
     /* the modifier key applied for all keys (applied at the parsing step) */
     uint16_t modifiers;
     /* the modifiers to ignore */

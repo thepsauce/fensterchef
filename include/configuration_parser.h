@@ -60,9 +60,11 @@ typedef enum {
 
 /* labels with form "[<name>]"
  *
- * NOTE: After editing this enum, also edit the label_strings[] array in
- * configuration_parser.c.
- * To add variables to the label, edit variables[] in parse_line().
+ * NOTE: After editing this enum, also edit the `label_strings[]` array in
+ * `configuration_parser.c`.
+ * To add variables to the label, edit `variables[]` in `parse_line()` and also
+ * add it to the configuration in `configuration.c` AND add a default option in
+ * `default_configuration.c`.
  */
 typedef enum parser_label {
     PARSER_LABEL_NONE,
@@ -87,7 +89,7 @@ typedef struct parser {
     FILE *file;
     /* the current line being parsed */
     char *line;
-    /* the number of allocated bytes for @line */
+    /* the number of allocated bytes for the line */
     size_t line_capacity;
     /* the line number the parser is one (1 based) */
     size_t line_number;
@@ -97,10 +99,12 @@ typedef struct parser {
     size_t column;
     /* the configuration being filled */
     struct configuration *configuration;
+    /* the labels that have appeared in the configuration */
+    bool has_label[PARSER_LABEL_MAX];
     /* the currently active label */
     parser_label_t label;
 
-    /* the latest parser identifier */
+    /* the latest parsed identifier */
     char identifier[PARSER_IDENTIFIER_LIMIT];
     /* a single identifying character like '[' or ']' */
     char character;

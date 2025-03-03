@@ -42,16 +42,20 @@ void set_notification(const uint8_t *message, int32_t x, int32_t y)
             configuration.notification.padding) / 2;
 
     /* set the window size, position and set it above */
-    general_values[0] = x;
-    general_values[1] = y;
-    general_values[2] = measure.total_width;
-    general_values[3] = measure.ascent - measure.descent +
-        configuration.notification.padding;
-    general_values[4] = XCB_STACK_MODE_ABOVE;
-    xcb_configure_window(connection, notification_window,
-            XCB_CONFIG_SIZE | XCB_CONFIG_WINDOW_STACK_MODE, general_values);
+    configure_client(&notification,
+            x,
+            y,
+            measure.total_width,
+            measure.ascent - measure.descent +
+                configuration.notification.padding,
+            notification.border_width);
+
+    general_values[0] = XCB_STACK_MODE_ABOVE;
+    xcb_configure_window(connection, notification.id,
+            XCB_CONFIG_WINDOW_STACK_MODE, general_values);
+
     /* show the window */
-    xcb_map_window(connection, notification_window);
+    map_client(&notification);
 
     /* render the notification on the window */
     rectangle.x = 0;
@@ -60,7 +64,7 @@ void set_notification(const uint8_t *message, int32_t x, int32_t y)
     rectangle.height = measure.ascent - measure.descent +
         configuration.notification.padding;
     convert_color_to_xcb_color(&color, configuration.notification.background);
-    draw_text(notification_window, message, message_length, color,
+    draw_text(notification.id, message, message_length, color,
             &rectangle, stock_objects[STOCK_BLACK_PEN],
             configuration.notification.padding / 2,
             measure.ascent + configuration.notification.padding / 2);

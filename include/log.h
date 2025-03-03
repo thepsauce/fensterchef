@@ -1,68 +1,78 @@
 #ifndef LOG_H
 #define LOG_H
 
-#ifdef DEBUG
-
 #include <stdio.h>
-#include <time.h>
-#include <xcb/xcb_event.h>
 
-#include "fensterchef.h"
+#include "utility.h"
 
-/* Log a formatted message. */
-#define LOG(...) do { \
-    char time_buffer[64]; \
-    time_t current_time; \
-    struct tm *tm; \
-    current_time = time(NULL); \
-    tm = localtime(&current_time); \
-    strftime(time_buffer, sizeof(time_buffer), "[%F %T]", tm); \
-    fputs(time_buffer, stderr); \
-    fprintf(stderr, "(%s:%d) ", __FILE__, __LINE__); \
-    fprintf(stderr, __VA_ARGS__); \
-} while (0)
+typedef enum {
+    /* everything gets logged */
+    SEVERITY_VERBOSE,
+    /* only information gets logged */
+    SEVERITY_INFO,
+    /* only errors get logged */
+    SEVERITY_ERROR,
+    /* log nothing */
+    SEVERITY_IGNORE,
+} log_severity_t;
 
-/* Log a formatted message with error indication. */
-#define LOG_ERROR(xcb_error, ...) do { \
-    char time_buffer_[64]; \
-    time_t current_time_; \
-    struct tm *tm_; \
-    xcb_generic_error_t *error_ = (xcb_error); \
-    current_time_ = time(NULL); \
-    tm_ = localtime(&current_time_); \
-    strftime(time_buffer_, sizeof(time_buffer_), "{%F %T}", tm_); \
-    fputs(time_buffer_, stderr); \
-    fprintf(stderr, "(%s:%d) ERR ", __FILE__, __LINE__); \
-    if (error_ != NULL) { \
-        log_error(error_, __VA_ARGS__); \
-        free(error_); \
-    } else { \
-        fprintf(stderr, __VA_ARGS__); \
-        fputc('\n', stderr); \
-    } \
-} while (0)
+/* the severity of the logging */
+extern log_severity_t log_severity;
 
-/* Log an event to the log file.  */
-void log_event(xcb_generic_event_t *event);
+#ifndef NO_ANSII_COLORS
 
-/* Log an xcb error to the log file with additional output formatting and new
- * line.
- */
-void log_error(xcb_generic_error_t *error, const char *fmt, ...);
+/* ansi colors for colored output */
+#define ANSI_BLACK 0
+#define ANSI_RED 1
+#define ANSI_GREEN 2
+#define ANSI_YELLOW 3
+#define ANSI_BLUE 4
+#define ANSI_MAGENTA 5
+#define ANSI_CYAN 6
+#define ANSI_WHITE 7
 
-/* Log the screen information to the log file. */
-void log_screen(void);
+/* clear the current visual attributes */
+#define CLEAR_COLOR "\x1b[0m"
+/* set the foreground color */
+#define COLOR(color) "\x1b[3" STRINGIFY(ANSI_##color) "m"
 
 #else
 
-#define LOG(...)
-#define LOG_ADDITIONAL(...)
-#define LOG_ERROR(...)
+#define CLEAR_COLOR ""
+#define COLOR(color) ""
 
-#define log_event(...)
-#define log_error(...)
-#define log_screen(...)
+#endif
 
-#endif // DEBUG
+/* wrappers around `log_formatted` for different severities */
+#define LOG_VERBOSE(...) \
+    log_formatted(SEVERITY_VERBOSE, __FILE__, __LINE__, __VA_ARGS__)
+#define LOG(...) \
+    log_formatted(SEVERITY_INFO, __FILE__, __LINE__, __VA_ARGS__)
+#define LOG_ERROR(...) \
+    log_formatted(SEVERITY_ERROR, __FILE__, __LINE__, __VA_ARGS__)
+
+/* printf format specifiers that can be used */
+#define PRINTF_FORMAT_SPECIFIERS "diuoxfegcsp"
+
+/* Print a formatted string to standard error output.
+ *
+ * The following format specifiers are supported on top of the reqular
+ * format specifiers (some printf format specifiers might be overwritten):
+ * %P   int32_t, int32_t        X+Y
+ * %S   uint32_t, uint32_t      WIDTHxHEIGHT
+ * %R   uint32_t[4]             X+Y+WIDTHxHEIGHT
+ * %w   xcb_window_t            ID<NUMBER or NAME>
+ * %W   Window*                 ID<NUMBER or NAME>
+ * %m   window_state_t          WINDOW_STATE
+ * %F   Frame*                  (X+Y+WIDTHxHEIGHT)
+ * %A   uint32_t, Action*       List of actions
+ * %X   int                     CONNECTION ERROR
+ * %a   xcb_atom_t              ATOM
+ * %V   xcb_generic_event_t*    EVENT
+ * %E   xcb_generic_error_t*    ERROR
+ * %C   xcb_screen_t*           SCREEN
+ */
+void log_formatted(log_severity_t severity, const char *file, int line,
+        const char *format, ...);
 
 #endif

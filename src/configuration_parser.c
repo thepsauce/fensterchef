@@ -237,6 +237,8 @@ static const struct parser_label_name {
 
     [PARSER_LABEL_MOUSE] = {
         "mouse", {
+        { "resize-tolerance", PARSER_DATA_TYPE_INTEGER,
+            offsetof(struct configuration, mouse.resize_tolerance) },
         { "modifiers", PARSER_DATA_TYPE_MODIFIERS,
             offsetof(struct configuration, mouse.modifiers) },
         { "ignore-modifiers", PARSER_DATA_TYPE_MODIFIERS,
@@ -739,7 +741,7 @@ static parser_error_t parse_actions(Parser *parser,
         RESIZE(actions, number_of_actions + 1);
         action = &actions[number_of_actions];
 
-        action->code = convert_string_to_action(parser->identifier);
+        action->code = string_to_action(parser->identifier);
         if (action->code == ACTION_NULL) {
             free_actions(actions, number_of_actions);
             return PARSER_ERROR_INVALID_ACTION;
@@ -884,6 +886,7 @@ parser_error_t parse_line(Parser *parser)
                 if (error != PARSER_SUCCESS || parser->character != ']') {
                     return PARSER_ERROR_MISSING_CLOSING;
                 }
+                parser->has_label[i] = true;
                 return PARSER_SUCCESS;
             }
         }
@@ -958,7 +961,8 @@ parser_error_t parse_line(Parser *parser)
             RESIZE(parser->configuration->mouse.buttons,
                     parser->configuration->mouse.number_of_buttons + 1);
             button = &parser->configuration->mouse.buttons[
-                parser->configuration->mouse.number_of_buttons++];
+                parser->configuration->mouse.number_of_buttons];
+            parser->configuration->mouse.number_of_buttons++;
         }
         *button = parser->button;
         return PARSER_SUCCESS;
@@ -980,7 +984,8 @@ parser_error_t parse_line(Parser *parser)
             RESIZE(parser->configuration->keyboard.keys,
                     parser->configuration->keyboard.number_of_keys + 1);
             key = &parser->configuration->keyboard.keys[
-                parser->configuration->keyboard.number_of_keys++];
+                parser->configuration->keyboard.number_of_keys];
+            parser->configuration->keyboard.number_of_keys++;
         }
         *key = parser->key;
         return PARSER_SUCCESS;

@@ -86,32 +86,52 @@ static xcb_render_pictformat_t get_picture_format(uint8_t depth)
 /* Free all data used by the font. */
 static void free_font(void)
 {
+    /* check if the font is already freed (we do not allow fonts with no font
+     * faces)
+     */
+    if (font.faces == NULL) {
+        return;
+    }
+
     for (uint32_t i = 0; i < font.number_of_faces; i++) {
         FT_Done_Face(font.faces[i]);
     }
     free(font.faces);
     font.faces = NULL;
     font.number_of_faces = 0;
-    xcb_render_free_glyph_set(connection, font.glyphset);
     FcCharSetDestroy(font.charset);
 }
 
 /* Initializes all parts needed for drawing fonts. */
 static int initialize_font_drawing(void)
 {
-    FT_Error error;
+    FT_Error ft_error;
+    xcb_generic_error_t *error;
 
     /* initialize the freetype library */
-    error = FT_Init_FreeType(&font.library);
-    if (error != FT_Err_Ok) {
-        LOG_ERROR(NULL, "could not initialize freetype: %u", error);
+    ft_error = FT_Init_FreeType(&font.library);
+    if (ft_error != FT_Err_Ok) {
+        LOG_ERROR("could not initialize freetype: %u", ft_error);
         return ERROR;
     }
 
     /* initialize fontconfig, this reads the font configuration database */
     if (FcInit() == FcFalse) {
-        LOG_ERROR(NULL, "could not initialize freetype: %u", error);
+        LOG_ERROR("could not initialize fontconfig\n");
         FT_Done_FreeType(font.library);
+        return ERROR;
+    }
+
+    /* create the glyphset which will store the glyph pixel data */
+    font.glyphset = xcb_generate_id(connection);
+    error = xcb_request_check(connection,
+                xcb_render_create_glyph_set_checked(connection,
+                    font.glyphset, get_picture_format(8)));
+    if (error != NULL) {
+        LOG_ERROR("could not create a glyphset for rendering: %E\n", error);
+        free(error);
+        FT_Done_FreeType(font.library);
+        FcFini();
         return ERROR;
     }
     return OK;
@@ -130,9 +150,9 @@ int initialize_renderer(void)
      */
     formats_cookie = xcb_render_query_pict_formats(connection);
     formats = xcb_render_query_pict_formats_reply(connection,
-            formats_cookie, 0);
+            formats_cookie, &error);
     if (formats == NULL) {
-        LOG_ERROR(NULL, "could not query picture formats");
+        LOG_ERROR("could not query picture formats: %E\n", error);
         return ERROR;
     }
 
@@ -148,7 +168,9 @@ int initialize_renderer(void)
                 screen->root, XCB_GC_FOREGROUND | XCB_GC_BACKGROUND,
                 general_values));
     if (error != NULL) {
-        LOG_ERROR(error, "could not create graphics context for notifications");
+        LOG_ERROR("could not create graphics context for notifications: %E\n",
+                error);
+        free(error);
         return ERROR;
     }
 
@@ -160,7 +182,9 @@ int initialize_renderer(void)
                 stock_objects[STOCK_INVERTED_GC], screen->root,
                 XCB_GC_FOREGROUND | XCB_GC_BACKGROUND, general_values));
     if (error != NULL) {
-        LOG_ERROR(error, "could not create inverted graphics context for notifications");
+        LOG_ERROR("could not create inverted graphics context for notifications: %E\n",
+                error);
+        free(error);
         return ERROR;
     }
 
@@ -210,12 +234,18 @@ void deinitialize_renderer(void)
     }
 
     free_font();
+    xcb_render_free_glyph_set(connection, font.glyphset);
 
     FT_Done_FreeType(font.library);
     FcFini();
 }
 
-/* Creates a picture for the given window (or retrieves it from the cache). */
+/* Creates a picture for the given window (or retrieves it from the cache).
+ *
+ * The cached items do not need to be cleared ever since they are only for the
+ * two fensterchef windows (notification and window list) which only get cleared
+ * whin fensterchef quits.
+ */
 xcb_render_picture_t cache_window_picture(xcb_drawable_t xcb_drawable)
 {
     struct window_picture_cache *last;
@@ -254,7 +284,8 @@ xcb_render_picture_t cache_window_picture(xcb_drawable_t xcb_drawable)
                 XCB_RENDER_CP_POLY_MODE | XCB_RENDER_CP_POLY_EDGE,
                 general_values));
     if (error != NULL) {
-        LOG_ERROR(error, "could not create picture");
+        LOG_ERROR("could not create picture: %E\n", error);
+        free(error);
         free(cache);
         if (last != NULL) {
             last->next = NULL;
@@ -292,7 +323,8 @@ xcb_render_picture_t create_pen(xcb_render_color_t color)
                 screen->root_depth, pixmap,
                 screen->root, 1, 1));
     if (error != NULL) {
-        LOG_ERROR(error, "could not create pixmap");
+        LOG_ERROR("could not create pixmap: %E\n", error);
+        free(error);
         return XCB_NONE;
     }
 
@@ -303,7 +335,8 @@ xcb_render_picture_t create_pen(xcb_render_color_t color)
             xcb_render_create_picture_checked(connection, picture, pixmap,
                 get_picture_format(24), XCB_RENDER_CP_REPEAT, general_values));
     if (error != NULL) {
-        LOG_ERROR(error, "could not create picture");
+        LOG_ERROR("could not create picture: %E\n", error);
+        free(error);
         return XCB_NONE;
     }
 
@@ -322,7 +355,7 @@ static FT_Face create_font_face(FcPattern *pattern)
 
     /* get the file name of the font */
     if (FcPatternGet(pattern, FC_FILE, 0, &fc_file) != FcResultMatch) {
-        LOG_ERROR(NULL, "could not not get the font file");
+        LOG_ERROR("could not not get the font file\n");
         FcPatternDestroy(pattern);
         return NULL;
     }
@@ -337,8 +370,7 @@ static FT_Face create_font_face(FcPattern *pattern)
     ft_error = FT_New_Face(font.library, (const char*) fc_file.u.s,
             fc_index.u.i, &face);
     if (ft_error != FT_Err_Ok) {
-        LOG_ERROR(NULL, "could not not create the new freetype face: %d",
-                ft_error);
+        LOG_ERROR("could not not create the new freetype face: %d", ft_error);
         FcPatternDestroy(pattern);
         return NULL;
     }
@@ -385,22 +417,20 @@ static FT_Face create_font_face(FcPattern *pattern)
         FT_Select_Size(face, 0);
     }
 
-    LOG("new font face created from '%.*s'\n", fc_file.u.i, fc_file.u.s);
+    LOG("new font face created from %.*s\n", fc_file.u.i, fc_file.u.s);
     return face;
 }
 
 /* This sets the globally used font for rendering. */
 int set_font(const utf8_t *query)
 {
+    FT_Face *faces;
+    uint32_t number_of_faces;
     utf8_t *part;
     FcBool status;
     FcPattern *finding_pattern, *pattern;
     FcResult result;
     FT_Face face;
-    FT_Face *faces;
-    uint32_t number_of_faces;
-    xcb_render_glyphset_t glyphset;
-    xcb_generic_error_t *error;
 
     if (!font.available) {
         return ERROR;
@@ -433,7 +463,11 @@ int set_font(const utf8_t *query)
         /* uses the current configuration to fill the finding pattern */
         status = FcConfigSubstitute(NULL, finding_pattern, FcMatchPattern);
         if (status == FcFalse) {
-            LOG_ERROR(NULL, "could not substitute font pattern");
+            LOG_ERROR("could not substitute font pattern\n");
+            for (uint32_t i = 0; i < number_of_faces; i++) {
+                FT_Done_Face(faces[i]);
+            }
+            free(faces);
             return ERROR;
         }
         /* this supplies the pattern with some default values if some are
@@ -447,7 +481,11 @@ int set_font(const utf8_t *query)
         FcPatternDestroy(finding_pattern);
 
         if (result != FcResultMatch) {
-            LOG_ERROR(NULL, "there was no matching font");
+            LOG_ERROR("there was no matching font\n");
+            for (uint32_t i = 0; i < number_of_faces; i++) {
+                FT_Done_Face(faces[i]);
+            }
+            free(faces);
             return ERROR;
         }
 
@@ -458,17 +496,10 @@ int set_font(const utf8_t *query)
         FcPatternDestroy(pattern);
 
         if (face == NULL) {
-            return ERROR;
-        }
-
-        /* create the glyphset which will store the glyph pixel data */
-        glyphset = xcb_generate_id(connection);
-        error = xcb_request_check(connection,
-                    xcb_render_create_glyph_set_checked(connection,
-                        glyphset, get_picture_format(8)));
-        if (error != NULL) {
-            LOG_ERROR(error, "could not create the glyphset");
-            FT_Done_Face(face);
+            for (uint32_t i = 0; i < number_of_faces; i++) {
+                FT_Done_Face(faces[i]);
+            }
+            free(faces);
             return ERROR;
         }
 
@@ -476,15 +507,17 @@ int set_font(const utf8_t *query)
         faces[number_of_faces++] = face;
     }
 
-    LOG("switching fonts to the %" PRIu32 " specified font(s)\n",
-            number_of_faces);
+    if (number_of_faces == 0) {
+        return ERROR;
+    }
+
+    LOG("switching fonts to the %u specified font(s)\n", number_of_faces);
 
     /* free the old font */
     free_font();
 
     font.faces = faces;
     font.number_of_faces = number_of_faces;
-    font.glyphset = glyphset;
     font.charset = FcCharSetCreate();
     return OK;
 }
@@ -578,7 +611,6 @@ static int cache_glyph(uint32_t glyph, FT_Pos *advance)
     xcb_render_glyphinfo_t glyph_info;
     uint32_t stride;
     uint8_t *temporary_bitmap;
-    xcb_generic_error_t *error;
 
     if (glyph == 0) {
         return ERROR;
@@ -612,17 +644,11 @@ static int cache_glyph(uint32_t glyph, FT_Pos *advance)
     }
 
     /* add the glyph to the glyph set */
-    error = xcb_request_check(connection,
-            xcb_render_add_glyphs_checked(connection,
-                font.glyphset, 1, &glyph, &glyph_info,
-                stride * glyph_info.height, temporary_bitmap));
-    free(temporary_bitmap);
+    xcb_render_add_glyphs(connection,
+            font.glyphset, 1, &glyph, &glyph_info,
+            stride * glyph_info.height, temporary_bitmap);
 
-    if (error != NULL) {
-        LOG_ERROR(error, "could not add glyph U+%08x to the glyphset",
-                (unsigned) glyph);
-        return ERROR;
-    }
+    free(temporary_bitmap);
 
     *advance = glyph_info.x_off;
 
@@ -652,7 +678,6 @@ int draw_text(xcb_drawable_t xcb_drawable, const utf8_t *utf8, uint32_t length,
     } glyphs;
     FT_Pos advance;
     uint32_t text_width;
-    xcb_generic_error_t *error = NULL;
 
     if (!font.available) {
         return ERROR;
@@ -671,6 +696,7 @@ int draw_text(xcb_drawable_t xcb_drawable, const utf8_t *utf8, uint32_t length,
 
     glyphs.header.x = x;
     glyphs.header.y = y;
+    /* load the glyphs and send them in chunks to the X server */
     for (uint32_t i = 0; i < length; ) {
         text_width = 0;
         /* iterate over all glyphs and load them */
@@ -692,27 +718,22 @@ int draw_text(xcb_drawable_t xcb_drawable, const utf8_t *utf8, uint32_t length,
             text_width += advance;
         }
 
-        /* send a render request to the x renderer */
-        error = xcb_request_check(connection,
-                    xcb_render_composite_glyphs_32_checked(connection,
-                        XCB_RENDER_PICT_OP_OVER, /* C = Ca + Cb * (1 - Aa) */
-                        foreground, /* source picture */
-                        picture, /* destination picture */
-                        0, /* mask format */
-                        font.glyphset,
-                        0, 0, /* source position */
-                        sizeof(glyphs.header) +
-                            sizeof(uint32_t) * glyphs.header.count,
-                        (uint8_t*) &glyphs));
-        if (error != NULL) {
-            LOG_ERROR(error, "could not render composite glyphs");
-            break;
-        }
+        /* send a render request to the X renderer */
+        xcb_render_composite_glyphs_32(connection,
+                XCB_RENDER_PICT_OP_OVER, /* C = Ca + Cb * (1 - Aa) */
+                foreground, /* source picture */
+                picture, /* destination picture */
+                0, /* mask format */
+                font.glyphset,
+                0, 0, /* source position */
+                sizeof(glyphs.header) +
+                    sizeof(uint32_t) * glyphs.header.count,
+                (uint8_t*) &glyphs);
 
         glyphs.header.x += text_width;
     }
 
-    return error == NULL ? OK : ERROR;
+    return OK;
 }
 
 /* Measure a text that has no new lines. */
