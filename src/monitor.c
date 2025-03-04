@@ -3,6 +3,7 @@
 
 #include <xcb/xcb_renderutil.h>
 
+#include "configuration.h"
 #include "event.h" // randr_event_base
 #include "frame.h"
 #include "log.h"
@@ -186,7 +187,8 @@ Monitor *query_monitors(void)
         /* get the output information that includes the output name */
         output_cookie = xcb_randr_get_output_info(connection, outputs[i],
                resources->timestamp);
-        output = xcb_randr_get_output_info_reply(connection, output_cookie, &error);
+        output = xcb_randr_get_output_info_reply(connection, output_cookie,
+                &error);
         if (error != NULL) {
             LOG_ERROR("unable to get output info of %d: %E\n", i, error);
             free(error);
@@ -196,11 +198,6 @@ Monitor *query_monitors(void)
         /* extract the name information from the reply */
         name = (char*) xcb_randr_get_output_info_name(output);
         name_length = xcb_randr_get_output_info_name_length(output);
-
-        if (output->connection != XCB_RANDR_CONNECTION_CONNECTED) {
-            LOG("ignored output %.*s: not connected\n", name_length, name);
-            continue;
-        }
 
         if (output->crtc == XCB_NONE) {
             LOG("ignored output %.*s: no crtc\n", name_length, name);
@@ -212,6 +209,7 @@ Monitor *query_monitors(void)
          */
         crtc_cookie = xcb_randr_get_crtc_info(connection, output->crtc,
                 resources->timestamp);
+
         crtc = xcb_randr_get_crtc_info_reply(connection, crtc_cookie, &error);
         if (crtc == NULL) {
             LOG_ERROR("output %.*s gave a NULL crtc: %E\n", name_length, name,
@@ -242,6 +240,8 @@ Monitor *query_monitors(void)
         monitor->y = crtc->y;
         monitor->width = crtc->width;
         monitor->height = crtc->height;
+
+        free(crtc);
     }
 
     /* add the primary monitor to the start of the list */
@@ -253,7 +253,7 @@ Monitor *query_monitors(void)
     return first_monitor;
 }
 
-/* Merges given monitor linked list into the screen.
+/* Merge given monitor linked list into the screen.
  *
  * The main purpose of this function is to essentially make the linked in screen
  * be @monitors, but it is not enough to say: `first_monitor = monitors`.
@@ -272,16 +272,17 @@ void merge_monitors(Monitor *monitors)
     /* copy frames from the old monitors to the new ones with same name */
     for (Monitor *monitor = monitors; monitor != NULL;
             monitor = monitor->next) {
-        Monitor *const named_monitor = get_monitor_by_name(first_monitor,
+        Monitor *const other = get_monitor_by_name(first_monitor,
                 monitor->name, strlen(monitor->name));
-        if (named_monitor == NULL) {
+        if (other == NULL) {
             continue;
         }
 
-        monitor->frame = named_monitor->frame;
-        named_monitor->frame = NULL;
+        monitor->frame = other->frame;
+        other->frame = NULL;
     }
 
+    /* drop the frames that are no longer valid or add them again */
     for (Monitor *monitor = first_monitor, *next_monitor; monitor != NULL;
             monitor = next_monitor) {
         next_monitor = monitor->next;
@@ -301,14 +302,15 @@ void merge_monitors(Monitor *monitors)
 
     first_monitor = monitors;
 
-    /* get frames from the stash to fill the monitors or initialize them as
-     * empty
-     */
+    /* initialize the remaining monitors' frames */
     for (Monitor *monitor = monitors; monitor != NULL;
             monitor = monitor->next) {
         if (monitor->frame == NULL) {
-            monitor->frame = xcalloc(1, sizeof(*monitor->frame));
-            fill_void_with_stash(monitor->frame);
+            if (configuration.tiling.auto_fill_void) {
+                monitor->frame = pop_stashed_frame();
+            } else {
+                monitor->frame = xcalloc(1, sizeof(*monitor->frame));
+            }
         }
     }
 

@@ -1,4 +1,4 @@
-#include "stash_frame.h"
+#include "frame.h"
 #include "window.h"
 
 /* the last frame in the frame stashed linked list */

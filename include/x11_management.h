@@ -339,28 +339,29 @@ int take_control(void);
 
 /* Go through all already existing windows and manage them.
  *
- * Call this after the `initialize_monitors()`.
+ * Call this after `initialize_monitors()`.
  */
 void query_existing_windows(void);
 
 /* Set the initial root window properties. */
 void initialize_root_properties(void);
 
-/* Shows the client on the X server. */
+/* Show the client on the X server. */
 void map_client(XClient *client);
 
-/* Hides the client on the X server. */
+/* Hide the client on the X server. */
 void unmap_client(XClient *client);
 
 /* Set the size of a window associated to the X server. */
 void configure_client(XClient *client, int32_t x, int32_t y, uint32_t width,
         uint32_t height, uint32_t border_width);
 
-/* Set the client border color. */
+/* Set the border color of @client. */
 void change_client_attributes(XClient *client, uint32_t border_color);
 
-/* Initialize all properties within @window and return the mode the window
- * should be in initially.
+/* Initialize all properties within @window.
+ *
+ * @return the mode the window should be in initially.
  */
 window_mode_t initialize_window_properties(Window *window);
 
