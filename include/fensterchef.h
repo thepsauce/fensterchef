@@ -8,7 +8,12 @@
 
 #define FENSTERCHEF_NAME "fensterchef"
 
-#define FENSTERCHEF_CONFIGURATION ".config/fensterchef/fensterchef.config"
+#define FENSTERCHEF_VERSION "1.0"
+
+#define FENSTERCHEF_CONFIGURATION "~/.config/fensterchef/fensterchef.config"
+
+/* the path of the configuration file */
+extern const char *fensterchef_configuration;
 
 /* true while the window manager is running */
 extern bool is_fensterchef_running;
