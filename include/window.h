@@ -12,8 +12,8 @@
 
 #include "x11_management.h"
 
-/* the maximum width or height of the window */
-#define WINDOW_MAXIMUM_SIZE 100000
+/* the maximum width or height of a window */
+#define WINDOW_MAXIMUM_SIZE UINT16_MAX
 
 /* the minimum width or height a window can have */
 #define WINDOW_MINIMUM_SIZE 4
@@ -132,11 +132,8 @@ void destroy_window(Window *window);
 void adjust_for_window_gravity(Monitor *monitor, int32_t *x, int32_t *y,
         uint32_t width, uint32_t height, uint32_t window_gravity);
 
-/* Move the window such that it is in bounds of @monitor.
- *
- * @monitor may be NULL, then a monitor is chosen.
- */
-void place_window_in_bounds(Monitor *monitor, Window *window);
+/* Move the window such that it is in bounds of the screen. */
+void place_window_in_bounds(Window *window);
 
 /* Get the minimum size the window should have. */
 void get_minimum_window_size(const Window *window, Size *size);

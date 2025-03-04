@@ -354,33 +354,27 @@ void get_maximum_window_size(const Window *window, Size *size)
     size->height = MIN(height, WINDOW_MAXIMUM_SIZE);
 }
 
-/* Move the window such that it is in bounds of @monitor. */
-void place_window_in_bounds(Monitor *monitor, Window *window)
+/* Move the window such that it is in bounds of the screen. */
+void place_window_in_bounds(Window *window)
 {
     /* do not move dock windows */
     if (window->state.mode == WINDOW_MODE_DOCK) {
         return;
     }
 
-    if (monitor == NULL) {
-        monitor = get_monitor_from_rectangle(window->x,
-                window->y, window->width, window->height);
-    }
-
-    /* place the window so that it is visible */
-    if (window->x + (int32_t) window->width <
-            monitor->x + WINDOW_MINIMUM_VISIBLE_SIZE) {
-        window->x = monitor->x + WINDOW_MINIMUM_VISIBLE_SIZE - window->width;
+    /* make the window horizontally visible */
+    if (window->x + (int32_t) window->width < WINDOW_MINIMUM_VISIBLE_SIZE) {
+        window->x = WINDOW_MINIMUM_VISIBLE_SIZE - window->width;
     } else if (window->x + WINDOW_MINIMUM_VISIBLE_SIZE >=
-            monitor->x + (int32_t) monitor->width) {
-        window->x = monitor->x + monitor->width - WINDOW_MINIMUM_VISIBLE_SIZE;
+            (int32_t) screen->width_in_pixels) {
+        window->x = screen->width_in_pixels - WINDOW_MINIMUM_VISIBLE_SIZE;
     }
-    if (window->y + (int32_t) window->height <
-            monitor->y + WINDOW_MINIMUM_VISIBLE_SIZE) {
-        window->y = monitor->y + WINDOW_MINIMUM_VISIBLE_SIZE - window->height;
-    } else if (window->y + WINDOW_MINIMUM_VISIBLE_SIZE >=
-            monitor->y + (int32_t) monitor->height) {
-        window->y = monitor->y + monitor->height - WINDOW_MINIMUM_VISIBLE_SIZE;
+    /* make the window vertically visible */
+    if (window->y + (int32_t) window->height < WINDOW_MINIMUM_VISIBLE_SIZE) {
+        window->y = WINDOW_MINIMUM_VISIBLE_SIZE - window->height;
+    } else if (WINDOW_MINIMUM_VISIBLE_SIZE >=
+            (int32_t) screen->height_in_pixels) {
+        window->y = screen->height_in_pixels - WINDOW_MINIMUM_VISIBLE_SIZE;
     }
 }
 

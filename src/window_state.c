@@ -451,9 +451,6 @@ void show_window(Window *window)
     }
 
     window->state.is_visible = true;
-
-    /* this clips the window onto screen */
-    place_window_in_bounds(NULL, window);
 }
 
 /* Hide @window and adjust the tiling and focus. */

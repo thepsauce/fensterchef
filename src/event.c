@@ -96,7 +96,12 @@ static void synchronize_with_server(void)
     Monitor *monitor;
     Rectangle rectangle;
 
-    /* reset all extents before recomputing */
+    /**
+     * since the strut of a monitor might have changed because a window with
+     * strut got hidden or shown, we need to recompute those
+     **/
+
+    /* reset all struts before recomputing */
     for (monitor = first_monitor; monitor != NULL; monitor = monitor->next) {
         monitor->strut.left = 0;
         monitor->strut.top = 0;
@@ -108,14 +113,13 @@ static void synchronize_with_server(void)
     rectangle.y = 0;
     rectangle.width = 0;
     rectangle.height = 0;
-    /* figure out if any strut changed and put windows in bound */
+    /* recompute all struts */
     for (Window *window = first_window; window != NULL; window = window->next) {
         if (!window->state.is_visible) {
             continue;
         }
         monitor = get_monitor_from_rectangle_or_primary(window->x,
                 window->y, window->width, window->height);
-        place_window_in_bounds(monitor, window);
 
         monitor->strut.left += window->strut.reserved.left;
         monitor->strut.top += window->strut.reserved.top;
@@ -128,6 +132,7 @@ static void synchronize_with_server(void)
         rectangle.height += window->strut.reserved.bottom;
     }
 
+    /* set the work area if it changed */
     rectangle.width = screen->width_in_pixels - rectangle.x - rectangle.width;
     rectangle.height = screen->height_in_pixels - rectangle.y -
         rectangle.height;
@@ -151,11 +156,12 @@ static void synchronize_with_server(void)
                     monitor->strut.top);
     }
 
-    /* configure all windows and make map them */
+    /* configure all visible windows and map them */
     for (Window *window = top_window; window != NULL; window = window->below) {
         if (!window->state.is_visible) {
             continue;
         }
+        place_window_in_bounds(window);
         configure_client(&window->client, window->x, window->y,
                 window->width, window->height, window->border_size);
         change_client_attributes(&window->client, window->border_color);
