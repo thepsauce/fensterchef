@@ -1,0 +1,212 @@
+.TH FENSTERCHEF 1 "2025-04-03" "Fensterchef developer" "Fensterchef manual"
+.SH NAME
+fensterchef - tiling done the right way
+.
+.SH SYNOPSIS
+.B fensterchef
+.RI [ OPTION... ]
+.
+.SH OPTIONS
+.PP
+-h, --help, --usage
+    Show help
+.PP
+-v, --version
+    Print the version
+.PP
+-d
+.I VERBOSITY
+    Set the output logging verbosity to one of:
+.B all info error nothing
+.PP
+--verbose
+    Log everything
+.PP
+-c, --config
+.I FILE
+    Load
+.I FILE
+as configuration file
+.
+.SH DESCRIPTION
+The
+.B fensterchef
+developers thank you for choosing
+.BR fensterchef .
+If you have used
+.BR ratpoison (1)
+before, than this is a perfect replacement for you as
+it is heavily inspired by ratpoison's manual tiling.
+.BR i3 (1)
+users will also have a
+smooth transition as floating windows behave essentially the same way, but there
+might be some initial confusing about the tiling.
+
+We took the best out of window managers we like to give a new and unique way to manage windows.
+.
+.SH BINDINGS
+.PP
+Use the the modifier key (default is
+.B Mod4
+which is usually
+.BR Super_L )
+before any binding.
+.PP
+.B LeftButton
+    Start moving/resizing a window, this figures out dynamically which edge to move
+.PP
+.B MiddleButton
+    Hide a window                 
+.PP
+.B RightButton
+    Start moving a window         
+.PP
+.B Shift
++
+.B R
+    Reload the configuration file
+.PP
+.B A
+    Move to the parent frame
+.PP
+.B B
+    Move to the child frame
+.PP
+.B Shift
++
+.B A
+    Move to the root frame
+.PP
+.B Q
+    Close the active window
+.PP
+.B \-
+    Minimize the active window
+.PP
+.B N
+    Put the next window into the current frame
+.PP
+.B P
+    Put the previous window into the current frame
+.PP
+.B R
+    Remove the current frame
+.PP
+.B Space
+    Move the focus from tiling to floating and vise versa
+.PP
+.B Shift
++
+.B Space
+    Make a tiling window floating and vise versa
+.PP
+.B F
+    Put a window into fullscreen or put it out of fullscreen
+.PP
+.B V
+    Split a frame horizontally
+.PP
+.B S
+    Split a frame vertically
+.PP
+.B K
+    Move the focus to the frame above
+.PP
+.B H
+    Move the focus to the frame on the left
+.PP
+.B L
+    Move the focus to the frame on the right
+.PP
+.B J
+    Move the focus to the frame below
+.PP
+.B Shift
++
+.B K
+    Swap the focus frame with the frame above
+.PP
+.B Shift
++
+.B H
+    Swap the focus frame with the frame on the left
+.PP
+.B Shift
++
+.B L
+    Swap the focus frame with the frame on the right
+.PP
+.B Shift
++
+.B J
+    Swap the focus frame with the frame below
+.PP
+.B Left
+    Move a window to the left
+.PP
+.B Up
+    Move a window up
+.PP
+.B Right
+    Move a window to the right
+.PP
+.B Down
+    Move a window down
+.PP
+.B Shift
++
+.B Left
+    Decrease the size of a window's left edge
+.PP
+.B Shift
++
+.B Up
+    Decrease the size of a window's top edge
+.PP
+.B Shift
++
+.B Right
+    Increase the size of a window's left edge
+.PP
+.B Shift
++
+.B Down
+    Increase the size of a window's top edge
+.PP
+.B Control
++
+.B Left
+    Decrease the size of a window's right edge
+.PP
+.B Control
++
+.B Up
+    Decrease the size of a window's bottom edge
+.PP
+.B Control
++
+.B Right
+    Increase the size of a window's right edge
+.PP
+.B Control
++
+.B Down
+    Increase the size of a window's bottom edge
+.PP
+.B W
+    Show the interactive window list
+.PP
+.B Return
+    Open a terminal window
+.
+.SH EXIT STATUS
+If the user quits, the exit status is
+.BR 0 .
+Otherwise it is
+.BR 1 .
+.SH SEE ALSO
+The web wiki can be found at
+.IR https://github.com/JulianBMW/fensterchef/wiki .
+It goes into details about configuration and the
+.B fensterchef
+internals.
