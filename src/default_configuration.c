@@ -196,6 +196,12 @@ void merge_with_default_key_bindings(struct configuration *configuration)
         { 0, 0, XK_l, { .code = ACTION_MOVE_RIGHT } },
         { 0, 0, XK_j, { .code = ACTION_MOVE_DOWN } },
 
+        /* exchange frames */
+        { XCB_MOD_MASK_SHIFT, 0, XK_k, { .code = ACTION_EXCHANGE_UP } },
+        { XCB_MOD_MASK_SHIFT, 0, XK_h, { .code = ACTION_EXCHANGE_LEFT } },
+        { XCB_MOD_MASK_SHIFT, 0, XK_l, { .code = ACTION_EXCHANGE_RIGHT } },
+        { XCB_MOD_MASK_SHIFT, 0, XK_j, { .code = ACTION_EXCHANGE_DOWN } },
+
         /* resizing the top/left edges of a window */
         { XCB_MOD_MASK_CONTROL, 0, XK_Left, { ACTION_RESIZE_BY, {
                 .quad = { 20, 0, 0, 0 } } } },

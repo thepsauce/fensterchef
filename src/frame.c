@@ -98,8 +98,13 @@ void replace_frame(Frame *frame, Frame *with)
         frame->right = with->right;
         frame->left->parent = frame;
         frame->right->parent = frame;
+
+        with->left = NULL;
+        with->right = NULL;
     } else {
         frame->window = with->window;
+
+        with->window = NULL;
     }
 
     /* reload the frame recursively */

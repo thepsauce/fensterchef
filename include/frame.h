@@ -79,8 +79,7 @@ void resize_frame(Frame *frame, int32_t x, int32_t y,
 
 /* Replace @frame (windows and child frames) with @with.
  *
- * @with should be freed after calling this function as it is unsafe to keep it
- * around.
+ * Note that this empties @with.
  */
 void replace_frame(Frame *frame, Frame *with);
 
