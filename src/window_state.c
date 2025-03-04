@@ -39,7 +39,7 @@ static void configure_floating_size(Window *window)
     int32_t x, y;
     uint32_t width, height;
 
-    monitor = get_monitor_from_rectangle(window->x, window->y,
+    monitor = get_monitor_from_rectangle_or_primary(window->x, window->y,
             window->width, window->height);
 
     /* if the window never had a floating size, use the size hints to get a size
@@ -106,7 +106,7 @@ static void configure_fullscreen_size(Window *window)
                 window->fullscreen_monitors.bottom -
                     window->fullscreen_monitors.left);
     } else {
-        monitor = get_monitor_from_rectangle(window->x,
+        monitor = get_monitor_from_rectangle_or_primary(window->x,
                 window->y, window->width, window->height);
         set_window_size(window, monitor->x, monitor->y,
                 monitor->width, monitor->height);
@@ -136,7 +136,7 @@ static void configure_dock_size(Window *window)
         y = window->y;
     }
 
-    monitor = get_monitor_from_rectangle(x, y, 1, 1);
+    monitor = get_monitor_from_rectangle_or_primary(x, y, 1, 1);
 
     /* if the window does not specify a size itself, then do it based on the
      * strut the window defines, reasoning is that when the window wants to

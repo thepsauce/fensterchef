@@ -11,7 +11,6 @@
 #include "stash_frame.h"
 #include "tiling.h"
 #include "utility.h"
-#include "window.h"
 #include "x11_management.h"
 #include "xalloc.h"
 
@@ -46,8 +45,8 @@ void initialize_monitors(void)
     }
 
     /* get the randr version number, currently not used for anything */
-    version_cookie = xcb_randr_query_version(connection, XCB_RANDR_MAJOR_VERSION,
-            XCB_RANDR_MINOR_VERSION);
+    version_cookie = xcb_randr_query_version(connection,
+            XCB_RANDR_MAJOR_VERSION, XCB_RANDR_MINOR_VERSION);
     version = xcb_randr_query_version_reply(connection, version_cookie, &error);
     if (error != NULL) {
         LOG_ERROR("could not query randr version: %E\n", error);
@@ -68,56 +67,45 @@ void initialize_monitors(void)
     merge_monitors(query_monitors());
 }
 
-/* Get a monitor marked as primary or the first monitor if no monitor is marked
- * as primary.
- */
-Monitor *get_primary_monitor(void)
-{
-    Monitor *candidate = NULL;
-
-    for (Monitor *monitor = first_monitor; monitor != NULL;
-            monitor = monitor->next) {
-        if (monitor->is_primary) {
-            return monitor;
-        }
-        candidate = monitor;
-    }
-    return candidate;
-}
-
 /* Get the monitor that overlaps given rectangle the most. */
 Monitor *get_monitor_from_rectangle(int32_t x, int32_t y,
         uint32_t width, uint32_t height)
 {
     Monitor *best_monitor = NULL;
     uint64_t best_area = 0, area;
-    int32_t x_overlap, y_overlap;
+    Point overlap;
 
     for (Monitor *monitor = first_monitor; monitor != NULL;
             monitor = monitor->next) {
-        x_overlap = MIN(x + width,
-                monitor->x + monitor->width);
-        x_overlap -= MAX(x, monitor->x);
+        overlap.x = MIN(x + width, monitor->x + monitor->width);
+        overlap.x -= MAX(x, monitor->x);
 
-        y_overlap = MIN(y + height,
-                monitor->y + monitor->height);
-        y_overlap -= MAX(y, monitor->y);
+        overlap.y = MIN(y + height, monitor->y + monitor->height);
+        overlap.y -= MAX(y, monitor->y);
 
-        if (best_monitor == NULL) {
-            best_monitor = monitor;
-        }
-
-        if (x_overlap <= 0 || y_overlap <= 0) {
+        if (overlap.x <= 0 || overlap.y <= 0) {
             continue;
         }
 
-        area = x_overlap * y_overlap;
+        area = overlap.x * overlap.y;
         if (area > best_area) {
             best_monitor = monitor;
             best_area = area;
         }
     }
     return best_monitor;
+}
+
+/* Get the monitor that overlaps given rectangle the most or primary if there
+ * are there are no intersections.
+ */
+Monitor *get_monitor_from_rectangle_or_primary(int32_t x, int32_t y,
+        uint32_t width, uint32_t height)
+{
+    Monitor *monitor;
+
+    monitor = get_monitor_from_rectangle(x, y, width, height);
+    return monitor == NULL ? first_monitor : monitor;
 }
 
 /* Get a monitor with given name from the monitor linked list. */
@@ -148,7 +136,8 @@ Monitor *query_monitors(void)
     xcb_randr_output_t *outputs;
     int output_count;
 
-    Monitor *first_monitor, *last_monitor;
+    Monitor *monitor;
+    Monitor *first_monitor = NULL, *last_monitor, *primary_monitor = NULL;
 
     xcb_randr_get_output_info_cookie_t output_cookie;
     xcb_randr_get_output_info_reply_t *output;
@@ -193,8 +182,6 @@ Monitor *query_monitors(void)
     output_count =
         xcb_randr_get_screen_resources_current_outputs_length(resources);
 
-    first_monitor = NULL;
-
     for (int i = 0; i < output_count; i++) {
         /* get the output information that includes the output name */
         output_cookie = xcb_randr_get_output_info(connection, outputs[i],
@@ -233,23 +220,36 @@ Monitor *query_monitors(void)
             continue;
         }
 
-        LOG("output %.*s: %R\n", crtc->x, crtc->y, crtc->width, crtc->height);
+        LOG("output %.*s: %R\n", name_length, name,
+                crtc->x, crtc->y, crtc->width, crtc->height);
+
+        monitor = create_monitor(name, name_length);
 
         /* add the monitor to the linked list */
         if (first_monitor == NULL) {
-            first_monitor = create_monitor(name, name_length);
+            first_monitor = monitor;
             last_monitor = first_monitor;
         } else {
-            last_monitor->next = create_monitor(name, name_length);
-            last_monitor = last_monitor->next;
+            if (primary_output == outputs[i]) {
+                primary_monitor = last_monitor;
+            } else {
+                last_monitor->next = monitor;
+                last_monitor = last_monitor->next;
+            }
         }
 
-        last_monitor->is_primary = primary_output == outputs[i];
-        last_monitor->x = crtc->x;
-        last_monitor->y = crtc->y;
-        last_monitor->width = crtc->width;
-        last_monitor->height = crtc->height;
+        monitor->x = crtc->x;
+        monitor->y = crtc->y;
+        monitor->width = crtc->width;
+        monitor->height = crtc->height;
     }
+
+    /* add the primary monitor to the start of the list */
+    if (primary_monitor != NULL) {
+        primary_monitor->next = first_monitor;
+        first_monitor = primary_monitor;
+    }
+
     return first_monitor;
 }
 
@@ -314,6 +314,6 @@ void merge_monitors(Monitor *monitors)
 
     /* if the focus frame was abonded, focus a different one */
     if (focus_frame == NULL) {
-        set_focus_frame(get_primary_monitor()->frame);
+        set_focus_frame(first_monitor->frame);
     }
 }

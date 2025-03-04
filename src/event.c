@@ -113,7 +113,7 @@ static void synchronize_with_server(void)
         if (!window->state.is_visible) {
             continue;
         }
-        monitor = get_monitor_from_rectangle(window->x,
+        monitor = get_monitor_from_rectangle_or_primary(window->x,
                 window->y, window->width, window->height);
         place_window_in_bounds(monitor, window);
 
@@ -823,7 +823,7 @@ static void handle_client_message(xcb_client_message_event_t *event)
         width = event->data.data32[3];
         height = event->data.data32[4];
         adjust_for_window_gravity(
-                get_monitor_from_rectangle(x, y, width, height),
+                get_monitor_from_rectangle_or_primary(x, y, width, height),
                 &x, &y, width, height, event->data.data32[0]);
         set_window_size(window, x, y, width, height);
     /* request to dynamically move and resize the window */

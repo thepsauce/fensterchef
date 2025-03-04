@@ -3,8 +3,6 @@
 
 #include <xcb/randr.h>
 
-#include "utility.h" // Position, Size
-
 #include "bits/frame_typedef.h"
 
 #include "x11_management.h"
@@ -13,9 +11,6 @@
 typedef struct monitor {
     /* name of the monitor, used as key */
     char *name;
-
-    /* if this is the primary monitor */
-    bool is_primary;
 
     /* region of the monitor to cut off */
     Extents strut;
@@ -39,13 +34,17 @@ extern Monitor *first_monitor;
 /* Try to initialize randr and the internal monitor linked list. */
 void initialize_monitors(void);
 
-/* Get a monitor marked as primary or the first monitor if no monitor is marked
- * as primary.
+/* Get the monitor that overlaps given rectangle the most.
+ *
+ * @return NULL if no monitor intersects the rectangle at all.
  */
-Monitor *get_primary_monitor(void);
-
-/* Get the monitor that overlaps given rectangle the most. */
 Monitor *get_monitor_from_rectangle(int32_t x, int32_t y,
+        uint32_t width, uint32_t height);
+
+/* Get the monitor that overlaps given rectangle the most or primary if there
+ * are there are no intersections.
+ */
+Monitor *get_monitor_from_rectangle_or_primary(int32_t x, int32_t y,
         uint32_t width, uint32_t height);
 
 /* Gets a list of monitors that are associated to the screen.
@@ -53,9 +52,6 @@ Monitor *get_monitor_from_rectangle(int32_t x, int32_t y,
  * @return NULL when randr is not supported or when there are no monitors.
  */
 Monitor *query_monitors(void);
-
-/* Updates the struts of all monitors and then correctly sizes the frame. */
-void reconfigure_monitor_frame_sizes(void);
 
 /* Merges given monitor linked list into the screen's monitor list.
  *

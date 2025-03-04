@@ -77,7 +77,8 @@ Frame *get_left_or_above_frame(Frame *frame,
 }
 
 /* Get the frame on the left of @frame. */
-Frame *get_left_frame(Frame *frame) {
+Frame *get_left_frame(Frame *frame)
+{
     return get_left_or_above_frame(frame, FRAME_SPLIT_VERTICALLY);
 }
 
@@ -288,6 +289,25 @@ int remove_void(Frame *frame)
     LOG("frame %F was removed\n", frame);
 
     free(frame);
+
+    const int x = parent->x + parent->width / 2;
+    const int y = parent->y + parent->height / 2;
+    /* move down the parent to find the most centered new frame to focus */
+    while (parent->left != NULL) {
+        if (parent->split_direction == FRAME_SPLIT_HORIZONTALLY) {
+            if (parent->left->x + (int32_t) parent->left->width >= x) {
+                parent = parent->left;
+            } else {
+                parent = parent->right;
+            }
+        } else {
+            if (parent->left->y + (int32_t) parent->left->height >= y) {
+                parent = parent->left;
+            } else {
+                parent = parent->right;
+            }
+        }
+    }
 
     set_focus_frame(parent);
     return OK;
