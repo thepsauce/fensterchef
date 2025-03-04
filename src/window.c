@@ -58,13 +58,13 @@ Window *create_window(xcb_window_t xcb_window)
         xcb_discard_reply(connection, geometry_cookie.sequence);
         return NULL;
     }
-    free(attributes);
 
     geometry = xcb_get_geometry_reply(connection, geometry_cookie,
             &error);
     if (geometry == NULL) {
         LOG_ERROR("could not get window geometry of %w: %E\n",
                 xcb_window, error);
+        free(attributes);
         free(error);
         return NULL;
     }
@@ -84,8 +84,13 @@ Window *create_window(xcb_window_t xcb_window)
     window->client.width = geometry->width;
     window->client.height = geometry->height;
     window->client.border_color = configuration.border.color;
+    /* check if the window is already mapped on the X server */
+    if (attributes->map_state != XCB_MAP_STATE_UNMAPPED) {
+        window->client.is_mapped = true;
+    }
 
     free(geometry);
+    free(attributes);
 
     /* start off with an invalid mode, this gets set below */
     window->state.mode = WINDOW_MODE_MAX;
