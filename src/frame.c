@@ -173,18 +173,19 @@ void set_focus_frame(Frame *frame)
 /* Focus @window and the frame it is in. */
 void set_focus_window_with_frame(Window *window)
 {
-    Frame *frame;
-
     if (window == NULL) {
         set_focus_window(NULL);
         return;
     }
 
-    frame = get_frame_of_window(window);
-    if (frame != NULL) {
-        set_focus_frame(frame);
-    } else {
+    if (focus_frame->window != focus_window) {
+        LOG("frame %F was focused with window %W\n", focus_frame, window);
         set_focus_window(window);
+    } else {
+        Frame *const frame = get_frame_of_window(window);
+        if (frame != NULL) {
+            set_focus_frame(frame);
+        }
     }
 }
 

@@ -58,6 +58,8 @@ int main(int argc, char **argv)
 
     /* manage the windows that are already there */
     query_existing_windows();
+    synchronize_with_server();
+    synchronize_client_list();
 
     /* before entering the loop, flush all the initialization calls */
     xcb_flush(connection);

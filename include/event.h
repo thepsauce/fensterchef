@@ -19,6 +19,12 @@ extern bool has_client_list_changed;
 /* Create a signal handler for `SIGALRM`. */
 int initialize_signal_handlers(void);
 
+/* Set the client list root property. */
+void synchronize_client_list(void);
+
+/* Synchronize the local data with the X server. */
+void synchronize_with_server(void);
+
 /* Runs the next cycle of the event loop. This handles signals and all events
  * that are currently queued.
  *

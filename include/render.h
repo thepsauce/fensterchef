@@ -36,16 +36,16 @@ extern uint32_t stock_objects[STOCK_MAX];
 /* Initialize the graphical stock objects that can be used for rendering. */
 int initialize_renderer(void);
 
-/* Frees all resources associated to rendering. */
+/* Free all resources associated to rendering. */
 void deinitialize_renderer(void);
 
-/* Creates a picture for the given window (or retrieves it from the cache). */
+/* Create a picture for the given window (or retrieves it from the cache). */
 xcb_render_picture_t cache_window_picture(xcb_drawable_t xcb_drawable);
 
 /* Set the color of a pen. */
 void set_pen_color(xcb_render_picture_t pen, xcb_render_color_t color);
 
-/* Creates a picture with width and height set to 1. */
+/* Create a picture with width and height set to 1. */
 xcb_render_picture_t create_pen(xcb_render_color_t color);
 
 /* Helper function to convert an RRGGBB color into an xcb color. */
@@ -61,13 +61,13 @@ static inline void convert_color_to_xcb_color(xcb_render_color_t *xcb_color,
     xcb_color->blue = (color & 0xff) << 8;
 }
 
-/* This sets the globally used font for rendering.
+/* Set the globally used font for rendering.
  *
  * @return OK on success or ERROR when the font was not found.
  */
 int set_font(const utf8_t *query);
 
-/* This draws text to a given drawable using the current font. */
+/* Draw text to a given drawable using the current font. */
 int draw_text(xcb_drawable_t xcb_drawable, const utf8_t *utf8, uint32_t length,
         xcb_render_color_t background_color, const xcb_rectangle_t *rectangle,
         xcb_render_picture_t foreground, int32_t x, int32_t y);

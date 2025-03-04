@@ -288,7 +288,8 @@ void merge_monitors(Monitor *monitors)
         next_monitor = monitor->next;
         if (monitor->frame != NULL) {
             /* make sure no broken frame focus remains */
-            if (get_root_frame(focus_frame) == monitor->frame) {
+            if (focus_frame != NULL &&
+                    get_root_frame(focus_frame) == monitor->frame) {
                 focus_frame = NULL;
             }
 

@@ -48,7 +48,7 @@ static void print_usage(void)
             error                   only log errors\n\
             nothing                 log nothing\n\
         --verbose                   log everything\n\
-        -c, --config    FILE        set the path of the configuration",
+        -c, --config    FILE        set the path of the configuration\n",
         stderr);
 
 }
@@ -87,7 +87,7 @@ static int handle_option(option_t option, char *value)
     /* change of logging verbosity */
     case OPTION_VERBOSITY:
         for (log_severity_t i = 0; i < SIZE(verbosities); i++) {
-            if (strcmp(verbosities[i], value) == 0) {
+            if (strcasecmp(verbosities[i], value) == 0) {
                 log_severity = i;
                 return OK;
             }

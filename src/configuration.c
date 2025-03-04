@@ -77,10 +77,10 @@ void reload_user_configuration(void)
             fensterchef_configuration[1] == '/') {
         const char *const home = getenv("HOME");
         if (home == NULL) {
-            LOG("could not get home directory ($HOME is unset)\n");
-        } else {
-            path = xasprintf("%s/%s", home, &fensterchef_configuration[2]);
+            LOG_ERROR("could not get home directory ($HOME is unset)\n");
+            return;
         }
+        path = xasprintf("%s/%s", home, &fensterchef_configuration[2]);
     } else {
         path = xstrdup(fensterchef_configuration);
     }

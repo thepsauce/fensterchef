@@ -28,12 +28,15 @@ Now you have the **fensterchef** executable and the manual page.
 If you are using a login manager, you can simply put this at the end of your `~/.xsession`:
 ```
 mkdir -p ~/.local/share/fensterchef
-exec /usr/bin/fensterchef -dinfo > ~/.local/share/fensterchef
+exec /usr/bin/fensterchef -dinfo 2>~/.local/share/fensterchef
 ```
 Alternatively put it this into the `~/.xinitrc`.
 
-*How to get fensterchef to run exactly varies on your environment*
+*How to get fensterchef to run exactly varies on your environment.*
 
 ## Bugs
 
 Report any issues directly to us over the Github issues tab.
+
+An issue should start with the version, the rest is up to you. Try to add steps
+to reproduce and the relevant excerpts from the log.

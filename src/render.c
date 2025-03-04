@@ -9,13 +9,13 @@
 #include "x11_management.h"
 
 /* TODO: how do we make colored emojis work?
- * I tried to but color formats other than 8 bit colors
+ * I tried to but color formats other than 8 bit colors do not work
  */
 
 /* the render formats for pictures */
 static xcb_render_query_pict_formats_reply_t *formats;
 
-/* graphical objects with the id referring to the xcb id */
+/* graphical objects with the id referring to the X server id */
 uint32_t stock_objects[STOCK_MAX];
 
 /* the font used for rendering */
@@ -36,8 +36,11 @@ static struct font {
 
 /* a mapping from drawable to picture */
 static struct window_picture_cache {
+    /* the id of the drawable */
     xcb_drawable_t xcb_drawable;
+    /* the picture created for the drawable */
     xcb_render_picture_t picture;
+    /* the next cache object in the linked list */
     struct window_picture_cache *next;
 } *window_picture_cache_head;
 
@@ -212,7 +215,7 @@ int initialize_renderer(void)
     return OK;
 }
 
-/* Frees all resources associated to rendering. */
+/* Free all resources associated to rendering. */
 void deinitialize_renderer(void)
 {
     struct window_picture_cache *cache, *next;
@@ -240,11 +243,11 @@ void deinitialize_renderer(void)
     FcFini();
 }
 
-/* Creates a picture for the given window (or retrieves it from the cache).
+/* Create a picture for the given window (or retrieve it from the cache).
  *
  * The cached items do not need to be cleared ever since they are only for the
  * two fensterchef windows (notification and window list) which only get cleared
- * whin fensterchef quits.
+ * when fensterchef quits.
  */
 xcb_render_picture_t cache_window_picture(xcb_drawable_t xcb_drawable)
 {
@@ -310,7 +313,7 @@ void set_pen_color(xcb_render_picture_t pen, xcb_render_color_t color)
         color, 1, &rectangle);
 }
 
-/* Creates a picture with width and height set to 1. */
+/* Create a picture with width and height set to 1. */
 xcb_render_picture_t create_pen(xcb_render_color_t color)
 {
     xcb_pixmap_t pixmap;
@@ -657,7 +660,7 @@ static int cache_glyph(uint32_t glyph, FT_Pos *advance)
     return OK;
 }
 
-/* This draws text to a given picture using the current font. */
+/* Draw text to a given drawable using the current font. */
 int draw_text(xcb_drawable_t xcb_drawable, const utf8_t *utf8, uint32_t length,
         xcb_render_color_t background_color, const xcb_rectangle_t *rectangle,
         xcb_render_picture_t foreground, int32_t x, int32_t y)

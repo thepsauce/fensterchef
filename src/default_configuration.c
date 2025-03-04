@@ -243,9 +243,10 @@ void merge_with_default_key_bindings(struct configuration *configuration)
         /* show the interactive window list */
         { 0, 0, XK_w, { .code = ACTION_SHOW_WINDOW_LIST } },
 
-        /* run xterm */
+        /* run the terminal or xterm as fall back */
         { 0, 0, XK_Return, { ACTION_RUN, {
-                .string = (uint8_t*) "/usr/bin/xterm" } } },
+                .string = (uint8_t*)
+                    "[ -n \"$TERMINAL\" ] && \"$TERMINAL\" || xterm" } } },
 
         /* quit fensterchef */
         { XCB_MOD_MASK_CONTROL | XCB_MOD_MASK_SHIFT, 0, XK_e,

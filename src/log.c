@@ -1180,8 +1180,8 @@ static void log_frame(const Frame *frame)
 static void log_actions(const Action *actions, uint32_t number_of_actions)
 {
     for (uint32_t i = 0; i < number_of_actions; i++) {
-        if (number_of_actions > 1) {
-            fputs("\n\t", stderr);
+        if (i > 0) {
+            fputs(" ; ", stderr);
         }
         fprintf(stderr, COLOR(CYAN) "%s" CLEAR_COLOR " ",
                 action_to_string(actions[i].code));

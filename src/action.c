@@ -109,7 +109,8 @@ static void run_shell(const char *shell)
 
     /* using `fork()` twice and `_exit()` will give the child process to the
      * init system so we do not need to worry about cleaning up dead child
-     * processes
+     * processes; we want to run the shell in a new session
+     * TODO: explain why `setsid()` is needed
      */
 
     /* create a child process */
@@ -119,16 +120,22 @@ static void run_shell(const char *shell)
 
         /* create a grandchild process */
         if (fork() == 0) {
+            /* make a new session */
+            if (setsid() == -1) {
+                /* TODO: when does this happen? */
+                exit(EXIT_FAILURE);
+            }
             /* this code is executed in the grandchild process */
-            execl("/bin/sh", "sh", "-c", shell, (char*) NULL);
-            /* this point is not reached because `execl()` replaces the process
-             */
+            (void) execl("/bin/sh", "sh", "-c", shell, (char*) NULL);
+            /* this point is only reached if `execl()` failed */
+            exit(EXIT_FAILURE);
         } else {
+            /* exit the child process */
             _exit(0);
         }
     } else {
         /* wait until the child process exits */
-        waitpid(child_process_id, NULL, 0);
+        (void) waitpid(child_process_id, NULL, 0);
     }
 }
 
@@ -516,7 +523,7 @@ void do_action(const Action *action, Window *window)
 
     /* focus a window */
     case ACTION_FOCUS_WINDOW:
-        set_focus_window(window);
+        set_focus_window_with_frame(window);
         if (window != NULL) {
             update_window_layer(window);
         }

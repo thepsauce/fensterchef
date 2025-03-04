@@ -182,7 +182,7 @@ int take_control(void)
     xcb_generic_error_t *error;
 
     /* set the mask of the root window so we receive important events like
-     * create notifications
+     * map requests
      */
     general_values[0] = ROOT_EVENT_MASK;
     error = xcb_request_check(connection,
@@ -359,28 +359,31 @@ void initialize_root_properties(void)
     xcb_change_property(connection, XCB_PROP_MODE_REPLACE, screen->root,
             ATOM(_NET_WORKAREA), XCB_ATOM_CARDINAL, 32, 4, &workarea);
 }
-/* Shows the client on the X server. */
+
+/* Show the client on the X server. */
 void map_client(XClient *client)
 {
     if (client->is_mapped) {
         return;
     }
-    client->is_mapped = true;
 
     LOG("showing client %w\n", client->id);
+
+    client->is_mapped = true;
 
     xcb_map_window(connection, client->id);
 }
 
-/* Hides the client on the X server. */
+/* Hide the client on the X server. */
 void unmap_client(XClient *client)
 {
     if (!client->is_mapped) {
         return;
     }
-    client->is_mapped = false;
 
     LOG("hiding client %w\n", client->id);
+
+    client->is_mapped = false;
 
     xcb_unmap_window(connection, client->id);
 }
@@ -567,7 +570,7 @@ static void update_window_transient_for(Window *window)
             window->client.id);
     if (!xcb_icccm_get_wm_transient_for_reply(connection, transient_for_cookie,
                 &window->transient_for, NULL)) {
-        window->transient_for = 0;
+        window->transient_for = XCB_NONE;
     }
 }
 
@@ -658,7 +661,7 @@ bool cache_window_property(Window *window, xcb_atom_t atom)
     return true;
 }
 
-/* Checks if an atom is within the given list of atoms. */
+/* Check if an atom is within the given list of atoms. */
 static bool is_atom_included(const xcb_atom_t *atoms, xcb_atom_t atom)
 {
     if (atoms == NULL) {
