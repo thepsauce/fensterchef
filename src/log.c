@@ -1183,39 +1183,44 @@ static void log_actions(const Action *actions, uint32_t number_of_actions)
         if (i > 0) {
             fputs(" ; ", stderr);
         }
-        fprintf(stderr, COLOR(CYAN) "%s" CLEAR_COLOR " ",
+        fprintf(stderr, COLOR(CYAN) "%s" CLEAR_COLOR,
                 action_to_string(actions[i].code));
         switch (get_action_data_type(actions[i].code)) {
         case PARSER_DATA_TYPE_VOID:
+            /* nothing */
             break;
 
         case PARSER_DATA_TYPE_BOOLEAN:
+            fputc(' ', stderr);
             log_boolean(actions[i].parameter.boolean);
             break;
 
         case PARSER_DATA_TYPE_STRING:
+            fputc(' ', stderr);
             fprintf(stderr, COLOR(GREEN) "%s" CLEAR_COLOR,
                     (char*) actions[i].parameter.string);
             break;
 
         case PARSER_DATA_TYPE_INTEGER:
+            fputc(' ', stderr);
             log_integer(actions[i].parameter.integer);
             break;
 
         case PARSER_DATA_TYPE_QUAD:
             fprintf(stderr, COLOR(GREEN)
-                        "%" PRId32 " %" PRId32 " %" PRId32 " %" PRId32
+                        " %" PRId32 " %" PRId32 " %" PRId32 " %" PRId32
                         CLEAR_COLOR,
                     actions[i].parameter.quad[0], actions[i].parameter.quad[1],
                     actions[i].parameter.quad[2], actions[i].parameter.quad[3]);
             break;
 
         case PARSER_DATA_TYPE_COLOR:
-            fprintf(stderr, COLOR(YELLOW) "#%06x" CLEAR_COLOR,
+            fprintf(stderr, COLOR(YELLOW) " #%06x" CLEAR_COLOR,
                 actions[i].parameter.color);
             break;
 
         case PARSER_DATA_TYPE_MODIFIERS:
+            fputc(' ', stderr);
             log_modifiers(actions[i].parameter.modifiers);
             break;
         }

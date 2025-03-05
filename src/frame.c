@@ -5,6 +5,7 @@
 #include "frame.h"
 #include "log.h"
 #include "monitor.h"
+#include "stash_frame.h"
 #include "utility.h"
 #include "window.h"
 
@@ -170,20 +171,19 @@ void set_focus_frame(Frame *frame)
     LOG("frame %F was focused\n", frame);
 }
 
-/* Focus @window and the frame it is in. */
+/* Focus @window and the frame it is contained in if any. */
 void set_focus_window_with_frame(Window *window)
 {
     if (window == NULL) {
         set_focus_window(NULL);
-        return;
-    }
-
-    if (focus_frame->window != focus_window) {
-        LOG("frame %F was focused with window %W\n", focus_frame, window);
+    /* if the frame the window is contained in is already focused */
+    } else if (focus_frame->window == window) {
         set_focus_window(window);
     } else {
         Frame *const frame = get_frame_of_window(window);
-        if (frame != NULL) {
+        if (frame == NULL) {
+            set_focus_window(window);
+        } else {
             set_focus_frame(frame);
         }
     }

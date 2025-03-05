@@ -12,6 +12,7 @@
 #include "stash_frame.h"
 #include "tiling.h"
 #include "utility.h"
+#include "window.h"
 #include "x11_management.h"
 #include "xalloc.h"
 
@@ -68,27 +69,46 @@ void initialize_monitors(void)
     merge_monitors(query_monitors());
 }
 
+/* Get the overlaping size between the two given rectangles.
+ *
+ * @return true if the rectangles intersect.
+ */
+static inline bool get_overlap(int32_t x1, int32_t y1, uint32_t width1,
+        uint32_t height1, int32_t x2, int32_t y2, uint32_t width2,
+        uint32_t height2, Size *overlap)
+{
+    int32_t x, y;
+
+    x = MIN(x1 + width1, x2 + width2);
+    x -= MAX(x1, x2);
+
+    y = MIN(y1 + height1, y2 + height2);
+    y -= MAX(y1, y2);
+
+    if (x > 0 && y > 0) {
+        overlap->width = x;
+        overlap->height = y;
+        return true;
+    }
+    return false;
+}
+
 /* Get the monitor that overlaps given rectangle the most. */
 Monitor *get_monitor_from_rectangle(int32_t x, int32_t y,
         uint32_t width, uint32_t height)
 {
     Monitor *best_monitor = NULL;
     uint64_t best_area = 0, area;
-    Point overlap;
+    Size overlap;
 
     for (Monitor *monitor = first_monitor; monitor != NULL;
             monitor = monitor->next) {
-        overlap.x = MIN(x + width, monitor->x + monitor->width);
-        overlap.x -= MAX(x, monitor->x);
-
-        overlap.y = MIN(y + height, monitor->y + monitor->height);
-        overlap.y -= MAX(y, monitor->y);
-
-        if (overlap.x <= 0 || overlap.y <= 0) {
+        if (!get_overlap(x, y, width, height, monitor->x, monitor->y,
+                    monitor->width, monitor->height, &overlap)) {
             continue;
         }
 
-        area = overlap.x * overlap.y;
+        area = (uint64_t) overlap.width * overlap.height;
         if (area > best_area) {
             best_monitor = monitor;
             best_area = area;
@@ -120,6 +140,39 @@ static Monitor *get_monitor_by_name(Monitor *monitor,
         }
     }
     return NULL;
+}
+
+/* Get a window covering given monitor. */
+Window *get_window_covering_monitor(Monitor *monitor)
+{
+    uint64_t monitor_area;
+    Window *best_window = NULL;
+    uint64_t best_area = 0, area;
+    Size overlap;
+
+    monitor_area = (uint64_t) monitor->width * monitor->height;
+    /* go through the windows from bottom to top */
+    for (Window *window = bottom_window; window != NULL;
+            window = window->above) {
+        /* only consider floating and fullscreen windows */
+        if (window->state.mode != WINDOW_MODE_FLOATING &&
+                window->state.mode != WINDOW_MODE_FULLSCREEN) {
+            continue;
+        }
+
+        if (!get_overlap(window->x, window->y, window->width, window->height,
+                    monitor->x, monitor->y, monitor->width, monitor->height,
+                    &overlap)) {
+            continue;
+        }
+        area = (uint64_t) overlap.width * overlap.height;
+        if (area * 100 / monitor_area >= configuration.general.move_overlap &&
+                area >= best_area) {
+            best_window = window;
+            best_area = area;
+        }
+    }
+    return best_window;
 }
 
 /* Gets a list of monitors that are associated to the screen. */
@@ -184,7 +237,7 @@ Monitor *query_monitors(void)
         xcb_randr_get_screen_resources_current_outputs_length(resources);
 
     for (int i = 0; i < output_count; i++) {
-        /* get the output information that includes the output name */
+        /* get the output information which includes the output name */
         output_cookie = xcb_randr_get_output_info(connection, outputs[i],
                resources->timestamp);
         output = xcb_randr_get_output_info_reply(connection, output_cookie,
@@ -255,9 +308,6 @@ Monitor *query_monitors(void)
 
 /* Merge given monitor linked list into the screen.
  *
- * The main purpose of this function is to essentially make the linked in screen
- * be @monitors, but it is not enough to say: `first_monitor = monitors`.
- *
  * The current rule is to keep monitors from the source and delete monitors no
  * longer in the list.
  */
@@ -312,6 +362,11 @@ void merge_monitors(Monitor *monitors)
             } else {
                 monitor->frame = xcalloc(1, sizeof(*monitor->frame));
             }
+            /* set the initial size */
+            monitor->frame->x = monitor->x;
+            monitor->frame->y = monitor->y;
+            monitor->frame->width = monitor->width;
+            monitor->frame->height = monitor->height;
         }
     }
 

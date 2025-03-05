@@ -157,9 +157,22 @@ static struct parser_data_type_information {
     }
 };
 
+/* Parse a list of start up actions. */
+static parser_error_t parse_startup_actions(Parser *parser);
+
+/* Parse a binding for the mouse. */
+static parser_error_t parse_mouse_binding(Parser *parser);
+
+/* Parse a binding for the keyboard. */
+static parser_error_t parse_keyboard_binding(Parser *parser);
+
 /* variables in the form <name> <value> */
 static const struct parser_label_name {
+    /* the string representation of the label */
     const char *name;
+    /* special handling for a label */
+    parser_error_t (*special_parser)(Parser *parser);
+    /* the variables that can be defined in the label */
     struct parser_label_variable {
         /* name of the variable */
         const char *name;
@@ -170,15 +183,21 @@ static const struct parser_label_name {
     } variables[8];
 } labels[PARSER_LABEL_MAX] = {
     [PARSER_LABEL_GENERAL] = {
-        "general", {
-        { "unused", PARSER_DATA_TYPE_INTEGER,
-            offsetof(struct configuration, general.unused) },
+        "general", NULL, {
+        { "move-overlap", PARSER_DATA_TYPE_INTEGER,
+            offsetof(struct configuration, general.move_overlap) },
+        /* null terminate the end */
+        { NULL, 0, 0 } }
+    },
+
+    [PARSER_LABEL_STARTUP] = {
+        "startup", parse_startup_actions, {
         /* null terminate the end */
         { NULL, 0, 0 } }
     },
 
     [PARSER_LABEL_TILING] = {
-        "tiling", {
+        "tiling", NULL, {
         { "auto-fill-void", PARSER_DATA_TYPE_BOOLEAN,
             offsetof(struct configuration, tiling.auto_fill_void) },
         { "auto-remove-void", PARSER_DATA_TYPE_BOOLEAN,
@@ -188,7 +207,7 @@ static const struct parser_label_name {
     },
 
     [PARSER_LABEL_FONT] = {
-        "font", {
+        "font", NULL, {
         { "name", PARSER_DATA_TYPE_STRING,
             offsetof(struct configuration, font.name) },
         /* null terminate the end */
@@ -196,7 +215,7 @@ static const struct parser_label_name {
     },
 
     [PARSER_LABEL_BORDER] = {
-        "border", {
+        "border", NULL, {
         { "size", PARSER_DATA_TYPE_INTEGER,
             offsetof(struct configuration, border.size) },
         { "color", PARSER_DATA_TYPE_COLOR,
@@ -208,7 +227,7 @@ static const struct parser_label_name {
     },
 
     [PARSER_LABEL_GAPS] = {
-        "gaps", {
+        "gaps", NULL, {
         { "inner", PARSER_DATA_TYPE_INTEGER,
             offsetof(struct configuration, gaps.inner) },
         { "outer", PARSER_DATA_TYPE_INTEGER,
@@ -218,7 +237,7 @@ static const struct parser_label_name {
     },
 
     [PARSER_LABEL_NOTIFICATION] = {
-        "notification", {
+        "notification", NULL, {
         { "duration", PARSER_DATA_TYPE_INTEGER,
             offsetof(struct configuration, notification.duration) },
         { "padding", PARSER_DATA_TYPE_INTEGER,
@@ -236,7 +255,7 @@ static const struct parser_label_name {
     },
 
     [PARSER_LABEL_MOUSE] = {
-        "mouse", {
+        "mouse", parse_mouse_binding, {
         { "resize-tolerance", PARSER_DATA_TYPE_INTEGER,
             offsetof(struct configuration, mouse.resize_tolerance) },
         { "modifiers", PARSER_DATA_TYPE_MODIFIERS,
@@ -248,7 +267,7 @@ static const struct parser_label_name {
     },
 
     [PARSER_LABEL_KEYBOARD] = {
-        "keyboard", {
+        "keyboard", parse_keyboard_binding, {
         { "modifiers", PARSER_DATA_TYPE_MODIFIERS,
             offsetof(struct configuration, keyboard.modifiers) },
         { "ignore-modifiers", PARSER_DATA_TYPE_MODIFIERS,
@@ -541,6 +560,7 @@ static parser_error_t parse_quad(Parser *parser)
     memset(quad, 0, sizeof(quad));
     for (uint32_t i = 0; i < SIZE(parser->data.quad); i++) {
         skip_space(parser);
+        /* allow a premature end: not enough integers */
         if (parser->line[parser->column] == '\0') {
             break;
         }
@@ -592,24 +612,23 @@ static parser_error_t parse_modifiers(Parser *parser)
     uint16_t modifier;
 
     parser->data.modifiers = 0;
-    error = parse_identifier(parser);
-    while (error == PARSER_SUCCESS) {
+    while (error = parse_identifier(parser), error == PARSER_SUCCESS) {
         modifier = translate_string_to_modifier(parser->identifier);
         if (modifier == INVALID_MODIFIER) {
-            return PARSER_ERROR_INVALID_MODIFIERS;
+            error = PARSER_ERROR_INVALID_MODIFIERS;
+            break;
         }
 
         parser->data.modifiers |= modifier;
 
         /* go to the next '+' */
         if (parse_character(parser) != PARSER_SUCCESS) {
-            return PARSER_SUCCESS;
+            break;
         }
         if (parser->character != '+') {
-            return PARSER_ERROR_UNEXPECTED;
+            error = PARSER_ERROR_UNEXPECTED;
+            break;
         }
-
-        error = parse_identifier(parser);
     }
     return error;
 }
@@ -657,9 +676,6 @@ void clear_data_value(parser_data_type_t type, union parser_data_value *value)
 
 /* Reads modifiers in the from modifier1+modifier2+... but stops at the last
  * identifier in the list, this be accessible in `parser->identifier`.
- *
- * This function assumes that an identifier was loaded into
- * `parser->identifier`.
  */
 static parser_error_t parse_button_or_key_modifiers(Parser *parser,
         uint16_t *modifiers)
@@ -670,27 +686,25 @@ static parser_error_t parse_button_or_key_modifiers(Parser *parser,
     *modifiers = 0;
 
     /* first, read the modifiers and key symbol */
-    error = PARSER_SUCCESS;
-    while (error == PARSER_SUCCESS) {
+    while (error = parse_identifier(parser), error == PARSER_SUCCESS) {
         /* try to find a next '+', if not found, then that must be a none
          * modifier
          */
         skip_space(parser);
         if (parser->line[parser->column] != '+') {
-            return PARSER_SUCCESS;
+            break;
         }
 
         modifier = translate_string_to_modifier(parser->identifier);
         if (modifier == INVALID_MODIFIER) {
-            return PARSER_ERROR_INVALID_MODIFIERS;
+            error = PARSER_ERROR_INVALID_MODIFIERS;
+            break;
         }
 
         *modifiers |= modifier;
 
         /* skip over '+' */
         parser->column++;
-
-        error = parse_identifier(parser);
     }
     return error;
 }
@@ -698,23 +712,24 @@ static parser_error_t parse_button_or_key_modifiers(Parser *parser,
 /* Parse binding flags, e.g.: `--release --transparent` */
 static parser_error_t parse_binding_flags(Parser *parser, uint16_t *flags)
 {
-    parser_error_t error;
+    parser_error_t error = PARSER_SUCCESS;
 
     *flags = 0;
     while (skip_space(parser), parser->line[parser->column] == '-') {
         error = parse_identifier(parser);
         if (error != PARSER_SUCCESS) {
-            return error;
+            break;
         }
         if (strcasecmp(parser->identifier, "--release") == 0) {
             *flags |= BINDING_FLAG_RELEASE;
         } else if (strcasecmp(parser->identifier, "--transparent") == 0) {
             *flags |= BINDING_FLAG_TRANSPARENT;
         } else {
-            return PARSER_ERROR_INVALID_BUTTON_FLAG;
+            error = PARSER_ERROR_INVALID_BUTTON_FLAG;
+            break;
         }
     }
-    return PARSER_SUCCESS;
+    return error;
 }
 
 /* Parse a semicolon separated list of actions. */
@@ -727,33 +742,29 @@ static parser_error_t parse_actions(Parser *parser,
     Action *actions = NULL, *action;
     uint32_t number_of_actions = 0;
 
-    while (true) {
-        error = parse_identifier(parser);
-        if (error == PARSER_ERROR_TOO_LONG) {
-            free_actions(actions, number_of_actions);
-            return error;
-        }
+    while (error = parse_identifier(parser), error != PARSER_ERROR_TOO_LONG) {
         if (error != PARSER_SUCCESS) {
-            free_actions(actions, number_of_actions);
-            return PARSER_ERROR_MISSING_ACTION;
+            error = PARSER_ERROR_MISSING_ACTION;
+            break;
         }
 
         RESIZE(actions, number_of_actions + 1);
         action = &actions[number_of_actions];
 
+        /* get the action name */
         action->code = string_to_action(parser->identifier);
         if (action->code == ACTION_NULL) {
-            free_actions(actions, number_of_actions);
-            return PARSER_ERROR_INVALID_ACTION;
+            error = PARSER_ERROR_INVALID_ACTION;
+            break;
         }
         memset(&action->parameter, 0, sizeof(action->parameter));
 
+        /* get the action value */
         const parser_data_type_t data_type = get_action_data_type(action->code);
         if (data_type != PARSER_DATA_TYPE_VOID) {
             error = data_types[data_type].parse(parser);
             if (error != PARSER_SUCCESS) {
-                free_actions(actions, number_of_actions);
-                return error;
+                break;
             }
             action->parameter = parser->data;
         }
@@ -768,15 +779,17 @@ static parser_error_t parse_actions(Parser *parser,
         parser->column++;
     }
 
+    if (error != PARSER_SUCCESS) {
+        free_actions(actions, number_of_actions);
+        return error;
+    }
+
     *destination_actions = actions;
     *destination_number_of_actions = number_of_actions;
     return PARSER_SUCCESS;
 }
 
-/* Parse a mousebinding, e.g.: `Button2 close-window`.
- *
- * This function assumes that an identifier was loaded into @parser.
- */
+/* Parse a mousebinding, e.g.: `Button2 close-window`. */
 static parser_error_t parse_button(Parser *parser)
 {
     parser_error_t error;
@@ -806,10 +819,7 @@ static parser_error_t parse_button(Parser *parser)
     return PARSER_SUCCESS;
 }
 
-/* Parse a keybinding, e.g.: `Shift+v split-horizontally ; move-right`.
- *
- * This function assumes that an identifier was loaded into @parser.
- */
+/* Parse a keybinding, e.g.: `Shift+v split-horizontally ; move-right`. */
 static parser_error_t parse_key(Parser *parser)
 {
     parser_error_t error;
@@ -852,13 +862,90 @@ static parser_error_t merge_default_keyboard(Parser *parser)
     return PARSER_SUCCESS;
 }
 
+/* Parse a list of start up actions. */
+static parser_error_t parse_startup_actions(Parser *parser)
+{
+    parser_error_t error;
+    Action *actions;
+    uint32_t number_of_actions;
+
+    error = parse_actions(parser, &actions, &number_of_actions);
+    if (error != PARSER_SUCCESS) {
+        return error;
+    }
+
+    /* append the parsed actions to the startup actions */
+    RESIZE(parser->configuration->startup.actions,
+            parser->configuration->startup.number_of_actions +
+                number_of_actions);
+    memcpy(&parser->configuration->startup.actions[
+                parser->configuration->startup.number_of_actions],
+            actions,
+            sizeof(*actions) * number_of_actions);
+    parser->configuration->startup.number_of_actions += number_of_actions;
+    free(actions);
+    return PARSER_SUCCESS;
+}
+
+/* Parse a binding for the mouse. */
+static parser_error_t parse_mouse_binding(Parser *parser)
+{
+    parser_error_t error;
+    struct configuration_button *button;
+
+    error = parse_button(parser);
+    if (error != PARSER_SUCCESS) {
+        return error;
+    }
+
+    button = find_configured_button(parser->configuration,
+            parser->button.modifiers, parser->button.index,
+            parser->button.flags);
+
+    if (button != NULL) {
+        free_actions(button->actions, button->number_of_actions);
+    } else {
+        RESIZE(parser->configuration->mouse.buttons,
+                parser->configuration->mouse.number_of_buttons + 1);
+        button = &parser->configuration->mouse.buttons[
+            parser->configuration->mouse.number_of_buttons];
+        parser->configuration->mouse.number_of_buttons++;
+    }
+    *button = parser->button;
+    return PARSER_SUCCESS;
+}
+
+/* Parse a binding for the keyboard. */
+static parser_error_t parse_keyboard_binding(Parser *parser)
+{
+    parser_error_t error;
+    struct configuration_key *key;
+
+    error = parse_key(parser);
+    if (error != PARSER_SUCCESS) {
+        return error;
+    }
+
+    key = find_configured_key(parser->configuration, parser->key.modifiers,
+            parser->key.key_symbol, parser->key.flags);
+
+    if (key != NULL) {
+        free_actions(key->actions, key->number_of_actions);
+    } else {
+        RESIZE(parser->configuration->keyboard.keys,
+                parser->configuration->keyboard.number_of_keys + 1);
+        key = &parser->configuration->keyboard.keys[
+            parser->configuration->keyboard.number_of_keys];
+        parser->configuration->keyboard.number_of_keys++;
+    }
+    *key = parser->key;
+    return PARSER_SUCCESS;
+}
+
 /* Parses and handles given textual line. */
 parser_error_t parse_line(Parser *parser)
 {
     parser_error_t error;
-
-    struct configuration_button *button;
-    struct configuration_key *key;
 
     /* remove leading whitespace */
     skip_space(parser);
@@ -944,52 +1031,13 @@ parser_error_t parse_line(Parser *parser)
         }
     }
 
-    /* special handling for defining mousebindings */
-    if (parser->label == PARSER_LABEL_MOUSE) {
-        error = parse_button(parser);
-        if (error != PARSER_SUCCESS) {
-            return error;
-        }
+    /* rewind before the identifier */
+    parser->column = parser->item_start_column;
 
-        button = find_configured_button(parser->configuration,
-                parser->button.modifiers, parser->button.index,
-                parser->button.flags);
-
-        if (button != NULL) {
-            free_actions(button->actions, button->number_of_actions);
-        } else {
-            RESIZE(parser->configuration->mouse.buttons,
-                    parser->configuration->mouse.number_of_buttons + 1);
-            button = &parser->configuration->mouse.buttons[
-                parser->configuration->mouse.number_of_buttons];
-            parser->configuration->mouse.number_of_buttons++;
-        }
-        *button = parser->button;
-        return PARSER_SUCCESS;
+    /* check if the label has a special parser */
+    if (labels[parser->label].special_parser == NULL) {
+        return PARSER_ERROR_INVALID_VARIABLE_NAME;
     }
 
-    /* special handling for defining keybindings */
-    if (parser->label == PARSER_LABEL_KEYBOARD) {
-        error = parse_key(parser);
-        if (error != PARSER_SUCCESS) {
-            return error;
-        }
-
-        key = find_configured_key(parser->configuration, parser->key.modifiers,
-                parser->key.key_symbol, parser->key.flags);
-
-        if (key != NULL) {
-            free_actions(key->actions, key->number_of_actions);
-        } else {
-            RESIZE(parser->configuration->keyboard.keys,
-                    parser->configuration->keyboard.number_of_keys + 1);
-            key = &parser->configuration->keyboard.keys[
-                parser->configuration->keyboard.number_of_keys];
-            parser->configuration->keyboard.number_of_keys++;
-        }
-        *key = parser->key;
-        return PARSER_SUCCESS;
-    }
-
-    return PARSER_ERROR_INVALID_VARIABLE_NAME;
+    return labels[parser->label].special_parser(parser);
 }

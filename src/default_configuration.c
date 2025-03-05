@@ -6,9 +6,9 @@
 
 /* the default configuration */
 static const struct configuration default_configuration = {
-    /* default general settings, currently not used for anything */
+    /* default general settings */
     .general = {
-        .unused = 0
+        .move_overlap = 80
     },
 
     /* default tiling settings: fill empty frames but never automatically remove
@@ -37,7 +37,7 @@ static const struct configuration default_configuration = {
 
     /* default notification settings */
     .notification = {
-        .duration = 3,
+        .duration = 2,
         .padding = 6,
         .border_color = 0x000000,
         .border_size = 1,
@@ -191,10 +191,10 @@ void merge_with_default_key_bindings(struct configuration *configuration)
         { 0, 0, XK_s, { .code = ACTION_SPLIT_VERTICALLY } },
 
         /* move between frames */
-        { 0, 0, XK_k, { .code = ACTION_MOVE_UP } },
-        { 0, 0, XK_h, { .code = ACTION_MOVE_LEFT } },
-        { 0, 0, XK_l, { .code = ACTION_MOVE_RIGHT } },
-        { 0, 0, XK_j, { .code = ACTION_MOVE_DOWN } },
+        { 0, 0, XK_k, { .code = ACTION_FOCUS_UP } },
+        { 0, 0, XK_h, { .code = ACTION_FOCUS_LEFT } },
+        { 0, 0, XK_l, { .code = ACTION_FOCUS_RIGHT } },
+        { 0, 0, XK_j, { .code = ACTION_FOCUS_DOWN } },
 
         /* exchange frames */
         { XCB_MOD_MASK_SHIFT, 0, XK_k, { .code = ACTION_EXCHANGE_UP } },
@@ -246,7 +246,8 @@ void merge_with_default_key_bindings(struct configuration *configuration)
         /* run the terminal or xterm as fall back */
         { 0, 0, XK_Return, { ACTION_RUN, {
                 .string = (uint8_t*)
-                    "[ -n \"$TERMINAL\" ] && \"$TERMINAL\" || xterm" } } },
+                    "[ -n \"$TERMINAL\" ] && exec \"$TERMINAL\" || exec xterm"
+            } } },
 
         /* quit fensterchef */
         { XCB_MOD_MASK_CONTROL | XCB_MOD_MASK_SHIFT, 0, XK_e,

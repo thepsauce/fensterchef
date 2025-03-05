@@ -71,7 +71,7 @@ struct window {
     uint32_t border_size;
     uint32_t border_color;
 
-    /* position and size when the window was in floating mode */
+    /* position/size when the window was in floating mode */
     Rectangle floating;
 
     /* the id of this window */

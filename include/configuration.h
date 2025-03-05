@@ -9,8 +9,17 @@
 
 /* general settings */
 struct configuration_general {
-    /* currently no members */
-    uint32_t unused;
+    /* 0 to 100: percentage for the overlapping to consider when moving from one
+     * monitor to another */
+    uint32_t move_overlap;
+};
+
+/* startup actions */
+struct configuration_startup {
+    /* the list of actions to run on start */
+    Action *actions;
+    /* the number of actions */
+    uint32_t number_of_actions;
 };
 
 /* tiling settings */
@@ -122,6 +131,8 @@ struct configuration_keyboard {
 extern struct configuration {
     /* general settings */
     struct configuration_general general;
+    /* startup actions */
+    struct configuration_startup startup;
     /* general settings */
     struct configuration_tiling tiling;
     /* font settings */

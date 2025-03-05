@@ -7,6 +7,7 @@
 #include "monitor.h"
 #include "program_options.h"
 #include "render.h"
+#include "window.h"
 #include "x11_management.h"
 #include "xalloc.h"
 
@@ -58,6 +59,16 @@ int main(int argc, char **argv)
 
     /* manage the windows that are already there */
     query_existing_windows();
+
+    /* run all startup actions */
+    LOG("running startup actions: %A\n",
+            configuration.startup.number_of_actions,
+            configuration.startup.actions);
+    for (uint32_t i = 0; i < configuration.startup.number_of_actions; i++) {
+        do_action(&configuration.startup.actions[i], focus_window);
+    }
+
+    /* do an inital synchronization */
     synchronize_with_server();
     synchronize_client_list();
 

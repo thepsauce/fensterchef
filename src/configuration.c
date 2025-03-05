@@ -52,6 +52,8 @@ void duplicate_configuration(struct configuration *duplicate)
     if (duplicate->font.name != NULL) {
         duplicate->font.name = (uint8_t*) xstrdup((char*) duplicate->font.name);
     }
+    duplicate->startup.actions = duplicate_actions(duplicate->startup.actions,
+            duplicate->startup.number_of_actions);
     duplicate_configuration_button_bindings(duplicate);
     duplicate_configuration_key_bindings(duplicate);
 }
@@ -59,6 +61,8 @@ void duplicate_configuration(struct configuration *duplicate)
 /* Clear the resources given configuration occupies. */
 void clear_configuration(struct configuration *configuration)
 {
+    free_actions(configuration->startup.actions,
+            configuration->startup.number_of_actions);
     free(configuration->font.name);
     for (uint32_t i = 0; i < configuration->keyboard.number_of_keys; i++) {
         free_actions(configuration->keyboard.keys[i].actions,

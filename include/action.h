@@ -52,14 +52,14 @@ typedef enum {
     ACTION_SPLIT_HORIZONTALLY,
     /* split the current frame vertically */
     ACTION_SPLIT_VERTICALLY,
-    /* move to the frame above the current one */
-    ACTION_MOVE_UP,
-    /* move to the frame left of the current one */
-    ACTION_MOVE_LEFT,
-    /* move to the frame right of the current one */
-    ACTION_MOVE_RIGHT,
-    /* move to the frame below the current one */
-    ACTION_MOVE_DOWN,
+    /* move the focus to the above frame */
+    ACTION_FOCUS_UP,
+    /* move the focus to the left frame */
+    ACTION_FOCUS_LEFT,
+    /* move the focus to the right frame */
+    ACTION_FOCUS_RIGHT,
+    /* move the focus to the frame below */
+    ACTION_FOCUS_DOWN,
     /* exchange the current frame with the above one */
     ACTION_EXCHANGE_UP,
     /* exchange the current frame with the left one */
@@ -78,7 +78,7 @@ typedef enum {
     ACTION_SHOW_MESSAGE_RUN,
     /* resize the edges of the current window */
     ACTION_RESIZE_BY,
-    /* quits fensterchef */
+    /* quit fensterchef */
     ACTION_QUIT,
 
     /* not a real action */

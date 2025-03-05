@@ -393,6 +393,13 @@ void set_window_size(Window *window, int32_t x, int32_t y, uint32_t width,
     width = MAX(width, minimum.width);
     height = MAX(height, minimum.height);
 
+    if (window->state.mode == WINDOW_MODE_FLOATING) {
+        window->floating.x = x;
+        window->floating.y = y;
+        window->floating.width = width;
+        window->floating.height = height;
+    }
+
     window->x = x;
     window->y = y;
     window->width = width;

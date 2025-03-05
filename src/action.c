@@ -8,6 +8,7 @@
 #include "fensterchef.h"
 #include "frame.h"
 #include "log.h"
+#include "monitor.h"
 #include "stash_frame.h"
 #include "tiling.h"
 #include "utility.h"
@@ -40,10 +41,10 @@ static const struct {
     [ACTION_TOGGLE_FOCUS] = { "TOGGLE-FOCUS", PARSER_DATA_TYPE_VOID },
     [ACTION_SPLIT_HORIZONTALLY] = { "SPLIT-HORIZONTALLY", PARSER_DATA_TYPE_VOID },
     [ACTION_SPLIT_VERTICALLY] = { "SPLIT-VERTICALLY", PARSER_DATA_TYPE_VOID },
-    [ACTION_MOVE_UP] = { "MOVE-UP", PARSER_DATA_TYPE_VOID },
-    [ACTION_MOVE_LEFT] = { "MOVE-LEFT", PARSER_DATA_TYPE_VOID },
-    [ACTION_MOVE_RIGHT] = { "MOVE-RIGHT", PARSER_DATA_TYPE_VOID },
-    [ACTION_MOVE_DOWN] = { "MOVE-DOWN", PARSER_DATA_TYPE_VOID },
+    [ACTION_FOCUS_UP] = { "FOCUS-UP", PARSER_DATA_TYPE_VOID },
+    [ACTION_FOCUS_LEFT] = { "FOCUS-LEFT", PARSER_DATA_TYPE_VOID },
+    [ACTION_FOCUS_RIGHT] = { "FOCUS-RIGHT", PARSER_DATA_TYPE_VOID },
+    [ACTION_FOCUS_DOWN] = { "FOCUS-DOWN", PARSER_DATA_TYPE_VOID },
     [ACTION_EXCHANGE_UP] = { "EXCHANGE-UP", PARSER_DATA_TYPE_VOID },
     [ACTION_EXCHANGE_LEFT] = { "EXCHANGE-LEFT", PARSER_DATA_TYPE_VOID },
     [ACTION_EXCHANGE_RIGHT] = { "EXCHANGE-RIGHT", PARSER_DATA_TYPE_VOID },
@@ -269,34 +270,62 @@ void toggle_focus(void)
         }
 
         if (window != NULL) {
-            set_focus_window_with_frame(window);
+            set_focus_window(window);
         }
     } else {
         set_focus_frame(focus_frame);
     }
 }
 
-/* Get the frame above @relative that is not a parent frame. */
-static Frame *get_above_child_frame(Frame *relative, bool must_be_outside)
+/* Move the focus from @from to @to and exchange if requested. */
+static void move_to_frame(Frame *from, Frame *to, Monitor *monitor,
+        bool do_exchange)
+{
+    if (do_exchange) {
+        Frame *const saved_frame = stash_frame_later(from);
+        replace_frame(from, to);
+        if (saved_frame != NULL) {
+            replace_frame(to, saved_frame);
+            free(saved_frame);
+        }
+    } else if (monitor != NULL) {
+        Window *const window = get_window_covering_monitor(monitor);
+        /* focus the window covering the monitor */
+        if (window != NULL) {
+            set_focus_window(window);
+            focus_frame = to;
+            return;
+        }
+    }
+
+    set_focus_frame(to);
+}
+
+/* Move the focus to the frame above @relative. */
+static void move_to_above_frame(Frame *relative, bool do_exchange)
 {
     Frame *frame;
+    Monitor *monitor = NULL;
 
     /* if a group of frames is given, get a frame inside if the split direction
      * is aligned with the movement
      */
-    if (!must_be_outside && relative->left != NULL &&
+    if (!do_exchange && relative->left != NULL &&
             relative->split_direction == FRAME_SPLIT_VERTICALLY) {
         frame = relative->left;
     } else {
         frame = get_above_frame(relative);
         if (frame == NULL) {
-            Monitor *const monitor = get_monitor_from_rectangle(
+            monitor = get_monitor_from_rectangle(
                     relative->x, relative->y - 1, 1, 1);
-            if (monitor == NULL) {
-                return NULL;
+            if (monitor != NULL) {
+                frame = monitor->frame;
             }
-            frame = monitor->frame;
         }
+    }
+
+    if (frame == NULL) {
+        return;
     }
 
     const int x = relative->x + relative->width / 2;
@@ -312,31 +341,35 @@ static Frame *get_above_child_frame(Frame *relative, bool must_be_outside)
             frame = frame->right;
         }
     }
-    return frame;
+
+    move_to_frame(relative, frame, monitor, do_exchange);
 }
 
-/* Get the frame left of @relative that is not a parent frame. */
-static Frame *get_left_child_frame(Frame *relative, bool must_be_outside)
+/* Move the focus to the frame left of @relative. */
+static void move_to_left_frame(Frame *relative, bool do_exchange)
 {
     Frame *frame;
+    Monitor *monitor = NULL;
 
     /* if a group of frames is given, get a frame inside if the split direction
      * is aligned with the movement
      */
-    if (!must_be_outside && relative->left != NULL &&
+    if (!do_exchange && relative->left != NULL &&
             relative->split_direction == FRAME_SPLIT_HORIZONTALLY) {
         frame = relative->left;
     } else {
         frame = get_left_frame(relative);
         if (frame == NULL) {
-            Monitor *const monitor = get_monitor_from_rectangle(
+            monitor = get_monitor_from_rectangle(
                     relative->x - 1, relative->y, 1, 1);
-            /* the movement is at the edge of the screen */
-            if (monitor == NULL) {
-                return NULL;
+            if (monitor != NULL) {
+                frame = monitor->frame;
             }
-            frame = monitor->frame;
         }
+    }
+
+    if (frame == NULL) {
+        return;
     }
 
     const int y = relative->y + relative->height / 2;
@@ -352,30 +385,35 @@ static Frame *get_left_child_frame(Frame *relative, bool must_be_outside)
             frame = frame->right;
         }
     }
-    return frame;
+
+    move_to_frame(relative, frame, monitor, do_exchange);
 }
 
-/* Get the frame right of @relative that is not a parent frame. */
-static Frame *get_right_child_frame(Frame *relative, bool must_be_outside)
+/* Move the focus to the frame right of @relative. */
+static void move_to_right_frame(Frame *relative, bool do_exchange)
 {
     Frame *frame;
+    Monitor *monitor = NULL;
 
     /* if a group of frames is given, get a frame inside if the split direction
      * is aligned with the movement
      */
-    if (!must_be_outside && relative->left != NULL &&
+    if (!do_exchange && relative->left != NULL &&
             relative->split_direction == FRAME_SPLIT_HORIZONTALLY) {
         frame = relative->right;
     } else {
         frame = get_right_frame(relative);
         if (frame == NULL) {
-            Monitor *const monitor = get_monitor_from_rectangle(
+            monitor = get_monitor_from_rectangle(
                     relative->x + relative->width, relative->y, 1, 1);
-            if (monitor == NULL) {
-                return NULL;
+            if (monitor != NULL) {
+                frame = monitor->frame;
             }
-            frame = monitor->frame;
         }
+    }
+
+    if (frame == NULL) {
+        return;
     }
 
     const int y = relative->y + relative->height / 2;
@@ -391,33 +429,38 @@ static Frame *get_right_child_frame(Frame *relative, bool must_be_outside)
             frame = frame->left;
         }
     }
-    return frame;
+
+    move_to_frame(relative, frame, monitor, do_exchange);
 }
 
-/* Get the frame below @relative that is not a parent frame. */
-static Frame *get_below_child_frame(Frame *relative, bool must_be_outside)
+/* Move the focus to the frame below @relative. */
+static void move_to_below_frame(Frame *relative, bool do_exchange)
 {
     Frame *frame;
+    Monitor *monitor = NULL;
 
     /* if a group of frames is given, get a frame inside if the split direction
      * is aligned with the movement
      */
-    if (!must_be_outside && relative->left != NULL &&
+    if (!do_exchange && relative->left != NULL &&
             focus_frame->split_direction == FRAME_SPLIT_VERTICALLY) {
         frame = focus_frame->right;
     } else {
-        frame = get_below_frame(focus_frame);
+        frame = get_below_frame(relative);
         if (frame == NULL) {
-            Monitor *const monitor = get_monitor_from_rectangle(
-                    focus_frame->x, focus_frame->y + focus_frame->height, 1, 1);
-            if (monitor == NULL) {
-                return NULL;
+            monitor = get_monitor_from_rectangle(
+                    relative->x, relative->y + relative->height, 1, 1);
+            if (monitor != NULL) {
+                frame = monitor->frame;
             }
-            frame = monitor->frame;
         }
     }
 
-    const int x = focus_frame->x + focus_frame->width / 2;
+    if (frame == NULL) {
+        return;
+    }
+
+    const int x = relative->x + relative->width / 2;
     /* move into the most top frame */
     while (frame->left != NULL) {
         if (frame->split_direction == FRAME_SPLIT_HORIZONTALLY) {
@@ -430,39 +473,13 @@ static Frame *get_below_child_frame(Frame *relative, bool must_be_outside)
             frame = frame->left;
         }
     }
-    return frame;
-}
 
-/* Move the focus to the given frame. */
-static void move_to_frame(Frame *frame)
-{
-    if (frame == NULL) {
-        return;
-    }
-    set_focus_frame(frame);
-}
-
-/* Exchange given frame with the focus frame. */
-static void exchange_with_frame(Frame *frame)
-{
-    Frame *saved_frame;
-
-    if (frame == NULL) {
-        return;
-    }
-
-    saved_frame = stash_frame_later(frame);
-    replace_frame(frame, focus_frame);
-    replace_frame(focus_frame, saved_frame);
-    free(saved_frame);
-
-    focus_frame = frame;
+    move_to_frame(relative, frame, monitor, do_exchange);
 }
 
 /* Do the given action. */
 void do_action(const Action *action, Window *window)
 {
-    Frame *frame;
     char *shell;
 
     switch (action->code) {
@@ -595,52 +612,44 @@ void do_action(const Action *action, Window *window)
         split_frame(focus_frame, FRAME_SPLIT_VERTICALLY);
         break;
 
-    /* move to the frame above the current one */
-    case ACTION_MOVE_UP:
-        frame = get_above_child_frame(focus_frame, false);
-        move_to_frame(frame);
+    /* move the focus to the frame above */
+    case ACTION_FOCUS_UP:
+        move_to_above_frame(focus_frame, false);
         break;
 
-    /* move to the frame left of the current one */
-    case ACTION_MOVE_LEFT:
-        frame = get_left_child_frame(focus_frame, false);
-        move_to_frame(frame);
+    /* move the focus to the left frame */
+    case ACTION_FOCUS_LEFT:
+        move_to_left_frame(focus_frame, false);
         break;
 
-    /* move to the frame right of the current one */
-    case ACTION_MOVE_RIGHT:
-        frame = get_right_child_frame(focus_frame, false);
-        move_to_frame(frame);
+    /* move the focus to the right frame */
+    case ACTION_FOCUS_RIGHT:
+        move_to_right_frame(focus_frame, false);
         break;
 
-    /* move to the frame below the current one */
-    case ACTION_MOVE_DOWN:
-        frame = get_below_child_frame(focus_frame, false);
-        move_to_frame(frame);
+    /* move the focus to the frame below */
+    case ACTION_FOCUS_DOWN:
+        move_to_below_frame(focus_frame, false);
         break;
 
     /* exchange the current frame with the above one */
     case ACTION_EXCHANGE_UP:
-        frame = get_above_child_frame(focus_frame, true);
-        exchange_with_frame(frame);
+        move_to_above_frame(focus_frame, true);
         break;
 
     /* exchange the current frame with the left one */
     case ACTION_EXCHANGE_LEFT:
-        frame = get_left_child_frame(focus_frame, true);
-        exchange_with_frame(frame);
+        move_to_left_frame(focus_frame, true);
         break;
 
     /* exchange the current frame with the right one */
     case ACTION_EXCHANGE_RIGHT:
-        frame = get_right_child_frame(focus_frame, true);
-        exchange_with_frame(frame);
+        move_to_right_frame(focus_frame, true);
         break;
 
     /* exchange the current frame with the below one */
     case ACTION_EXCHANGE_DOWN:
-        frame = get_below_child_frame(focus_frame, true);
-        exchange_with_frame(frame);
+        move_to_below_frame(focus_frame, true);
         break;
 
     /* toggle visibility of the interactive window list */

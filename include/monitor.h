@@ -47,6 +47,9 @@ Monitor *get_monitor_from_rectangle(int32_t x, int32_t y,
 Monitor *get_monitor_from_rectangle_or_primary(int32_t x, int32_t y,
         uint32_t width, uint32_t height);
 
+/* Get a window covering given monitor. */
+Window *get_window_covering_monitor(Monitor *monitor);
+
 /* Gets a list of monitors that are associated to the screen.
  *
  * @return NULL when randr is not supported or when there are no monitors.
