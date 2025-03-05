@@ -18,9 +18,9 @@ fensterchef - tiling done the right way
     Print the version
 .PP
 .B -d
-.I VERBOSITY
-    Set the output logging verbosity to one of:
-.B all info error nothing
+.IR all | info | error | nothing
+.B (default: info)
+    Set the output logging verbosity
 .PP
 .B --verbose
     Log everything
@@ -28,6 +28,7 @@ fensterchef - tiling done the right way
 .BR -c ,
 .B --config
 .I FILE
+.B (default: ~/.config/fensterchef/fensterchef.config)
     Load
 .I FILE
 as configuration file
@@ -37,6 +38,11 @@ The
 .B fensterchef
 developers thank you for choosing
 .BR fensterchef .
+.B fensterchef
+is an X11 tiling window manager with floating window support and
+a keyboard-centric philosophy although there are also a lot of options for the
+mouse.
+
 If you have used
 .BR ratpoison (1)
 before, than this is a perfect replacement for you as
@@ -84,7 +90,7 @@ before any binding.
 .B Q
     Close the active window
 .PP
-.B \-
+.B -
     Minimize the active window
 .PP
 .B N

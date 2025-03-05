@@ -31,8 +31,8 @@ static const struct configuration default_configuration = {
 
     /* default gap settings: no gaps */
     .gaps = {
-        .inner = 0,
-        .outer = 0
+        .inner = { 0, 0, 0, 0 },
+        .outer = { 0, 0, 0, 0 }
     },
 
     /* default notification settings */

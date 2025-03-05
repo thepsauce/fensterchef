@@ -124,7 +124,7 @@ Window *create_window(xcb_window_t xcb);
 void close_window(Window *window);
 
 /* Destroy given window and removes it from the window linked list.
- * This does NOT destroy the underlying xcb window.
+ * This does NOT destroy the underlying X window.
  */
 void destroy_window(Window *window);
 
@@ -152,9 +152,9 @@ void set_window_size(Window *window, int32_t x, int32_t y, uint32_t width,
 /* Put the window on the best suited Z stack position. */
 void update_window_layer(Window *window);
 
-/* Get the internal window that has the associated xcb window.
+/* Get the internal window that has the associated X window.
  *
- * @return NULL when none has this xcb window.
+ * @return NULL when none has this X window.
  */
 Window *get_window_of_xcb_window(xcb_window_t xcb_window);
 

@@ -8,6 +8,8 @@
 #include "bits/frame_typedef.h"
 #include "bits/window_typedef.h"
 
+#include "utility.h"
+
 /* the minimum width or height of a frame */
 #define FRAME_MINIMUM_SIZE 12
 
@@ -82,6 +84,9 @@ void resize_frame(Frame *frame, int32_t x, int32_t y,
  * Note that this empties @with.
  */
 void replace_frame(Frame *frame, Frame *with);
+
+/* Get the gaps the frame applies to its inner window. */
+void get_frame_gaps(Frame *frame, Extents *gaps);
 
 /* Resizes the inner window to fit within the frame. */
 void reload_frame(Frame *frame);

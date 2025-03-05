@@ -245,7 +245,11 @@ void set_showable_tiling_window(bool previous)
         }
     }
 
-    if (valid_window != NULL) {
+    if (valid_window == NULL) {
+        set_notification((utf8_t*) "No other window",
+                focus_frame->x + focus_frame->width / 2,
+                focus_frame->y + focus_frame->height / 2);
+    } else {
         show_window(valid_window);
         set_focus_window(valid_window);
     }

@@ -21,6 +21,7 @@ static const char *parser_error_strings[] = {
     [PARSER_ERROR_INVALID_VARIABLE_NAME] = "the current label does not have that variable name",
     [PARSER_ERROR_BAD_COLOR_FORMAT] = "bad color format (expect #XXXXXX)",
     [PARSER_ERROR_PREMATURE_LINE_END] = "premature line end",
+    [PARSER_ERROR_INVALID_QUAD] = "invalid quad (either 1, 2 or 4 integers)",
     [PARSER_ERROR_INVALID_MODIFIERS] = "invalid modifiers",
     [PARSER_ERROR_INVALID_BUTTON] = "invalid button name",
     [PARSER_ERROR_INVALID_BUTTON_FLAG] = "invalid button flag",
@@ -228,9 +229,9 @@ static const struct parser_label_name {
 
     [PARSER_LABEL_GAPS] = {
         "gaps", NULL, {
-        { "inner", PARSER_DATA_TYPE_INTEGER,
+        { "inner", PARSER_DATA_TYPE_QUAD,
             offsetof(struct configuration, gaps.inner) },
-        { "outer", PARSER_DATA_TYPE_INTEGER,
+        { "outer", PARSER_DATA_TYPE_QUAD,
             offsetof(struct configuration, gaps.outer) },
         /* null terminate the end */
         { NULL, 0, 0 } }
@@ -556,9 +557,9 @@ static parser_error_t parse_quad(Parser *parser)
 {
     int32_t quad[4];
     parser_error_t error;
+    uint32_t i = 0;
 
-    memset(quad, 0, sizeof(quad));
-    for (uint32_t i = 0; i < SIZE(parser->data.quad); i++) {
+    for (i = 0; i < SIZE(parser->data.quad); i++) {
         skip_space(parser);
         /* allow a premature end: not enough integers */
         if (parser->line[parser->column] == '\0') {
@@ -570,6 +571,26 @@ static parser_error_t parse_quad(Parser *parser)
         }
         quad[i] = parser->data.integer;
     }
+
+    switch (i) {
+    /* if one value is specified, duplicate it to all other values */
+    case 1:
+        quad[1] = quad[0];
+        quad[2] = quad[0];
+        quad[3] = quad[0];
+        break;
+
+    /* if two values are specified, duplicate it to the other two values */
+    case 2:
+        quad[2] = quad[0];
+        quad[3] = quad[1];
+        break;
+
+    /* no meaningful interpretation for other case */
+    default:
+        return PARSER_ERROR_INVALID_QUAD;
+    }
+
     memcpy(parser->data.quad, quad, sizeof(quad));
     return PARSER_SUCCESS;
 }

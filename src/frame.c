@@ -112,48 +112,57 @@ void replace_frame(Frame *frame, Frame *with)
     resize_frame(frame, frame->x, frame->y, frame->width, frame->height);
 }
 
+/* Get the gaps the frame applies to its inner window. */
+void get_frame_gaps(Frame *frame, Extents *gaps)
+{
+    Frame *root;
+
+    root = get_root_frame(frame);
+    if (root->x == frame->x) {
+        gaps->left = configuration.gaps.outer.left;
+    } else {
+        gaps->left = configuration.gaps.inner.right;
+    }
+
+    if (root->y == frame->y) {
+        gaps->top = configuration.gaps.outer.top;
+    } else {
+        gaps->top = configuration.gaps.inner.bottom;
+    }
+
+    if (root->x + root->width == frame->x + frame->width) {
+        gaps->right = configuration.gaps.outer.right;
+    } else {
+        gaps->right = configuration.gaps.inner.left;
+    }
+
+    if (root->y + root->height == frame->y + frame->height) {
+        gaps->bottom = configuration.gaps.outer.bottom;
+    } else {
+        gaps->bottom = configuration.gaps.inner.top;
+    }
+}
+
 /* Resize the inner window to fit within the frame. */
 void reload_frame(Frame *frame)
 {
-    Frame *root;
-    uint32_t left, top, right, bottom;
+    Extents gaps;
 
     if (frame->window == NULL) {
         return;
     }
 
-    root = get_root_frame(frame);
-    if (root->x == frame->x) {
-        left = configuration.gaps.outer;
-    } else {
-        left = configuration.gaps.inner;
-    }
+    get_frame_gaps(frame, &gaps);
 
-    if (root->y == frame->y) {
-        top = configuration.gaps.outer;
-    } else {
-        top = configuration.gaps.inner;
-    }
-
-    if (root->x + root->width == frame->x + frame->width) {
-        right = configuration.gaps.outer;
-    } else {
-        right = 0;
-    }
-
-    if (root->y + root->height == frame->y + frame->height) {
-        bottom = configuration.gaps.outer;
-    } else {
-        bottom = 0;
-    }
-
-    right += left + configuration.border.size * 2;
-    bottom += top + configuration.border.size * 2;
+    gaps.right += gaps.left + configuration.border.size * 2;
+    gaps.bottom += gaps.top + configuration.border.size * 2;
     set_window_size(frame->window,
-            frame->x + left,
-            frame->y + top,
-            frame->width < right ? 0 : frame->width - right,
-            frame->height < bottom ? 0 : frame->height - bottom);
+            frame->x + gaps.left,
+            frame->y + gaps.top,
+            gaps.right > 0 && frame->width < (uint32_t) gaps.right ? 0 :
+                frame->width - gaps.right,
+            gaps.bottom > 0 && frame->height < (uint32_t) gaps.bottom ? 0 :
+                frame->height - gaps.bottom);
 }
 
 /* Set the frame in focus, this also focuses the inner window if possible. */

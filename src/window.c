@@ -262,6 +262,9 @@ void destroy_window(Window *window)
 
     has_client_list_changed = true;
 
+    free(window->name);
+    free(window->protocols);
+    free(window->states);
     free(window);
 }
 

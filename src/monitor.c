@@ -254,6 +254,7 @@ Monitor *query_monitors(void)
 
         if (output->crtc == XCB_NONE) {
             LOG("ignored output %.*s: no crtc\n", name_length, name);
+            free(output);
             continue;
         }
 
@@ -268,6 +269,7 @@ Monitor *query_monitors(void)
             LOG_ERROR("output %.*s gave a NULL crtc: %E\n", name_length, name,
                     error);
             free(error);
+            free(output);
             continue;
         }
 
@@ -295,6 +297,7 @@ Monitor *query_monitors(void)
         monitor->height = crtc->height;
 
         free(crtc);
+        free(output);
     }
 
     /* add the primary monitor to the start of the list */
@@ -302,6 +305,8 @@ Monitor *query_monitors(void)
         primary_monitor->next = first_monitor;
         first_monitor = primary_monitor;
     }
+
+    free(resources);
 
     return first_monitor;
 }

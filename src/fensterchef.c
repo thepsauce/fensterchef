@@ -16,7 +16,13 @@ const char *fensterchef_configuration = FENSTERCHEF_CONFIGURATION;
 void quit_fensterchef(int exit_code)
 {
     LOG("quitting fensterchef with exit code: %d\n", exit_code);
-    /* TODO: maybe free all resources to show we care? */
+    /* TODO: maybe free all resources to show we care? that would include:
+     * - frames
+     * - windows
+     * - monitors
+     * - configuration
+     * - render cache
+     */
     deinitialize_renderer();
     xcb_disconnect(connection);
     exit(exit_code);

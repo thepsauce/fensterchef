@@ -42,6 +42,8 @@ typedef enum {
     PARSER_ERROR_BAD_COLOR_FORMAT,
     /* a line is terminated but tokens were expected first */
     PARSER_ERROR_PREMATURE_LINE_END,
+    /* invalid number of integers for a quad */
+    PARSER_ERROR_INVALID_QUAD,
     /* invalid syntax for modifiers */
     PARSER_ERROR_INVALID_MODIFIERS,
     /* invalid button name */

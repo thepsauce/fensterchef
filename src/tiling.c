@@ -126,9 +126,6 @@ Frame *get_below_frame(Frame *frame)
 /* Get the minimum size the given frame should have. */
 static void get_minimum_frame_size(Frame *frame, Size *size)
 {
-    Frame *root;
-
-    root = get_root_frame(frame);
     if (frame->left != NULL) {
         Size left_size, right_size;
 
@@ -144,24 +141,6 @@ static void get_minimum_frame_size(Frame *frame, Size *size)
     } else {
         size->width = FRAME_MINIMUM_SIZE;
         size->height = FRAME_MINIMUM_SIZE;
-    }
-
-    if (frame->x == root->x) {
-        size->width += configuration.gaps.outer;
-    } else {
-        size->width += configuration.gaps.inner;
-    }
-    if (frame->x + frame->width == root->x + root->width) {
-        size->width += configuration.gaps.outer;
-    }
-
-    if (frame->y == root->y) {
-        size->height += configuration.gaps.outer;
-    } else {
-        size->height += configuration.gaps.inner;
-    }
-    if (frame->y + frame->height == root->y + root->height) {
-        size->height += configuration.gaps.outer;
     }
 }
 

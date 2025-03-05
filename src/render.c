@@ -10,6 +10,8 @@
 
 /* TODO: how do we make colored emojis work?
  * I tried to but color formats other than 8 bit colors do not work
+ *
+ * TODO: and how to get fonts with fixed size to scale?
  */
 
 /* the render formats for pictures */
@@ -605,10 +607,8 @@ static FT_Face load_glyph(uint32_t glyph, FT_Int32 load_flags)
     return face;
 }
 
-/* Add the glyph to the cache. The caller must have made sure that the glyph is
- * not already cached.
- */
-static int cache_glyph(uint32_t glyph, FT_Pos *advance)
+/* Add the glyph to the cache if not already cached. */
+static FT_Face cache_glyph(uint32_t glyph)
 {
     FT_Face face;
     xcb_render_glyphinfo_t glyph_info;
@@ -616,13 +616,24 @@ static int cache_glyph(uint32_t glyph, FT_Pos *advance)
     uint8_t *temporary_bitmap;
 
     if (glyph == 0) {
-        return ERROR;
+        return NULL;
+    }
+
+    /* check if the glyph is already cached */
+    if (FcCharSetHasChar(font.charset, glyph)) {
+        face = load_glyph(glyph, FT_LOAD_DEFAULT);
+        if (face == NULL) {
+            return NULL;
+        }
+        return face;
     }
 
     /* find the face that has the glyph and load it */
     face = load_glyph(glyph, FT_LOAD_RENDER);
     if (face == NULL) {
-        return ERROR;
+        LOG_VERBOSE("could not load face for glyph: " COLOR(GREEN) "U+%08x\n",
+                glyph);
+        return NULL;
     }
 
     glyph_info.x = -face->glyph->bitmap_left;
@@ -653,11 +664,11 @@ static int cache_glyph(uint32_t glyph, FT_Pos *advance)
 
     free(temporary_bitmap);
 
-    *advance = glyph_info.x_off;
+    LOG_VERBOSE("cached glyph: " COLOR(GREEN) "U+%08x\n", glyph);
 
     /* mark the glyph as cached */
     FcCharSetAddChar(font.charset, glyph);
-    return OK;
+    return face;
 }
 
 /* Draw text to a given drawable using the current font. */
@@ -676,10 +687,12 @@ int draw_text(xcb_drawable_t xcb_drawable, const utf8_t *utf8, uint32_t length,
             /* position of the glyphs */
             int16_t x, y;
         } header;
-        /* the actual glyphs */
+        /* the actual glyphs; -1 is needed to prevent an overflow when looping
+         * using a `uint8_t`
+         */
         uint32_t glyphs[UINT8_MAX - 1];
     } glyphs;
-    FT_Pos advance;
+    FT_Face face;
     uint32_t text_width;
 
     if (!font.available) {
@@ -707,18 +720,15 @@ int draw_text(xcb_drawable_t xcb_drawable, const utf8_t *utf8, uint32_t length,
         while (glyphs.header.count < SIZE(glyphs.glyphs) && i < length) {
             U8_NEXT(utf8, i, length, glyph);
 
-            if (FcCharSetHasChar(font.charset, glyph)) {
-                glyphs.glyphs[glyphs.header.count++] = glyph;
-                continue;
-            }
-
-            if (cache_glyph(glyph, &advance) == ERROR) {
+            face = cache_glyph(glyph);
+            if (face == NULL) {
                 continue;
             }
 
             glyphs.glyphs[glyphs.header.count++] = glyph;
 
-            text_width += advance;
+            /* dividing by 64 converts from 26.6 fractional points to pixels */
+            text_width += face->glyph->advance.x / 64;
         }
 
         /* send a render request to the X renderer */
@@ -730,7 +740,7 @@ int draw_text(xcb_drawable_t xcb_drawable, const utf8_t *utf8, uint32_t length,
                 font.glyphset,
                 0, 0, /* source position */
                 sizeof(glyphs.header) +
-                    sizeof(uint32_t) * glyphs.header.count,
+                    sizeof(glyphs.glyphs[0]) * glyphs.header.count,
                 (uint8_t*) &glyphs);
 
         glyphs.header.x += text_width;
@@ -759,7 +769,7 @@ void measure_text(const utf8_t *utf8, uint32_t length,
     for (uint32_t i = 0; i < length; ) {
         U8_NEXT(utf8, i, length, glyph);
         /* load the char into the font */
-        face = load_glyph(glyph, FT_LOAD_DEFAULT);
+        face = cache_glyph(glyph);
         if (face == NULL) {
             continue;
         }
