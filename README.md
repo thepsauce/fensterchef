@@ -23,7 +23,8 @@ Then simply type the following and enter your password.
 sudo make install
 ```
 
-Now you have the **fensterchef** executable and the manual page.
+Now you have the **fensterchef** executable (`/usr/bin/fensterchef`)
+and the manual page (`/usr/share/man/man1/fensterchef.1.gz`).
 
 If you are using a login manager, you can simply put this at the end of your `~/.xsession`:
 ```

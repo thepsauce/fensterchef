@@ -8,7 +8,7 @@
 static const struct configuration default_configuration = {
     /* default general settings */
     .general = {
-        .move_overlap = 80
+        .overlap_percentage = 80
     },
 
     /* default tiling settings: fill empty frames but never automatically remove

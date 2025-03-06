@@ -16,7 +16,7 @@
 #include "x11_management.h"
 
 /* the severity of the logging */
-log_severity_t log_severity;
+log_severity_t log_severity = LOG_SEVERITY_INFO;
 
 /***********************/
 /** String conversion **/
@@ -1261,7 +1261,7 @@ void log_formatted(log_severity_t severity, const char *file, int line,
     current_time = time(NULL);
     tm = localtime(&current_time);
     strftime(buffer, sizeof(buffer),
-            severity == SEVERITY_ERROR ? COLOR(RED) "{%F %T}" :
+            severity == LOG_SEVERITY_ERROR ? COLOR(RED) "{%F %T}" :
                 COLOR(GREEN) "[%F %T]", tm);
     fprintf(stderr, "%s" COLOR(YELLOW) "(%s:%d) " CLEAR_COLOR,
             buffer, file, line);

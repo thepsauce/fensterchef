@@ -185,8 +185,8 @@ static const struct parser_label_name {
 } labels[PARSER_LABEL_MAX] = {
     [PARSER_LABEL_GENERAL] = {
         "general", NULL, {
-        { "move-overlap", PARSER_DATA_TYPE_INTEGER,
-            offsetof(struct configuration, general.move_overlap) },
+        { "overlap-percentage", PARSER_DATA_TYPE_INTEGER,
+            offsetof(struct configuration, general.overlap_percentage) },
         /* null terminate the end */
         { NULL, 0, 0 } }
     },

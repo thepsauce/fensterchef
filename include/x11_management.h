@@ -97,6 +97,8 @@
     /* CARDINAL */ X(_NET_WM_USER_TIME) \
     /* the name of the locale of the window, fox example: "en_US.UTF-8" */ \
     X(WM_LOCALE_NAME) \
+    /* take focus window message atom */ \
+    X(WM_TAKE_FOCUS) \
     /* delete window message atom */ \
     X(WM_DELETE_WINDOW) \
     /* change state message atom */ \
@@ -345,6 +347,9 @@ void query_existing_windows(void);
 
 /* Set the initial root window properties. */
 void initialize_root_properties(void);
+
+/* Set the input focus to @window. This window may be `NULL`. */
+void set_input_focus(Window *window);
 
 /* Show the client on the X server. */
 void map_client(XClient *client);

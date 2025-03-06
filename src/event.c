@@ -221,32 +221,6 @@ void synchronize_with_server(void)
     }
 }
 
-/* Set the input focus on the X server. */
-static void synchronize_focus_with_server(Window *old_focus_window)
-{
-    xcb_window_t focus_id;
-    xcb_window_t active_id;
-
-    if (old_focus_window == focus_window) {
-        return;
-    };
-
-    if (focus_window == NULL) {
-        LOG("removed focus from all windows\n");
-        focus_id = wm_check_window;
-        active_id = screen->root;
-    } else {
-        focus_id = focus_window->client.id;
-        active_id = focus_id;
-    }
-
-    xcb_set_input_focus(connection, XCB_INPUT_FOCUS_NONE, focus_id,
-            XCB_CURRENT_TIME);
-
-    xcb_change_property(connection, XCB_PROP_MODE_REPLACE, screen->root,
-            ATOM(_NET_ACTIVE_WINDOW), XCB_ATOM_WINDOW, 32, 1, &active_id);
-}
-
 /* Run the next cycle of the event loop. */
 int next_cycle(void)
 {
@@ -294,7 +268,10 @@ int next_cycle(void)
             synchronize_client_list();
             has_client_list_changed = false;
         }
-        synchronize_focus_with_server(old_focus_window);
+
+        if (old_focus_window != focus_window) {
+            set_input_focus(focus_window);
+        }
     }
 
     if (has_timer_expired) {

@@ -12,7 +12,7 @@
 struct configuration_general {
     /* 0 to 100: percentage for the overlapping to consider when moving from one
      * monitor to another */
-    uint32_t move_overlap;
+    uint32_t overlap_percentage;
 };
 
 /* startup actions */

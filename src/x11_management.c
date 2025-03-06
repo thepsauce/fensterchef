@@ -200,7 +200,7 @@ int take_control(void)
     }
 
     /* intialize the focus */
-    xcb_set_input_focus(connection, XCB_INPUT_FOCUS_NONE,
+    xcb_set_input_focus(connection, XCB_INPUT_FOCUS_POINTER_ROOT,
             wm_check_window, XCB_CURRENT_TIME);
     return OK;
 }
@@ -288,6 +288,7 @@ void initialize_root_properties(void)
         ATOM(_NET_WM_STATE_MAXIMIZED_HORZ),
         ATOM(_NET_WM_STATE_FULLSCREEN),
         ATOM(_NET_WM_STATE_HIDDEN),
+        ATOM(_NET_WM_STATE_FOCUSED),
 
         ATOM(_NET_WM_STRUT),
         ATOM(_NET_WM_STRUT_PARTIAL),
@@ -317,6 +318,53 @@ void initialize_root_properties(void)
     };
     xcb_change_property(connection, XCB_PROP_MODE_REPLACE, screen->root,
             ATOM(_NET_WORKAREA), XCB_ATOM_CARDINAL, 32, 4, &workarea);
+}
+
+/* Set the input focus to @window. This window may be `NULL`. */
+void set_input_focus(Window *window)
+{
+    xcb_window_t focus_id = XCB_NONE;
+    xcb_window_t active_id;
+    xcb_atom_t state_atom;
+
+    if (window == NULL) {
+        LOG("removed focus from all windows\n");
+        active_id = screen->root;
+
+        focus_id = wm_check_window;
+    } else {
+        active_id = window->client.id;
+
+        state_atom = ATOM(_NET_WM_STATE_FOCUSED);
+        add_window_states(window, &state_atom, 1);
+
+        if (supports_protocol(window, ATOM(WM_TAKE_FOCUS))) {
+            char event_data[32];
+            xcb_client_message_event_t *event;
+
+            /* bake an event for running a protocol on the window */
+            event = (xcb_client_message_event_t*) event_data;
+            event->response_type = XCB_CLIENT_MESSAGE;
+            event->window = window->client.id;
+            event->type = ATOM(WM_PROTOCOLS);
+            event->format = 32;
+            memset(&event->data, 0, sizeof(event->data));
+            event->data.data32[0] = ATOM(WM_TAKE_FOCUS);
+            event->data.data32[1] = XCB_CURRENT_TIME;
+            xcb_send_event(connection, false, window->client.id,
+                    XCB_EVENT_MASK_NO_EVENT, event_data);
+        } else {
+            focus_id = window->client.id;
+        }
+    }
+
+    if (focus_id != XCB_NONE) {
+        xcb_set_input_focus(connection, XCB_INPUT_FOCUS_POINTER_ROOT,
+                focus_id, XCB_CURRENT_TIME);
+    }
+
+    xcb_change_property(connection, XCB_PROP_MODE_REPLACE, screen->root,
+            ATOM(_NET_ACTIVE_WINDOW), XCB_ATOM_WINDOW, 32, 1, &active_id);
 }
 
 /* Show the client on the X server. */
