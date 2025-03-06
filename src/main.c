@@ -19,6 +19,8 @@ int main(int argc, char **argv)
         exit(EXIT_FAILURE);
     }
 
+    LOG("parsed arguments, starting to log\n");
+
     /* initialize the X connection and X atoms */
     if (initialize_x11() != OK) {
         quit_fensterchef(EXIT_FAILURE);

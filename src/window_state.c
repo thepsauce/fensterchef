@@ -230,7 +230,7 @@ static void synchronize_allowed_actions(Window *window)
 }
 
 /* Add window states to the window properties. */
-static void add_window_states(Window *window, xcb_atom_t *states,
+void add_window_states(Window *window, xcb_atom_t *states,
         uint32_t number_of_states)
 {
     uint32_t effective_count = 0;
@@ -259,6 +259,11 @@ static void add_window_states(Window *window, xcb_atom_t *states,
         states[effective_count++] = states[i];
     }
 
+    /* check if anything changed */
+    if (effective_count == 0) {
+        return;
+    }
+
     /* append the properties to the list in the X server */
     xcb_change_property(connection, XCB_PROP_MODE_APPEND,
             window->client.id, ATOM(_NET_WM_STATE),
@@ -266,7 +271,7 @@ static void add_window_states(Window *window, xcb_atom_t *states,
 }
 
 /* Remove window states from the window properties. */
-static void remove_window_states(Window *window, xcb_atom_t *states,
+void remove_window_states(Window *window, xcb_atom_t *states,
         uint32_t number_of_states)
 {
     uint32_t i;

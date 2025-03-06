@@ -992,9 +992,11 @@ static void log_event(xcb_generic_event_t *event)
     uint8_t event_type;
 
     event_type = (event->response_type & ~0x80);
-    if (event_type == randr_event_base + XCB_RANDR_SCREEN_CHANGE_NOTIFY) {
+    if (randr_event_base > 0 &&
+            event_type == randr_event_base + XCB_RANDR_SCREEN_CHANGE_NOTIFY) {
         fputs("RandrScreenChangeNotify", stderr);
-    } else if (event_type == randr_event_base + XCB_RANDR_NOTIFY) {
+    } else if (randr_event_base > 0 &&
+            event_type == randr_event_base + XCB_RANDR_NOTIFY) {
         fputs("RandrNotify", stderr);
     } else if (xcb_event_get_label(event_type) != NULL) {
         fputs(xcb_event_get_label(event_type), stderr);
@@ -1016,7 +1018,8 @@ static void log_event(xcb_generic_event_t *event)
     fprintf(stderr, "(sequence=");
     log_unsigned(event->sequence);
 
-    if (event_type == randr_event_base + XCB_RANDR_SCREEN_CHANGE_NOTIFY) {
+    if (randr_event_base > 0 &&
+            event_type == randr_event_base + XCB_RANDR_SCREEN_CHANGE_NOTIFY) {
         log_randr_screen_change_notify_event(
                 (xcb_randr_screen_change_notify_event_t*) event);
         fputs(")", stderr);

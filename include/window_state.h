@@ -44,6 +44,14 @@ window_mode_t predict_window_mode(Window *window);
 /* Check if @window has a visible border currently. */
 bool has_window_border(Window *window);
 
+/* Add window states to the window's properties. */
+void add_window_states(Window *window, xcb_atom_t *states,
+        uint32_t number_of_states);
+
+/* Remove window states from the window's properties. */
+void remove_window_states(Window *window, xcb_atom_t *states,
+        uint32_t number_of_states);
+
 /* Change the mode to given value and reconfigures the window if it is visible.
  *
  * @force_mode is used to force the change of the window mode.

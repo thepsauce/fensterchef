@@ -134,6 +134,8 @@ void synchronize_with_server(void)
     Monitor *monitor;
     Rectangle rectangle;
 
+    xcb_atom_t state_atom;
+
     /**
      * since the strut of a monitor might have changed because a window with
      * strut got hidden or shown, we need to recompute those
@@ -203,6 +205,8 @@ void synchronize_with_server(void)
         configure_client(&window->client, window->x, window->y,
                 window->width, window->height, window->border_size);
         change_client_attributes(&window->client, window->border_color);
+        state_atom = ATOM(_NET_WM_STATE_HIDDEN);
+        remove_window_states(window, &state_atom, 1);
         map_client(&window->client);
     }
 
@@ -210,6 +214,8 @@ void synchronize_with_server(void)
     for (Window *window = bottom_window; window != NULL;
             window = window->above) {
         if (!window->state.is_visible) {
+            state_atom = ATOM(_NET_WM_STATE_HIDDEN);
+            add_window_states(window, &state_atom, 1);
             unmap_client(&window->client);
         }
     }
@@ -937,7 +943,8 @@ void handle_event(xcb_generic_event_t *event)
         LOG("%V\n", event);
     }
 
-    if (type == randr_event_base + XCB_RANDR_SCREEN_CHANGE_NOTIFY) {
+    if (randr_event_base > 0 &&
+            type == randr_event_base + XCB_RANDR_SCREEN_CHANGE_NOTIFY) {
         handle_screen_change((xcb_randr_screen_change_notify_event_t*) event);
         return;
     }

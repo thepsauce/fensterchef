@@ -248,21 +248,11 @@ void initialize_root_properties(void)
         ATOM(_NET_CLIENT_LIST),
         ATOM(_NET_CLIENT_LIST_STACKING),
 
-        ATOM(_NET_NUMBER_OF_DESKTOPS),
-
-        ATOM(_NET_DESKTOP_GEOMETRY),
-        ATOM(_NET_DESKTOP_VIEWPORT),
-
-        ATOM(_NET_CURRENT_DESKTOP),
-        ATOM(_NET_DESKTOP_NAMES),
-
         ATOM(_NET_ACTIVE_WINDOW),
 
         ATOM(_NET_WORKAREA),
 
         ATOM(_NET_SUPPORTING_WM_CHECK),
-
-        ATOM(_NET_SHOWING_DESKTOP),
 
         ATOM(_NET_CLOSE_WINDOW),
 
@@ -297,6 +287,7 @@ void initialize_root_properties(void)
         ATOM(_NET_WM_STATE_MAXIMIZED_VERT),
         ATOM(_NET_WM_STATE_MAXIMIZED_HORZ),
         ATOM(_NET_WM_STATE_FULLSCREEN),
+        ATOM(_NET_WM_STATE_HIDDEN),
 
         ATOM(_NET_WM_STRUT),
         ATOM(_NET_WM_STRUT_PARTIAL),
@@ -314,38 +305,6 @@ void initialize_root_properties(void)
             screen->root, ATOM(_NET_SUPPORTING_WM_CHECK), XCB_ATOM_WINDOW,
             32, 1, &wm_check_window);
 
-    /* the current desktop, always 0 */
-    const uint32_t zero = 0;
-    xcb_change_property(connection, XCB_PROP_MODE_REPLACE, screen->root,
-            ATOM(_NET_CURRENT_DESKTOP), XCB_ATOM_CARDINAL, 32,
-            1, &zero);
-
-    /* origin of the viewport, always (0, 0) */
-    const Point origin = { 0, 0 };
-    xcb_change_property(connection, XCB_PROP_MODE_REPLACE, screen->root,
-            ATOM(_NET_DESKTOP_VIEWPORT), XCB_ATOM_CARDINAL, 32,
-            2, &origin);
-
-    /* size of the desktop, large desktops are however not supported */
-    const Size geometry = {
-        screen->width_in_pixels,
-        screen->height_in_pixels
-    };
-    xcb_change_property(connection, XCB_PROP_MODE_REPLACE, screen->root,
-            ATOM(_NET_DESKTOP_GEOMETRY), XCB_ATOM_CARDINAL, 32,
-            2, &geometry);
-
-    /* the number of desktops, always 1 */
-    const uint32_t one = 1;
-    xcb_change_property(connection, XCB_PROP_MODE_REPLACE, screen->root,
-            ATOM(_NET_NUMBER_OF_DESKTOPS), XCB_ATOM_CARDINAL, 32,
-            1, &one);
-
-    /* set the name of the only desktop */
-    const char *const desktop_name = "0";
-    xcb_change_property(connection, XCB_PROP_MODE_REPLACE, screen->root,
-            ATOM(_NET_DESKTOP_NAMES), ATOM(UTF8_STRING), 8,
-            strlen(desktop_name), desktop_name);
 
     /* set the active window */
     xcb_change_property(connection, XCB_PROP_MODE_REPLACE, screen->root,
