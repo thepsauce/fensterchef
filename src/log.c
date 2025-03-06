@@ -16,7 +16,7 @@
 #include "x11_management.h"
 
 /* the severity of the logging */
-log_severity_t log_severity;
+log_severity_t log_severity = LOG_SEVERITY_INFO;
 
 /***********************/
 /** String conversion **/
@@ -992,9 +992,11 @@ static void log_event(xcb_generic_event_t *event)
     uint8_t event_type;
 
     event_type = (event->response_type & ~0x80);
-    if (event_type == randr_event_base + XCB_RANDR_SCREEN_CHANGE_NOTIFY) {
+    if (randr_event_base > 0 &&
+            event_type == randr_event_base + XCB_RANDR_SCREEN_CHANGE_NOTIFY) {
         fputs("RandrScreenChangeNotify", stderr);
-    } else if (event_type == randr_event_base + XCB_RANDR_NOTIFY) {
+    } else if (randr_event_base > 0 &&
+            event_type == randr_event_base + XCB_RANDR_NOTIFY) {
         fputs("RandrNotify", stderr);
     } else if (xcb_event_get_label(event_type) != NULL) {
         fputs(xcb_event_get_label(event_type), stderr);
@@ -1016,7 +1018,8 @@ static void log_event(xcb_generic_event_t *event)
     fprintf(stderr, "(sequence=");
     log_unsigned(event->sequence);
 
-    if (event_type == randr_event_base + XCB_RANDR_SCREEN_CHANGE_NOTIFY) {
+    if (randr_event_base > 0 &&
+            event_type == randr_event_base + XCB_RANDR_SCREEN_CHANGE_NOTIFY) {
         log_randr_screen_change_notify_event(
                 (xcb_randr_screen_change_notify_event_t*) event);
         fputs(")", stderr);
@@ -1180,42 +1183,47 @@ static void log_frame(const Frame *frame)
 static void log_actions(const Action *actions, uint32_t number_of_actions)
 {
     for (uint32_t i = 0; i < number_of_actions; i++) {
-        if (number_of_actions > 1) {
-            fputs("\n\t", stderr);
+        if (i > 0) {
+            fputs(" ; ", stderr);
         }
-        fprintf(stderr, COLOR(CYAN) "%s" CLEAR_COLOR " ",
+        fprintf(stderr, COLOR(CYAN) "%s" CLEAR_COLOR,
                 action_to_string(actions[i].code));
         switch (get_action_data_type(actions[i].code)) {
         case PARSER_DATA_TYPE_VOID:
+            /* nothing */
             break;
 
         case PARSER_DATA_TYPE_BOOLEAN:
+            fputc(' ', stderr);
             log_boolean(actions[i].parameter.boolean);
             break;
 
         case PARSER_DATA_TYPE_STRING:
+            fputc(' ', stderr);
             fprintf(stderr, COLOR(GREEN) "%s" CLEAR_COLOR,
                     (char*) actions[i].parameter.string);
             break;
 
         case PARSER_DATA_TYPE_INTEGER:
+            fputc(' ', stderr);
             log_integer(actions[i].parameter.integer);
             break;
 
         case PARSER_DATA_TYPE_QUAD:
             fprintf(stderr, COLOR(GREEN)
-                        "%" PRId32 " %" PRId32 " %" PRId32 " %" PRId32
+                        " %" PRId32 " %" PRId32 " %" PRId32 " %" PRId32
                         CLEAR_COLOR,
                     actions[i].parameter.quad[0], actions[i].parameter.quad[1],
                     actions[i].parameter.quad[2], actions[i].parameter.quad[3]);
             break;
 
         case PARSER_DATA_TYPE_COLOR:
-            fprintf(stderr, COLOR(YELLOW) "#%06x" CLEAR_COLOR,
+            fprintf(stderr, COLOR(YELLOW) " #%06x" CLEAR_COLOR,
                 actions[i].parameter.color);
             break;
 
         case PARSER_DATA_TYPE_MODIFIERS:
+            fputc(' ', stderr);
             log_modifiers(actions[i].parameter.modifiers);
             break;
         }
@@ -1253,7 +1261,7 @@ void log_formatted(log_severity_t severity, const char *file, int line,
     current_time = time(NULL);
     tm = localtime(&current_time);
     strftime(buffer, sizeof(buffer),
-            severity == SEVERITY_ERROR ? COLOR(RED) "{%F %T}" :
+            severity == LOG_SEVERITY_ERROR ? COLOR(RED) "{%F %T}" :
                 COLOR(GREEN) "[%F %T]", tm);
     fprintf(stderr, "%s" COLOR(YELLOW) "(%s:%d) " CLEAR_COLOR,
             buffer, file, line);

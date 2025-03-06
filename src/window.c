@@ -158,7 +158,7 @@ Window *create_window(xcb_window_t xcb_window)
 void close_window(Window *window)
 {
     time_t current_time;
-    uint8_t event_data[32];
+    char event_data[32];
     xcb_client_message_event_t *event;
 
     current_time = time(NULL);
@@ -182,7 +182,7 @@ void close_window(Window *window)
     memset(&event->data, 0, sizeof(event->data));
     event->data.data32[0] = ATOM(WM_DELETE_WINDOW);
     xcb_send_event(connection, false, window->client.id,
-            XCB_EVENT_MASK_NO_EVENT, (char*) event);
+            XCB_EVENT_MASK_NO_EVENT, event_data);
 
     window->state.was_close_requested = true;
     window->state.user_request_close_time = current_time;
@@ -262,6 +262,9 @@ void destroy_window(Window *window)
 
     has_client_list_changed = true;
 
+    free(window->name);
+    free(window->protocols);
+    free(window->states);
     free(window);
 }
 
@@ -393,6 +396,13 @@ void set_window_size(Window *window, int32_t x, int32_t y, uint32_t width,
     width = MAX(width, minimum.width);
     height = MAX(height, minimum.height);
 
+    if (window->state.mode == WINDOW_MODE_FLOATING) {
+        window->floating.x = x;
+        window->floating.y = y;
+        window->floating.width = width;
+        window->floating.height = height;
+    }
+
     window->x = x;
     window->y = y;
     window->width = width;
@@ -518,8 +528,23 @@ bool does_window_accept_focus(Window *window)
         return false;
     }
 
+    if (supports_protocol(window, ATOM(WM_TAKE_FOCUS))) {
+        return true;
+    }
+
     return !(window->hints.flags & XCB_ICCCM_WM_HINT_INPUT) ||
             window->hints.input != 0;
+}
+
+/* Remove any focus indication from @window. */
+static inline void lose_focus(Window *window)
+{
+    xcb_atom_t state_atom;
+
+    focus_window->border_color = configuration.border.color;
+
+    state_atom = ATOM(_NET_WM_STATE_FOCUSED);
+    remove_window_states(window, &state_atom, 1);
 }
 
 /* Set the window that is in focus to @window. */
@@ -527,7 +552,7 @@ void set_focus_window(Window *window)
 {
     if (window == NULL) {
         if (focus_window != NULL) {
-            focus_window->border_color = configuration.border.color;
+            lose_focus(focus_window);
             focus_window = NULL;
         }
         return;
@@ -538,7 +563,7 @@ void set_focus_window(Window *window)
     if (!does_window_accept_focus(window)) {
         LOG("the window can not be focused\n");
         if (focus_window != NULL) {
-            focus_window->border_color = configuration.border.color;
+            lose_focus(focus_window);
             focus_window = NULL;
         }
         return;
@@ -550,7 +575,7 @@ void set_focus_window(Window *window)
     }
 
     if (focus_window != NULL) {
-        focus_window->border_color = configuration.border.color;
+        lose_focus(focus_window);
     }
 
     focus_window = window;

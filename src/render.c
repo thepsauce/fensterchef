@@ -9,13 +9,15 @@
 #include "x11_management.h"
 
 /* TODO: how do we make colored emojis work?
- * I tried to but color formats other than 8 bit colors
+ * I tried to but color formats other than 8 bit colors do not work
+ *
+ * TODO: and how to get fonts with fixed size to scale?
  */
 
 /* the render formats for pictures */
 static xcb_render_query_pict_formats_reply_t *formats;
 
-/* graphical objects with the id referring to the xcb id */
+/* graphical objects with the id referring to the X server id */
 uint32_t stock_objects[STOCK_MAX];
 
 /* the font used for rendering */
@@ -36,8 +38,11 @@ static struct font {
 
 /* a mapping from drawable to picture */
 static struct window_picture_cache {
+    /* the id of the drawable */
     xcb_drawable_t xcb_drawable;
+    /* the picture created for the drawable */
     xcb_render_picture_t picture;
+    /* the next cache object in the linked list */
     struct window_picture_cache *next;
 } *window_picture_cache_head;
 
@@ -212,7 +217,7 @@ int initialize_renderer(void)
     return OK;
 }
 
-/* Frees all resources associated to rendering. */
+/* Free all resources associated to rendering. */
 void deinitialize_renderer(void)
 {
     struct window_picture_cache *cache, *next;
@@ -240,11 +245,11 @@ void deinitialize_renderer(void)
     FcFini();
 }
 
-/* Creates a picture for the given window (or retrieves it from the cache).
+/* Create a picture for the given window (or retrieve it from the cache).
  *
  * The cached items do not need to be cleared ever since they are only for the
  * two fensterchef windows (notification and window list) which only get cleared
- * whin fensterchef quits.
+ * when fensterchef quits.
  */
 xcb_render_picture_t cache_window_picture(xcb_drawable_t xcb_drawable)
 {
@@ -310,7 +315,7 @@ void set_pen_color(xcb_render_picture_t pen, xcb_render_color_t color)
         color, 1, &rectangle);
 }
 
-/* Creates a picture with width and height set to 1. */
+/* Create a picture with width and height set to 1. */
 xcb_render_picture_t create_pen(xcb_render_color_t color)
 {
     xcb_pixmap_t pixmap;
@@ -602,10 +607,8 @@ static FT_Face load_glyph(uint32_t glyph, FT_Int32 load_flags)
     return face;
 }
 
-/* Add the glyph to the cache. The caller must have made sure that the glyph is
- * not already cached.
- */
-static int cache_glyph(uint32_t glyph, FT_Pos *advance)
+/* Add the glyph to the cache if not already cached. */
+static FT_Face cache_glyph(uint32_t glyph)
 {
     FT_Face face;
     xcb_render_glyphinfo_t glyph_info;
@@ -613,13 +616,24 @@ static int cache_glyph(uint32_t glyph, FT_Pos *advance)
     uint8_t *temporary_bitmap;
 
     if (glyph == 0) {
-        return ERROR;
+        return NULL;
+    }
+
+    /* check if the glyph is already cached */
+    if (FcCharSetHasChar(font.charset, glyph)) {
+        face = load_glyph(glyph, FT_LOAD_DEFAULT);
+        if (face == NULL) {
+            return NULL;
+        }
+        return face;
     }
 
     /* find the face that has the glyph and load it */
     face = load_glyph(glyph, FT_LOAD_RENDER);
     if (face == NULL) {
-        return ERROR;
+        LOG_VERBOSE("could not load face for glyph: " COLOR(GREEN) "U+%08x\n",
+                glyph);
+        return NULL;
     }
 
     glyph_info.x = -face->glyph->bitmap_left;
@@ -650,14 +664,14 @@ static int cache_glyph(uint32_t glyph, FT_Pos *advance)
 
     free(temporary_bitmap);
 
-    *advance = glyph_info.x_off;
+    LOG_VERBOSE("cached glyph: " COLOR(GREEN) "U+%08x\n", glyph);
 
     /* mark the glyph as cached */
     FcCharSetAddChar(font.charset, glyph);
-    return OK;
+    return face;
 }
 
-/* This draws text to a given picture using the current font. */
+/* Draw text to a given drawable using the current font. */
 int draw_text(xcb_drawable_t xcb_drawable, const utf8_t *utf8, uint32_t length,
         xcb_render_color_t background_color, const xcb_rectangle_t *rectangle,
         xcb_render_picture_t foreground, int32_t x, int32_t y)
@@ -673,10 +687,12 @@ int draw_text(xcb_drawable_t xcb_drawable, const utf8_t *utf8, uint32_t length,
             /* position of the glyphs */
             int16_t x, y;
         } header;
-        /* the actual glyphs */
+        /* the actual glyphs; -1 is needed to prevent an overflow when looping
+         * using a `uint8_t`
+         */
         uint32_t glyphs[UINT8_MAX - 1];
     } glyphs;
-    FT_Pos advance;
+    FT_Face face;
     uint32_t text_width;
 
     if (!font.available) {
@@ -704,18 +720,15 @@ int draw_text(xcb_drawable_t xcb_drawable, const utf8_t *utf8, uint32_t length,
         while (glyphs.header.count < SIZE(glyphs.glyphs) && i < length) {
             U8_NEXT(utf8, i, length, glyph);
 
-            if (FcCharSetHasChar(font.charset, glyph)) {
-                glyphs.glyphs[glyphs.header.count++] = glyph;
-                continue;
-            }
-
-            if (cache_glyph(glyph, &advance) == ERROR) {
+            face = cache_glyph(glyph);
+            if (face == NULL) {
                 continue;
             }
 
             glyphs.glyphs[glyphs.header.count++] = glyph;
 
-            text_width += advance;
+            /* dividing by 64 converts from 26.6 fractional points to pixels */
+            text_width += face->glyph->advance.x / 64;
         }
 
         /* send a render request to the X renderer */
@@ -727,7 +740,7 @@ int draw_text(xcb_drawable_t xcb_drawable, const utf8_t *utf8, uint32_t length,
                 font.glyphset,
                 0, 0, /* source position */
                 sizeof(glyphs.header) +
-                    sizeof(uint32_t) * glyphs.header.count,
+                    sizeof(glyphs.glyphs[0]) * glyphs.header.count,
                 (uint8_t*) &glyphs);
 
         glyphs.header.x += text_width;
@@ -756,7 +769,7 @@ void measure_text(const utf8_t *utf8, uint32_t length,
     for (uint32_t i = 0; i < length; ) {
         U8_NEXT(utf8, i, length, glyph);
         /* load the char into the font */
-        face = load_glyph(glyph, FT_LOAD_DEFAULT);
+        face = cache_glyph(glyph);
         if (face == NULL) {
             continue;
         }

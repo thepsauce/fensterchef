@@ -52,6 +52,8 @@ void duplicate_configuration(struct configuration *duplicate)
     if (duplicate->font.name != NULL) {
         duplicate->font.name = (uint8_t*) xstrdup((char*) duplicate->font.name);
     }
+    duplicate->startup.actions = duplicate_actions(duplicate->startup.actions,
+            duplicate->startup.number_of_actions);
     duplicate_configuration_button_bindings(duplicate);
     duplicate_configuration_key_bindings(duplicate);
 }
@@ -60,6 +62,18 @@ void duplicate_configuration(struct configuration *duplicate)
 void clear_configuration(struct configuration *configuration)
 {
     free(configuration->font.name);
+
+    free_actions(configuration->startup.actions,
+            configuration->startup.number_of_actions);
+
+    /* free button bindings */
+    for (uint32_t i = 0; i < configuration->mouse.number_of_buttons; i++) {
+        free_actions(configuration->mouse.buttons[i].actions,
+                configuration->mouse.buttons[i].number_of_actions);
+    }
+    free(configuration->mouse.buttons);
+
+    /* free key bindings */
     for (uint32_t i = 0; i < configuration->keyboard.number_of_keys; i++) {
         free_actions(configuration->keyboard.keys[i].actions,
                 configuration->keyboard.keys[i].number_of_actions);
@@ -77,10 +91,10 @@ void reload_user_configuration(void)
             fensterchef_configuration[1] == '/') {
         const char *const home = getenv("HOME");
         if (home == NULL) {
-            LOG("could not get home directory ($HOME is unset)\n");
-        } else {
-            path = xasprintf("%s/%s", home, &fensterchef_configuration[2]);
+            LOG_ERROR("could not get home directory ($HOME is unset)\n");
+            return;
         }
+        path = xasprintf("%s/%s", home, &fensterchef_configuration[2]);
     } else {
         path = xstrdup(fensterchef_configuration);
     }
@@ -233,17 +247,6 @@ void grab_configured_keys(void)
     }
 }
 
-/* Reload the given frame or all sub frames. */
-static void reload_frame_recursively(Frame *frame)
-{
-    if (frame->left != NULL) {
-        reload_frame_recursively(frame->left);
-        reload_frame_recursively(frame->right);
-    } else {
-        reload_frame(frame);
-    }
-}
-
 /* Compare the current configuration with the new configuration and set it. */
 void set_configuration(struct configuration *new_configuration)
 {
@@ -253,22 +256,9 @@ void set_configuration(struct configuration *new_configuration)
     old_configuration = configuration;
     configuration = *new_configuration;
 
-    /* check if font changed */
-    if (configuration.font.name != NULL &&
-            (old_configuration.font.name == NULL ||
-                strcmp((char*) old_configuration.font.name,
-                    (char*) configuration.font.name) != 0)) {
+    /* reload the font */
+    if (configuration.font.name != NULL) {
         set_font(configuration.font.name);
-    }
-
-    /* check if border size or gaps change and reload all frames */
-    if (old_configuration.border.size != configuration.border.size ||
-            old_configuration.gaps.inner != configuration.gaps.inner ||
-            old_configuration.gaps.outer != configuration.gaps.outer) {
-        for (Monitor *monitor = first_monitor; monitor != NULL;
-                monitor = monitor->next) {
-            reload_frame_recursively(monitor->frame);
-        }
     }
 
     /* refresh the border size and color of all windows */
@@ -279,6 +269,13 @@ void set_configuration(struct configuration *new_configuration)
             window->border_color = configuration.border.color;
         }
         window->border_size = configuration.border.size;
+    }
+
+    /* reload all frames */
+    for (Monitor *monitor = first_monitor; monitor != NULL;
+            monitor = monitor->next) {
+        resize_frame(monitor->frame, monitor->frame->x, monitor->frame->y,
+                monitor->frame->width, monitor->frame->height);
     }
 
     /* change border color and size of the notification window */
@@ -354,6 +351,9 @@ int load_configuration_file(const char *file_name,
 
     parser.configuration = destination_configuration;
     *parser.configuration = configuration;
+    /* disregard all previous startup actions */
+    parser.configuration->startup.actions = NULL;
+    parser.configuration->startup.number_of_actions = 0;
     /* disregard all previous bindings */
     parser.configuration->mouse.buttons = NULL;
     parser.configuration->mouse.number_of_buttons = 0;
@@ -414,10 +414,18 @@ int load_configuration_file(const char *file_name,
         return ERROR;
     }
 
+    /* set the existing startup actions if no startup section is specified */
+    if (!parser.has_label[PARSER_LABEL_STARTUP]) {
+        parser.configuration->startup.actions =
+            duplicate_actions(configuration.startup.actions,
+                configuration.startup.number_of_actions);
+        parser.configuration->startup.number_of_actions =
+            configuration.startup.number_of_actions;
+    }
+
     /* set the existing button bindings if no mouse section is specified */
     if (!parser.has_label[PARSER_LABEL_MOUSE]) {
-        parser.configuration->mouse.buttons =
-            configuration.mouse.buttons;
+        parser.configuration->mouse.buttons = configuration.mouse.buttons;
         parser.configuration->mouse.number_of_buttons =
             configuration.mouse.number_of_buttons;
         duplicate_configuration_button_bindings(parser.configuration);
@@ -425,8 +433,7 @@ int load_configuration_file(const char *file_name,
 
     /* set the existing key bindings if no keyboard section is specified */
     if (!parser.has_label[PARSER_LABEL_KEYBOARD]) {
-        parser.configuration->keyboard.keys =
-            configuration.keyboard.keys;
+        parser.configuration->keyboard.keys = configuration.keyboard.keys;
         parser.configuration->keyboard.number_of_keys =
             configuration.keyboard.number_of_keys;
         duplicate_configuration_key_bindings(parser.configuration);

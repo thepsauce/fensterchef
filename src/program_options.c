@@ -48,7 +48,7 @@ static void print_usage(void)
             error                   only log errors\n\
             nothing                 log nothing\n\
         --verbose                   log everything\n\
-        -c, --config    FILE        set the path of the configuration",
+        -c, --config    FILE        set the path of the configuration\n",
         stderr);
 
 }
@@ -66,10 +66,10 @@ static void print_version(void)
 static int handle_option(option_t option, char *value)
 {
     const char *verbosities[] = {
-        [SEVERITY_ALL] = "all",
-        [SEVERITY_INFO] = "info",
-        [SEVERITY_ERROR] = "error",
-        [SEVERITY_NOTHING] = "nothing",
+        [LOG_SEVERITY_ALL] = "all",
+        [LOG_SEVERITY_INFO] = "info",
+        [LOG_SEVERITY_ERROR] = "error",
+        [LOG_SEVERITY_NOTHING] = "nothing",
     };
 
     switch (option) {
@@ -87,7 +87,7 @@ static int handle_option(option_t option, char *value)
     /* change of logging verbosity */
     case OPTION_VERBOSITY:
         for (log_severity_t i = 0; i < SIZE(verbosities); i++) {
-            if (strcmp(verbosities[i], value) == 0) {
+            if (strcasecmp(verbosities[i], value) == 0) {
                 log_severity = i;
                 return OK;
             }
@@ -102,7 +102,7 @@ static int handle_option(option_t option, char *value)
 
     /* verbose logging */
     case OPTION_VERBOSE:
-        log_severity = SEVERITY_ALL;
+        log_severity = LOG_SEVERITY_ALL;
         return OK;
 
     /* set the configuration */

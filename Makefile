@@ -19,6 +19,9 @@ SRC := src
 BUILD := build
 RELEASE := release
 
+BINARY := /usr/bin/fensterchef
+MANUAL_PAGE := /usr/share/man/man1/fensterchef.1.gz
+
 # Find all source files
 SOURCES := $(shell find $(SRC) -name '*.c')
 # Get all corresponding object paths
@@ -94,12 +97,12 @@ $(RELEASE)/fensterchef.1.gz: man/fensterchef.1
 	gzip --best -c man/fensterchef.1 > $@
 
 install: $(RELEASE)/fensterchef.1.gz release
-	install $(RELEASE)/fensterchef /usr/bin/fensterchef
-	install $(RELEASE)/fensterchef.1.gz /usr/share/man/man1/fensterchef.1.gz
+	install $(RELEASE)/fensterchef $(BINARY)
+	install $(RELEASE)/fensterchef.1.gz $(MANUAL_PAGE)
 
 uninstall:
-	rm /usr/bin/fensterchef
-	rm /usr/share/man/man1/fensterchef.1.gz
+	rm $(BINARY)
+	rm $(MANUAL_PAGE)
 
 clean:
 	rm -rf $(BUILD)

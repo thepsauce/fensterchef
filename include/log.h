@@ -7,13 +7,13 @@
 
 typedef enum {
     /* everything gets logged */
-    SEVERITY_ALL,
+    LOG_SEVERITY_ALL,
     /* only information gets logged */
-    SEVERITY_INFO,
+    LOG_SEVERITY_INFO,
     /* only errors get logged */
-    SEVERITY_ERROR,
+    LOG_SEVERITY_ERROR,
     /* log nothing */
-    SEVERITY_NOTHING,
+    LOG_SEVERITY_NOTHING,
 } log_severity_t;
 
 /* the severity of the logging */
@@ -45,11 +45,11 @@ extern log_severity_t log_severity;
 
 /* wrappers around `log_formatted` for different severities */
 #define LOG_VERBOSE(...) \
-    log_formatted(SEVERITY_ALL, __FILE__, __LINE__, __VA_ARGS__)
+    log_formatted(LOG_SEVERITY_ALL, __FILE__, __LINE__, __VA_ARGS__)
 #define LOG(...) \
-    log_formatted(SEVERITY_INFO, __FILE__, __LINE__, __VA_ARGS__)
+    log_formatted(LOG_SEVERITY_INFO, __FILE__, __LINE__, __VA_ARGS__)
 #define LOG_ERROR(...) \
-    log_formatted(SEVERITY_ERROR, __FILE__, __LINE__, __VA_ARGS__)
+    log_formatted(LOG_SEVERITY_ERROR, __FILE__, __LINE__, __VA_ARGS__)
 
 /* printf format specifiers that can be used */
 #define PRINTF_FORMAT_SPECIFIERS "diuoxfegcsp"

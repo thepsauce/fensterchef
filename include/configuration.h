@@ -6,11 +6,21 @@
 
 #include "action.h"
 #include "keymap.h"
+#include "utility.h"
 
 /* general settings */
 struct configuration_general {
-    /* currently no members */
-    uint32_t unused;
+    /* 0 to 100: percentage for the overlapping to consider when moving from one
+     * monitor to another */
+    uint32_t overlap_percentage;
+};
+
+/* startup actions */
+struct configuration_startup {
+    /* the list of actions to run on start */
+    Action *actions;
+    /* the number of actions */
+    uint32_t number_of_actions;
 };
 
 /* tiling settings */
@@ -40,9 +50,9 @@ struct configuration_border {
 /* gaps settings for the tiling layout */
 struct configuration_gaps {
     /* width of the inner gaps (between frames) */
-    uint32_t inner;
+    Extents inner;
     /* width of the inner gaps (between frames and monitor boundaries) */
-    uint32_t outer;
+    Extents outer;
 };
 
 /* notification window settings */
@@ -83,7 +93,7 @@ struct configuration_button {
 struct configuration_mouse {
     /* how many pixels off the edges of windows should be used for resizing */
     int32_t resize_tolerance;
-    /* the modifier key applied for all keys (applied at the parsing step) */
+    /* the modifier key for all buttons (applied at the parsing step) */
     uint16_t modifiers;
     /* the modifiers to ignore */
     uint16_t ignore_modifiers;
@@ -108,7 +118,7 @@ struct configuration_key {
 
 /* keyboard settings */
 struct configuration_keyboard {
-    /* the modifier key applied for all keys (applied at the parsing step) */
+    /* the modifier key for all keys (applied at the parsing step) */
     uint16_t modifiers;
     /* the modifiers to ignore */
     uint16_t ignore_modifiers;
@@ -122,6 +132,8 @@ struct configuration_keyboard {
 extern struct configuration {
     /* general settings */
     struct configuration_general general;
+    /* startup actions */
+    struct configuration_startup startup;
     /* general settings */
     struct configuration_tiling tiling;
     /* font settings */
@@ -132,9 +144,9 @@ extern struct configuration {
     struct configuration_gaps gaps;
     /* notifiaction window settings */
     struct configuration_notification notification;
-    /* mouse settings / mousebindings */
+    /* mouse settings / button bindings */
     struct configuration_mouse mouse;
-    /* keyboard settings / keybindings */
+    /* keyboard settings / key bindings */
     struct configuration_keyboard keyboard;
 } configuration;
 

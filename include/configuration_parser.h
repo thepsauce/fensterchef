@@ -42,6 +42,8 @@ typedef enum {
     PARSER_ERROR_BAD_COLOR_FORMAT,
     /* a line is terminated but tokens were expected first */
     PARSER_ERROR_PREMATURE_LINE_END,
+    /* invalid number of integers for a quad */
+    PARSER_ERROR_INVALID_QUAD,
     /* invalid syntax for modifiers */
     PARSER_ERROR_INVALID_MODIFIERS,
     /* invalid button name */
@@ -60,7 +62,7 @@ typedef enum {
 
 /* labels with form "[<name>]"
  *
- * NOTE: After editing this enum, also edit the `label_strings[]` array in
+ * NOTE: After editing this enum, also edit the `labels[]` array in
  * `configuration_parser.c`.
  * To add variables to the label, edit `variables[]` in `parse_line()` and also
  * add it to the configuration in `configuration.c` AND add a default option in
@@ -72,6 +74,7 @@ typedef enum parser_label {
     PARSER_FIRST_LABEL,
 
     PARSER_LABEL_GENERAL = PARSER_FIRST_LABEL,
+    PARSER_LABEL_STARTUP,
     PARSER_LABEL_TILING,
     PARSER_LABEL_FONT,
     PARSER_LABEL_BORDER,

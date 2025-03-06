@@ -64,23 +64,24 @@ static void configure_floating_size(Window *window)
             height = MIN(height, (uint32_t) window->size_hints.max_height);
         }
 
-        if ((window->size_hints.flags & XCB_ICCCM_SIZE_HINT_P_POSITION)) {
-            x = window->size_hints.x;
-            y = window->size_hints.y;
+        /* center the window */
+        x = monitor->x + (monitor->width - width) / 2;
+        y = monitor->y + (monitor->height - height) / 2;
+    } else {
+        width = window->floating.width;
+        height = window->floating.height;
+        /* if the window would still be in the monitor is was moved to,
+         * restore the position, otherwise center the window
+         */
+        if (get_monitor_from_rectangle(window->floating.x,
+                    window->floating.y, window->floating.width,
+                    window->floating.height) == monitor) {
+            x = window->floating.x;
+            y = window->floating.y;
         } else {
             x = monitor->x + (monitor->width - width) / 2;
             y = monitor->y + (monitor->height - height) / 2;
         }
-
-        window->floating.x = x;
-        window->floating.y = y;
-        window->floating.width = width;
-        window->floating.height = height;
-    } else {
-        x = window->floating.x;
-        y = window->floating.y;
-        width = window->floating.width;
-        height = window->floating.height;
     }
 
     /* consider the window gravity, i.e. where the window wants to be */
@@ -97,8 +98,7 @@ static void configure_fullscreen_size(Window *window)
 {
     Monitor *monitor;
 
-    if (window->fullscreen_monitors.top !=
-            window->fullscreen_monitors.bottom) {
+    if (window->fullscreen_monitors.top != window->fullscreen_monitors.bottom) {
         set_window_size(window, window->fullscreen_monitors.left,
                 window->fullscreen_monitors.top,
                 window->fullscreen_monitors.right -
@@ -116,33 +116,28 @@ static void configure_fullscreen_size(Window *window)
 /* Sets the position and size of the window to a dock window. */
 static void configure_dock_size(Window *window)
 {
+    const uint32_t both_hints = XCB_ICCCM_SIZE_HINT_P_POSITION |
+        XCB_ICCCM_SIZE_HINT_P_SIZE;
     Monitor *monitor;
     int32_t x, y;
     uint32_t width, height;
 
-    if ((window->size_hints.flags & XCB_ICCCM_SIZE_HINT_P_SIZE)) {
-        width = window->size_hints.width;
-        height = window->size_hints.height;
-    } else {
-        width = 0;
-        height = 0;
-    }
-
-    if ((window->size_hints.flags & XCB_ICCCM_SIZE_HINT_P_POSITION)) {
+    /* check if the window has both position and size defined */
+    if ((window->size_hints.flags & both_hints) == both_hints) {
         x = window->size_hints.x;
         y = window->size_hints.y;
+        width = window->size_hints.width;
+        height = window->size_hints.height;
+        monitor = get_monitor_from_rectangle_or_primary(window->x, window->y,
+                window->width, window->height);
     } else {
-        x = window->x;
-        y = window->y;
-    }
+        monitor = get_monitor_from_rectangle_or_primary(window->x, window->y,
+                1, 1);
 
-    monitor = get_monitor_from_rectangle_or_primary(x, y, 1, 1);
-
-    /* if the window does not specify a size itself, then do it based on the
-     * strut the window defines, reasoning is that when the window wants to
-     * occupy screen space, then it should be within that occupied space
-     */
-    if (width == 0 || height == 0) {
+        /* if the window does not specify a size itself, then do it based on the
+         * strut the window defines, reasoning is that when the window wants to
+         * occupy screen space, then it should be within that occupied space
+         */
         if (window->strut.reserved.left != 0) {
             x = monitor->x;
             y = window->strut.left_start_y;
@@ -166,17 +161,13 @@ static void configure_dock_size(Window *window)
                 window->strut.bottom_start_x + 1;
             height = window->strut.reserved.bottom;
         } else {
-            /* TODO: what to do here? what is a dock window without defined size
-             * hints AND without any strut? does it exist?
-             */
-            width = 64;
-            height = 32;
+            width = window->width;
+            height = window->height;
         }
     }
 
     /* consider the window gravity, i.e. where the window wants to be */
-    if ((window->size_hints.flags &
-                XCB_ICCCM_SIZE_HINT_P_WIN_GRAVITY)) {
+    if ((window->size_hints.flags & XCB_ICCCM_SIZE_HINT_P_WIN_GRAVITY)) {
         adjust_for_window_gravity(monitor, &x, &y, width, height,
             window->size_hints.win_gravity);
     }
@@ -239,7 +230,7 @@ static void synchronize_allowed_actions(Window *window)
 }
 
 /* Add window states to the window properties. */
-static void add_window_states(Window *window, xcb_atom_t *states,
+void add_window_states(Window *window, xcb_atom_t *states,
         uint32_t number_of_states)
 {
     uint32_t effective_count = 0;
@@ -268,6 +259,11 @@ static void add_window_states(Window *window, xcb_atom_t *states,
         states[effective_count++] = states[i];
     }
 
+    /* check if anything changed */
+    if (effective_count == 0) {
+        return;
+    }
+
     /* append the properties to the list in the X server */
     xcb_change_property(connection, XCB_PROP_MODE_APPEND,
             window->client.id, ATOM(_NET_WM_STATE),
@@ -275,7 +271,7 @@ static void add_window_states(Window *window, xcb_atom_t *states,
 }
 
 /* Remove window states from the window properties. */
-static void remove_window_states(Window *window, xcb_atom_t *states,
+void remove_window_states(Window *window, xcb_atom_t *states,
         uint32_t number_of_states)
 {
     uint32_t i;

@@ -79,8 +79,8 @@ int initialize_signal_handlers(void)
     return OK;
 }
 
-/* Synchronize the local data with the X server. */
-static void synchronize_with_server(void)
+/* Set the client list root property. */
+void synchronize_client_list(void)
 {
     /* a list of window ids that is synchronized with the actual windows */
     static struct {
@@ -90,11 +90,51 @@ static void synchronize_with_server(void)
         uint32_t length;
     } client_list;
 
+    Window *window;
+    uint32_t number_of_windows = 0;
+    uint32_t index = 0;
+
+    for (window = first_window; window != NULL; window = window->next) {
+        number_of_windows++;
+    }
+
+    if (number_of_windows > client_list.length) {
+        client_list.length = number_of_windows;
+        RESIZE(client_list.ids, client_list.length);
+    }
+
+    /* sort the list in order of the Z stacking */
+    for (window = oldest_window; window != NULL; window = window->newer) {
+        client_list.ids[index] = window->client.id;
+        index++;
+    }
+    /* set the `_NET_CLIENT_LIST` property */
+    xcb_change_property(connection, XCB_PROP_MODE_REPLACE, screen->root,
+            ATOM(_NET_CLIENT_LIST), XCB_ATOM_WINDOW, 32,
+            number_of_windows, client_list.ids);
+
+    index = 0;
+    /* sort the list in order of the Z stacking */
+    for (window = bottom_window; window != NULL; window = window->above) {
+        client_list.ids[index] = window->client.id;
+        index++;
+    }
+    /* set the `_NET_CLIENT_LIST_STACKING` property */
+    xcb_change_property(connection, XCB_PROP_MODE_REPLACE, screen->root,
+            ATOM(_NET_CLIENT_LIST_STACKING), XCB_ATOM_WINDOW, 32,
+            number_of_windows, client_list.ids);
+}
+
+/* Synchronize the local data with the X server. */
+void synchronize_with_server(void)
+{
     /* the old work area */
     static Rectangle workarea;
 
     Monitor *monitor;
     Rectangle rectangle;
+
+    xcb_atom_t state_atom;
 
     /**
      * since the strut of a monitor might have changed because a window with
@@ -165,6 +205,8 @@ static void synchronize_with_server(void)
         configure_client(&window->client, window->x, window->y,
                 window->width, window->height, window->border_size);
         change_client_attributes(&window->client, window->border_color);
+        state_atom = ATOM(_NET_WM_STATE_HIDDEN);
+        remove_window_states(window, &state_atom, 1);
         map_client(&window->client);
     }
 
@@ -172,70 +214,10 @@ static void synchronize_with_server(void)
     for (Window *window = bottom_window; window != NULL;
             window = window->above) {
         if (!window->state.is_visible) {
+            state_atom = ATOM(_NET_WM_STATE_HIDDEN);
+            add_window_states(window, &state_atom, 1);
             unmap_client(&window->client);
         }
-    }
-
-    /* update the client list properties */
-    if (has_client_list_changed) {
-        Window *window;
-        uint32_t number_of_windows = 0;
-        uint32_t index = 0;
-
-        for (window = first_window; window != NULL; window = window->next) {
-            number_of_windows++;
-        }
-
-        if (number_of_windows > client_list.length) {
-            client_list.length = number_of_windows;
-            RESIZE(client_list.ids, client_list.length);
-        }
-
-        index = 0;
-        /* sort the list in order of the Z stacking */
-        for (window = oldest_window; window != NULL; window = window->newer) {
-            client_list.ids[index] = window->client.id;
-            index++;
-        }
-        /* set the `_NET_CLIENT_LIST` property */
-        xcb_change_property(connection, XCB_PROP_MODE_REPLACE, screen->root,
-                ATOM(_NET_CLIENT_LIST), XCB_ATOM_WINDOW, 32,
-                number_of_windows, client_list.ids);
-
-        index = 0;
-        /* sort the list in order of the Z stacking */
-        for (window = bottom_window; window != NULL; window = window->above) {
-            client_list.ids[index] = window->client.id;
-            index++;
-        }
-        /* set the `_NET_CLIENT_LIST_STACKING` property */
-        xcb_change_property(connection, XCB_PROP_MODE_REPLACE, screen->root,
-                ATOM(_NET_CLIENT_LIST_STACKING), XCB_ATOM_WINDOW, 32,
-                number_of_windows, client_list.ids);
-
-        has_client_list_changed = false;
-    }
-}
-
-/* Set the input focus on the X server. */
-static void synchronize_focus_with_server(Window *old_focus_window)
-{
-    /* give the new window focus */
-    if (old_focus_window != focus_window) {
-        xcb_window_t focus_id;
-
-        if (focus_window == NULL) {
-            LOG("removed focus from all windows\n");
-            focus_id = screen->root;
-        } else {
-            focus_id = focus_window->client.id;
-        }
-
-        xcb_set_input_focus(connection, XCB_INPUT_FOCUS_NONE, focus_id,
-                XCB_CURRENT_TIME);
-
-        xcb_change_property(connection, XCB_PROP_MODE_REPLACE, screen->root,
-                ATOM(_NET_ACTIVE_WINDOW), XCB_ATOM_WINDOW, 32, 1, &focus_id);
     }
 }
 
@@ -281,7 +263,15 @@ int next_cycle(void)
         }
 
         synchronize_with_server();
-        synchronize_focus_with_server(old_focus_window);
+        /* update the client list properties */
+        if (has_client_list_changed) {
+            synchronize_client_list();
+            has_client_list_changed = false;
+        }
+
+        if (old_focus_window != focus_window) {
+            set_input_focus(focus_window);
+        }
     }
 
     if (has_timer_expired) {
@@ -930,7 +920,8 @@ void handle_event(xcb_generic_event_t *event)
         LOG("%V\n", event);
     }
 
-    if (type == randr_event_base + XCB_RANDR_SCREEN_CHANGE_NOTIFY) {
+    if (randr_event_base > 0 &&
+            type == randr_event_base + XCB_RANDR_SCREEN_CHANGE_NOTIFY) {
         handle_screen_change((xcb_randr_screen_change_notify_event_t*) event);
         return;
     }

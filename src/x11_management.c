@@ -182,7 +182,7 @@ int take_control(void)
     xcb_generic_error_t *error;
 
     /* set the mask of the root window so we receive important events like
-     * create notifications
+     * map requests
      */
     general_values[0] = ROOT_EVENT_MASK;
     error = xcb_request_check(connection,
@@ -200,7 +200,7 @@ int take_control(void)
     }
 
     /* intialize the focus */
-    xcb_set_input_focus(connection, XCB_INPUT_FOCUS_NONE,
+    xcb_set_input_focus(connection, XCB_INPUT_FOCUS_POINTER_ROOT,
             wm_check_window, XCB_CURRENT_TIME);
     return OK;
 }
@@ -248,21 +248,11 @@ void initialize_root_properties(void)
         ATOM(_NET_CLIENT_LIST),
         ATOM(_NET_CLIENT_LIST_STACKING),
 
-        ATOM(_NET_NUMBER_OF_DESKTOPS),
-
-        ATOM(_NET_DESKTOP_GEOMETRY),
-        ATOM(_NET_DESKTOP_VIEWPORT),
-
-        ATOM(_NET_CURRENT_DESKTOP),
-        ATOM(_NET_DESKTOP_NAMES),
-
         ATOM(_NET_ACTIVE_WINDOW),
 
         ATOM(_NET_WORKAREA),
 
         ATOM(_NET_SUPPORTING_WM_CHECK),
-
-        ATOM(_NET_SHOWING_DESKTOP),
 
         ATOM(_NET_CLOSE_WINDOW),
 
@@ -297,6 +287,8 @@ void initialize_root_properties(void)
         ATOM(_NET_WM_STATE_MAXIMIZED_VERT),
         ATOM(_NET_WM_STATE_MAXIMIZED_HORZ),
         ATOM(_NET_WM_STATE_FULLSCREEN),
+        ATOM(_NET_WM_STATE_HIDDEN),
+        ATOM(_NET_WM_STATE_FOCUSED),
 
         ATOM(_NET_WM_STRUT),
         ATOM(_NET_WM_STRUT_PARTIAL),
@@ -314,38 +306,6 @@ void initialize_root_properties(void)
             screen->root, ATOM(_NET_SUPPORTING_WM_CHECK), XCB_ATOM_WINDOW,
             32, 1, &wm_check_window);
 
-    /* the current desktop, always 0 */
-    const uint32_t zero = 0;
-    xcb_change_property(connection, XCB_PROP_MODE_REPLACE, screen->root,
-            ATOM(_NET_CURRENT_DESKTOP), XCB_ATOM_CARDINAL, 32,
-            1, &zero);
-
-    /* origin of the viewport, always (0, 0) */
-    const Point origin = { 0, 0 };
-    xcb_change_property(connection, XCB_PROP_MODE_REPLACE, screen->root,
-            ATOM(_NET_DESKTOP_VIEWPORT), XCB_ATOM_CARDINAL, 32,
-            2, &origin);
-
-    /* size of the desktop, large desktops are however not supported */
-    const Size geometry = {
-        screen->width_in_pixels,
-        screen->height_in_pixels
-    };
-    xcb_change_property(connection, XCB_PROP_MODE_REPLACE, screen->root,
-            ATOM(_NET_DESKTOP_GEOMETRY), XCB_ATOM_CARDINAL, 32,
-            2, &geometry);
-
-    /* the number of desktops, always 1 */
-    const uint32_t one = 1;
-    xcb_change_property(connection, XCB_PROP_MODE_REPLACE, screen->root,
-            ATOM(_NET_NUMBER_OF_DESKTOPS), XCB_ATOM_CARDINAL, 32,
-            1, &one);
-
-    /* set the name of the only desktop */
-    const char *const desktop_name = "0";
-    xcb_change_property(connection, XCB_PROP_MODE_REPLACE, screen->root,
-            ATOM(_NET_DESKTOP_NAMES), ATOM(UTF8_STRING), 8,
-            strlen(desktop_name), desktop_name);
 
     /* set the active window */
     xcb_change_property(connection, XCB_PROP_MODE_REPLACE, screen->root,
@@ -359,28 +319,78 @@ void initialize_root_properties(void)
     xcb_change_property(connection, XCB_PROP_MODE_REPLACE, screen->root,
             ATOM(_NET_WORKAREA), XCB_ATOM_CARDINAL, 32, 4, &workarea);
 }
-/* Shows the client on the X server. */
+
+/* Set the input focus to @window. This window may be `NULL`. */
+void set_input_focus(Window *window)
+{
+    xcb_window_t focus_id = XCB_NONE;
+    xcb_window_t active_id;
+    xcb_atom_t state_atom;
+
+    if (window == NULL) {
+        LOG("removed focus from all windows\n");
+        active_id = screen->root;
+
+        focus_id = wm_check_window;
+    } else {
+        active_id = window->client.id;
+
+        state_atom = ATOM(_NET_WM_STATE_FOCUSED);
+        add_window_states(window, &state_atom, 1);
+
+        if (supports_protocol(window, ATOM(WM_TAKE_FOCUS))) {
+            char event_data[32];
+            xcb_client_message_event_t *event;
+
+            /* bake an event for running a protocol on the window */
+            event = (xcb_client_message_event_t*) event_data;
+            event->response_type = XCB_CLIENT_MESSAGE;
+            event->window = window->client.id;
+            event->type = ATOM(WM_PROTOCOLS);
+            event->format = 32;
+            memset(&event->data, 0, sizeof(event->data));
+            event->data.data32[0] = ATOM(WM_TAKE_FOCUS);
+            event->data.data32[1] = XCB_CURRENT_TIME;
+            xcb_send_event(connection, false, window->client.id,
+                    XCB_EVENT_MASK_NO_EVENT, event_data);
+        } else {
+            focus_id = window->client.id;
+        }
+    }
+
+    if (focus_id != XCB_NONE) {
+        xcb_set_input_focus(connection, XCB_INPUT_FOCUS_POINTER_ROOT,
+                focus_id, XCB_CURRENT_TIME);
+    }
+
+    xcb_change_property(connection, XCB_PROP_MODE_REPLACE, screen->root,
+            ATOM(_NET_ACTIVE_WINDOW), XCB_ATOM_WINDOW, 32, 1, &active_id);
+}
+
+/* Show the client on the X server. */
 void map_client(XClient *client)
 {
     if (client->is_mapped) {
         return;
     }
-    client->is_mapped = true;
 
     LOG("showing client %w\n", client->id);
+
+    client->is_mapped = true;
 
     xcb_map_window(connection, client->id);
 }
 
-/* Hides the client on the X server. */
+/* Hide the client on the X server. */
 void unmap_client(XClient *client)
 {
     if (!client->is_mapped) {
         return;
     }
-    client->is_mapped = false;
 
     LOG("hiding client %w\n", client->id);
+
+    client->is_mapped = false;
 
     xcb_unmap_window(connection, client->id);
 }
@@ -567,7 +577,7 @@ static void update_window_transient_for(Window *window)
             window->client.id);
     if (!xcb_icccm_get_wm_transient_for_reply(connection, transient_for_cookie,
                 &window->transient_for, NULL)) {
-        window->transient_for = 0;
+        window->transient_for = XCB_NONE;
     }
 }
 
@@ -658,7 +668,7 @@ bool cache_window_property(Window *window, xcb_atom_t atom)
     return true;
 }
 
-/* Checks if an atom is within the given list of atoms. */
+/* Check if an atom is within the given list of atoms. */
 static bool is_atom_included(const xcb_atom_t *atoms, xcb_atom_t atom)
 {
     if (atoms == NULL) {

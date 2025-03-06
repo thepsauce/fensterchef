@@ -8,22 +8,27 @@ fensterchef - tiling done the right way
 .
 .SH OPTIONS
 .PP
--h, --help, --usage
+.BR -h ,
+.BR --help ,
+.B --usage
     Show help
 .PP
--v, --version
+.BR -v ,
+.B --version
     Print the version
 .PP
--d
-.I VERBOSITY
-    Set the output logging verbosity to one of:
-.B all info error nothing
+.B -d
+.IR all | info | error | nothing
+.B (default: info)
+    Set the output logging verbosity
 .PP
---verbose
+.B --verbose
     Log everything
 .PP
--c, --config
+.BR -c ,
+.B --config
 .I FILE
+.B (default: ~/.config/fensterchef/fensterchef.config)
     Load
 .I FILE
 as configuration file
@@ -33,6 +38,11 @@ The
 .B fensterchef
 developers thank you for choosing
 .BR fensterchef .
+.B fensterchef
+is an X11 tiling window manager with floating window support and
+a keyboard-centric philosophy although there are also a lot of options for the
+mouse.
+
 If you have used
 .BR ratpoison (1)
 before, than this is a perfect replacement for you as
@@ -67,20 +77,20 @@ before any binding.
     Reload the configuration file
 .PP
 .B A
-    Move to the parent frame
+    Focus the parent frame
 .PP
 .B B
-    Move to the child frame
+    Focus the child frame
 .PP
 .B Shift
 +
 .B A
-    Move to the root frame
+    Focus the root frame
 .PP
 .B Q
     Close the active window
 .PP
-.B \-
+.B -
     Minimize the active window
 .PP
 .B N
