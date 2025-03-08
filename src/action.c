@@ -566,7 +566,9 @@ void do_action(const Action *action, Window *window)
         if (window != NULL) {
             set_window_mode(window,
                     window->state.mode == WINDOW_MODE_FULLSCREEN ?
-                    window->state.previous_mode : WINDOW_MODE_FULLSCREEN);
+                    (window->state.previous_mode == WINDOW_MODE_FULLSCREEN ?
+                        WINDOW_MODE_FLOATING : window->state.previous_mode) :
+                    WINDOW_MODE_FULLSCREEN);
         }
         break;
 
