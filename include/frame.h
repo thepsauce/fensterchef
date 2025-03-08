@@ -15,9 +15,13 @@
 
 /* an edge of the frame */
 typedef enum {
+    /* the left edge */
     FRAME_EDGE_LEFT,
+    /* the top edge */
     FRAME_EDGE_TOP,
+    /* the right edge */
     FRAME_EDGE_RIGHT,
+    /* the bottom edge */
     FRAME_EDGE_BOTTOM,
 } frame_edge_t;
 
@@ -47,6 +51,11 @@ struct frame {
 
     /* the direction the frame was split in */
     frame_split_direction_t split_direction;
+
+    /* if a parent frame is focused, this parent stores from which child it
+     * was focused from
+     */
+    bool moved_from_left;
 
     /* parent of the frame */
     Frame *parent;

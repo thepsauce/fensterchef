@@ -454,6 +454,7 @@ static void move_to_below_frame(Frame *relative, bool do_exchange)
 void do_action(const Action *action, Window *window)
 {
     char *shell;
+    uint32_t count;
 
     switch (action->code) {
     /* invalid action value */
@@ -476,7 +477,14 @@ void do_action(const Action *action, Window *window)
 
     /* move the focus to the parent frame */
     case ACTION_PARENT_FRAME:
-        if (focus_frame->parent != NULL) {
+        count = action->parameter.integer;
+        /* move to the count'th parent */
+        for (; focus_frame->parent != NULL && count > 0; count--) {
+            if (focus_frame == focus_frame->parent->left) {
+                focus_frame->parent->moved_from_left = true;
+            } else {
+                focus_frame->parent->moved_from_left = false;
+            }
             focus_frame = focus_frame->parent;
         }
         set_focus_frame(focus_frame);
@@ -484,15 +492,21 @@ void do_action(const Action *action, Window *window)
 
     /* move the focus to the child frame */
     case ACTION_CHILD_FRAME:
-        if (focus_frame->left != NULL) {
-            focus_frame = focus_frame->left;
+        count = action->parameter.integer;
+        /* move to the count'th child */
+        for (; focus_frame->left != NULL && count > 0; count--) {
+            if (focus_frame->moved_from_left) {
+                focus_frame = focus_frame->left;
+            } else {
+                focus_frame = focus_frame->right;
+            }
         }
         set_focus_frame(focus_frame);
         break;
 
-    /* move the focus to the root frame */
-    case ACTION_ROOT_FRAME:
-        set_focus_frame(get_root_frame(focus_frame));
+    /* move the focus to the root frame */ \
+    case ACTION_EQUALIZE_FRAME:
+        equalize_frame(focus_frame);
         break;
 
     /* closes the currently active window */

@@ -14,11 +14,11 @@
     /* reload the configuration file */ \
     X(ACTION_RELOAD_CONFIGURATION, "RELOAD-CONFIGURATION", PARSER_DATA_TYPE_VOID) \
     /* move the focus to the parent frame */ \
-    X(ACTION_PARENT_FRAME, "PARENT-FRAME", PARSER_DATA_TYPE_VOID) \
+    X(ACTION_PARENT_FRAME, "PARENT-FRAME", PARSER_DATA_TYPE_INTEGER) \
     /* move the focus to the child frame */ \
-    X(ACTION_CHILD_FRAME, "CHILD-FRAME", PARSER_DATA_TYPE_VOID) \
-    /* move the focus to the root frame */ \
-    X(ACTION_ROOT_FRAME, "ROOT-FRAME", PARSER_DATA_TYPE_VOID) \
+    X(ACTION_CHILD_FRAME, "CHILD-FRAME", PARSER_DATA_TYPE_INTEGER) \
+    /* equalize the size of the child frames within a frame */ \
+    X(ACTION_EQUALIZE_FRAME, "EQUALIZE-FRAME", PARSER_DATA_TYPE_VOID) \
     /* closes the currently active window */ \
     X(ACTION_CLOSE_WINDOW, "CLOSE-WINDOW", PARSER_DATA_TYPE_VOID) \
     /* hides the currently active window */ \

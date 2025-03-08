@@ -150,9 +150,13 @@ void merge_with_default_key_bindings(struct configuration *configuration)
         { XCB_MOD_MASK_SHIFT, 0, XK_r, { .code = ACTION_RELOAD_CONFIGURATION } },
 
         /* move the focus to a child or parent frame */
-        { 0, 0, XK_a, { .code = ACTION_PARENT_FRAME } },
-        { 0, 0, XK_b, { .code = ACTION_CHILD_FRAME } },
-        { XCB_MOD_MASK_SHIFT, 0, XK_a, { .code = ACTION_ROOT_FRAME } },
+        { 0, 0, XK_a, { ACTION_PARENT_FRAME, { .integer = 1 } } },
+        { 0, 0, XK_b, { ACTION_CHILD_FRAME, { .integer = 1 } } },
+        { XCB_MOD_MASK_SHIFT, 0, XK_a, { ACTION_PARENT_FRAME, {
+                                       .integer = UINT32_MAX } } },
+
+        /* make the size of frames equal */
+        { 0, 0, XK_equal, { .code = ACTION_EQUALIZE_FRAME } },
 
         /* close the active window */
         { 0, 0, XK_q, { .code = ACTION_CLOSE_WINDOW } },

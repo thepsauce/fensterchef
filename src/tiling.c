@@ -233,6 +233,89 @@ int32_t bump_frame_edge(Frame *frame, frame_edge_t edge, int32_t amount)
     return amount;
 }
 
+/* Count the frames in horizontal direction. */
+static uint32_t count_horizontal_frames(Frame *frame)
+{
+    uint32_t left_count, right_count;
+
+    if (frame->left == NULL) {
+        return 1;
+    }
+
+    left_count = count_horizontal_frames(frame->left);
+    right_count = count_horizontal_frames(frame->right);
+    switch (frame->split_direction) {
+    case FRAME_SPLIT_VERTICALLY:
+        return MAX(left_count, right_count);
+
+    case FRAME_SPLIT_HORIZONTALLY:
+        return left_count + right_count;
+    }
+
+    /* this code is never reached */
+    return 0;
+}
+
+/* Count the frames in vertical direction. */
+static uint32_t count_vertical_frames(Frame *frame)
+{
+    uint32_t left_count, right_count;
+
+    if (frame->left == NULL) {
+        return 1;
+    }
+
+    left_count = count_vertical_frames(frame->left);
+    right_count = count_vertical_frames(frame->right);
+    switch (frame->split_direction) {
+    case FRAME_SPLIT_VERTICALLY:
+        return left_count + right_count;
+
+    case FRAME_SPLIT_HORIZONTALLY:
+        return MAX(left_count, right_count);
+    }
+
+    /* this code is never reached */
+    return 0;
+}
+
+/* Set the size of all children of @frame to be equal. */
+void equalize_frame(Frame *frame)
+{
+    uint32_t left_count, right_count;
+
+    if (frame->left == NULL) {
+        return;
+    }
+
+    switch (frame->split_direction) {
+    case FRAME_SPLIT_HORIZONTALLY:
+        left_count = count_horizontal_frames(frame->left);
+        right_count = count_horizontal_frames(frame->right);
+        frame->left->width = frame->width * left_count /
+            (left_count + right_count);
+        frame->right->x = frame->x + frame->left->width;
+        frame->right->width = frame->width - frame->left->width;
+        equalize_frame(frame->left);
+        equalize_frame(frame->right);
+        break;
+
+    case FRAME_SPLIT_VERTICALLY:
+        left_count = count_vertical_frames(frame->left);
+        right_count = count_vertical_frames(frame->right);
+        frame->left->height = frame->height * left_count /
+            (left_count + right_count);
+        frame->right->y = frame->y + frame->left->height;
+        frame->right->height = frame->height - frame->left->height;
+        equalize_frame(frame->left);
+        equalize_frame(frame->right);
+        break;
+    }
+
+    /* reload the frame recursively */
+    resize_frame(frame, frame->x, frame->y, frame->width, frame->height);
+}
+
 /* Remove an empty frame from the screen. */
 int remove_void(Frame *frame)
 {
