@@ -5,6 +5,8 @@
 #include <stdio.h>
 
 #include "bits/configuration_parser_data_type.h"
+#include "bits/configuration_parser_error.h"
+#include "bits/configuration_parser_label.h"
 
 #include "default_configuration.h"
 #include "utility.h"
@@ -14,77 +16,6 @@
 
 /* maximum value for an integer */
 #define PARSER_INTEGER_LIMIT 1000000
-
-/* parser error codes
- * 
- * NOTE: After editing an error code, also edit the parser_error_strings[] in
- * configuration_parser.c.
- */
-typedef enum {
-    /* indicates a successful parsing */
-    PARSER_SUCCESS,
-
-    /* trailing characters after a correctly parsed lined */
-    PARSER_ERROR_TRAILING,
-    /* the identifier exceeds the limit */
-    PARSER_ERROR_TOO_LONG,
-    /* label does not exist */
-    PARSER_ERROR_INVALID_LABEL,
-    /* a ']' is missing */
-    PARSER_ERROR_MISSING_CLOSING,
-    /* no label was specified */
-    PARSER_ERROR_NOT_IN_LABEL,
-    /* invalid boolean identifier */
-    PARSER_ERROR_INVALID_BOOLEAN,
-    /* a label does not define given variable name */
-    PARSER_ERROR_INVALID_VARIABLE_NAME,
-    /* color is not in the right format */
-    PARSER_ERROR_BAD_COLOR_FORMAT,
-    /* a line is terminated but tokens were expected first */
-    PARSER_ERROR_PREMATURE_LINE_END,
-    /* invalid number of integers for a quad */
-    PARSER_ERROR_INVALID_QUAD,
-    /* invalid syntax for modifiers */
-    PARSER_ERROR_INVALID_MODIFIERS,
-    /* invalid button name */
-    PARSER_ERROR_INVALID_BUTTON,
-    /* invalid button flag */
-    PARSER_ERROR_INVALID_BUTTON_FLAG,
-    /* invalid key symbol name */
-    PARSER_ERROR_INVALID_KEY_SYMBOL,
-    /* invalid value for an action */
-    PARSER_ERROR_INVALID_ACTION,
-    /* an action value is missing */
-    PARSER_ERROR_MISSING_ACTION,
-    /* an unexpected syntax on a line */
-    PARSER_ERROR_UNEXPECTED
-} parser_error_t;
-
-/* labels with form "[<name>]"
- *
- * NOTE: After editing this enum, also edit the `labels[]` array in
- * `configuration_parser.c`.
- * To add variables to the label, edit `variables[]` in `parse_line()` and also
- * add it to the configuration in `configuration.c` AND add a default option in
- * `default_configuration.c`.
- */
-typedef enum parser_label {
-    PARSER_LABEL_NONE,
-    
-    PARSER_FIRST_LABEL,
-
-    PARSER_LABEL_GENERAL = PARSER_FIRST_LABEL,
-    PARSER_LABEL_STARTUP,
-    PARSER_LABEL_TILING,
-    PARSER_LABEL_FONT,
-    PARSER_LABEL_BORDER,
-    PARSER_LABEL_GAPS,
-    PARSER_LABEL_NOTIFICATION,
-    PARSER_LABEL_MOUSE,
-    PARSER_LABEL_KEYBOARD,
-
-    PARSER_LABEL_MAX,
-} parser_label_t;
 
 /* the state of a parser */
 typedef struct parser {
@@ -121,7 +52,7 @@ typedef struct parser {
 } Parser;
 
 /* Converts @error to a string. */
-const char *parser_string_error(parser_error_t error);
+const char *string_to_parser_error(parser_error_t error);
 
 /* Read the next line from the file.
  *

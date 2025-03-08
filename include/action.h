@@ -4,85 +4,86 @@
 #include "bits/configuration_parser_data_type.h"
 #include "bits/window_typedef.h"
 
-/* action codes
- *
- * NOTE: After editing an action code, also edit the action_information[] array
- * in action.c and implement the action in do_action().
- */
+/* expands to all actions */
+#define DECLARE_ALL_ACTIONS \
+    /* invalid action value */ \
+    X(ACTION_NULL, NULL, 0) \
+ \
+    /* no action at all */ \
+    X(ACTION_NONE, "NONE", PARSER_DATA_TYPE_VOID) \
+    /* reload the configuration file */ \
+    X(ACTION_RELOAD_CONFIGURATION, "RELOAD-CONFIGURATION", PARSER_DATA_TYPE_VOID) \
+    /* move the focus to the parent frame */ \
+    X(ACTION_PARENT_FRAME, "PARENT-FRAME", PARSER_DATA_TYPE_VOID) \
+    /* move the focus to the child frame */ \
+    X(ACTION_CHILD_FRAME, "CHILD-FRAME", PARSER_DATA_TYPE_VOID) \
+    /* move the focus to the root frame */ \
+    X(ACTION_ROOT_FRAME, "ROOT-FRAME", PARSER_DATA_TYPE_VOID) \
+    /* closes the currently active window */ \
+    X(ACTION_CLOSE_WINDOW, "CLOSE-WINDOW", PARSER_DATA_TYPE_VOID) \
+    /* hides the currently active window */ \
+    X(ACTION_MINIMIZE_WINDOW, "MINIMIZE-WINDOW", PARSER_DATA_TYPE_VOID) \
+    /* focus a window */ \
+    X(ACTION_FOCUS_WINDOW, "FOCUS-WINDOW", PARSER_DATA_TYPE_VOID) \
+    /* start moving a window with the mouse */ \
+    X(ACTION_INITIATE_MOVE, "INITIATE-MOVE", PARSER_DATA_TYPE_VOID) \
+    /* start resizing a window with the mouse */ \
+    X(ACTION_INITIATE_RESIZE, "INITIATE-RESIZE", PARSER_DATA_TYPE_VOID) \
+    /* go to the next window in the window list */ \
+    X(ACTION_NEXT_WINDOW, "NEXT-WINDOW", PARSER_DATA_TYPE_VOID) \
+    /* go to the previous window in the window list */ \
+    X(ACTION_PREVIOUS_WINDOW, "PREVIOUS-WINDOW", PARSER_DATA_TYPE_VOID) \
+    /* remove the current frame */ \
+    X(ACTION_REMOVE_FRAME, "REMOVE-FRAME", PARSER_DATA_TYPE_VOID) \
+    /* changes a non tiling window to a tiling window and vise versa */ \
+    X(ACTION_TOGGLE_TILING, "TOGGLE-TILING", PARSER_DATA_TYPE_VOID) \
+    /* toggles the fullscreen state of the currently focused window */ \
+    X(ACTION_TOGGLE_FULLSCREEN, "TOGGLE-FULLSCREEN", PARSER_DATA_TYPE_VOID) \
+    /* change the focus from tiling to non tiling or vise versa */ \
+    X(ACTION_TOGGLE_FOCUS, "TOGGLE-FOCUS", PARSER_DATA_TYPE_VOID) \
+    /* split the current frame horizontally */ \
+    X(ACTION_SPLIT_HORIZONTALLY, "SPLIT-HORIZONTALLY", PARSER_DATA_TYPE_VOID) \
+    /* split the current frame vertically */ \
+    X(ACTION_SPLIT_VERTICALLY, "SPLIT-VERTICALLY", PARSER_DATA_TYPE_VOID) \
+    /* move the focus to the above frame */ \
+    X(ACTION_FOCUS_UP, "FOCUS-UP", PARSER_DATA_TYPE_VOID) \
+    /* move the focus to the left frame */ \
+    X(ACTION_FOCUS_LEFT, "FOCUS-LEFT", PARSER_DATA_TYPE_VOID) \
+    /* move the focus to the right frame */ \
+    X(ACTION_FOCUS_RIGHT, "FOCUS-RIGHT", PARSER_DATA_TYPE_VOID) \
+    /* move the focus to the frame below */ \
+    X(ACTION_FOCUS_DOWN, "FOCUS-DOWN", PARSER_DATA_TYPE_VOID) \
+    /* exchange the current frame with the above one */ \
+    X(ACTION_EXCHANGE_UP, "EXCHANGE-UP", PARSER_DATA_TYPE_VOID) \
+    /* exchange the current frame with the left one */ \
+    X(ACTION_EXCHANGE_LEFT, "EXCHANGE-LEFT", PARSER_DATA_TYPE_VOID) \
+    /* exchange the current frame with the right one */ \
+    X(ACTION_EXCHANGE_RIGHT, "EXCHANGE-RIGHT", PARSER_DATA_TYPE_VOID) \
+    /* exchange the current frame with the below one */ \
+    X(ACTION_EXCHANGE_DOWN, "EXCHANGE-DOWN", PARSER_DATA_TYPE_VOID) \
+    /* show the interactive window list */ \
+    X(ACTION_SHOW_WINDOW_LIST, "SHOW-WINDOW-LIST", PARSER_DATA_TYPE_VOID) \
+    /* run a shell program */ \
+    X(ACTION_RUN, "RUN", PARSER_DATA_TYPE_STRING) \
+    /* show a notification with a string message */ \
+    X(ACTION_SHOW_MESSAGE, "SHOW-MESSAGE", PARSER_DATA_TYPE_STRING) \
+    /* show a notification with a message extracted from a shell program */ \
+    X(ACTION_SHOW_MESSAGE_RUN, "SHOW-MESSAGE-RUN", PARSER_DATA_TYPE_STRING) \
+    /* resize the edges of the current window */ \
+    X(ACTION_RESIZE_BY, "RESIZE-BY", PARSER_DATA_TYPE_QUAD) \
+    /* quit fensterchef */ \
+    X(ACTION_QUIT, "QUIT", PARSER_DATA_TYPE_VOID)
+
+/* action codes */
 typedef enum {
-    /* invalid action value */
-    ACTION_NULL,
-
-    /* the first valid action value */
-    ACTION_FIRST_ACTION,
-
-    /* no action at all */
-    ACTION_NONE = ACTION_FIRST_ACTION,
-    /* reload the configuration file */
-    ACTION_RELOAD_CONFIGURATION,
-    /* move the focus to the parent frame */
-    ACTION_PARENT_FRAME,
-    /* move the focus to the child frame */
-    ACTION_CHILD_FRAME,
-    /* move the focus to the root frame */
-    ACTION_ROOT_FRAME,
-    /* closes the currently active window */
-    ACTION_CLOSE_WINDOW,
-    /* hides the currently active window */
-    ACTION_MINIMIZE_WINDOW,
-    /* focus a window */
-    ACTION_FOCUS_WINDOW,
-    /* start moving a window with the mouse */
-    ACTION_INITIATE_MOVE,
-    /* start resizing a window with the mouse */
-    ACTION_INITIATE_RESIZE,
-    /* go to the next window in the window list */
-    ACTION_NEXT_WINDOW,
-    /* go to the previous window in the window list */
-    ACTION_PREVIOUS_WINDOW,
-    /* remove the current frame */
-    ACTION_REMOVE_FRAME,
-    /* changes a non tiling window to a tiling window and vise versa */
-    ACTION_TOGGLE_TILING,
-    /* toggles the fullscreen state of the currently focused window */
-    ACTION_TOGGLE_FULLSCREEN,
-    /* change the focus from tiling to non tiling or vise versa */
-    ACTION_TOGGLE_FOCUS,
-    /* split the current frame horizontally */
-    ACTION_SPLIT_HORIZONTALLY,
-    /* split the current frame vertically */
-    ACTION_SPLIT_VERTICALLY,
-    /* move the focus to the above frame */
-    ACTION_FOCUS_UP,
-    /* move the focus to the left frame */
-    ACTION_FOCUS_LEFT,
-    /* move the focus to the right frame */
-    ACTION_FOCUS_RIGHT,
-    /* move the focus to the frame below */
-    ACTION_FOCUS_DOWN,
-    /* exchange the current frame with the above one */
-    ACTION_EXCHANGE_UP,
-    /* exchange the current frame with the left one */
-    ACTION_EXCHANGE_LEFT,
-    /* exchange the current frame with the right one */
-    ACTION_EXCHANGE_RIGHT,
-    /* exchange the current frame with the below one */
-    ACTION_EXCHANGE_DOWN,
-    /* show the interactive window list */
-    ACTION_SHOW_WINDOW_LIST,
-    /* run a shell program */
-    ACTION_RUN,
-    /* show a notification with a string message */
-    ACTION_SHOW_MESSAGE,
-    /* show a notification with a message extracted from a shell program */
-    ACTION_SHOW_MESSAGE_RUN,
-    /* resize the edges of the current window */
-    ACTION_RESIZE_BY,
-    /* quit fensterchef */
-    ACTION_QUIT,
-
+#define X(code, string, data_type) code,
+    DECLARE_ALL_ACTIONS
+#undef X
     /* not a real action */
     ACTION_MAX,
+
+    /* the first valid action value */
+    ACTION_FIRST_ACTION = ACTION_NULL + 1
 } action_t;
 
 typedef struct action {

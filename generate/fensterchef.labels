@@ -1,0 +1,99 @@
+!!README!!
+
+This entire notice until the first [...] is skipped by the generation script.
+
+This file containes the labels the parser accepts.
+It also has the variables with their data type, default value and a comment
+describing the variable.
+
+A variable starting with * is directly translated to C code.
+A variable starting with ! is a special command and not really a variable.
+Otherwise it is a regular variable in the form:
+<name> <data type> <default value>
+
+fensterchef.data_types include all data types.
+
+The format of this file is very strict. After each label declaration (with
+variables) MUST follow an empty line.
+The indentation of this file is 3 spaces.
+
+This is chosen because it aligns with the amount of space in front of text when
+using a multi comment in C like this:
+/* TEXT
+ * MORE TEXT
+ */
+
+---> Start of code relevant to generation:
+[general]
+overlap-percentage integer 80
+   at which percentage to consider a window to be overlapped with a monitor
+
+[startup]*actions
+*Action *actions
+   the actions to run on startup
+*uint32_t number_of_actions
+   the number of actions to run on startup
+
+[tiling]
+auto-fill-void boolean true
+   whether to fill in empty frames automatically
+auto-remove-void boolean false
+   whether to remove empty frames automatically
+
+[font]
+name string Mono
+   name of the font in fontconfig format
+
+[border]
+size integer 0
+   width of the border around the windows
+color color #000000
+   color of the border of an unfocused window
+focus-color color #000000
+   color of the border of a focused window
+
+[gaps]
+inner quad 0 0 0 0
+   width of the inner gaps (between frames)
+outer quad 0 0 0 0
+   width of the outer gaps (between frames and monitor boundaries
+
+[notification]
+duration integer 2
+   the duration in seconds a notification window should linger for
+padding integer 6
+   padding of text within the notification window
+border-size integer 1
+   width of the border
+border-color color #000000
+   color of the border around the window
+foreground color #000000
+   color of the text
+background color #ffffff
+   color of the background
+
+[mouse]*binding
+resize-tolerance integer 8
+   how many pixels off the edges of windows should be used for resizing
+modifiers modifiers Mod4
+   the modifier key for all buttons (applied at the parsing step)
+ignore-modifiers modifiers Lock+Mod2+Mod3+Mod5
+   the modifiers to ignore
+*struct configuration_button *buttons
+   the configured buttons
+*uint32_t number_of_buttons
+   the number of configured buttons
+!merge-default
+   Merge with the default mouse bindings
+
+[keyboard]*binding
+modifiers modifiers Mod4
+   the modifier key for all keys (applied at the parsing step)
+ignore-modifiers modifiers Lock+Mod2+Mod3+Mod5
+   the modifiers to ignore
+*struct configuration_key *keys
+   the configured keys
+*uint32_t number_of_keys
+   the number of configured keys
+!merge-default
+   Merge with the default key bindings

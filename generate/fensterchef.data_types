@@ -1,0 +1,19 @@
+All lines are ignored until the first empty line.
+This file includes the data types the configuration parser supports.
+They are in the format:
+<name> <count of elements> <c data type>
+   <comment>
+Note the three space indentation.
+
+boolean 1 bool 
+   true or false value, one of: on yes true off no false
+string * utf8_t
+   any utf8 text without any leading or trailing spaces
+integer 1 int32_t
+   an integer in simple decimal notation
+quad 4 int32_t
+   a set of 4 integers
+color 1 uint32_t
+   color in the format (X: hexadecimal digid): #XXXXXX
+modifiers 1 uint16_t
+   key modifiers, e.g.: Control+Shift

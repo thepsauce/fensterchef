@@ -50,7 +50,7 @@ static void duplicate_configuration_key_bindings(
 void duplicate_configuration(struct configuration *duplicate)
 {
     if (duplicate->font.name != NULL) {
-        duplicate->font.name = (uint8_t*) xstrdup((char*) duplicate->font.name);
+        duplicate->font.name = (utf8_t*) xstrdup((char*) duplicate->font.name);
     }
     duplicate->startup.actions = duplicate_actions(duplicate->startup.actions,
             duplicate->startup.number_of_actions);
@@ -371,7 +371,7 @@ int load_configuration_file(const char *file_name,
 
         if (error != PARSER_SUCCESS) {
             LOG("%s:%zu: %s\n", file_name, parser.line_number,
-                    parser_string_error(error));
+                    string_to_parser_error(error));
             fprintf(stderr, "%5zu %s\n", parser.line_number, parser.line);
             for (int i = 0; i <= 5; i++) {
                 fprintf(stderr, " ");

@@ -9,26 +9,9 @@
 
 /* conversion from parser error to string */
 static const char *parser_error_strings[] = {
-    [PARSER_SUCCESS] = "success",
-
-    [PARSER_ERROR_TRAILING] = "trailing characters",
-    [PARSER_ERROR_TOO_LONG] = "identifier exceeds character limit "
-        STRINGIFY(PARSER_IDENTIFIER_LIMIT),
-    [PARSER_ERROR_INVALID_LABEL] = "invalid label name",
-    [PARSER_ERROR_MISSING_CLOSING] = "missing a closing ']'",
-    [PARSER_ERROR_NOT_IN_LABEL] = "not in a label yet, use `[<label>]` on a previous line",
-    [PARSER_ERROR_INVALID_BOOLEAN] = "invalid boolean value",
-    [PARSER_ERROR_INVALID_VARIABLE_NAME] = "the current label does not have that variable name",
-    [PARSER_ERROR_BAD_COLOR_FORMAT] = "bad color format (expect #XXXXXX)",
-    [PARSER_ERROR_PREMATURE_LINE_END] = "premature line end",
-    [PARSER_ERROR_INVALID_QUAD] = "invalid quad (either 1, 2 or 4 integers)",
-    [PARSER_ERROR_INVALID_MODIFIERS] = "invalid modifiers",
-    [PARSER_ERROR_INVALID_BUTTON] = "invalid button name",
-    [PARSER_ERROR_INVALID_BUTTON_FLAG] = "invalid button flag",
-    [PARSER_ERROR_INVALID_KEY_SYMBOL] = "invalid key symbol name",
-    [PARSER_ERROR_MISSING_ACTION] = "action value is missing",
-    [PARSER_ERROR_INVALID_ACTION] = "invalid action value",
-    [PARSER_ERROR_UNEXPECTED] = "unexpected tokens"
+#define X(error, string) [error] = string,
+    DEFINE_ALL_CONFIGURATION_PARSER_ERRORS
+#undef X
 };
 
 /* conversion of string to modifier mask */
@@ -56,7 +39,7 @@ static const struct modifier_string {
     { "Mod4", XCB_MOD_MASK_4 },
     { "Mod5", XCB_MOD_MASK_5 }
 
-    /* since two bits are toggle this can not be a modifier */
+    /* since two bits are toggled this can not be a modifier */
 #define INVALID_MODIFIER 3
 };
 
@@ -158,150 +141,7 @@ static struct parser_data_type_information {
     }
 };
 
-/* Parse a list of start up actions. */
-static parser_error_t parse_startup_actions(Parser *parser);
-
-/* Parse a binding for the mouse. */
-static parser_error_t parse_mouse_binding(Parser *parser);
-
-/* Parse a binding for the keyboard. */
-static parser_error_t parse_keyboard_binding(Parser *parser);
-
-/* variables in the form <name> <value> */
-static const struct parser_label_name {
-    /* the string representation of the label */
-    const char *name;
-    /* special handling for a label */
-    parser_error_t (*special_parser)(Parser *parser);
-    /* the variables that can be defined in the label */
-    struct parser_label_variable {
-        /* name of the variable */
-        const char *name;
-        /* type of the variable */
-        parser_data_type_t data_type;
-        /* offset within a `struct configuration` */
-        size_t offset;
-    } variables[8];
-} labels[PARSER_LABEL_MAX] = {
-    [PARSER_LABEL_GENERAL] = {
-        "general", NULL, {
-        { "overlap-percentage", PARSER_DATA_TYPE_INTEGER,
-            offsetof(struct configuration, general.overlap_percentage) },
-        /* null terminate the end */
-        { NULL, 0, 0 } }
-    },
-
-    [PARSER_LABEL_STARTUP] = {
-        "startup", parse_startup_actions, {
-        /* null terminate the end */
-        { NULL, 0, 0 } }
-    },
-
-    [PARSER_LABEL_TILING] = {
-        "tiling", NULL, {
-        { "auto-fill-void", PARSER_DATA_TYPE_BOOLEAN,
-            offsetof(struct configuration, tiling.auto_fill_void) },
-        { "auto-remove-void", PARSER_DATA_TYPE_BOOLEAN,
-            offsetof(struct configuration, tiling.auto_remove_void) },
-        /* null terminate the end */
-        { NULL, 0, 0 } }
-    },
-
-    [PARSER_LABEL_FONT] = {
-        "font", NULL, {
-        { "name", PARSER_DATA_TYPE_STRING,
-            offsetof(struct configuration, font.name) },
-        /* null terminate the end */
-        { NULL, 0, 0 } }
-    },
-
-    [PARSER_LABEL_BORDER] = {
-        "border", NULL, {
-        { "size", PARSER_DATA_TYPE_INTEGER,
-            offsetof(struct configuration, border.size) },
-        { "color", PARSER_DATA_TYPE_COLOR,
-            offsetof(struct configuration, border.color) },
-        { "focus-color", PARSER_DATA_TYPE_COLOR,
-            offsetof(struct configuration, border.focus_color) },
-        /* null terminate the end */
-        { NULL, 0, 0 } }
-    },
-
-    [PARSER_LABEL_GAPS] = {
-        "gaps", NULL, {
-        { "inner", PARSER_DATA_TYPE_QUAD,
-            offsetof(struct configuration, gaps.inner) },
-        { "outer", PARSER_DATA_TYPE_QUAD,
-            offsetof(struct configuration, gaps.outer) },
-        /* null terminate the end */
-        { NULL, 0, 0 } }
-    },
-
-    [PARSER_LABEL_NOTIFICATION] = {
-        "notification", NULL, {
-        { "duration", PARSER_DATA_TYPE_INTEGER,
-            offsetof(struct configuration, notification.duration) },
-        { "padding", PARSER_DATA_TYPE_INTEGER,
-            offsetof(struct configuration, notification.padding) },
-        { "border-color", PARSER_DATA_TYPE_COLOR,
-            offsetof(struct configuration, notification.border_color) },
-        { "border-size", PARSER_DATA_TYPE_INTEGER,
-            offsetof(struct configuration, notification.border_size) },
-        { "background", PARSER_DATA_TYPE_COLOR,
-            offsetof(struct configuration, notification.background) },
-        { "foreground", PARSER_DATA_TYPE_COLOR,
-            offsetof(struct configuration, notification.foreground) },
-        /* null terminate the end */
-        { NULL, 0, 0 } }
-    },
-
-    [PARSER_LABEL_MOUSE] = {
-        "mouse", parse_mouse_binding, {
-        { "resize-tolerance", PARSER_DATA_TYPE_INTEGER,
-            offsetof(struct configuration, mouse.resize_tolerance) },
-        { "modifiers", PARSER_DATA_TYPE_MODIFIERS,
-            offsetof(struct configuration, mouse.modifiers) },
-        { "ignore-modifiers", PARSER_DATA_TYPE_MODIFIERS,
-            offsetof(struct configuration, mouse.ignore_modifiers) },
-        /* null terminate the end */
-        { NULL, 0, 0 } }
-    },
-
-    [PARSER_LABEL_KEYBOARD] = {
-        "keyboard", parse_keyboard_binding, {
-        { "modifiers", PARSER_DATA_TYPE_MODIFIERS,
-            offsetof(struct configuration, keyboard.modifiers) },
-        { "ignore-modifiers", PARSER_DATA_TYPE_MODIFIERS,
-            offsetof(struct configuration, keyboard.ignore_modifiers) },
-        /* null terminate the end */
-        { NULL, 0, 0 } }
-    },
-};
-
-/* Merges the default mousebindings into the current parser mousebindings. */
-static parser_error_t merge_default_mouse(Parser *parser);
-
-/* Merges the default keybindings into the current parser keybindings. */
-static parser_error_t merge_default_keyboard(Parser *parser);
-
-/* the parser commands are in the form <command> <arguments> */
-static const struct parser_command {
-    /* the name of the command */
-    const char *name;
-    /* the procedure to execute (parses and executes the command) */
-    parser_error_t (*procedure)(Parser *parser);
-} commands[PARSER_LABEL_MAX][2] = {
-    [PARSER_LABEL_MOUSE] = {
-        { "merge-default", merge_default_mouse },
-        /* null terminate the end */
-        { NULL, NULL }
-    },
-    [PARSER_LABEL_KEYBOARD] = {
-        { "merge-default", merge_default_keyboard },
-        /* null terminate the end */
-        { NULL, NULL }
-    }
-};
+#include "bits/configuration_parser_label_information.h"
 
 /* Translate a string like "Button1" to a button index. */
 static xcb_button_t translate_string_to_button(const char *string)
@@ -366,7 +206,7 @@ static uint16_t translate_string_to_modifier(const char *string)
 }
 
 /* Converts @error to a string. */
-const char *parser_string_error(parser_error_t error)
+const char *string_to_parser_error(parser_error_t error)
 {
     return parser_error_strings[error];
 }
@@ -436,6 +276,9 @@ static parser_error_t parse_identifier(Parser *parser)
     parser->item_start_column = parser->column;
 
     length = 0;
+    /* identifiers are quite flexible, they may even start with a number, any
+     * chars of [a-zA-Z0-9-] are allowed
+     */
     while (isalnum(parser->line[parser->column]) ||
             parser->line[parser->column] == '-') {
         length++;
@@ -502,6 +345,7 @@ static parser_error_t parse_string(Parser *parser)
 
     end = parser->column;
     real_end = end;
+    /* read until the end or the first semicolon */
     while (parser->line[end] != '\0' && parser->line[end] != ';') {
         if (!isspace(parser->line[end])) {
             real_end = end + 1;
@@ -525,6 +369,7 @@ static parser_error_t parse_integer(Parser *parser)
 
     parser->item_start_column = parser->column;
 
+    /* get a preceding sign if any */
     if (parser->line[parser->column] == '+') {
         sign = 1;
         parser->column++;
@@ -535,10 +380,12 @@ static parser_error_t parse_integer(Parser *parser)
         sign = 1;
     }
 
+    /* need digits now */
     if (!isdigit(parser->line[parser->column])) {
         return PARSER_ERROR_UNEXPECTED;
     }
 
+    /* read all digits while not overflowing */
     for (integer = 0; isdigit(parser->line[parser->column]); parser->column++) {
         integer *= 10;
         integer += parser->line[parser->column] - '0';
@@ -586,7 +433,7 @@ static parser_error_t parse_quad(Parser *parser)
         quad[3] = quad[1];
         break;
 
-    /* no meaningful interpretation for other case */
+    /* no meaningful interpretations for other cases */
     default:
         return PARSER_ERROR_INVALID_QUAD;
     }
@@ -661,7 +508,7 @@ void duplicate_data_value(parser_data_type_t type,
     switch (type) {
     /* do a copy of the string */
     case PARSER_DATA_TYPE_STRING:
-        value->string = (uint8_t*) xstrdup((char*) value->string);
+        value->string = (utf8_t*) xstrdup((char*) value->string);
         break;
 
     /* these have no data that needs to be deep copied */
@@ -1019,7 +866,7 @@ parser_error_t parse_line(Parser *parser)
 
     /* check for a variable setting */
     for (uint32_t i = 0; i < SIZE(labels[parser->label].variables); i++) {
-        const struct parser_label_variable *const variable =
+        const struct configuration_parser_label_variable *const variable =
             &labels[parser->label].variables[i];
         if (variable->name == NULL) {
             break;
@@ -1042,7 +889,8 @@ parser_error_t parse_line(Parser *parser)
 
     /* check for a parser command */
     for (uint32_t i = 0; i < SIZE(commands[parser->label]); i++) {
-        const struct parser_command *const command = &commands[parser->label][i];
+        const struct configuration_parser_command *const command =
+            &commands[parser->label][i];
         if (command->name == NULL) {
             break;
         }

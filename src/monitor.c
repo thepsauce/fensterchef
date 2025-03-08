@@ -167,7 +167,8 @@ Window *get_window_covering_monitor(Monitor *monitor)
         }
         area = (uint64_t) overlap.width * overlap.height;
         if (area * 100 / monitor_area >=
-                configuration.general.overlap_percentage && area >= best_area) {
+                (uint32_t) configuration.general.overlap_percentage &&
+                area >= best_area) {
             best_window = window;
             best_area = area;
         }

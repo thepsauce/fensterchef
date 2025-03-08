@@ -34,8 +34,6 @@ typedef enum parser_data_type {
 
 /* the value of a data type */
 union parser_data_value {
-    /* void has no data value */
-    // pseudo code: void void_;
     /* true or false, in text one of: on yes true off no false */
     bool boolean;
     /* any utf8 text without leading or trailing space */

@@ -1,7 +1,5 @@
 #include <inttypes.h>
 
-#include <xcb/xcb_renderutil.h>
-
 #include "log.h"
 #include "render.h"
 #include "utf8.h"
@@ -705,6 +703,7 @@ int draw_text(xcb_drawable_t xcb_drawable, const utf8_t *utf8, uint32_t length,
         return ERROR;
     }
 
+    /* fill the background */
     if (rectangle != NULL) {
         xcb_render_fill_rectangles(connection, XCB_RENDER_PICT_OP_OVER,
                 picture, background_color, 1, rectangle);

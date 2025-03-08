@@ -6,62 +6,52 @@
 
 /* the default configuration */
 static const struct configuration default_configuration = {
-    /* default general settings */
     .general = {
-        .overlap_percentage = 80
+        .overlap_percentage = 80,
     },
 
-    /* default tiling settings: fill empty frames but never automatically remove
-     * them
-     */
+    .startup = {
+        0
+    },
+
     .tiling = {
+        .auto_fill_void = true,
         .auto_remove_void = false,
-        .auto_fill_void = true
     },
 
-    /* default font settings: Mono */
     .font = {
-        .name = (utf8_t*) "Mono"
+        .name = (utf8_t*) "Mono",
     },
 
-    /* default border settings: no borders */
     .border = {
         .size = 0,
+        .color = 0x000000,
+        .focus_color = 0x000000,
     },
 
-    /* default gap settings: no gaps */
     .gaps = {
         .inner = { 0, 0, 0, 0 },
-        .outer = { 0, 0, 0, 0 }
+        .outer = { 0, 0, 0, 0 },
     },
 
-    /* default notification settings */
     .notification = {
         .duration = 2,
         .padding = 6,
-        .border_color = 0x000000,
         .border_size = 1,
+        .border_color = 0x000000,
         .foreground = 0x000000,
         .background = 0xffffff,
     },
 
-    /* default mouse settings: Mod4 as main modifier, see
-     * `merge_with_default_button_bindings()` for the default mouse bindings
-     */
     .mouse = {
         .resize_tolerance = 8,
         .modifiers = XCB_MOD_MASK_4,
-        .ignore_modifiers = XCB_MOD_MASK_LOCK | XCB_MOD_MASK_2 |
-            XCB_MOD_MASK_3 | XCB_MOD_MASK_5,
+        .ignore_modifiers = XCB_MOD_MASK_LOCK | XCB_MOD_MASK_2 | XCB_MOD_MASK_3 | XCB_MOD_MASK_5,
     },
 
-    /* default key settings: Mod4 as main modifier, see
-     * `merge_with_default_key_bindings()` for the default key bindings
-     */
     .keyboard = {
         .modifiers = XCB_MOD_MASK_4,
-        .ignore_modifiers = XCB_MOD_MASK_LOCK | XCB_MOD_MASK_2 |
-            XCB_MOD_MASK_3 | XCB_MOD_MASK_5,
+        .ignore_modifiers = XCB_MOD_MASK_LOCK | XCB_MOD_MASK_2 | XCB_MOD_MASK_3 | XCB_MOD_MASK_5,
     },
 };
 
