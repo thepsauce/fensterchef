@@ -279,7 +279,9 @@ void set_configuration(struct configuration *new_configuration)
         } else {
             window->border_color = configuration.border.color;
         }
-        window->border_size = configuration.border.size;
+        if (has_window_border(window)) {
+            window->border_size = configuration.border.size;
+        }
     }
 
     /* reload all frames */

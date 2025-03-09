@@ -20,7 +20,7 @@ bool has_window_border(Window *window)
     if (window->state.mode == WINDOW_MODE_TILING) {
         return true;
     }
-    /* fullscreen and dock windows have no border */
+    /* fullscreen, dock and desktop windows have no border */
     if (window->state.mode != WINDOW_MODE_FLOATING) {
         return false;
     }
