@@ -171,13 +171,6 @@ void set_focus_frame(Frame *frame)
     set_focus_window(frame->window);
 
     focus_frame = frame;
-
-    set_notification(frame->left == NULL ? (utf8_t*) "Current frame" :
-            (utf8_t*) "Current frames",
-            focus_frame->x + focus_frame->width / 2,
-            focus_frame->y + focus_frame->height / 2);
-
-    LOG("frame %F was focused\n", frame);
 }
 
 /* Focus @window and the frame it is contained in if any. */

@@ -47,11 +47,11 @@ name string Mono
 [border]
 size integer 0
    width of the border around the windows
-color color #000000
+color color #36454f
    color of the border of an unfocused window
-active-color color #666666
+active-color color #71797e
    color of the border of an unfocused tiling window
-focus-color color #000000
+focus-color color #8c6c4c
    color of the border of a focused window
 
 [gaps]

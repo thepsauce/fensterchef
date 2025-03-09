@@ -243,6 +243,7 @@ int next_cycle(void)
 {
     int connection_error;
     Window *old_focus_window;
+    Frame *old_focus_frame;
     xcb_generic_event_t *event;
     fd_set set;
 
@@ -254,7 +255,11 @@ int next_cycle(void)
         return ERROR;
     }
 
+    /* these values are only used for comparison, the pointers itself might get
+     * invalidated
+     */
     old_focus_window = focus_window;
+    old_focus_frame = focus_frame;
 
     /* prepare `set` for `select()` */
     FD_ZERO(&set);
@@ -288,6 +293,20 @@ int next_cycle(void)
 
         if (old_focus_window != focus_window) {
             set_input_focus(focus_window);
+        }
+
+        if (old_focus_frame != focus_frame ||
+                (focus_frame->window == focus_window &&
+                 old_focus_window != focus_window)) {
+            /* indicate the focused frame */
+            if (focus_frame->window == NULL ||
+                     focus_frame->window->border_size == 0) {
+                set_notification(focus_frame->left == NULL ?
+                        (utf8_t*) "Current frame" : (utf8_t*) "Current frames",
+                        focus_frame->x + focus_frame->width / 2,
+                        focus_frame->y + focus_frame->height / 2);
+            }
+            LOG("frame %F was focused\n", focus_frame);
         }
     }
 
@@ -452,6 +471,10 @@ static void handle_key_press(xcb_key_press_event_t *event)
     key = find_configured_key(&configuration, event->state,
             get_keysym(event->detail), 0);
     if (key != NULL) {
+        /* before a key binding, hide the notification window */
+        alarm(0);
+        unmap_client(&notification);
+
         LOG("performing action(s): %A\n", key->number_of_actions,
                 key->actions);
         for (uint32_t i = 0; i < key->number_of_actions; i++) {
@@ -731,12 +754,14 @@ static void handle_map_request(xcb_map_request_event_t *event)
         is_first_time = true;
     }
     if (window == NULL) {
+        LOG("not managing %w\n", event->window);
         return;
     }
 
     /* if a window does not start in normal state, do not map it */
     if (is_first_time && (window->hints.flags & XCB_ICCCM_WM_HINT_STATE) &&
             window->hints.initial_state != XCB_ICCCM_WM_STATE_NORMAL) {
+        LOG("window %w starts off as hidden window\n", event->window);
         return;
     }
 

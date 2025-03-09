@@ -25,9 +25,9 @@ static const struct configuration default_configuration = {
 
     .border = {
         .size = 0,
-        .color = 0x000000,
-        .active_color = 0x666666,
-        .focus_color = 0x000000,
+        .color = 0x36454f,
+        .active_color = 0x71797e,
+        .focus_color = 0x8c6c4c,
     },
 
     .gaps = {
