@@ -706,12 +706,20 @@ static void handle_unmap_notify(xcb_unmap_notify_event_t *event)
 static void handle_map_request(xcb_map_request_event_t *event)
 {
     Window *window;
+    bool is_first_time = false;
 
     window = get_window_of_xcb_window(event->window);
     if (window == NULL) {
         window = create_window(event->window);
+        is_first_time = true;
     }
     if (window == NULL) {
+        return;
+    }
+
+    /* if a window does not start in normal state, do not map it */
+    if (is_first_time && (window->hints.flags & XCB_ICCCM_WM_HINT_STATE) &&
+            window->hints.initial_state != XCB_ICCCM_WM_STATE_NORMAL) {
         return;
     }
 
