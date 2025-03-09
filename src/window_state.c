@@ -25,8 +25,7 @@ bool has_window_border(Window *window)
         return false;
     }
     /* if the window has borders itself (not set by the window manager) */
-    if ((window->motif_wm_hints.flags &
-                MOTIF_WM_HINTS_DECORATIONS)) {
+    if ((window->motif_wm_hints.flags & MOTIF_WM_HINTS_DECORATIONS)) {
         return false;
     }
     return true;
@@ -65,8 +64,8 @@ static void configure_floating_size(Window *window)
         }
 
         /* center the window */
-        x = monitor->x + (monitor->width - width) / 2;
-        y = monitor->y + (monitor->height - height) / 2;
+        x = monitor->x + (int32_t) (monitor->width - width) / 2;
+        y = monitor->y + (int32_t) (monitor->height - height) / 2;
     } else {
         width = window->floating.width;
         height = window->floating.height;
@@ -79,15 +78,9 @@ static void configure_floating_size(Window *window)
             x = window->floating.x;
             y = window->floating.y;
         } else {
-            x = monitor->x + (monitor->width - width) / 2;
-            y = monitor->y + (monitor->height - height) / 2;
+            x = monitor->x + (int32_t) (monitor->width - width) / 2;
+            y = monitor->y + (int32_t) (monitor->height - height) / 2;
         }
-    }
-
-    /* consider the window gravity, i.e. where the window wants to be */
-    if ((window->size_hints.flags & XCB_ICCCM_SIZE_HINT_P_WIN_GRAVITY)) {
-        adjust_for_window_gravity(monitor, &x, &y, width, height,
-                window->size_hints.win_gravity);
     }
 
     set_window_size(window, x, y, width, height);
@@ -424,7 +417,8 @@ void show_window(Window *window)
         stash_frame(focus_frame);
         focus_frame->window = window;
         reload_frame(focus_frame);
-    } break;
+        break;
+    }
 
     /* the window has to show as floating window */
     case WINDOW_MODE_FLOATING:
