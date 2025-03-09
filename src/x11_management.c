@@ -343,7 +343,9 @@ void set_input_focus(Window *window)
         state_atom = ATOM(_NET_WM_STATE_FOCUSED);
         add_window_states(window, &state_atom, 1);
 
-        if (supports_protocol(window, ATOM(WM_TAKE_FOCUS))) {
+        /* if the window wants no focus itself */
+        if ((window->hints.flags & XCB_ICCCM_WM_HINT_INPUT) &&
+                window->hints.input == 0) {
             char event_data[32];
             xcb_client_message_event_t *event;
 
