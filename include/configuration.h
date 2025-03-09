@@ -37,7 +37,7 @@ struct configuration_button *find_configured_button(
         uint16_t modifiers, xcb_button_t button_index, uint16_t flags);
 
 /* Grab the mousebindings so we receive the ButtonPress events for them. */
-void grab_configured_buttons(void);
+void grab_configured_buttons(xcb_window_t window);
 
 /* Get a key from key modifiers and a key symbol.
  *

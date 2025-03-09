@@ -28,10 +28,10 @@ Window *focus_window;
 Window *create_window(xcb_window_t xcb_window)
 {
     xcb_get_window_attributes_cookie_t attributes_cookie;
-    xcb_get_window_attributes_reply_t *attributes;
     xcb_get_geometry_cookie_t geometry_cookie;
-    xcb_get_geometry_reply_t *geometry;
     xcb_generic_error_t *error;
+    xcb_get_window_attributes_reply_t *attributes;
+    xcb_get_geometry_reply_t *geometry;
     Window *window;
     Window *previous;
     window_mode_t mode;
@@ -69,7 +69,7 @@ Window *create_window(xcb_window_t xcb_window)
         return NULL;
     }
 
-    /* set the border color */
+    /* set the initial border color */
     general_values[0] = configuration.border.color;
     /* we want to know if if any properties change */
     general_values[1] = XCB_EVENT_MASK_PROPERTY_CHANGE;
@@ -146,6 +146,9 @@ Window *create_window(xcb_window_t xcb_window)
     update_window_layer(window);
 
     has_client_list_changed = true;
+
+    /* grab the buttons for this window */
+    grab_configured_buttons(xcb_window);
 
     LOG("created new window %W\n", window);
     return window;

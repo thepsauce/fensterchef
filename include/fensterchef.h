@@ -22,7 +22,7 @@ extern bool is_fensterchef_running;
 void quit_fensterchef(int exit_code);
 
 /* Show the notification window with given message at given coordinates for
- * NOTIFICATION_DURATION seconds.
+ * a duration in seconds specified in the configuration.
  *
  * @message UTF-8 string.
  * @x Center x position.

@@ -1,4 +1,4 @@
-#include <unistd.h>
+#include <unistd.h> // alarm()
 
 #include "configuration.h"
 #include "fensterchef.h"
@@ -46,8 +46,7 @@ void set_notification(const uint8_t *message, int32_t x, int32_t y)
 
     /* set the window size, position and set it above */
     configure_client(&notification,
-            x,
-            y,
+            x, y,
             measure.total_width,
             measure.ascent - measure.descent +
                 configuration.notification.padding,

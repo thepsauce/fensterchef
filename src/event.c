@@ -479,17 +479,12 @@ static void handle_button_press(xcb_button_press_event_t *event)
 
     if (move_resize.window != NULL) {
         cancel_window_move_resize();
+        /* use this event only for stopping the resize */
         return;
     }
 
-    if (event->child == 0) {
-        window = NULL;
-    } else {
-        window = get_window_of_xcb_window(event->child);
-        if (window == NULL) {
-            return;
-        }
-    }
+    window = get_window_of_xcb_window(event->event);
+    /* allow window to be NULL */
 
     button = find_configured_button(&configuration, event->state,
             event->detail, 0);
@@ -513,20 +508,16 @@ static void handle_button_release(xcb_button_release_event_t *event)
     Window *window;
     struct configuration_button *button;
 
-    if (event->child == 0) {
-        window = NULL;
-    } else {
-        window = get_window_of_xcb_window(event->child);
-        if (window == NULL) {
-            return;
-        }
-    }
-
     if (move_resize.window != NULL) {
         /* release mouse events back to the applications */
         xcb_ungrab_pointer(connection, XCB_CURRENT_TIME);
         move_resize.window = NULL;
+        /* use this event only for finishing the resize */
+        return;
     }
+
+    window = get_window_of_xcb_window(event->event);
+    /* allow window to be NULL */
 
     button = find_configured_button(&configuration, event->state,
             event->detail, BINDING_FLAG_RELEASE);

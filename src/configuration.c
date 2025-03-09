@@ -131,24 +131,29 @@ struct configuration_button *find_configured_button(
     return NULL;
 }
 
-/* Grab the mousebindings so we receive MousePress/MouseRelease events for
- * them.
+/* Grab the mouse bindings for a window so we receive MousePress/MouseRelease
+ * events for it.
+ *
+ * This once was different were the buttons were grabbed on the root but this
+ * led to weird bugs which I can not explain that caused odd behaviours when
+ * replaying events.
  */
-void grab_configured_buttons(void)
+void grab_configured_buttons(xcb_window_t window)
 {
-    xcb_window_t root;
     struct configuration_button *button;
 
-    root = screen->root;
-
-    /* remove all previously grabbed buttons so that we can overwrite them */
-    xcb_ungrab_button(connection, XCB_GRAB_ANY, root, XCB_MOD_MASK_ANY);
+    /* ungrab all previous buttons so we can overwrite them */
+    xcb_ungrab_button(connection, XCB_BUTTON_INDEX_ANY, window,
+            XCB_BUTTON_MASK_ANY);
 
     for (uint32_t i = 0; i < configuration.mouse.number_of_buttons; i++) {
         button = &configuration.mouse.buttons[i];
         /* use every possible combination of modifiers we do not care about
          * so that when the user has CAPS LOCK for example, it does not mess
-         * with mousebindings
+         * with mouse bindings
+         *
+         * TODO: is this worth just to avoid getting a few additional events
+         * from the server?
          */
         for (uint32_t j = 0; j < (uint32_t) (1 << 8); j++) {
             /* check if @j has any outside modifiers */
@@ -158,12 +163,18 @@ void grab_configured_buttons(void)
             }
 
             xcb_grab_button(connection,
-                    1, /* 1 means we specify a window for grabbing */
-                    root, /* this is the window we grab the button for */
+                    false, /* report all events with respect to `window` */
+                    window, /* this is the window we grab the button for */
+                    /* TODO: specifying the ButtonPressMask makes no
+                     * difference, figure out why and who is responsible for
+                     * that
+                     */
                     (button->flags & BINDING_FLAG_RELEASE) ?
                     XCB_EVENT_MASK_BUTTON_RELEASE : XCB_EVENT_MASK_BUTTON_PRESS,
                     /* SYNC means that pointer (mouse) events will be frozen
-                     * until we issue a AllowEvents request
+                     * until we issue a AllowEvents request; this allows us to
+                     * make the decision to either drop the event or send it on
+                     * to the actually pressed client
                      */
                     XCB_GRAB_MODE_SYNC,
                     /* do not freeze keyboard events */
@@ -323,7 +334,9 @@ void set_configuration(struct configuration *new_configuration)
     }
 
     /* re-grab all bindings */
-    grab_configured_buttons();
+    for (Window *window = first_window; window != NULL; window = window->next) {
+        grab_configured_buttons(window->client.id);
+    }
     grab_configured_keys();
 
     /* free the resources of the old configuration */

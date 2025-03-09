@@ -175,9 +175,9 @@ static const char *button_to_string(xcb_button_t button)
     case XCB_BUTTON_INDEX_1:
         return "left";
     case XCB_BUTTON_INDEX_2:
-        return "right";
-    case XCB_BUTTON_INDEX_3:
         return "middle";
+    case XCB_BUTTON_INDEX_3:
+        return "right";
     case XCB_BUTTON_INDEX_4:
         return "scroll up";
     case XCB_BUTTON_INDEX_5:
