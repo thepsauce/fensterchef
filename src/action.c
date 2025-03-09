@@ -224,7 +224,7 @@ void set_showable_tiling_window(bool previous)
     }
 }
 
-/* Change the focus from tiling to non tiling or vise versa. */
+/* Change the focus from tiling to non tiling and vise versa. */
 void toggle_focus(void)
 {
     Window *window;
@@ -243,6 +243,12 @@ void toggle_focus(void)
         }
 
         if (window != NULL) {
+            /* handle the case where an empty frame is focused and there was no
+             * other window to focus
+             */
+            if (focus_window == NULL) {
+                set_focus_frame(focus_frame);
+            }
             set_focus_window(window);
         }
     } else {

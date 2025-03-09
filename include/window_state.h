@@ -15,6 +15,8 @@ typedef enum window_mode {
     WINDOW_MODE_FULLSCREEN,
     /* the window is attached to an edge of the screen, usually not focusable */
     WINDOW_MODE_DOCK,
+    /* the window is in the background */
+    WINDOW_MODE_DESKTOP,
 
     /* the maximum value of a window mode */
     WINDOW_MODE_MAX,

@@ -210,6 +210,8 @@ static void unlink_window_from_z_list(Window *window)
 
     window->above = NULL;
     window->below = NULL;
+
+    has_client_list_changed = true;
 }
 
 /* Destroys given window and removes it from the window linked list. */
@@ -412,67 +414,104 @@ void set_window_size(Window *window, int32_t x, int32_t y, uint32_t width,
     window->height = height;
 }
 
+/* Links the window into the z linked list at a specific place and synchronizes
+ * this change with the X server.
+ *
+ * The window will be inserted after @below or at the bottom if @below is NULL.
+ */
+static void link_window_into_z_list(Window *below, Window *window)
+{
+    uint32_t mask = XCB_CONFIG_WINDOW_STACK_MODE;
+
+    /* link onto the bottom of the Z linked list */
+    if (below == NULL) {
+        LOG("putting %W at the bottom of the stack\n", window);
+
+        if (bottom_window != NULL) {
+            bottom_window->below = window;
+            window->above = bottom_window;
+        } else {
+            top_window = window;
+        }
+        bottom_window = window;
+
+        general_values[0] = XCB_STACK_MODE_BELOW;
+    /* link it above `below` */
+    } else {
+        LOG("putting %W above %W\n", window, below);
+
+        if (below->above != NULL) {
+            below->above->below = window;
+            window->above = below->above;
+        }
+
+        below->above = window;
+        window->below = below;
+
+        if (below == top_window) {
+            top_window = window;
+        }
+
+        general_values[0] = below->client.id;
+        general_values[1] = XCB_STACK_MODE_ABOVE;
+        mask |= XCB_CONFIG_WINDOW_SIBLING;
+    }
+
+    xcb_configure_window(connection, window->client.id, mask, general_values);
+
+    has_client_list_changed = true;
+}
+
 /* Put the window on the best suited Z stack position. */
 void update_window_layer(Window *window)
 {
-    if (window->state.mode == WINDOW_MODE_TILING) {
-        if (window == bottom_window) {
-            return;
+    Window *below;
+
+    unlink_window_from_z_list(window);
+
+    switch (window->state.mode) {
+    /* if there are desktop windows, put the window on top of the desktop
+     * windows otherwise put it at the bottom
+     */
+    case WINDOW_MODE_TILING:
+        if (bottom_window != NULL &&
+                bottom_window->state.mode == WINDOW_MODE_DESKTOP) {
+            below = bottom_window;
+            while (below->above != NULL &&
+                    below->state.mode == WINDOW_MODE_DESKTOP) {
+                below = below->above;
+            }
+        } else {
+            below = NULL;
         }
+        break;
 
-        LOG("setting window %W below all other windows\n", window);
+    /* put the window at the top */
+    case WINDOW_MODE_FLOATING:
+    case WINDOW_MODE_FULLSCREEN:
+    case WINDOW_MODE_DOCK:
+        below = top_window;
+        break;
 
-        general_values[0] = XCB_STACK_MODE_BELOW;
-        xcb_configure_window(connection, window->client.id,
-                XCB_CONFIG_WINDOW_STACK_MODE, general_values);
+    /* put the window at the bottom */
+    case WINDOW_MODE_DESKTOP:
+        below = NULL;
+        break;
 
-        /* link onto the bottom of the Z linked list */
-        unlink_window_from_z_list(window);
-        bottom_window->below = window;
-        window->above = bottom_window;
-        bottom_window = window;
-    } else {
-        if (window == top_window) {
-            return;
-        }
-
-        LOG("setting window %W above all other windows\n", window);
-
-        general_values[0] = XCB_STACK_MODE_ABOVE;
-        xcb_configure_window(connection, window->client.id,
-                XCB_CONFIG_WINDOW_STACK_MODE, general_values);
-
-        /* link onto the top of the Z linked list */
-        unlink_window_from_z_list(window);
-        top_window->above = window;
-        window->below = top_window;
-        top_window = window;
+    /* not a real window mode */
+    case WINDOW_MODE_MAX:
+        return;
     }
+
+    link_window_into_z_list(below, window);
 
     /* put windows that are transient for this window above it */
-    for (Window *below = window->below; below != NULL; ) {
+    for (below = window->below; below != NULL; below = below->below) {
         if (below->transient_for == window->client.id) {
-            general_values[0] = window->client.id;
-            general_values[1] = XCB_STACK_MODE_ABOVE;
-            xcb_configure_window(connection, window->client.id,
-                    XCB_CONFIG_WINDOW_SIBLING | XCB_CONFIG_WINDOW_STACK_MODE,
-                    general_values);
-
-            unlink_window_from_z_list(below);
-            if (window->above == NULL) {
-                top_window = below;
-            } else {
-                below->above = window->above;
-            }
-            below->below = window;
-            window->above = below;
-            below = window->below;
-        } else {
-            below = below->below;
+            link_window_into_z_list(window, below);
+            below = window;
         }
     }
-
-    has_client_list_changed = true;
 }
 
 /* Get the internal window that has the associated xcb window. */
@@ -527,12 +566,13 @@ Frame *get_frame_of_window(const Window *window)
 /* Check if @window accepts input focus. */
 bool does_window_accept_focus(Window *window)
 {
-    if (window->state.mode == WINDOW_MODE_DOCK) {
-        return false;
-    }
-
     if (supports_protocol(window, ATOM(WM_TAKE_FOCUS))) {
         return true;
+    }
+
+    if (window->state.mode == WINDOW_MODE_DOCK ||
+            window->state.mode == WINDOW_MODE_DESKTOP) {
+        return false;
     }
 
     return !(window->hints.flags & XCB_ICCCM_WM_HINT_INPUT) ||

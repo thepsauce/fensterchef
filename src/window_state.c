@@ -366,6 +366,10 @@ void set_window_mode(Window *window, window_mode_t mode)
             configure_dock_size(window);
             break;
 
+        /* do nothing, the desktop window should know better */
+        case WINDOW_MODE_DESKTOP:
+            break;
+
         /* not a real window mode */
         case WINDOW_MODE_MAX:
             break;
@@ -435,6 +439,10 @@ void show_window(Window *window)
         configure_dock_size(window);
         break;
 
+    /* do nothing, the desktop window should know better */
+    case WINDOW_MODE_DESKTOP:
+        break;
+
     /* not a real window mode */
     case WINDOW_MODE_MAX:
         break;
@@ -480,6 +488,7 @@ void hide_window(Window *window)
     case WINDOW_MODE_FLOATING:
     case WINDOW_MODE_FULLSCREEN:
     case WINDOW_MODE_DOCK:
+    case WINDOW_MODE_DESKTOP:
         if (window == focus_window) {
             Window *next;
 

@@ -273,6 +273,7 @@ void initialize_root_properties(void)
         ATOM(_NET_WM_DESKTOP),
 
         ATOM(_NET_WM_WINDOW_TYPE),
+        ATOM(_NET_WM_WINDOW_TYPE_DESKTOP),
         ATOM(_NET_WM_WINDOW_TYPE_DOCK),
         ATOM(_NET_WM_WINDOW_TYPE_TOOLBAR),
         ATOM(_NET_WM_WINDOW_TYPE_MENU),
@@ -718,11 +719,13 @@ window_mode_t initialize_window_properties(Window *window)
         }
     }
 
-    /* these are two direct checks */
+    /* these are three direct checks */
     if (is_atom_included(states, ATOM(_NET_WM_STATE_FULLSCREEN))) {
         predicted_mode = WINDOW_MODE_FULLSCREEN;
     } else if (is_atom_included(types, ATOM(_NET_WM_WINDOW_TYPE_DOCK))) {
         predicted_mode = WINDOW_MODE_DOCK;
+    } else if (is_atom_included(types, ATOM(_NET_WM_WINDOW_TYPE_DESKTOP))) {
+        predicted_mode = WINDOW_MODE_DESKTOP;
     /* if this window has strut, it must be a dock window */
     } else if (!is_strut_empty(&window->strut)) {
         predicted_mode = WINDOW_MODE_DOCK;

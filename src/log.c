@@ -592,6 +592,9 @@ static void log_window_mode(window_mode_t mode)
     case WINDOW_MODE_FULLSCREEN:
         fputs("fullscreen", stderr);
         break;
+    case WINDOW_MODE_DESKTOP:
+        fputs("desktop", stderr);
+        break;
     case WINDOW_MODE_MAX:
         fputs("none", stderr);
         break;
