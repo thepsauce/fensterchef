@@ -58,6 +58,8 @@ static const struct configuration_parser_label_name {
             offsetof(struct configuration, border.size) },
         { "color", PARSER_DATA_TYPE_COLOR,
             offsetof(struct configuration, border.color) },
+        { "active-color", PARSER_DATA_TYPE_COLOR,
+            offsetof(struct configuration, border.active_color) },
         { "focus-color", PARSER_DATA_TYPE_COLOR,
             offsetof(struct configuration, border.focus_color) },
         /* null terminate the end */

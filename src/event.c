@@ -196,6 +196,23 @@ void synchronize_with_server(void)
                     monitor->strut.top);
     }
 
+    /* set the border colors of the windows */
+    for (Window *window = first_window; window != NULL; window = window->next) {
+        if (window != focus_window) {
+            state_atom = ATOM(_NET_WM_STATE_FOCUSED);
+            remove_window_states(window, &state_atom, 1);
+        }
+        if (window == focus_window) {
+            window->border_color = configuration.border.focus_color;
+        } else if (window == focus_frame->window ||
+                (window->state.mode == WINDOW_MODE_FLOATING &&
+                 window == top_window)) {
+            window->border_color = configuration.border.active_color;
+        } else {
+            window->border_color = configuration.border.color;
+        }
+    }
+
     /* configure all visible windows and map them */
     for (Window *window = top_window; window != NULL; window = window->below) {
         if (!window->state.is_visible) {

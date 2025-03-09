@@ -76,6 +76,8 @@ struct configuration_border {
     int32_t size;
     /* color of the border of an unfocused window */
     uint32_t color;
+    /* color of the border of an unfocused tiling window */
+    uint32_t active_color;
     /* color of the border of a focused window */
     uint32_t focus_color;
 };

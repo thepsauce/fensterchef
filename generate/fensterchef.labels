@@ -49,6 +49,8 @@ size integer 0
    width of the border around the windows
 color color #000000
    color of the border of an unfocused window
+active-color color #666666
+   color of the border of an unfocused tiling window
 focus-color color #000000
    color of the border of a focused window
 

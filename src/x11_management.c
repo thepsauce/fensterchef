@@ -23,7 +23,7 @@
  *  ConfigureRequest
  *  MapRequest
  *
- * And button events.
+ * And button press/release events.
  */
 #define ROOT_EVENT_MASK (XCB_EVENT_MASK_SUBSTRUCTURE_REDIRECT | \
                          XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY | \

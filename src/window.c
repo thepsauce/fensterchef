@@ -539,49 +539,23 @@ bool does_window_accept_focus(Window *window)
             window->hints.input != 0;
 }
 
-/* Remove any focus indication from @window. */
-static inline void lose_focus(Window *window)
-{
-    xcb_atom_t state_atom;
-
-    focus_window->border_color = configuration.border.color;
-
-    state_atom = ATOM(_NET_WM_STATE_FOCUSED);
-    remove_window_states(window, &state_atom, 1);
-}
-
 /* Set the window that is in focus to @window. */
 void set_focus_window(Window *window)
 {
-    if (window == NULL) {
-        if (focus_window != NULL) {
-            lose_focus(focus_window);
+    if (window != NULL) {
+        LOG("focusing window %W\n", window);
+
+        if (!does_window_accept_focus(window)) {
+            LOG("the window can not be focused\n");
             focus_window = NULL;
+            return;
         }
-        return;
-    }
 
-    LOG("focusing window %W\n", window);
-
-    if (!does_window_accept_focus(window)) {
-        LOG("the window can not be focused\n");
-        if (focus_window != NULL) {
-            lose_focus(focus_window);
-            focus_window = NULL;
+        if (window == focus_window) {
+            LOG("the window is already focused\n");
+            return;
         }
-        return;
-    }
-
-    if (window == focus_window) {
-        LOG("the window is already focused\n");
-        return;
-    }
-
-    if (focus_window != NULL) {
-        lose_focus(focus_window);
     }
 
     focus_window = window;
-
-    window->border_color = configuration.border.focus_color;
 }

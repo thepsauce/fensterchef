@@ -156,7 +156,7 @@
     X(_NET_WM_STATE_ABOVE) \
     /* the window should be below all windows */ \
     X(_NET_WM_STATE_BELOW) \
-    /* the window should wants attention */ \
+    /* the window wants attention */ \
     X(_NET_WM_STATE_DEMANDS_ATTENTION) \
     /* the window is focused */ \
     X(_NET_WM_STATE_FOCUSED) \
