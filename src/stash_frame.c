@@ -27,6 +27,7 @@ Frame *stash_frame_later(Frame *frame)
     Frame *const stash = xcalloc(1, sizeof(*stash));
     if (frame->left != NULL) {
         stash->split_direction = frame->split_direction;
+        stash->ratio = frame->ratio;
         stash->left = frame->left;
         stash->right = frame->right;
         stash->left->parent = stash;

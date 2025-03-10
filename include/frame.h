@@ -49,6 +49,9 @@ struct frame {
     uint32_t width;
     uint32_t height;
 
+    /* ration between the two children */
+    Ratio ratio;
+
     /* the direction the frame was split in */
     frame_split_direction_t split_direction;
 
@@ -84,8 +87,18 @@ bool is_point_in_frame(const Frame *frame, int32_t x, int32_t y);
  */
 Frame *get_frame_at_position(int32_t x, int32_t y);
 
-/* Set the size of a frame, this also resize the inner frames and windows. */
+/* Set the size of a frame, this also resize the child frames and windows. */
 void resize_frame(Frame *frame, int32_t x, int32_t y,
+        uint32_t width, uint32_t height);
+
+/* Set the size of a frame, this also resizes the child frames and windows.
+ *
+ * This function ignores the @frame->ratio and instead uses the existing ratio
+ * between the windows to size them.
+ *
+ * This function is good for reloading child frames if the parent resized.
+ */
+void resize_frame_and_ignore_ratio(Frame *frame, int32_t x, int32_t y,
         uint32_t width, uint32_t height);
 
 /* Replace @frame (windows and child frames) with @with.
@@ -99,6 +112,9 @@ void get_frame_gaps(Frame *frame, Extents *gaps);
 
 /* Resizes the inner window to fit within the frame. */
 void reload_frame(Frame *frame);
+
+/* Reload @frame and all child frames. */
+void reload_frame_recursively(Frame *frame);
 
 /* Set the frame in focus, this also focuses the inner window if it exists. */
 void set_focus_frame(Frame *frame);

@@ -103,6 +103,12 @@ typedef struct rectangle {
     uint32_t height;
 } Rectangle;
 
+/* fraction: numerator over denominator */
+typedef struct ratio {
+    uint32_t numerator;
+    uint32_t denominator;
+} Ratio;
+
 /* Get the length of @string up to a maximum of @max_length. */
 size_t strnlen(const char *string, size_t max_length);
 

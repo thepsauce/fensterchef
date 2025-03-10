@@ -187,7 +187,7 @@ void synchronize_with_server(void)
 
     /* resize all frames to their according size */
     for (monitor = first_monitor; monitor != NULL; monitor = monitor->next) {
-        resize_frame(monitor->frame,
+        resize_frame_and_ignore_ratio(monitor->frame,
                 monitor->x + monitor->strut.left,
                 monitor->y + monitor->strut.top,
                 monitor->width - monitor->strut.right -

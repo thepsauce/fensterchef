@@ -19,6 +19,7 @@ void split_frame(Frame *split_from, frame_split_direction_t direction)
     /* let `left` take the children or window */
     if (split_from->left != NULL) {
         left->split_direction = split_from->split_direction;
+        left->ratio = split_from->ratio;
         left->left = split_from->left;
         left->right = split_from->right;
         left->left->parent = left;
@@ -29,6 +30,9 @@ void split_frame(Frame *split_from, frame_split_direction_t direction)
     }
 
     split_from->split_direction = direction;
+    /* ratio of 1/2 */
+    split_from->ratio.numerator = 1;
+    split_from->ratio.denominator = 2;
     split_from->left = left;
     split_from->right = right;
     left->parent = split_from;
@@ -147,11 +151,13 @@ static void get_minimum_frame_size(Frame *frame, Size *size)
 /* Increase the @edge of @frame by @amount. */
 int32_t bump_frame_edge(Frame *frame, frame_edge_t edge, int32_t amount)
 {
-    Frame *right;
+    Frame *parent, *right;
     Size size;
     int32_t space;
 
-    if (amount == 0) {
+    parent = frame->parent;
+
+    if (parent == NULL || amount == 0) {
         return 0;
     }
 
@@ -229,6 +235,14 @@ int32_t bump_frame_edge(Frame *frame, frame_edge_t edge, int32_t amount)
         resize_frame(right, right->x, right->y + amount, right->width,
                 right->height - amount);
         break;
+    }
+
+    if (parent->split_direction == FRAME_SPLIT_HORIZONTALLY) {
+        parent->ratio.numerator = parent->left->width;
+        parent->ratio.denominator = parent->left->width + parent->right->width;
+    } else {
+        parent->ratio.numerator = parent->left->height;
+        parent->ratio.denominator = parent->left->height + parent->right->height;
     }
     return amount;
 }
@@ -312,8 +326,8 @@ void equalize_frame(Frame *frame)
         break;
     }
 
-    /* reload the frame recursively */
-    resize_frame(frame, frame->x, frame->y, frame->width, frame->height);
+    resize_frame_and_ignore_ratio(frame, frame->x, frame->y, frame->width,
+            frame->height);
 }
 
 /* Remove an empty frame from the screen. */
@@ -323,6 +337,11 @@ int remove_void(Frame *frame)
 
     if (frame->parent == NULL) {
         LOG("can not remove the root frame %F\n", frame);
+        return ERROR;
+    }
+
+    if (frame->left != NULL || frame->window != NULL) {
+        LOG_ERROR("frame %F is not a void you foolish developer!\n", frame);
         return ERROR;
     }
 
@@ -338,6 +357,7 @@ int remove_void(Frame *frame)
     parent->right = other->right;
     if (other->left != NULL) {
         parent->split_direction = other->split_direction;
+        parent->ratio = other->ratio;
         parent->left->parent = parent;
         parent->right->parent = parent;
     } else {
