@@ -333,32 +333,78 @@ static parser_error_t parse_boolean(Parser *parser)
     return PARSER_ERROR_INVALID_BOOLEAN;
 }
 
-/* Parse any text without leading or trailing space.
+/* Parse any text that may include escaped characters.
  *
  * Note that this stops at a semicolon.
  */
 static parser_error_t parse_string(Parser *parser)
 {
-    size_t end, real_end;
+    size_t end;
+    char byte;
+    utf8_t *string;
+    size_t index = 0;
 
     skip_space(parser);
 
+    parser->item_start_column = parser->column;
+
     end = parser->column;
-    real_end = end;
-    /* read until the end or the first semicolon */
-    while (parser->line[end] != '\0' && parser->line[end] != ';') {
-        if (!isspace(parser->line[end])) {
-            real_end = end + 1;
+    /* read until the end of line or the first semicolon that is not escaped */
+    for (; byte = parser->line[end], byte != '\0' && byte != ';'; end++) {
+        /* check if the backslash it not at the end of the line */
+        if (byte == '\\') {
+            end++;
+            if (parser->line[end] == '\0') {
+                /* indicate the point of failure */
+                parser->item_start_column = end - 1;
+                parser->column = end - 1;
+                return PARSER_ERROR_TRAILING_BACKSLASH;
+            }
         }
-        end++;
     }
 
-    if (parser->column == real_end) {
+    if (parser->column == end) {
+        /* there was absolutely nothing there */
         return PARSER_UNEXPECTED;
     }
 
-    parser->data.string = (uint8_t*) xstrndup(&parser->line[parser->column],
-            real_end - parser->column);
+    /* allocate enough bytes to hold on to all characters and the null
+     * terminator, in reality (if characters are escaped) this may be less but
+     * never more
+     */
+    string = xmalloc(end - parser->column + 1);
+
+    end = parser->column;
+    /* a second pass to handle escaped characters */
+    for (; byte = parser->line[end], byte != '\0' && byte != ';'; end++) {
+        if (byte == '\\') {
+            end++;
+            switch (parser->line[end]) {
+            /* handle some standard escape sequences */
+            case 'a': byte = '\a'; break;
+            case 'b': byte = '\b'; break;
+            case 'e': byte = '\x1b'; break;
+            case 'f': byte = '\f'; break;
+            case 'n': byte = '\n'; break;
+            case 'r': byte = '\r'; break;
+            case 't': byte = '\t'; break;
+            case 'v': byte = '\v'; break;
+            default:
+                byte = parser->line[end];
+            }
+        }
+        string[index] = byte;
+        index++;
+    }
+
+    /* null terminate the string */
+    string[index] = '\0';
+
+    /* trim anything we allocated too much */
+    RESIZE(string, index + 1);
+
+    parser->data.string = string;
+
     parser->column = end;
     return PARSER_SUCCESS;
 }

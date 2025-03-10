@@ -18,6 +18,8 @@
     X(PARSER_ERROR_UNEXPECTED, "unexpected tokens") \
     /* trailing characters after a correctly parsed lined */ \
     X(PARSER_ERROR_TRAILING, "trailing characters") \
+    /* when parsing a string, there was a backslash that escaped nothing */ \
+    X(PARSER_ERROR_TRAILING_BACKSLASH, "trailing backslash") \
     /* the identifier exceeds the limit */ \
     X(PARSER_ERROR_TOO_LONG, "identifier exceeds identifier limit " \
        STRINGIFY(PARSER_IDENTIFIER_LIMIT)) \
