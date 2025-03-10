@@ -27,7 +27,7 @@ static const struct configuration default_configuration = {
         .size = 0,
         .color = 0x36454f,
         .active_color = 0x71797e,
-        .focus_color = 0x8c6c4c,
+        .focus_color = 0xc7bb28,
     },
 
     .gaps = {
@@ -151,9 +151,9 @@ void merge_with_default_key_bindings(struct configuration *configuration)
         { XCB_MOD_MASK_SHIFT, 0, XK_r, { .code = ACTION_RELOAD_CONFIGURATION } },
 
         /* move the focus to a child or parent frame */
-        { 0, 0, XK_a, { ACTION_PARENT_FRAME, { .integer = 1 } } },
-        { 0, 0, XK_b, { ACTION_CHILD_FRAME, { .integer = 1 } } },
-        { XCB_MOD_MASK_SHIFT, 0, XK_a, { ACTION_PARENT_FRAME, {
+        { 0, 0, XK_a, { ACTION_FOCUS_PARENT, { .integer = 1 } } },
+        { 0, 0, XK_b, { ACTION_FOCUS_CHILD, { .integer = 1 } } },
+        { XCB_MOD_MASK_SHIFT, 0, XK_a, { ACTION_FOCUS_PARENT, {
                                        .integer = UINT32_MAX } } },
 
         /* make the size of frames equal */

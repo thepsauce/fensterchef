@@ -319,6 +319,8 @@ Monitor *query_monitors(void)
  */
 void merge_monitors(Monitor *monitors)
 {
+    Frame *focus_frame_root;
+
     if (monitors == NULL) {
         monitors = create_monitor("default", UINT32_MAX);
         monitors->width = screen->width_in_pixels;
@@ -338,14 +340,14 @@ void merge_monitors(Monitor *monitors)
         other->frame = NULL;
     }
 
-    /* drop the frames that are no longer valid or add them again */
+    focus_frame_root = get_root_frame(focus_frame);
+    /* drop the frames that are no longer valid */
     for (Monitor *monitor = first_monitor, *next_monitor; monitor != NULL;
             monitor = next_monitor) {
         next_monitor = monitor->next;
         if (monitor->frame != NULL) {
             /* make sure no broken frame focus remains */
-            if (focus_frame != NULL &&
-                    get_root_frame(focus_frame) == monitor->frame) {
+            if (focus_frame_root == monitor->frame) {
                 focus_frame = NULL;
             }
 
@@ -365,7 +367,8 @@ void merge_monitors(Monitor *monitors)
         if (monitor->frame == NULL) {
             if (configuration.tiling.auto_fill_void) {
                 monitor->frame = pop_stashed_frame();
-            } else {
+            }
+            if (monitor->frame == NULL) {
                 monitor->frame = xcalloc(1, sizeof(*monitor->frame));
             }
             /* set the initial size */

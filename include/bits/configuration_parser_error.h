@@ -8,6 +8,14 @@
     /* indicates a successful parsing */ \
     X(PARSER_SUCCESS, "success") \
  \
+    /* this may or may not be an error; if for instance an integer is expected
+     * and a string is given, this would be an error; however, when an integer
+     * is expected, unexpected tokens appear but the argument is optional, no
+     * error is raised
+     */ \
+    X(PARSER_UNEXPECTED, "unexpected tokens") \
+    /* this is used when there is definitely an error */ \
+    X(PARSER_ERROR_UNEXPECTED, "unexpected tokens") \
     /* trailing characters after a correctly parsed lined */ \
     X(PARSER_ERROR_TRAILING, "trailing characters") \
     /* the identifier exceeds the limit */ \
@@ -41,8 +49,6 @@
     X(PARSER_ERROR_MISSING_ACTION, "action value is missing") \
     /* an action value is missing */ \
     X(PARSER_ERROR_INVALID_ACTION, "invalid action value") \
-    /* an unexpected syntax on a line */ \
-    X(PARSER_ERROR_UNEXPECTED, "unexpected tokens")
 
 /* parser error codes */
 typedef enum {

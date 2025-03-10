@@ -289,7 +289,7 @@ static parser_error_t parse_identifier(Parser *parser)
     }
 
     if (length == 0) {
-        return PARSER_ERROR_UNEXPECTED;
+        return PARSER_UNEXPECTED;
     }
 
     memcpy(parser->identifier, &parser->line[parser->item_start_column], length);
@@ -353,6 +353,10 @@ static parser_error_t parse_string(Parser *parser)
         end++;
     }
 
+    if (parser->column == real_end) {
+        return PARSER_UNEXPECTED;
+    }
+
     parser->data.string = (uint8_t*) xstrndup(&parser->line[parser->column],
             real_end - parser->column);
     parser->column = end;
@@ -362,7 +366,7 @@ static parser_error_t parse_string(Parser *parser)
 /* Parse an integer in simple decimal notation. */
 static parser_error_t parse_integer(Parser *parser)
 {
-    int32_t sign;
+    int32_t sign = 1;
     int32_t integer;
 
     skip_space(parser);
@@ -371,13 +375,12 @@ static parser_error_t parse_integer(Parser *parser)
 
     /* get a preceding sign if any */
     if (parser->line[parser->column] == '+') {
-        sign = 1;
         parser->column++;
     } else if (parser->line[parser->column] == '-') {
         sign = -1;
         parser->column++;
-    } else {
-        sign = 1;
+    } else if (!isdigit(parser->line[parser->column])) {
+        return PARSER_UNEXPECTED;
     }
 
     /* need digits now */
@@ -448,12 +451,8 @@ static parser_error_t parse_color(Parser *parser)
     uint32_t color;
     uint32_t count;
 
-    if (parse_character(parser) != PARSER_SUCCESS) {
-        return PARSER_ERROR_PREMATURE_LINE_END;
-    }
-
-    if (parser->character != '#') {
-        return PARSER_ERROR_BAD_COLOR_FORMAT;
+    if (parse_character(parser) != PARSER_SUCCESS || parser->character != '#') {
+        return PARSER_UNEXPECTED;
     }
 
     for (color = 0, count = 0; isxdigit(parser->line[parser->column]);
@@ -631,10 +630,18 @@ static parser_error_t parse_actions(Parser *parser,
         const parser_data_type_t data_type = get_action_data_type(action->code);
         if (data_type != PARSER_DATA_TYPE_VOID) {
             error = data_types[data_type].parse(parser);
-            if (error != PARSER_SUCCESS) {
-                break;
+            /* if the argument is optional, it is fine when an unexpected token
+             * appears
+             */
+            if (error == PARSER_UNEXPECTED &&
+                    has_action_optional_argument(action->code)) {
+                error = PARSER_SUCCESS;
+            } else {
+                if (error != PARSER_SUCCESS) {
+                    break;
+                }
+                action->parameter = parser->data;
             }
-            action->parameter = parser->data;
         }
 
         number_of_actions++;

@@ -18,16 +18,25 @@
 static const struct {
     /* name of the action */
     const char *name;
+    /* if the argument of this action should be optional */
+    bool is_argument_optional;
     /* data type of the action parameter */
     parser_data_type_t data_type;
 } action_information[ACTION_MAX] = {
-#define X(code, string, data_type) [code] = { string, data_type },
+#define X(code, is_optional, string, data_type) [code] = \
+    { string, is_optional, data_type },
     DECLARE_ALL_ACTIONS
 #undef X
 };
 
+/* Check if the given action's argument may be omitted. */
+inline bool has_action_optional_argument(action_t action)
+{
+    return action_information[action].data_type;
+}
+
 /* Get the data type the action expects as parameter. */
-parser_data_type_t get_action_data_type(action_t action)
+inline parser_data_type_t get_action_data_type(action_t action)
 {
     return action_information[action].data_type;
 }
@@ -44,7 +53,7 @@ action_t string_to_action(const char *string)
 }
 
 /* Get a string version of an action. */
-const char *action_to_string(action_t action)
+inline const char *action_to_string(action_t action)
 {
     return action_information[action].name;
 }
@@ -139,7 +148,7 @@ static char *run_shell_and_get_output(const char *shell)
 }
 
 /* Resize the current window or current frame if it does not exist. */
-static void resize_frame_or_window_by(Window *window, int32_t left, int32_t top,
+static bool resize_frame_or_window_by(Window *window, int32_t left, int32_t top,
         int32_t right, int32_t bottom)
 {
     Frame *frame;
@@ -147,7 +156,7 @@ static void resize_frame_or_window_by(Window *window, int32_t left, int32_t top,
     if (window == NULL) {
         frame = focus_frame;
         if (frame == NULL) {
-            return;
+            return false;
         }
     } else {
         frame = get_frame_of_window(window);
@@ -174,12 +183,15 @@ static void resize_frame_or_window_by(Window *window, int32_t left, int32_t top,
                 window->width + right,
                 window->height + bottom);
     }
+    return true;
 }
 
 /* Get a tiling window that is not currently shown and put it into the focus
  * frame.
+ *
+ * @return if there is another window.
  */
-void set_showable_tiling_window(bool previous)
+bool set_showable_tiling_window(bool previous)
 {
     Window *start, *next, *valid_window = NULL;
 
@@ -218,14 +230,16 @@ void set_showable_tiling_window(bool previous)
         set_notification((utf8_t*) "No other window",
                 focus_frame->x + focus_frame->width / 2,
                 focus_frame->y + focus_frame->height / 2);
-    } else {
-        show_window(valid_window);
-        set_focus_window(valid_window);
+        return false;
     }
+
+    show_window(valid_window);
+    set_focus_window(valid_window);
+    return true;
 }
 
 /* Change the focus from tiling to non tiling and vise versa. */
-void toggle_focus(void)
+bool toggle_focus(void)
 {
     Window *window;
 
@@ -250,10 +264,13 @@ void toggle_focus(void)
                 set_focus_frame(focus_frame);
             }
             set_focus_window(window);
+            return true;
         }
-    } else {
+    } else if (focus_frame->window != focus_window) {
         set_focus_frame(focus_frame);
+        return true;
     }
+    return false;
 }
 
 /* Move the focus from @from to @to and exchange if requested. */
@@ -281,7 +298,7 @@ static void move_to_frame(Frame *from, Frame *to, Monitor *monitor,
 }
 
 /* Move the focus to the frame above @relative. */
-static void move_to_above_frame(Frame *relative, bool do_exchange)
+static bool move_to_above_frame(Frame *relative, bool do_exchange)
 {
     Frame *frame;
     Monitor *monitor = NULL;
@@ -304,7 +321,7 @@ static void move_to_above_frame(Frame *relative, bool do_exchange)
     }
 
     if (frame == NULL) {
-        return;
+        return false;
     }
 
     const int x = relative->x + relative->width / 2;
@@ -322,10 +339,11 @@ static void move_to_above_frame(Frame *relative, bool do_exchange)
     }
 
     move_to_frame(relative, frame, monitor, do_exchange);
+    return true;
 }
 
 /* Move the focus to the frame left of @relative. */
-static void move_to_left_frame(Frame *relative, bool do_exchange)
+static bool move_to_left_frame(Frame *relative, bool do_exchange)
 {
     Frame *frame;
     Monitor *monitor = NULL;
@@ -348,7 +366,7 @@ static void move_to_left_frame(Frame *relative, bool do_exchange)
     }
 
     if (frame == NULL) {
-        return;
+        return false;
     }
 
     const int y = relative->y + relative->height / 2;
@@ -366,10 +384,11 @@ static void move_to_left_frame(Frame *relative, bool do_exchange)
     }
 
     move_to_frame(relative, frame, monitor, do_exchange);
+    return true;
 }
 
 /* Move the focus to the frame right of @relative. */
-static void move_to_right_frame(Frame *relative, bool do_exchange)
+static bool move_to_right_frame(Frame *relative, bool do_exchange)
 {
     Frame *frame;
     Monitor *monitor = NULL;
@@ -392,7 +411,7 @@ static void move_to_right_frame(Frame *relative, bool do_exchange)
     }
 
     if (frame == NULL) {
-        return;
+        return false;
     }
 
     const int y = relative->y + relative->height / 2;
@@ -410,10 +429,11 @@ static void move_to_right_frame(Frame *relative, bool do_exchange)
     }
 
     move_to_frame(relative, frame, monitor, do_exchange);
+    return true;
 }
 
 /* Move the focus to the frame below @relative. */
-static void move_to_below_frame(Frame *relative, bool do_exchange)
+static bool move_to_below_frame(Frame *relative, bool do_exchange)
 {
     Frame *frame;
     Monitor *monitor = NULL;
@@ -436,7 +456,7 @@ static void move_to_below_frame(Frame *relative, bool do_exchange)
     }
 
     if (frame == NULL) {
-        return;
+        return false;
     }
 
     const int x = relative->x + relative->width / 2;
@@ -454,23 +474,31 @@ static void move_to_below_frame(Frame *relative, bool do_exchange)
     }
 
     move_to_frame(relative, frame, monitor, do_exchange);
+    return true;
 }
 
 /* Do the given action. */
-void do_action(const Action *action, Window *window)
+bool do_action(const Action *action, Window *window)
 {
     char *shell;
     uint32_t count;
+    Frame *frame;
+
+    /* some actions need this */
+    count = action->parameter.integer;
+    if (count == 0) {
+        count = 1;
+    }
 
     switch (action->code) {
     /* invalid action value */
     case ACTION_NULL:
         LOG_ERROR("tried to do NULL action");
-        break;
+        return false;
 
     /* do nothing */
     case ACTION_NONE:
-        break;
+        return false;
 
     /* reload the configuration file */
     case ACTION_RELOAD_CONFIGURATION:
@@ -482,35 +510,43 @@ void do_action(const Action *action, Window *window)
         break;
 
     /* move the focus to the parent frame */
-    case ACTION_PARENT_FRAME:
-        count = action->parameter.integer;
+    case ACTION_FOCUS_PARENT:
         /* move to the count'th parent */
-        for (; focus_frame->parent != NULL && count > 0; count--) {
-            if (focus_frame == focus_frame->parent->left) {
-                focus_frame->parent->moved_from_left = true;
+        for (frame = focus_frame; frame->parent != NULL && count > 0; count--) {
+            if (frame == frame->parent->left) {
+                frame->parent->moved_from_left = true;
             } else {
-                focus_frame->parent->moved_from_left = false;
+                frame->parent->moved_from_left = false;
             }
-            focus_frame = focus_frame->parent;
+            frame = frame->parent;
         }
-        set_focus_frame(focus_frame);
+
+        if (frame == focus_frame) {
+            return false;
+        }
+
+        set_focus_frame(frame);
         break;
 
     /* move the focus to the child frame */
-    case ACTION_CHILD_FRAME:
-        count = action->parameter.integer;
+    case ACTION_FOCUS_CHILD:
         /* move to the count'th child */
-        for (; focus_frame->left != NULL && count > 0; count--) {
-            if (focus_frame->moved_from_left) {
-                focus_frame = focus_frame->left;
+        for (frame = focus_frame; frame->left != NULL && count > 0; count--) {
+            if (frame->moved_from_left) {
+                frame = frame->left;
             } else {
-                focus_frame = focus_frame->right;
+                frame = frame->right;
             }
         }
+
+        if (frame == focus_frame) {
+            return false;
+        }
+
         set_focus_frame(focus_frame);
         break;
 
-    /* move the focus to the root frame */ \
+    /* move the focus to the root frame */
     case ACTION_EQUALIZE_FRAME:
         equalize_frame(focus_frame);
         break;
@@ -518,7 +554,7 @@ void do_action(const Action *action, Window *window)
     /* closes the currently active window */
     case ACTION_CLOSE_WINDOW:
         if (window == NULL) {
-            break;
+            return false;
         }
         close_window(window);
         break;
@@ -526,13 +562,16 @@ void do_action(const Action *action, Window *window)
     /* hide the currently active window */
     case ACTION_MINIMIZE_WINDOW:
         if (window == NULL) {
-            break;
+            return false;
         }
         hide_window(window);
         break;
 
     /* focus a window */
     case ACTION_FOCUS_WINDOW:
+        if (window == focus_window) {
+            return false;
+        }
         set_focus_window_with_frame(window);
         if (window != NULL) {
             update_window_layer(window);
@@ -542,7 +581,7 @@ void do_action(const Action *action, Window *window)
     /* start moving a window with the mouse */
     case ACTION_INITIATE_MOVE:
         if (window == NULL) {
-            break;
+            return false;
         }
         initiate_window_move_resize(window, _NET_WM_MOVERESIZE_MOVE, -1, -1);
         break;
@@ -550,19 +589,27 @@ void do_action(const Action *action, Window *window)
     /* start resizing a window with the mouse */
     case ACTION_INITIATE_RESIZE:
         if (window == NULL) {
-            break;
+            return false;
         }
         initiate_window_move_resize(window, _NET_WM_MOVERESIZE_AUTO, -1, -1);
         break;
 
     /* go to the next window in the window list */
     case ACTION_NEXT_WINDOW:
-        set_showable_tiling_window(false);
+        for (; count > 0; count--) {
+            if (!set_showable_tiling_window(false)) {
+                return false;
+            }
+        }
         break;
 
     /* go to the previous window in the window list */
     case ACTION_PREVIOUS_WINDOW:
-        set_showable_tiling_window(true);
+        for (; count > 0; count--) {
+            if (!set_showable_tiling_window(true)) {
+                return false;
+            }
+        }
         break;
 
     /* remove the current frame */
@@ -574,7 +621,7 @@ void do_action(const Action *action, Window *window)
     /* changes a non tiling window to a tiling window and vise versa */
     case ACTION_TOGGLE_TILING:
         if (window == NULL) {
-            break;
+            return false;
         }
         set_window_mode(window,
                 window->state.mode == WINDOW_MODE_TILING ?
@@ -594,8 +641,7 @@ void do_action(const Action *action, Window *window)
 
     /* change the focus from tiling to non tiling or vise versa */
     case ACTION_TOGGLE_FOCUS:
-        toggle_focus();
-        break;
+        return toggle_focus();
 
     /* split the current frame horizontally */
     case ACTION_SPLIT_HORIZONTALLY:
@@ -609,48 +655,41 @@ void do_action(const Action *action, Window *window)
 
     /* move the focus to the frame above */
     case ACTION_FOCUS_UP:
-        move_to_above_frame(focus_frame, false);
-        break;
+        return move_to_above_frame(focus_frame, false);
 
     /* move the focus to the left frame */
     case ACTION_FOCUS_LEFT:
-        move_to_left_frame(focus_frame, false);
-        break;
+        return move_to_left_frame(focus_frame, false);
 
     /* move the focus to the right frame */
     case ACTION_FOCUS_RIGHT:
-        move_to_right_frame(focus_frame, false);
-        break;
+        return move_to_right_frame(focus_frame, false);
 
     /* move the focus to the frame below */
     case ACTION_FOCUS_DOWN:
-        move_to_below_frame(focus_frame, false);
-        break;
+        return move_to_below_frame(focus_frame, false);
 
     /* exchange the current frame with the above one */
     case ACTION_EXCHANGE_UP:
-        move_to_above_frame(focus_frame, true);
-        break;
+        return move_to_above_frame(focus_frame, true);
 
     /* exchange the current frame with the left one */
     case ACTION_EXCHANGE_LEFT:
-        move_to_left_frame(focus_frame, true);
-        break;
+        return move_to_left_frame(focus_frame, true);
 
     /* exchange the current frame with the right one */
     case ACTION_EXCHANGE_RIGHT:
-        move_to_right_frame(focus_frame, true);
-        break;
+        return move_to_right_frame(focus_frame, true);
 
     /* exchange the current frame with the below one */
     case ACTION_EXCHANGE_DOWN:
-        move_to_below_frame(focus_frame, true);
-        break;
+        return move_to_below_frame(focus_frame, true);
 
     /* toggle visibility of the interactive window list */
     case ACTION_SHOW_WINDOW_LIST:
         if (show_window_list() == ERROR) {
             unmap_client(&window_list.client);
+            return false;
         }
         break;
 
@@ -674,6 +713,9 @@ void do_action(const Action *action, Window *window)
     /* show a message by getting output from a shell script */
     case ACTION_SHOW_MESSAGE_RUN:
         shell = run_shell_and_get_output((char*) action->parameter.string);
+        if (shell == NULL) {
+            return false;
+        }
         set_notification((utf8_t*) shell,
                 focus_frame->x + focus_frame->width / 2,
                 focus_frame->y + focus_frame->height / 2);
@@ -682,14 +724,15 @@ void do_action(const Action *action, Window *window)
 
     /* resize the edges of the current window */
     case ACTION_RESIZE_BY:
-        resize_frame_or_window_by(window, action->parameter.quad[0],
+        return resize_frame_or_window_by(window,
+                action->parameter.quad[0],
                 action->parameter.quad[1],
                 action->parameter.quad[2],
                 action->parameter.quad[3]);
-        break;
 
     /* not a real action */
     case ACTION_MAX:
         break;
     }
+    return true;
 }

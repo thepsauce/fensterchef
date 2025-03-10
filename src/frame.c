@@ -194,6 +194,9 @@ void set_focus_window_with_frame(Window *window)
 /* Get the frame above the given one that has no parent. */
 Frame *get_root_frame(Frame *frame)
 {
+    if (frame == NULL) {
+        return NULL;
+    }
     while (frame->parent != NULL) {
         frame = frame->parent;
     }

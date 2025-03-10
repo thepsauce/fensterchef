@@ -106,7 +106,10 @@ void set_focus_frame(Frame *frame);
 /* Focus @window and the frame it is in. */
 void set_focus_window_with_frame(Window *window);
 
-/* Get the frame above the given one that has no parent. */
+/* Get the frame above the given one that has no parent.
+ *
+ * @frame may be NULL, then simply NULL is returned.
+ */
 Frame *get_root_frame(Frame *frame);
 
 #endif
