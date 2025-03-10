@@ -543,7 +543,7 @@ bool do_action(const Action *action, Window *window)
             return false;
         }
 
-        set_focus_frame(focus_frame);
+        set_focus_frame(frame);
         break;
 
     /* move the focus to the root frame */

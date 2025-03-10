@@ -360,12 +360,16 @@ void set_input_focus(Window *window)
             event->data.data32[1] = XCB_CURRENT_TIME;
             xcb_send_event(connection, false, window->client.id,
                     XCB_EVENT_MASK_NO_EVENT, event_data);
+
+            LOG("focusing client: %w through sending WM_TAKE_FOCUS\n",
+                    window->client.id);
         } else {
             focus_id = window->client.id;
         }
     }
 
     if (focus_id != XCB_NONE) {
+        LOG("focusing client: %w\n", focus_id);
         xcb_set_input_focus(connection, XCB_INPUT_FOCUS_POINTER_ROOT,
                 focus_id, XCB_CURRENT_TIME);
     }

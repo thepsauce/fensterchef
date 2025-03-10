@@ -566,17 +566,27 @@ Frame *get_frame_of_window(const Window *window)
 /* Check if @window accepts input focus. */
 bool does_window_accept_focus(Window *window)
 {
+    /* if this protocol is supported, we can make use of it */
     if (supports_protocol(window, ATOM(WM_TAKE_FOCUS))) {
         return true;
     }
+
+    /* if the client explicitly says it can (or can not) receive focus */
+    if ((window->hints.flags & XCB_ICCCM_WM_HINT_INPUT)) {
+        return window->hints.input != 0;
+    }
+
+    /* now we enter a weird area where we really can not be sure if this client
+     * can handle focus input, we just check for some window modes and otherwise
+     * assume it does accept focus
+     */
 
     if (window->state.mode == WINDOW_MODE_DOCK ||
             window->state.mode == WINDOW_MODE_DESKTOP) {
         return false;
     }
 
-    return !(window->hints.flags & XCB_ICCCM_WM_HINT_INPUT) ||
-            window->hints.input != 0;
+    return true;
 }
 
 /* Set the window that is in focus to @window. */
@@ -586,14 +596,10 @@ void set_focus_window(Window *window)
         LOG("focusing window %W\n", window);
 
         if (!does_window_accept_focus(window)) {
-            LOG("the window can not be focused\n");
-            focus_window = NULL;
-            return;
-        }
-
-        if (window == focus_window) {
+            LOG_ERROR("the window can not be focused\n");
+            window = NULL;
+        } else if (window == focus_window) {
             LOG("the window is already focused\n");
-            return;
         }
     }
 
