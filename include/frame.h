@@ -75,6 +75,9 @@ struct frame {
 /* the currently selected/focused frame */
 extern Frame *focus_frame;
 
+/* Check if the given frame has no splits and no window. */
+bool is_frame_void(const Frame *frame);
+
 /* Check if the given point is within the given frame.
  *
  * @return if the point is inside the frame.

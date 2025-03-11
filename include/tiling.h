@@ -3,8 +3,13 @@
 
 #include "frame.h"
 
-/* Split a frame horizontally or vertically. */
-void split_frame(Frame *split_from, frame_split_direction_t direction);
+/* Split a frame horizontally or vertically.
+ *
+ * @frame is put into the right/bottom of the split. It may be NULL, then one is
+ *        allocated by this function and filled by the stash.
+ */
+void split_frame(Frame *split_from, Frame *right,
+        frame_split_direction_t direction);
 
 /* Note for all `get_XXX_frame()` functions that the frame returned usually is a
  * parent frame, meaning it has children, for example:

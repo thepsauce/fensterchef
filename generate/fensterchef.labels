@@ -11,17 +11,18 @@ A variable starting with ! is a special command and not really a variable.
 Otherwise it is a regular variable in the form:
 <name> <data type> <default value>
 
-fensterchef.data_types include all data types.
+fensterchef.data_types includes all data types.
 
 The format of this file is very strict. After each label declaration (with
 variables) MUST follow an empty line.
 The indentation of this file is 3 spaces.
-
 This is chosen because it aligns with the amount of space in front of text when
 using a multi comment in C like this:
 /* TEXT
  * MORE TEXT
  */
+However, for single line comment a */ is put at the end, so the number of
+columns should be 78 here.
 
 ---> Start of code relevant to generation:
 [general]
@@ -35,10 +36,19 @@ overlap-percentage integer 80
    the number of actions to run on startup
 
 [tiling]
+auto-split boolean false
+   whether to automatically create a split when a window is shown
+only-hint-split-direction boolean false
+   whether to actually split when using `split-*` or just hint the split
+   direction
+auto-equalize boolean false
+   whether to automatically equalize all frames within the root
 auto-fill-void boolean true
    whether to fill in empty frames automatically
+auto-remove boolean false
+   whether to remove frames automatically when their inner windows is hidden
 auto-remove-void boolean false
-   whether to remove empty frames automatically
+   whether to remove frames automatically when they become empty
 
 [font]
 name string Mono

@@ -12,6 +12,12 @@
 /* the currently selected/focused frame */
 Frame *focus_frame;
 
+/* Check if the given frame has no splits and no window. */
+inline bool is_frame_void(const Frame *frame)
+{
+    return frame->left == NULL && frame->window == NULL;
+}
+
 /* Check if the given point is within the given frame. */
 bool is_point_in_frame(const Frame *frame, int32_t x, int32_t y)
 {

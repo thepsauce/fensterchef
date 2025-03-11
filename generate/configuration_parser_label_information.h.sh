@@ -26,13 +26,25 @@ read_label_variables_and_commands() {
 
     inner=""
     let count=1
-    while read -r line ; do
+    unset next_line
+    while : ; do
+        if [ -z "${next_line+x}" ] ; then
+            read -r line || break
+        else
+            line="$next_line"
+        fi
+
+        # an EMPTY line signals stop
         if [ -z "$line" ] ; then
             break
         fi
 
-        # ignore the comment
-        read -r comment
+        # skip the comment which may span across multiple lines
+        while read -r next_line ; do
+            if [ "${next_line:0:1}" != " " ] ; then
+                break
+            fi
+        done
 
         case "$line" in
         \**)

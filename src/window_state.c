@@ -418,9 +418,16 @@ void show_window(Window *window)
             reload_frame(frame);
             break;
         }
-        stash_frame(focus_frame);
-        focus_frame->window = window;
-        reload_frame(focus_frame);
+        if (configuration.tiling.auto_split && (focus_frame->left != NULL ||
+                    focus_frame->window != NULL)) {
+            Frame *const wrap = xcalloc(1, sizeof(*wrap));
+            wrap->window = window;
+            split_frame(focus_frame, wrap, focus_frame->split_direction);
+        } else {
+            stash_frame(focus_frame);
+            focus_frame->window = window;
+            reload_frame(focus_frame);
+        }
         break;
     }
 
@@ -466,8 +473,20 @@ void hide_window(Window *window)
         frame = get_frame_of_window(window);
 
         stash = stash_frame_later(frame);
-        if (configuration.tiling.auto_remove_void) {
+        if (configuration.tiling.auto_remove) {
             if (frame->parent != NULL) {
+                remove_void(frame);
+            }
+        } else if (configuration.tiling.auto_remove_void) {
+            /* this option takes precedence */
+            if (configuration.tiling.auto_fill_void) {
+                fill_void_with_stash(frame);
+                if (is_frame_void(frame)) {
+                    remove_void(frame);
+                } else if (window == focus_window) {
+                    set_focus_window(frame->window);
+                }
+            } else if (frame->parent != NULL) {
                 remove_void(frame);
             }
         } else if (configuration.tiling.auto_fill_void) {

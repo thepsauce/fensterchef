@@ -28,12 +28,27 @@ write_struct() {
     echo
     echo "/* $label settings */"
     echo "struct configuration_$label {"
-    while read -r line ; do
+    unset next_line
+    while : ; do
+        if [ -z "${next_line+x}" ] ; then
+            read -r line || break
+        else
+            line="$next_line"
+        fi
+
+        # an EMPTY line signals stop
         if [ "$line" = "" ] ; then
             break
         fi
 
-        read -r comment
+        # read the comment which may span across multiple lines
+        comments=()
+        while read -r next_line ; do
+            if [ "${next_line:0:1}" != " " ] ; then
+                break
+            fi
+            comments+=( "${next_line:3}" )
+        done
 
         case "$line" in
         "*"*)
@@ -66,7 +81,15 @@ write_struct() {
             ;;
         esac
 
-        echo "    /* ${comment:3} */"
+        if [ "${#comments[@]}" -eq 1 ] ; then
+            echo "    /* ${comments[0]} */"
+        else
+            echo "    /* ${comments[0]}"
+            for c in "${comments[@]:1}" ; do
+                echo "     * $c"
+            done
+            echo "     */"
+        fi
         echo "    $line;"
     done
     echo "};"

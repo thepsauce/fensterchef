@@ -8,13 +8,18 @@
 #include "window.h"
 
 /* Split a frame horizontally or vertically. */
-void split_frame(Frame *split_from, frame_split_direction_t direction)
+void split_frame(Frame *split_from, Frame *right,
+        frame_split_direction_t direction)
 {
-    Frame *left, *right;
-    Frame *next_focus_frame;
+    Frame *left;
 
     left = xcalloc(1, sizeof(*left));
-    right = xcalloc(1, sizeof(*right));
+    if (right == NULL) {
+        right = xcalloc(1, sizeof(*right));
+        if (configuration.tiling.auto_fill_void) {
+            fill_void_with_stash(right);
+        }
+    }
 
     /* let `left` take the children or window */
     if (split_from->left != NULL) {
@@ -39,20 +44,16 @@ void split_frame(Frame *split_from, frame_split_direction_t direction)
     right->parent = split_from;
 
     if (split_from == focus_frame) {
-        next_focus_frame = left;
-    } else {
-        next_focus_frame = focus_frame;
+        focus_frame = left;
     }
 
     /* size the child frames */
-    resize_frame(split_from, split_from->x, split_from->y, split_from->width,
-            split_from->height);
-
-    if (configuration.tiling.auto_fill_void) {
-        fill_void_with_stash(right);
+    if (configuration.tiling.auto_equalize) {
+        equalize_frame(get_root_frame(split_from));
+    } else {
+        resize_frame(split_from, split_from->x, split_from->y,
+                split_from->width, split_from->height);
     }
-
-    set_focus_frame(next_focus_frame);
 
     LOG("split %F(%F, %F)\n", split_from, left, right);
 }
@@ -340,7 +341,7 @@ int remove_void(Frame *frame)
         return ERROR;
     }
 
-    if (frame->left != NULL || frame->window != NULL) {
+    if (!is_frame_void(frame)) {
         LOG_ERROR("frame %F is not a void you foolish developer!\n", frame);
         return ERROR;
     }
@@ -366,7 +367,12 @@ int remove_void(Frame *frame)
 
     free(other);
 
-    resize_frame(parent, parent->x, parent->y, parent->width, parent->height);
+    if (configuration.tiling.auto_equalize) {
+        equalize_frame(get_root_frame(parent));
+    } else {
+        resize_frame(parent, parent->x, parent->y, parent->width,
+                parent->height);
+    }
 
     LOG("frame %F was removed\n", frame);
 

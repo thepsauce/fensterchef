@@ -19,7 +19,7 @@ static void hide_inner_windows(Frame *frame)
 Frame *stash_frame_later(Frame *frame)
 {
     /* check if it is worth saving this frame */
-    if (frame->left == NULL && frame->window == NULL) {
+    if (is_frame_void(frame)) {
         return NULL;
     }
 
@@ -84,6 +84,10 @@ static bool is_window_valid(Window *window)
 
 /* Make sure all window pointers are still valid.
  *
+ * In theory theory it could happen that a pointer is associated to a different
+ * object even when it has the same address. But even if that happened, it would
+ * not make this function any worse. The user would not even notice.
+ *
  * @return the number of valid windows.
  */
 static uint32_t validate_inner_windows(Frame *frame)
@@ -111,6 +115,18 @@ static void free_frame_recursively(Frame *frame)
     free(frame);
 }
 
+/* Show all windows in @frame and child frames. */
+static void show_inner_windows(Frame *frame)
+{
+    if (frame->left != NULL) {
+        show_inner_windows(frame->left);
+        show_inner_windows(frame->right);
+    } else if (frame->window != NULL) {
+        reload_frame(frame);
+        frame->window->state.is_visible = true;
+    }
+}
+
 /* Put the child frames or window into @frame of the recently saved frame. */
 Frame *pop_stashed_frame(void)
 {
@@ -135,20 +151,10 @@ Frame *pop_stashed_frame(void)
         last_stashed_frame = NULL;
     } else {
         last_stashed_frame = pop->previous_stashed;
+        show_inner_windows(pop);
     }
-    return pop;
-}
 
-/* Show all windows in @frame and child frames. */
-static void show_inner_windows(Frame *frame)
-{
-    if (frame->left != NULL) {
-        show_inner_windows(frame->left);
-        show_inner_windows(frame->right);
-    } else if (frame->window != NULL) {
-        reload_frame(frame);
-        frame->window->state.is_visible = true;
-    }
+    return pop;
 }
 
 /* Puts a frame from the stash into given @frame. */
@@ -161,6 +167,5 @@ void fill_void_with_stash(Frame *frame)
         return;
     }
     replace_frame(frame, pop);
-    show_inner_windows(frame);
     free(pop);
 }

@@ -287,8 +287,7 @@ void set_configuration(struct configuration *new_configuration)
     /* reload all frames */
     for (Monitor *monitor = first_monitor; monitor != NULL;
             monitor = monitor->next) {
-        resize_frame(monitor->frame, monitor->frame->x, monitor->frame->y,
-                monitor->frame->width, monitor->frame->height);
+        reload_frame_recursively(monitor->frame);
     }
 
     /* change border color and size of the notification window */

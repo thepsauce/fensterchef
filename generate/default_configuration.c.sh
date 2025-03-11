@@ -62,13 +62,25 @@ write_default_label_options() {
     echo "    .$label = {"
 
     variable_count=0
-    while read -r line ; do
-        if [ -z "$line" ] ; then
+    unset next_line
+    while : ; do
+        if [ -z "${next_line+x}" ] ; then
+            read -r line || break
+        else
+            line="$next_line"
+        fi
+
+        # an EMPTY line signals stop
+        if [ "$line" = "" ] ; then
             break
         fi
 
-        # skip over the comment
-        read
+        # skip the comment which may span across multiple lines
+        while read -r next_line ; do
+            if [ "${next_line:0:1}" != " " ] ; then
+                break
+            fi
+        done
 
         case "$line" in
         "*"*|!*)
