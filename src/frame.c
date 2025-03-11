@@ -12,10 +12,38 @@
 /* the currently selected/focused frame */
 Frame *focus_frame;
 
+/* the focus that existed before entering the event loop */
+Frame *old_focus_frame;
+
 /* Check if the given frame has no splits and no window. */
 inline bool is_frame_void(const Frame *frame)
 {
     return frame->left == NULL && frame->window == NULL;
+}
+
+/* Use this instead of `free()`. */
+void free_frame(Frame *frame)
+{
+    /* special marker used as pointer, see below */
+    static Frame i_am_used_as_marker;
+
+    if (frame == focus_frame) {
+        LOG_ERROR("the focused frame is being freed :(\n");
+        focus_frame = NULL;
+        /* we can only hope the focused frame is set to something sensible after
+         * this
+         */
+    }
+
+    /* mark to the event loop that the focus changed, we do not want the frame
+     * pointer to be re-used for a different frame and then end up not
+     * registering the focus change
+     */
+    if (old_focus_frame == frame) {
+        old_focus_frame = &i_am_used_as_marker;
+    }
+
+    free(frame);
 }
 
 /* Check if the given point is within the given frame. */

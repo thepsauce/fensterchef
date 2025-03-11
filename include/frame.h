@@ -75,8 +75,14 @@ struct frame {
 /* the currently selected/focused frame */
 extern Frame *focus_frame;
 
+/* the focus that existed before entering the event loop */
+extern Frame *old_focus_frame;
+
 /* Check if the given frame has no splits and no window. */
 bool is_frame_void(const Frame *frame);
+
+/* Use this instead of `free()`. */
+void free_frame(Frame *frame);
 
 /* Check if the given point is within the given frame.
  *

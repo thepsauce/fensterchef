@@ -112,7 +112,7 @@ static void free_frame_recursively(Frame *frame)
         free_frame_recursively(frame->left);
         free_frame_recursively(frame->right);
     }
-    free(frame);
+    free_frame(frame);
 }
 
 /* Show all windows in @frame and child frames. */
@@ -167,5 +167,5 @@ void fill_void_with_stash(Frame *frame)
         return;
     }
     replace_frame(frame, pop);
-    free(pop);
+    free_frame(pop);
 }

@@ -365,8 +365,6 @@ int remove_void(Frame *frame)
         parent->window = other->window;
     }
 
-    free(other);
-
     if (configuration.tiling.auto_equalize) {
         equalize_frame(get_root_frame(parent));
     } else {
@@ -375,8 +373,6 @@ int remove_void(Frame *frame)
     }
 
     LOG("frame %F was removed\n", frame);
-
-    free(frame);
 
     const int x = parent->x + parent->width / 2;
     const int y = parent->y + parent->height / 2;
@@ -398,5 +394,8 @@ int remove_void(Frame *frame)
     }
 
     set_focus_frame(parent);
+
+    free_frame(other);
+    free_frame(frame);
     return OK;
 }

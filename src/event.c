@@ -242,8 +242,6 @@ void synchronize_with_server(void)
 int next_cycle(void)
 {
     int connection_error;
-    Window *old_focus_window;
-    Frame *old_focus_frame;
     xcb_generic_event_t *event;
     fd_set set;
 
@@ -256,7 +254,7 @@ int next_cycle(void)
     }
 
     /* these values are only used for comparison, the pointers itself might get
-     * invalidated
+     * set to an invalid frame or window
      */
     old_focus_window = focus_window;
     old_focus_frame = focus_frame;

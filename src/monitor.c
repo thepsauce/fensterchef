@@ -353,7 +353,7 @@ void merge_monitors(Monitor *monitors)
 
             /* stash away the frame */
             stash_frame(monitor->frame);
-            free(monitor->frame);
+            free_frame(monitor->frame);
         }
         free(monitor->name);
         free(monitor);

@@ -111,6 +111,9 @@ extern Window *first_window;
 /* the currently focused window */
 extern Window *focus_window;
 
+/* the focus that existed before entering the event loop */
+extern Window *old_focus_window;
+
 /* Create a window struct and add it to the window list. */
 Window *create_window(xcb_window_t xcb);
 

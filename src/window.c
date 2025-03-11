@@ -24,6 +24,9 @@ Window *first_window;
 /* the currently focused window */
 Window *focus_window;
 
+/* the focus that existed before entering the event loop */
+Window *old_focus_window;
+
 /* Create a window struct and add it to the window list. */
 Window *create_window(xcb_window_t xcb_window)
 {
@@ -217,6 +220,9 @@ static void unlink_window_from_z_list(Window *window)
 /* Destroys given window and removes it from the window linked list. */
 void destroy_window(Window *window)
 {
+    /* special marker used as pointer, see below */
+    static Window i_am_used_as_marker;
+
     Frame *frame;
     Window *previous;
 
@@ -266,6 +272,14 @@ void destroy_window(Window *window)
     }
 
     has_client_list_changed = true;
+
+    /* mark to the event loop that the focus changed, we do not want the frame
+     * pointer to be re-used for a different frame and then end up not
+     * registering the focus change
+     */
+    if (window == old_focus_window) {
+        old_focus_window = &i_am_used_as_marker;
+    }
 
     free(window->name);
     free(window->protocols);
