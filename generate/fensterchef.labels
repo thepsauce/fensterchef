@@ -35,6 +35,14 @@ overlap-percentage integer 80
 *uint32_t number_of_actions
    the number of actions to run on startup
 
+[assignment]*association
+first-window-number integer 1
+   the number the first window gets assigned
+*struct configuration_association *associations
+   the associations that are wanted
+*uint32_t number_of_associations
+   the number of associations
+
 [tiling]
 auto-split boolean false
    whether to automatically create a split when a window is shown

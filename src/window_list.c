@@ -17,6 +17,7 @@
 #include "utility.h"
 #include "window.h"
 #include "window_list.h"
+#include "window_properties.h"
 
 /* user window list window */
 struct window_list window_list;
@@ -59,7 +60,7 @@ static bool is_valid_for_display(Window *window)
 }
 
 /* Get character indicating the window state. */
-static char get_indicator_character(Window *window)
+static inline char get_indicator_character(Window *window)
 {
     return !window->state.is_visible ? '-' :
             window->state.mode == WINDOW_MODE_FLOATING ?
@@ -67,6 +68,13 @@ static char get_indicator_character(Window *window)
             window->state.mode == WINDOW_MODE_FULLSCREEN ?
                 (window == focus_window ? '@' : 'F') :
             window == focus_window ? '*' : '+';
+}
+
+static inline void get_window_string(Window *window, utf8_t *buffer,
+        size_t buffer_size)
+{
+    snprintf((char*) buffer, buffer_size, "%" PRIu32 "%c%s",
+            window->number, get_indicator_character(window), window->name);
 }
 
 /* Render the window list. */
@@ -101,9 +109,7 @@ static void render_window_list(void)
         }
 
         window_count++;
-        snprintf((char*) buffer, sizeof(buffer), "%" PRIu32 "%c%s",
-                window->number, get_indicator_character(window),
-                window->name);
+        get_window_string(window, buffer, sizeof(buffer));
         measure_text(buffer, strlen((char*) buffer), &measure);
         max_width = MAX(max_width, measure.total_width);
     }
@@ -177,9 +183,7 @@ static void render_window_list(void)
         }
 
         /* draw the text centered within the item */
-        snprintf((char*) buffer, sizeof(buffer), "%" PRIu32 "%c%s",
-                window->number, get_indicator_character(window),
-                window->name);
+        get_window_string(window, buffer, sizeof(buffer));
         draw_text(window_list.client.id, buffer,
                 strlen((char*) buffer), background_color, &rectangle,
                 pen, configuration.notification.padding / 2,

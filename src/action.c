@@ -1,3 +1,4 @@
+#include <inttypes.h>
 #include <unistd.h>
 #include <string.h> // strcmp()
 #include <sys/wait.h> // wait()
@@ -233,7 +234,13 @@ bool set_showable_tiling_window(bool previous)
         return false;
     }
 
-    show_window(valid_window);
+    /* clear the old frame and stash it */
+    (void) stash_frame(focus_frame);
+    /* put the window into the focused frame, size and show it */
+    focus_frame->window = valid_window;
+    reload_frame(focus_frame);
+    valid_window->state.is_visible = true;
+    /* focus the shown window */
     set_focus_window(valid_window);
     return true;
 }
@@ -480,15 +487,10 @@ static bool move_to_below_frame(Frame *relative, bool do_exchange)
 /* Do the given action. */
 bool do_action(const Action *action, Window *window)
 {
+    char number[32];
     char *shell;
     uint32_t count;
     Frame *frame;
-
-    /* some actions need this */
-    count = action->parameter.integer;
-    if (count == 0) {
-        count = 1;
-    }
 
     switch (action->code) {
     /* invalid action value */
@@ -509,8 +511,74 @@ bool do_action(const Action *action, Window *window)
         is_reload_requested = true;
         break;
 
+    /* assign a number to a frame */
+    case ACTION_ASSIGN:
+        /* remove the number from the old frame if there is any */
+        frame = get_frame_by_number((uint32_t) action->parameter.integer);
+        /* also try to find it in the stash */
+        if (frame == NULL) {
+            frame = last_stashed_frame;
+            for (; frame != NULL; frame = frame->previous_stashed) {
+                if (frame->number == (uint32_t) action->parameter.integer) {
+                    break;
+                }
+            }
+        }
+        if (frame != NULL) {
+            frame->number = 0;
+        }
+
+        focus_frame->number = action->parameter.integer;
+        if (focus_frame->number == 0) {
+            set_notification((utf8_t*) "Number removed",
+                    focus_frame->x + focus_frame->width / 2,
+                    focus_frame->y + focus_frame->height / 2);
+        } else {
+            snprintf(number, sizeof(number), "%" PRIu32, focus_frame->number);
+            set_notification((utf8_t*) number,
+                    focus_frame->x + focus_frame->width / 2,
+                    focus_frame->y + focus_frame->height / 2);
+        }
+        break;
+
+    /* focus a frame with given number */
+    case ACTION_FOCUS_FRAME:
+        frame = get_frame_by_number((uint32_t) action->parameter.integer);
+        if (frame != NULL) {
+            set_focus_frame(frame);
+            break;
+        }
+
+        frame = last_stashed_frame;
+        /* also try to find it in the stash */
+        for (; frame != NULL; frame = frame->previous_stashed) {
+            if (frame->number == (uint32_t) action->parameter.integer) {
+                break;
+            }
+        }
+
+        if (frame == NULL) {
+            break;
+        }
+
+        /* make the frame no longer stashed */
+        unlink_frame_from_stash(frame);
+        /* clear the old frame and stash it */
+        (void) stash_frame(focus_frame);
+        /* put the new frame into the focused frame */
+        replace_frame(focus_frame, frame);
+        /* destroy this now empty frame */
+        destroy_frame(frame);
+        /* focus a window that might have appeared */
+        set_focus_window(focus_frame->window);
+        break;
+
     /* move the focus to the parent frame */
     case ACTION_FOCUS_PARENT:
+        count = action->parameter.integer;
+        if (count == 0) {
+            count = 1;
+        }
         /* move to the count'th parent */
         for (frame = focus_frame; frame->parent != NULL && count > 0; count--) {
             if (frame == frame->parent->left) {
@@ -530,6 +598,10 @@ bool do_action(const Action *action, Window *window)
 
     /* move the focus to the child frame */
     case ACTION_FOCUS_CHILD:
+        count = action->parameter.integer;
+        if (count == 0) {
+            count = 1;
+        }
         /* move to the count'th child */
         for (frame = focus_frame; frame->left != NULL && count > 0; count--) {
             if (frame->moved_from_left) {
@@ -546,7 +618,7 @@ bool do_action(const Action *action, Window *window)
         set_focus_frame(frame);
         break;
 
-    /* move the focus to the root frame */
+    /* equalize the size of the child frames within a frame */
     case ACTION_EQUALIZE_FRAME:
         equalize_frame(focus_frame);
         break;
@@ -569,11 +641,25 @@ bool do_action(const Action *action, Window *window)
 
     /* focus a window */
     case ACTION_FOCUS_WINDOW:
-        if (window == focus_window) {
-            return false;
-        }
-        set_focus_window_with_frame(window);
-        if (window != NULL) {
+        if (action->parameter.integer == 0) {
+            if (window == focus_window) {
+                return false;
+            }
+            set_focus_window_with_frame(window);
+            if (window != NULL) {
+                update_window_layer(window);
+            }
+        } else {
+            for (window = first_window; window != NULL; window = window->next) {
+                if (window->number == (uint32_t) action->parameter.integer) {
+                    break;
+                }
+            }
+            if (window == NULL) {
+                break;
+            }
+            show_window(window);
+            set_focus_window_with_frame(window);
             update_window_layer(window);
         }
         break;
@@ -596,6 +682,10 @@ bool do_action(const Action *action, Window *window)
 
     /* go to the next window in the window list */
     case ACTION_NEXT_WINDOW:
+        count = action->parameter.integer;
+        if (count == 0) {
+            count = 1;
+        }
         for (; count > 0; count--) {
             if (!set_showable_tiling_window(false)) {
                 return false;
@@ -605,6 +695,10 @@ bool do_action(const Action *action, Window *window)
 
     /* go to the previous window in the window list */
     case ACTION_PREVIOUS_WINDOW:
+        count = action->parameter.integer;
+        if (count == 0) {
+            count = 1;
+        }
         for (; count > 0; count--) {
             if (!set_showable_tiling_window(true)) {
                 return false;

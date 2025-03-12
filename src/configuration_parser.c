@@ -343,6 +343,7 @@ static parser_error_t parse_string(Parser *parser)
     char byte;
     utf8_t *string;
     size_t index = 0;
+    size_t last_index = 0;
 
     skip_space(parser);
 
@@ -392,16 +393,19 @@ static parser_error_t parse_string(Parser *parser)
             default:
                 byte = parser->line[end];
             }
+            last_index = index;
+        } else if (!isspace(byte)) {
+            last_index = index;
         }
         string[index] = byte;
         index++;
     }
 
     /* null terminate the string */
-    string[index] = '\0';
+    string[last_index + 1] = '\0';
 
     /* trim anything we allocated too much */
-    RESIZE(string, index + 1);
+    RESIZE(string, last_index + 2);
 
     parser->data.string = string;
 
@@ -860,6 +864,51 @@ static parser_error_t parse_keyboard_binding(Parser *parser)
         parser->configuration->keyboard.number_of_keys++;
     }
     *key = parser->key;
+    return PARSER_SUCCESS;
+}
+
+/* Parse an association. */
+static parser_error_t parse_assignment_association(Parser *parser)
+{
+    parser_error_t error;
+    struct configuration_association association;
+
+    error = parse_integer(parser);
+    if (error != PARSER_SUCCESS) {
+        return error;
+    }
+    if (parser->data.integer < 0) {
+        return PARSER_ERROR_EXPECTED_UNSIGNED_INTEGER;
+    }
+    association.number = parser->data.integer;
+
+    error = parse_string(parser);
+    if (error != PARSER_SUCCESS) {
+        return error;
+    }
+    association.instance_pattern = parser->data.string;
+
+    if (parser->line[parser->column] != ';') {
+        free(association.instance_pattern);
+        return PARSER_ERROR_EXPECTED_SEPARATOR;
+    }
+
+    /* skip over ';' */
+    parser->column++;
+
+    error = parse_string(parser);
+    if (error != PARSER_SUCCESS) {
+        free(association.instance_pattern);
+        return error;
+    }
+    association.class_pattern = parser->data.string;
+
+    RESIZE(parser->configuration->assignment.associations,
+            parser->configuration->assignment.number_of_associations + 1);
+    parser->configuration->assignment.associations[
+        parser->configuration->assignment.number_of_associations] = association;
+    parser->configuration->assignment.number_of_associations++;
+
     return PARSER_SUCCESS;
 }
 

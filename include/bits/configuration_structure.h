@@ -40,6 +40,16 @@ struct configuration_key {
     uint32_t number_of_actions;
 };
 
+/* association between class/instance and window number */
+struct configuration_association {
+    /* the window number */
+    uint32_t number;
+    /* the pattern the instance should match */
+    utf8_t *instance_pattern;
+    /* the pattern the class should match */
+    utf8_t *class_pattern;
+};
+
 /*< START OF CONFIGURATION >*/
 
 /* general settings */
@@ -54,6 +64,16 @@ struct configuration_startup {
     Action *actions;
     /* the number of actions to run on startup */
     uint32_t number_of_actions;
+};
+
+/* assignment settings */
+struct configuration_assignment {
+    /* the number the first window gets assigned */
+    int32_t first_window_number;
+    /* the associations that are wanted */
+    struct configuration_association *associations;
+    /* the number of associations */
+    uint32_t number_of_associations;
 };
 
 /* tiling settings */
@@ -148,6 +168,8 @@ struct configuration {
     struct configuration_general general;
     /* startup settings */
     struct configuration_startup startup;
+    /* assignment settings */
+    struct configuration_assignment assignment;
     /* tiling settings */
     struct configuration_tiling tiling;
     /* font settings */

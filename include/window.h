@@ -21,9 +21,6 @@
 /* the minimum length of the window that needs to stay visible */
 #define WINDOW_MINIMUM_VISIBLE_SIZE 8
 
-/* the number the first window gets assigned */
-#define FIRST_WINDOW_NUMBER 1
-
 /* A window is a wrapper around an X window, it is always part of a few global
  * linked list and has a unique id (number).
  */
@@ -74,7 +71,7 @@ struct window {
     /* position/size when the window was in floating mode */
     Rectangle floating;
 
-    /* the id of this window */
+    /* the number of this window, multiple windows may have the same number */
     uint32_t number;
 
     /* All windows are part of the Z ordered linked list even when they are
@@ -111,11 +108,16 @@ extern Window *first_window;
 /* the currently focused window */
 extern Window *focus_window;
 
-/* the focus that existed before entering the event loop */
+/* the focus that existed before entering the event cycle */
 extern Window *old_focus_window;
 
-/* Create a window struct and add it to the window list. */
+/* Create a window object and add it to all window lists. */
 Window *create_window(xcb_window_t xcb);
+
+/* Destroy given window and removes it from the window linked list.
+ * This does NOT destroy the underlying X window.
+ */
+void destroy_window(Window *window);
 
 /* time in seconds to wait for a second close */
 #define REQUEST_CLOSE_MAX_DURATION 3
@@ -125,11 +127,6 @@ Window *create_window(xcb_window_t xcb);
  * `REQUEST_CLOSE_MAX_DURATION` to forcefully kill it.
  */
 void close_window(Window *window);
-
-/* Destroy given window and removes it from the window linked list.
- * This does NOT destroy the underlying X window.
- */
-void destroy_window(Window *window);
 
 /* Adjust given @x and @y such that it follows the @window_gravity. */
 void adjust_for_window_gravity(Monitor *monitor, int32_t *x, int32_t *y,

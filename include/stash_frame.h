@@ -8,6 +8,9 @@
  * @frame is made into a completely empty frame as all children and windows are
  * taken out.
  *
+ * Do not use `destroy_frame()` on the frame returned by this.
+ * If you need to free it, simply use `free()`.
+ *
  * Consider using `link_into_stash()` after calling this.
  *
  * @return may be NULL if the frame is not worth stashing.
@@ -15,6 +18,8 @@
 Frame *stash_frame_later(Frame *frame);
 
 /* Links a frame into the stash linked list.
+ *
+ * The stash object also gets linked into the frame number list as frame object.
  *
  * @frame may be NULL, then nothing happens.
  *
@@ -33,9 +38,18 @@ void link_frame_into_stash(Frame *frame);
  */
 Frame *stash_frame(Frame *frame);
 
+/* Unlinks given @frame from the stash linked list.
+ *
+ * This allows to pop arbitrary frames from the stash and not only the last
+ * stashed frame.
+ *
+ * @frame must have been stashed by a previous call to `stash_frame_later()`.
+ */
+void unlink_frame_from_stash(Frame *frame);
+
 /* Pop a frame from the stashed frame list.
  *
- * The caller may use `replace_frame()` with this frame and then free it.
+ * The caller may use `replace_frame()` with this frame and then destroy it.
  *
  * @return NULL when there are no stashed frames.
  */

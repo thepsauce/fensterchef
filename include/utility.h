@@ -115,8 +115,16 @@ size_t strnlen(const char *string, size_t max_length);
 /* Compare two strings and ignore case.
  *
  * @return 0 for equality, a negative value if str1 < str2, otherwise a positive
- * value.
+ *         value.
  */
 int strcasecmp(const char *string1, const char *string2);
+
+/* Matches a string againts a pattern.
+ *
+ * @pattern is a shell-style pattern, e.g. "*.[ch]".
+ *
+ * @return if the string matches the pattern.
+ */
+bool matches_pattern(char const *pattern, char const *string);
 
 #endif

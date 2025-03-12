@@ -4,7 +4,7 @@ set -e
 
 source generate/data_types.sh
 
-marker='static const struct configuration default_configuration = {'
+marker='const struct configuration default_configuration = {'
 marker_end='};'
 
 found_marker=false

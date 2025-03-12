@@ -353,7 +353,7 @@ void merge_monitors(Monitor *monitors)
 
             /* stash away the frame */
             stash_frame(monitor->frame);
-            free_frame(monitor->frame);
+            destroy_frame(monitor->frame);
         }
         free(monitor->name);
         free(monitor);
@@ -367,9 +367,8 @@ void merge_monitors(Monitor *monitors)
         if (monitor->frame == NULL) {
             if (configuration.tiling.auto_fill_void) {
                 monitor->frame = pop_stashed_frame();
-            }
-            if (monitor->frame == NULL) {
-                monitor->frame = xcalloc(1, sizeof(*monitor->frame));
+            } else {
+                monitor->frame = create_frame();
             }
             /* set the initial size */
             monitor->frame->x = monitor->x;

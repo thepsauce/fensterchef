@@ -17,6 +17,7 @@
 #include "utility.h"
 #include "window.h"
 #include "window_list.h"
+#include "window_properties.h"
 
 /* This file handles all kinds of X events.
  *

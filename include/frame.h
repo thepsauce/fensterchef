@@ -68,9 +68,13 @@ struct frame {
 
     /* the previous stashed frame in the frame stashed linked list */
     Frame *previous_stashed;
-    /* the next stashed frame in the secondary stashed linked list */
-    Frame *next_secondary_stashed;
+
+    /* the id of this frame, this is a unique number, the exception is 0 */
+    uint32_t number;
 };
+
+/* the last frame in the frame stashed linked list */
+extern Frame *last_stashed_frame;
 
 /* the currently selected/focused frame */
 extern Frame *focus_frame;
@@ -78,11 +82,17 @@ extern Frame *focus_frame;
 /* the focus that existed before entering the event loop */
 extern Frame *old_focus_frame;
 
-/* Check if the given frame has no splits and no window. */
-bool is_frame_void(const Frame *frame);
+/* Create a frame object. */
+Frame *create_frame(void);
 
-/* Use this instead of `free()`. */
-void free_frame(Frame *frame);
+/* Frees the frame object (but not the child frames). */
+void destroy_frame(Frame *frame);
+
+/* Look through all visible frames to find a frame with given @number. */
+Frame *get_frame_by_number(uint32_t number);
+
+/* Check if the given @frame has no splits and no window. */
+bool is_frame_void(const Frame *frame);
 
 /* Check if the given point is within the given frame.
  *

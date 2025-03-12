@@ -8,6 +8,7 @@
 #include "tiling.h"
 #include "utility.h"
 #include "window.h"
+#include "window_properties.h"
 
 /* The whole purpose of this file is to handle window state changes
  * This includes visibility and window mode.
@@ -173,8 +174,6 @@ static void synchronize_allowed_actions(Window *window)
 {
     const xcb_atom_t atom_lists[WINDOW_MODE_MAX][16] = {
         [WINDOW_MODE_TILING] = {
-            ATOM(_NET_WM_ACTION_MAXIMIZE_HORZ),
-            ATOM(_NET_WM_ACTION_MAXIMIZE_VERT),
             ATOM(_NET_WM_ACTION_FULLSCREEN),
             ATOM(_NET_WM_ACTION_CLOSE),
             XCB_NONE,
@@ -184,25 +183,21 @@ static void synchronize_allowed_actions(Window *window)
             ATOM(_NET_WM_ACTION_MOVE),
             ATOM(_NET_WM_ACTION_RESIZE),
             ATOM(_NET_WM_ACTION_MINIMIZE),
-            ATOM(_NET_WM_ACTION_SHADE),
-            ATOM(_NET_WM_ACTION_STICK),
-            ATOM(_NET_WM_ACTION_MAXIMIZE_HORZ),
-            ATOM(_NET_WM_ACTION_MAXIMIZE_VERT),
             ATOM(_NET_WM_ACTION_FULLSCREEN),
             ATOM(_NET_WM_ACTION_CLOSE),
-            ATOM(_NET_WM_ACTION_ABOVE),
-            ATOM(_NET_WM_ACTION_BELOW),
             XCB_NONE,
         },
 
         [WINDOW_MODE_FULLSCREEN] = {
             ATOM(_NET_WM_ACTION_CLOSE),
-            ATOM(_NET_WM_ACTION_ABOVE),
-            ATOM(_NET_WM_ACTION_BELOW),
             XCB_NONE,
         },
 
         [WINDOW_MODE_DOCK] = {
+            XCB_NONE,
+        },
+
+        [WINDOW_MODE_DESKTOP] = {
             XCB_NONE,
         },
     };
@@ -411,16 +406,28 @@ void show_window(Window *window)
     switch (window->state.mode) {
     /* the window has to become part of the tiling layout */
     case WINDOW_MODE_TILING: {
-        Frame *const frame = get_frame_of_window(window);
+        Frame *frame;
+
+        frame = get_frame_of_window(window);
         /* we never would want this to happen */
         if (frame != NULL) {
             LOG_ERROR("window %W is already in frame %F\n", window, frame);
             reload_frame(frame);
             break;
         }
-        if (configuration.tiling.auto_split && (focus_frame->left != NULL ||
-                    focus_frame->window != NULL)) {
-            Frame *const wrap = xcalloc(1, sizeof(*wrap));
+
+        frame = get_frame_by_number(window->number);
+        if (frame != NULL) {
+            LOG("found frame %F matching the window id\n", frame);
+            (void) stash_frame(frame);
+            frame->window = window;
+            reload_frame(frame);
+            break;
+        }
+
+        if (configuration.tiling.auto_split &&
+                (focus_frame->left != NULL || focus_frame->window != NULL)) {
+            Frame *const wrap = create_frame();
             wrap->window = window;
             split_frame(focus_frame, wrap, focus_frame->split_direction);
         } else {

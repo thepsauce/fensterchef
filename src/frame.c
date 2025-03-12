@@ -9,23 +9,28 @@
 #include "utility.h"
 #include "window.h"
 
+/* the last frame in the frame stashed linked list */
+Frame *last_stashed_frame;
+
 /* the currently selected/focused frame */
 Frame *focus_frame;
 
 /* the focus that existed before entering the event loop */
 Frame *old_focus_frame;
 
-/* Check if the given frame has no splits and no window. */
-inline bool is_frame_void(const Frame *frame)
+/* Create a frame object. */
+inline Frame *create_frame(void)
 {
-    return frame->left == NULL && frame->window == NULL;
+    return xcalloc(1, sizeof(*focus_frame));
 }
 
-/* Use this instead of `free()`. */
-void free_frame(Frame *frame)
+/* Frees the frame object (but not the child frames). */
+void destroy_frame(Frame *frame)
 {
     /* special marker used as pointer, see below */
     static Frame i_am_used_as_marker;
+
+    Frame *previous;
 
     if (frame == focus_frame) {
         LOG_ERROR("the focused frame is being freed :(\n");
@@ -43,7 +48,65 @@ void free_frame(Frame *frame)
         old_focus_frame = &i_am_used_as_marker;
     }
 
+    /* remove from the stash linked list if it is contained in it */
+    if (last_stashed_frame == frame) {
+        last_stashed_frame = last_stashed_frame->previous_stashed;
+    } else {
+        previous = last_stashed_frame;
+        while (previous != NULL && previous->previous_stashed != frame) {
+            previous = previous->previous_stashed;
+        }
+        if (previous != NULL) {
+            previous->previous_stashed = frame->previous_stashed;
+        }
+    }
+
     free(frame);
+}
+
+/* Check if @frame has given number and if not, try to find a child frame with
+ * this number.
+ */
+static Frame *get_frame_by_number_recursively(Frame *frame, uint32_t number)
+{
+    Frame *left;
+
+    if (frame->number == number) {
+        return frame;
+    }
+
+    if (frame->left == NULL) {
+        return NULL;
+    }
+
+    left = get_frame_by_number_recursively(frame->left, number);
+    if (left != NULL) {
+        return left;
+    }
+
+    return get_frame_by_number_recursively(frame->right, number);
+}
+
+/* Look through all visible frames to find a frame with given @number. */
+Frame *get_frame_by_number(uint32_t number)
+{
+    Frame *frame = NULL;
+
+    for (Monitor *monitor = first_monitor; monitor != NULL;
+            monitor = monitor->next) {
+        frame = get_frame_by_number_recursively(monitor->frame, number);
+        if (frame != NULL) {
+            break;
+        }
+    }
+    return frame;
+}
+
+/* Check if the given frame has no splits and no window. */
+inline bool is_frame_void(const Frame *frame)
+{
+    /* the frame is a void if it is has both no child frames and no window */
+    return frame->left == NULL && frame->window == NULL;
 }
 
 /* Check if the given point is within the given frame. */
@@ -168,6 +231,8 @@ void resize_frame_and_ignore_ratio(Frame *frame, int32_t x, int32_t y,
 /* Replace @frame (windows and child frames) with @with. */
 void replace_frame(Frame *frame, Frame *with)
 {
+    frame->number = with->number;
+    with->number = 0;
     /* reparent the child frames */
     if (with->left != NULL) {
         frame->split_direction = with->split_direction;

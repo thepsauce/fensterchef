@@ -3,6 +3,9 @@
 
 #include "configuration.h"
 
+/* the default configuration */
+extern const struct configuration default_configuration;
+
 /* Load the default values into the configuration. */
 void load_default_configuration(void);
 

@@ -7,6 +7,7 @@
 #include "log.h"
 #include "monitor.h"
 #include "window.h"
+#include "window_properties.h"
 #include "xalloc.h"
 
 /* the window that was created before any other */
@@ -26,6 +27,64 @@ Window *focus_window;
 
 /* the focus that existed before entering the event loop */
 Window *old_focus_window;
+
+/* Find where in the number linked list a gap is.
+ *
+ * @return NULL when the window should be inserted before the first window.
+ */
+static inline Window *find_number_gap(void)
+{
+    Window *previous;
+
+    /* if the first window has window number greater than the first number that
+     * means there is space at the front
+     */
+    if (first_window->number > (uint32_t)
+            configuration.assignment.first_window_number) {
+        return NULL;
+    }
+
+    previous = first_window;
+    /* find the first window with a higher number than
+     * `first_window_number`
+     */
+    for (; previous->next != NULL; previous = previous->next) {
+        if (previous->next->number > (uint32_t)
+                configuration.assignment.first_window_number) {
+            break;
+        }
+    }
+    /* find a gap in the window numbers */
+    for (; previous->next != NULL; previous = previous->next) {
+        if (previous->number + 1 < previous->next->number) {
+            break;
+        }
+    }
+    return previous;
+}
+
+/* Find the window after which a new window with given @number should be
+ * inserted
+ *
+ * @return NULL when the window should be inserted before the first window.
+ */
+static inline Window *find_window_number(uint32_t number)
+{
+    Window *previous;
+
+    if (first_window == NULL || first_window->number > number) {
+        return NULL;
+    }
+
+    previous = first_window;
+    /* find a gap in the window numbers */
+    for (; previous->next != NULL; previous = previous->next) {
+        if (previous->next->number > number) {
+            break;
+        }
+    }
+    return previous;
+}
 
 /* Create a window struct and add it to the window list. */
 Window *create_window(xcb_window_t xcb_window)
@@ -103,37 +162,44 @@ Window *create_window(xcb_window_t xcb_window)
     window->height = window->client.height;
     window->border_color = window->client.border_color;
 
+    /* get the initial mode and set the window number */
+    mode = initialize_window_properties(window);
+
     /* link into the Z, age and number linked lists */
     if (first_window == NULL) {
         oldest_window = window;
         bottom_window = window;
         top_window = window;
         first_window = window;
-        window->number = FIRST_WINDOW_NUMBER;
+        if (window->number == 0) {
+            window->number = configuration.assignment.first_window_number;
+        }
     } else {
         previous = first_window;
-        if (first_window->number == FIRST_WINDOW_NUMBER) {
-            /* find a gap in the window numbers */
-            for (; previous->next != NULL; previous = previous->next) {
-                if (previous->number + 1 < previous->next->number) {
-                    break;
-                }
-            }
-            window->number = previous->number + 1;
-            window->next = previous->next;
-            previous->next = window;
+        if (window->number == 0) {
+            previous = find_number_gap();
         } else {
-            window->number = FIRST_WINDOW_NUMBER;
+            previous = find_window_number(window->number);
+        }
+
+        if (previous == NULL) {
             window->next = first_window;
             first_window = window;
+            if (window->number == 0) {
+                window->number = configuration.assignment.first_window_number;
+            }
+        } else {
+            if (window->number == 0) {
+                window->number = previous->number + 1;
+            }
+            window->next = previous->next;
+            previous->next = window;
         }
 
         /* put the window at the top of the Z linked list */
-        while (previous->above != NULL) {
-            previous = previous->above;
-        }
-        previous->above = window;
-        window->below = previous;
+        window->below = top_window;
+        top_window->above = window;
+        top_window = window;
 
         /* put the window into the age linked list */
         previous = oldest_window;
@@ -144,7 +210,6 @@ Window *create_window(xcb_window_t xcb_window)
     }
 
     /* initialize the window mode and Z position */
-    mode = initialize_window_properties(window);
     set_window_mode(window, mode);
     update_window_layer(window);
 
@@ -155,43 +220,6 @@ Window *create_window(xcb_window_t xcb_window)
 
     LOG("created new window %W\n", window);
     return window;
-}
-
-/* Attempt to close a window. If it is the first time, use a friendly method by
- * sending a close request to the window. Call this function again within
- * `REQUEST_CLOSE_MAX_DURATION` to forcefully kill it.
- */
-void close_window(Window *window)
-{
-    time_t current_time;
-    char event_data[32];
-    xcb_client_message_event_t *event;
-
-    current_time = time(NULL);
-    /* if either `WM_DELETE_WINDOW` is not supported or a close was requested
-     * twice in a row
-     */
-    if (!supports_protocol(window, ATOM(WM_DELETE_WINDOW)) ||
-            (window->state.was_close_requested && current_time <=
-                window->state.user_request_close_time +
-                    REQUEST_CLOSE_MAX_DURATION)) {
-        xcb_kill_client(connection, window->client.id);
-        return;
-    }
-
-    /* bake an event for running a protocol on the window */
-    event = (xcb_client_message_event_t*) event_data;
-    event->response_type = XCB_CLIENT_MESSAGE;
-    event->window = window->client.id;
-    event->type = ATOM(WM_PROTOCOLS);
-    event->format = 32;
-    memset(&event->data, 0, sizeof(event->data));
-    event->data.data32[0] = ATOM(WM_DELETE_WINDOW);
-    xcb_send_event(connection, false, window->client.id,
-            XCB_EVENT_MASK_NO_EVENT, event_data);
-
-    window->state.was_close_requested = true;
-    window->state.user_request_close_time = current_time;
 }
 
 /* Remove @window from the Z linked list. */
@@ -285,6 +313,43 @@ void destroy_window(Window *window)
     free(window->protocols);
     free(window->states);
     free(window);
+}
+
+/* Attempt to close a window. If it is the first time, use a friendly method by
+ * sending a close request to the window. Call this function again within
+ * `REQUEST_CLOSE_MAX_DURATION` to forcefully kill it.
+ */
+void close_window(Window *window)
+{
+    time_t current_time;
+    char event_data[32];
+    xcb_client_message_event_t *event;
+
+    current_time = time(NULL);
+    /* if either `WM_DELETE_WINDOW` is not supported or a close was requested
+     * twice in a row
+     */
+    if (!supports_protocol(window, ATOM(WM_DELETE_WINDOW)) ||
+            (window->state.was_close_requested && current_time <=
+                window->state.user_request_close_time +
+                    REQUEST_CLOSE_MAX_DURATION)) {
+        xcb_kill_client(connection, window->client.id);
+        return;
+    }
+
+    /* bake an event for running a protocol on the window */
+    event = (xcb_client_message_event_t*) event_data;
+    event->response_type = XCB_CLIENT_MESSAGE;
+    event->window = window->client.id;
+    event->type = ATOM(WM_PROTOCOLS);
+    event->format = 32;
+    memset(&event->data, 0, sizeof(event->data));
+    event->data.data32[0] = ATOM(WM_DELETE_WINDOW);
+    xcb_send_event(connection, false, window->client.id,
+            XCB_EVENT_MASK_NO_EVENT, event_data);
+
+    window->state.was_close_requested = true;
+    window->state.user_request_close_time = current_time;
 }
 
 /* Adjust given @x and @y such that it follows the @window_gravity. */
@@ -607,13 +672,18 @@ bool does_window_accept_focus(Window *window)
 void set_focus_window(Window *window)
 {
     if (window != NULL) {
-        LOG("focusing window %W\n", window);
-
-        if (!does_window_accept_focus(window)) {
-            LOG_ERROR("the window can not be focused\n");
+        if (!window->state.is_visible) {
+            LOG_ERROR("can not focus an invisible window\n");
             window = NULL;
-        } else if (window == focus_window) {
-            LOG("the window is already focused\n");
+        } else {
+            LOG("focusing window %W\n", window);
+
+            if (!does_window_accept_focus(window)) {
+                LOG_ERROR("the window can not be focused\n");
+                window = NULL;
+            } else if (window == focus_window) {
+                LOG("the window is already focused\n");
+            }
         }
     }
 

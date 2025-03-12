@@ -8,6 +8,7 @@
 #include "program_options.h"
 #include "render.h"
 #include "window.h"
+#include "window_properties.h"
 #include "x11_management.h"
 #include "xalloc.h"
 
@@ -23,9 +24,14 @@ int main(int argc, char **argv)
     LOG("welcome to " FENSTERCHEF_NAME " " FENSTERCHEF_VERSION "\n");
     LOG("the configuration file may reside in %s\n", fensterchef_configuration);
 
-    /* initialize the X connection and X atoms */
+    /* initialize the X connection */
     if (initialize_x11() != OK) {
         quit_fensterchef(EXIT_FAILURE);
+    }
+
+    /* initialize the X atoms */
+    if (initialize_atoms() != OK) {
+        return ERROR;
     }
 
     /* try to take control of the window manager role and create utility windows

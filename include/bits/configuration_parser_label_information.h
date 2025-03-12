@@ -1,6 +1,7 @@
 /* This file is meant to be included by `configuration_parser.c`. */
 
 static parser_error_t parse_startup_actions(Parser *parser);
+static parser_error_t parse_assignment_association(Parser *parser);
 static parser_error_t parse_mouse_binding(Parser *parser);
 static parser_error_t parse_keyboard_binding(Parser *parser);
 
@@ -30,6 +31,14 @@ static const struct configuration_parser_label_name {
 
     [PARSER_LABEL_STARTUP] = {
         "startup", parse_startup_actions, {
+        /* null terminate the end */
+        { NULL, 0, 0 } }
+    },
+
+    [PARSER_LABEL_ASSIGNMENT] = {
+        "assignment", parse_assignment_association, {
+        { "first-window-number", PARSER_DATA_TYPE_INTEGER,
+            offsetof(struct configuration, assignment.first_window_number) },
         /* null terminate the end */
         { NULL, 0, 0 } }
     },
@@ -141,6 +150,11 @@ static const struct configuration_parser_command {
     },
 
     [PARSER_LABEL_STARTUP] = {
+        /* null terminate the end */
+        { NULL, NULL }
+    },
+
+    [PARSER_LABEL_ASSIGNMENT] = {
         /* null terminate the end */
         { NULL, NULL }
     },

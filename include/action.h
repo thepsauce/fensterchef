@@ -13,6 +13,10 @@
     X(ACTION_NONE, false, "NONE", PARSER_DATA_TYPE_VOID) \
     /* reload the configuration file */ \
     X(ACTION_RELOAD_CONFIGURATION, false, "RELOAD-CONFIGURATION", PARSER_DATA_TYPE_VOID) \
+    /* assign a number to a frame */ \
+    X(ACTION_ASSIGN, false, "ASSIGN", PARSER_DATA_TYPE_INTEGER) \
+    /* focus a frame with given number */ \
+    X(ACTION_FOCUS_FRAME, true, "FOCUS-FRAME", PARSER_DATA_TYPE_INTEGER) \
     /* move the focus to the parent frame */ \
     X(ACTION_FOCUS_PARENT, true, "FOCUS-PARENT", PARSER_DATA_TYPE_INTEGER) \
     /* move the focus to the child frame */ \
@@ -23,8 +27,8 @@
     X(ACTION_CLOSE_WINDOW, false, "CLOSE-WINDOW", PARSER_DATA_TYPE_VOID) \
     /* hides the currently active window */ \
     X(ACTION_MINIMIZE_WINDOW, false, "MINIMIZE-WINDOW", PARSER_DATA_TYPE_VOID) \
-    /* focus a window */ \
-    X(ACTION_FOCUS_WINDOW, false, "FOCUS-WINDOW", PARSER_DATA_TYPE_VOID) \
+    /* focus the window with given number or the clicked window */ \
+    X(ACTION_FOCUS_WINDOW, true, "FOCUS-WINDOW", PARSER_DATA_TYPE_INTEGER) \
     /* start moving a window with the mouse */ \
     X(ACTION_INITIATE_MOVE, false, "INITIATE-MOVE", PARSER_DATA_TYPE_VOID) \
     /* start resizing a window with the mouse */ \

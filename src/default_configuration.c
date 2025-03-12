@@ -5,13 +5,17 @@
 #include "utf8.h"
 
 /* the default configuration */
-static const struct configuration default_configuration = {
+const struct configuration default_configuration = {
     .general = {
         .overlap_percentage = 80,
     },
 
     .startup = {
         0
+    },
+
+    .assignment = {
+        .first_window_number = 1,
     },
 
     .tiling = {

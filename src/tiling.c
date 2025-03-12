@@ -13,14 +13,16 @@ void split_frame(Frame *split_from, Frame *right,
 {
     Frame *left;
 
-    left = xcalloc(1, sizeof(*left));
+    left = create_frame();
     if (right == NULL) {
-        right = xcalloc(1, sizeof(*right));
+        right = create_frame();
         if (configuration.tiling.auto_fill_void) {
             fill_void_with_stash(right);
         }
     }
 
+    left->number = split_from->number;
+    split_from->number = 0;
     /* let `left` take the children or window */
     if (split_from->left != NULL) {
         left->split_direction = split_from->split_direction;
@@ -354,6 +356,7 @@ int remove_void(Frame *frame)
         other = parent->left;
     }
 
+    parent->number = other->number;
     parent->left = other->left;
     parent->right = other->right;
     if (other->left != NULL) {
@@ -395,7 +398,7 @@ int remove_void(Frame *frame)
 
     set_focus_frame(parent);
 
-    free_frame(other);
-    free_frame(frame);
+    destroy_frame(other);
+    destroy_frame(frame);
     return OK;
 }

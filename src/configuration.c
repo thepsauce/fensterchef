@@ -16,14 +16,32 @@
 /* the currently loaded configuration */
 struct configuration configuration;
 
+/* Copy the associations of @duplicate into itself. */
+static void duplicate_configuration_associations(
+        struct configuration *duplicate)
+{
+    duplicate->assignment.associations = xmemdup(
+            duplicate->assignment.associations,
+            sizeof(*duplicate->assignment.associations) *
+                duplicate->assignment.number_of_associations);
+    for (uint32_t i = 0; i < duplicate->assignment.number_of_associations;
+            i++) {
+        struct configuration_association *const association =
+            &duplicate->assignment.associations[i];
+        association->instance_pattern = (utf8_t*)
+            xstrdup((char*) association->instance_pattern);
+        association->class_pattern = (utf8_t*)
+            xstrdup((char*) association->class_pattern);
+    }
+}
+
 /* Copy the button bindings of @duplicate into itself. */
 static void duplicate_configuration_button_bindings(
         struct configuration *duplicate)
 {
-    /* duplicate mouse button bindings */
     duplicate->mouse.buttons = xmemdup(duplicate->mouse.buttons,
             sizeof(*duplicate->mouse.buttons) *
-            duplicate->mouse.number_of_buttons);
+                duplicate->mouse.number_of_buttons);
     for (uint32_t i = 0; i < duplicate->mouse.number_of_buttons; i++) {
         struct configuration_button *const button =
             &duplicate->mouse.buttons[i];
@@ -36,10 +54,9 @@ static void duplicate_configuration_button_bindings(
 static void duplicate_configuration_key_bindings(
         struct configuration *duplicate)
 {
-    /* duplicate key bindings */
     duplicate->keyboard.keys = xmemdup(duplicate->keyboard.keys,
             sizeof(*duplicate->keyboard.keys) *
-            duplicate->keyboard.number_of_keys);
+                duplicate->keyboard.number_of_keys);
     for (uint32_t i = 0; i < duplicate->keyboard.number_of_keys; i++) {
         struct configuration_key *const key = &duplicate->keyboard.keys[i];
         key->actions = duplicate_actions(key->actions, key->number_of_actions);
@@ -54,6 +71,7 @@ void duplicate_configuration(struct configuration *duplicate)
     }
     duplicate->startup.actions = duplicate_actions(duplicate->startup.actions,
             duplicate->startup.number_of_actions);
+    duplicate_configuration_associations(duplicate);
     duplicate_configuration_button_bindings(duplicate);
     duplicate_configuration_key_bindings(duplicate);
 }
@@ -65,6 +83,14 @@ void clear_configuration(struct configuration *configuration)
 
     free_actions(configuration->startup.actions,
             configuration->startup.number_of_actions);
+
+    /* free associations */
+    for (uint32_t i = 0; i < configuration->assignment.number_of_associations;
+            i++) {
+        free(configuration->assignment.associations[i].instance_pattern);
+        free(configuration->assignment.associations[i].class_pattern);
+    }
+    free(configuration->assignment.associations);
 
     /* free button bindings */
     for (uint32_t i = 0; i < configuration->mouse.number_of_buttons; i++) {
@@ -364,15 +390,7 @@ int load_configuration_file(const char *file_name,
     parser.line = xmalloc(parser.line_capacity);
 
     parser.configuration = destination_configuration;
-    *parser.configuration = configuration;
-    /* disregard all previous startup actions */
-    parser.configuration->startup.actions = NULL;
-    parser.configuration->startup.number_of_actions = 0;
-    /* disregard all previous bindings */
-    parser.configuration->mouse.buttons = NULL;
-    parser.configuration->mouse.number_of_buttons = 0;
-    parser.configuration->keyboard.keys = NULL;
-    parser.configuration->keyboard.number_of_keys = 0;
+    *parser.configuration = default_configuration;
     duplicate_configuration(parser.configuration);
 
     /* parse file line by line */

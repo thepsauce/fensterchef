@@ -13,6 +13,7 @@
 #include "log.h"
 #include "window.h"
 #include "window_list.h"
+#include "window_properties.h"
 #include "x11_management.h"
 
 /* the severity of the logging */
@@ -1180,6 +1181,10 @@ static void log_frame(const Frame *frame)
     fputs(COLOR(MAGENTA) "[", stderr);
     log_rectangle(frame->x, frame->y, frame->width, frame->height);
     fputs(COLOR(MAGENTA) "]" CLEAR_COLOR, stderr);
+    if (frame->number > 0) {
+        fprintf(stderr, COLOR(YELLOW) "<%" PRIu32 ">" CLEAR_COLOR,
+                frame->number);
+    }
 }
 
 /* Log an action to standard error output. */

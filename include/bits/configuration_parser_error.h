@@ -51,6 +51,10 @@
     X(PARSER_ERROR_MISSING_ACTION, "action value is missing") \
     /* an action value is missing */ \
     X(PARSER_ERROR_INVALID_ACTION, "invalid action value") \
+    /* a separator (';') was expected */ \
+    X(PARSER_ERROR_EXPECTED_SEPARATOR, "expected separator ';'") \
+    /* an unsigned integer was expected */ \
+    X(PARSER_ERROR_EXPECTED_UNSIGNED_INTEGER, "expected an unsigned integer") \
 
 /* parser error codes */
 typedef enum {
