@@ -2,7 +2,7 @@ THE MIT LICENSE APPLIES BUT RESTRICTED BY THE LOWER GNU LICENSE!
 
 MIT LICENSE
 
-Copyright (C) 2025 JulianBMW<https://github.com/users/JulianBMW>
+Copyright (C) 2024 JulianBMW<https://github.com/users/JulianBMW>
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

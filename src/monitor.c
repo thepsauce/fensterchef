@@ -367,7 +367,8 @@ void merge_monitors(Monitor *monitors)
         if (monitor->frame == NULL) {
             if (configuration.tiling.auto_fill_void) {
                 monitor->frame = pop_stashed_frame();
-            } else {
+            }
+            if (monitor->frame == NULL) {
                 monitor->frame = create_frame();
             }
             /* set the initial size */

@@ -377,26 +377,31 @@ int remove_void(Frame *frame)
 
     LOG("frame %F was removed\n", frame);
 
-    const int x = parent->x + parent->width / 2;
-    const int y = parent->y + parent->height / 2;
-    /* move down the parent to find the most centered new frame to focus */
-    while (parent->left != NULL) {
-        if (parent->split_direction == FRAME_SPLIT_HORIZONTALLY) {
-            if (parent->left->x + (int32_t) parent->left->width >= x) {
-                parent = parent->left;
+    if (focus_frame->parent == parent) {
+        Frame *new;
+
+        const int x = parent->x + parent->width / 2;
+        const int y = parent->y + parent->height / 2;
+        new = parent;
+        /* move down the parent to find the most centered new frame to focus */
+        while (new->left != NULL) {
+            if (new->split_direction == FRAME_SPLIT_HORIZONTALLY) {
+                if (new->left->x + (int32_t) new->left->width >= x) {
+                    new = new->left;
+                } else {
+                    new = new->right;
+                }
             } else {
-                parent = parent->right;
-            }
-        } else {
-            if (parent->left->y + (int32_t) parent->left->height >= y) {
-                parent = parent->left;
-            } else {
-                parent = parent->right;
+                if (new->left->y + (int32_t) new->left->height >= y) {
+                    new = new->left;
+                } else {
+                    new = new->right;
+                }
             }
         }
-    }
 
-    set_focus_frame(parent);
+        focus_frame = new;
+    }
 
     destroy_frame(other);
     destroy_frame(frame);

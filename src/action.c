@@ -250,31 +250,35 @@ bool toggle_focus(void)
 {
     Window *window;
 
+    /* Four cases must be handled:
+     * 1. No window is focused
+     * 1.1. There is a floating window
+     * 1.2. There is no floating window
+     * 2. A tiling window is focused
+     * 3. A floating window is focused
+     */
+
     if (focus_window == NULL ||
             focus_window->state.mode == WINDOW_MODE_TILING) {
-        /* the the first window on the Z stack that is visible */
+        /* check for case 1.1 */
         for (window = top_window; window != NULL; window = window->below) {
             if (window->state.mode == WINDOW_MODE_TILING) {
-                window = NULL;
                 break;
             }
             if (window->state.is_visible) {
-                break;
+                /* cover case 1.1 */
+                set_focus_window(window);
+                return true;
             }
         }
 
-        if (window != NULL) {
-            /* handle the case where an empty frame is focused and there was no
-             * other window to focus
-             */
-            if (focus_window == NULL) {
-                set_focus_frame(focus_frame);
-            }
-            set_focus_window(window);
-            return true;
+        /* this covers case 1.2 and 2 */
+        if (focus_frame->window != NULL) {
+            set_focus_window(focus_frame->window);
         }
     } else if (focus_frame->window != focus_window) {
-        set_focus_frame(focus_frame);
+        /* cover case 3 */
+        set_focus_window(focus_frame->window);
         return true;
     }
     return false;
@@ -285,22 +289,39 @@ static void move_to_frame(Frame *from, Frame *to, Monitor *monitor,
         bool do_exchange)
 {
     if (do_exchange) {
-        Frame saved_frame;
+        /* if moving into a void, either remove it or replace it */
+        if (is_frame_void(to)) {
+            if (to->parent != NULL &&
+                    (configuration.tiling.auto_remove ||
+                     configuration.tiling.auto_remove_void)) {
+                remove_void(to);
+                /* focus stays at `from` */
+            } else {
+                replace_frame(to, from);
+                set_focus_frame(to);
+            }
+        /* swap the two frames `from` and `to` */
+        } else {
+            Frame saved_frame;
 
-        saved_frame = *from;
-        replace_frame(from, to);
-        replace_frame(to, &saved_frame);
+            saved_frame = *from;
+            replace_frame(from, to);
+            replace_frame(to, &saved_frame);
+            set_focus_frame(to);
+        }
+    /* check if a window is covering the monitor */
     } else if (monitor != NULL) {
         Window *const window = get_window_covering_monitor(monitor);
-        /* focus the window covering the monitor */
         if (window != NULL) {
             set_focus_window(window);
             focus_frame = to;
-            return;
+        } else {
+            set_focus_frame(to);
         }
+    /* simply "move" to the next frame by focusing it */
+    } else {
+        set_focus_frame(to);
     }
-
-    set_focus_frame(to);
 }
 
 /* Move the focus to the frame above @relative. */
@@ -719,19 +740,18 @@ bool do_action(const Action *action, Window *window)
         set_window_mode(window,
                 window->state.mode == WINDOW_MODE_TILING ?
                 WINDOW_MODE_FLOATING : WINDOW_MODE_TILING);
-        set_focus_window_with_frame(window);
         break;
 
     /* toggles the fullscreen state of the currently focused window */
     case ACTION_TOGGLE_FULLSCREEN:
-        if (window != NULL) {
-            set_window_mode(window,
-                    window->state.mode == WINDOW_MODE_FULLSCREEN ?
-                    (window->state.previous_mode == WINDOW_MODE_FULLSCREEN ?
-                        WINDOW_MODE_FLOATING : window->state.previous_mode) :
-                    WINDOW_MODE_FULLSCREEN);
-            set_focus_window_with_frame(window);
+        if (window == NULL) {
+            return false;
         }
+        set_window_mode(window,
+                window->state.mode == WINDOW_MODE_FULLSCREEN ?
+                (window->state.previous_mode == WINDOW_MODE_FULLSCREEN ?
+                    WINDOW_MODE_FLOATING : window->state.previous_mode) :
+                WINDOW_MODE_FULLSCREEN);
         break;
 
     /* change the focus from tiling to non tiling or vise versa */

@@ -283,8 +283,7 @@ void remove_window_states(Window *window, xcb_atom_t *states,
 
         /* ...if not, add it */
         if (j == number_of_states) {
-            window->states[effective_count++] =
-                window->states[i];
+            window->states[effective_count++] = window->states[i];
         }
     }
 
@@ -336,6 +335,7 @@ static void update_shown_window(Window *window)
             Frame *const wrap = create_frame();
             wrap->window = window;
             split_frame(focus_frame, wrap, focus_frame->split_direction);
+            focus_frame = wrap;
         } else {
             stash_frame(focus_frame);
             focus_frame->window = window;
@@ -473,23 +473,18 @@ void hide_window(Window *window)
                 fill_void_with_stash(frame);
                 if (is_frame_void(frame)) {
                     remove_void(frame);
-                } else if (window == focus_window) {
-                    set_focus_window(frame->window);
                 }
             } else if (frame->parent != NULL) {
                 remove_void(frame);
             }
         } else if (configuration.tiling.auto_fill_void) {
             fill_void_with_stash(frame);
-            if (window == focus_window) {
-                set_focus_window(frame->window);
-            }
         }
         link_frame_into_stash(stash);
 
         /* make sure no broken focus remains */
         if (window == focus_window) {
-            set_focus_window(NULL);
+            set_focus_window(frame->window);
         }
         break;
 

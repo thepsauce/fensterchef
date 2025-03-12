@@ -178,6 +178,8 @@ static void update_window_name(Window *window)
 {
     xcb_get_property_reply_t *name;
 
+    free(window->name);
+
     name = get_text_property(window->client.id, ATOM(_NET_WM_NAME));
     if (name == NULL) {
         /* fall back to `WM_NAME` */

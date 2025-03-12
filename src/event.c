@@ -879,7 +879,7 @@ static void handle_client_message(xcb_client_message_event_t *event)
         /* hide the window */
         case XCB_ICCCM_WM_STATE_ICONIC:
         case XCB_ICCCM_WM_STATE_WITHDRAWN:
-            hide_window_abruptly(window);
+            hide_window(window);
             break;
 
         /* make the window normal again (show it) */
@@ -893,25 +893,21 @@ static void handle_client_message(xcb_client_message_event_t *event)
             switch (event->data.data32[0]) {
             /* put the window out of fullscreen */
             case _NET_WM_STATE_REMOVE:
-                if (window->state.mode != WINDOW_MODE_FULLSCREEN) {
-                    break;
-                }
                 set_window_mode(window, window->state.previous_mode);
                 break;
 
             /* put the window into fullscreen */
             case _NET_WM_STATE_ADD:
-                if (window->state.mode == WINDOW_MODE_FULLSCREEN) {
-                    break;
-                }
-                set_window_mode(window,  WINDOW_MODE_FULLSCREEN);
+                set_window_mode(window, WINDOW_MODE_FULLSCREEN);
                 break;
 
             /* toggle the fullscreen state */
             case _NET_WM_STATE_TOGGLE:
                 set_window_mode(window,
                         window->state.mode == WINDOW_MODE_FULLSCREEN ?
-                        window->state.previous_mode : WINDOW_MODE_FULLSCREEN);
+                        (window->state.previous_mode == WINDOW_MODE_FULLSCREEN ?
+                            WINDOW_MODE_FLOATING : window->state.previous_mode) :
+                        WINDOW_MODE_FULLSCREEN);
                 break;
             }
         }
