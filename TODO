@@ -1,0 +1,153 @@
+[Tasks]
+#1 ! Hover events not working in firefox sometimes
+    This is fixed by resizing the window, try to find out why it happens in the
+    first place and when it happens
+
+#4 Add cursor management and resource management
+    Handle the setting of the cursor and manage X resources
+
+#14 Generate documentation
+    Make shell scripts to generate the manual page (should the wiki be
+    continued?)
+
+#24 ! Monitor frames wrong when screen size changes
+    Exactly in what circumstances this bug appears is not known but running
+    randfix.sh gets a window in a bugged state, this might have to do with
+    stashing away frames
+
+#30 Find a better monitor to center floating windows
+    Right now the existing geometry of the window is used to determine the
+    monitor to center the window in. Use the focus_frame/focus_window
+
+#31 ! Floating window toggle not removing void if configured
+    When auto-remove-void is configured, then making a window floating should
+    remove the gap it leaves, similar for auto-remove
+
+#33 ...
+
+#1000 Make a wayland port
+    Make an additional repository that hosts fensterchef-wayland
+
+[In Progress]
+
+[Recheck]
+#7 ! Discord hides itself again on WM_CHANGE_STATE
+    When starting Discord, it sometimes hides itself again
+
+#8 ? Improve font rendering once again
+    Is there any way to make colored emojis work? Is artifical scaling needed?
+
+#10 ? Add frame indication for empty frames
+    Make it so empty frames have a border indicating focus
+
+#13 ! Unable to reload configuration after an error
+    When reloading the configuration and an error was detected the bind for
+    reloading no longer works. It works on an initial load if the parser fails
+
+#18 ! No window in focus after toggling fullscreen
+    When putting a window out of fullscreen and put into the focus frame, in
+    some circumstances it can happen that no window has focus now
+
+#20/#10 ? Make extra window for empty frames
+    ?? Extra translucent border windows have to be shown
+
+[Done]
+#9 Add maintainability macros
+    Add macros that highly improve the maintainability
+
+#12 ! Fullscreen window does not get out of fullscreen
+    Fullscreen windows can not be put out of fullscreen when they are
+    initially in such state
+
+#3 Equalize action
+    Make an action that equalizes all frames within the selected frame
+
+#6 ! Issues when clicking to focus with --transparent
+    Some applications (like firefox or CS2) have an unexpected behaviour
+    together with such a mouse bind
+
+#16 Consider what windows receive input focus and initial state
+    Read the book and check what windows should receive input and consider the
+    initial state
+
+#17 Center floating windows and ignore their position size hints
+    Pretty much what the title says
+
+#11 Add inactive border
+    When a floating window is focused, the frame that lost focus should get a
+    different color indicating it is the currently focused frame
+
+#19 Show current frame indicator options
+    Now the current frame indicator is shown more sensibly
+
+#21 Add desktop window mode
+    This window is always in the background
+
+#22 ! Window does not get focus
+    Windows with he WM_TAKE_FOCUS protocol should fuck right off because they do
+    not even take focus, the input flag needs to be considered here instead
+
+#23 ! Windows not supposed to have a border get a border upon configuration reload
+    Exactly the title
+
+#26 Add optional arguments
+    Let some actions have optional arguments. If they expect an integer and no
+    number is given, the number `1` should be implied.
+
+#25 Make string arguments more shell like
+    One should be able to specify in quotes: "what is here ".
+    So if a line starts with `"`, then this should be interpreted as string.
+    Also this can be escaped as well as ';' with a backslash.
+
+#2 Ratio for frames
+    Add a ratio to a frame so that the sizes are resistent to when they become
+    very tiny. Use this to automatically resize back when clearing child
+
+#27 ! Make focus checking more sensible
+    Make checking if a window is focusable or not more sensible
+
+#15 Add auto split option
+    Add an option in the configuration so that when a new window spawns, the
+    current frame is split automatically
+
+#28 ! Old focus is set to pointer
+    These pointers might be freed and reallocated. The address may not change so
+    the program does not know if any pointer changed
+    Solution 1: Reference count
+    Solution 2 (better I think): Set the old focus to NULL when these objects
+    are freed
+
+#29 ! Errors are shown after window is destroyed
+    When a window is destroyed, sometimes errors are thrown by xcb that should
+    be addressed.
+    This will not be fixed because it is effort for pretty much no return.
+
+#5 Add frame numbers and assignment
+    Frames should be able to hold onto specific windows. When these specific
+    windows are hidden and then shown again, they should reappear in the same
+    place, this could also be used to make initial layouts, maybe like:
+    ```
+    [startup]
+    split-horizontally
+    assign 1
+    focus-right
+    assign 2
+    run st -n 1
+    run firefox
+
+    [assignment]
+    first-window-number 1000
+    1 1 ; st-256color
+    2 [Nn]avigator ; [Ff]irefox
+    999 * ; [Dd]iscord
+
+    # And a bind to open discord on the current frame (even when moving away):
+    [keyboard]
+    Super+1 focus-frame 999
+
+    Super+d assign 999 ; run discord
+    ```
+
+#32 Make additional action for hinting split direction
+    It was not a good idea to change the split action, revert the change!!
+    And then make an additional action for hinting.
