@@ -93,6 +93,19 @@ static inline bool get_overlap(int32_t x1, int32_t y1, uint32_t width1,
     return false;
 }
 
+/* The most efficient way to get the monitor containing given frame. */
+Monitor *get_monitor_containing_frame(Frame *frame)
+{
+    frame = get_root_frame(frame);
+    for (Monitor *monitor = first_monitor; monitor != NULL;
+            monitor = monitor->next) {
+        if (monitor->frame == frame) {
+            return monitor;
+        }
+    }
+    return NULL;
+}
+
 /* Get the monitor that overlaps given rectangle the most. */
 Monitor *get_monitor_from_rectangle(int32_t x, int32_t y,
         uint32_t width, uint32_t height)

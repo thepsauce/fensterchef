@@ -13,13 +13,30 @@
 #24 ! Monitor frames wrong when screen size changes
     Exactly in what circumstances this bug appears is not known but running
     randfix.sh gets a window in a bugged state, this might have to do with
-    stashing away frames
+    stashing away frames. randfix.sh looks like:
+    ```
+    #!/bin/bash
 
-#30 Find a better monitor to center floating windows
-    Right now the existing geometry of the window is used to determine the
-    monitor to center the window in. Use the focus_frame/focus_window
+    MON1=HDMI-A-0
+    MON2=DVI-D-1
 
-#34 ...
+    xrandr --output $MON1 --off
+    xrandr --output $MON2 --off
+    xrandr --output $MON1 --auto
+    xrandr --output $MON2 --auto
+    xrandr --output $MON1 --right-of $MON2
+    xrandr --output $MON1 --primary
+    xrandr --output $MON1 --dpi 96
+    xrandr --output $MON2 --dpi 96
+    ```
+
+#34 Think about how numbers should be handled when stashing
+
+#35 Fix auto equalization of frames
+    Too many frames are equalized when auto-equalize is enable. It needs to move
+    up to the correct parent frame and not to the root!
+
+#36 ...
 
 #1000 Make a wayland port
     Make an additional repository that hosts fensterchef-wayland
@@ -155,3 +172,7 @@
 #33 ! Exchange into empty frame
     When exchanging into an empty frame, it feels unnatural when some
     configuration options are turned on
+
+#30 Find a better monitor to center floating windows
+    Right now the existing geometry of the window is used to determine the
+    monitor to center the window in. Use the focus_frame/focus_window

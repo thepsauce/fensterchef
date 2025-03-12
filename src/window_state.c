@@ -39,8 +39,12 @@ static void configure_floating_size(Window *window)
     int32_t x, y;
     uint32_t width, height;
 
-    monitor = get_monitor_from_rectangle_or_primary(window->x, window->y,
-            window->width, window->height);
+    if (focus_window != NULL) {
+        monitor = get_monitor_from_rectangle_or_primary(focus_window->x,
+                focus_window->y, focus_window->width, focus_window->height);
+    } else {
+        monitor = get_monitor_containing_frame(focus_frame);
+    }
 
     /* if the window never had a floating size, use the size hints to get a size
      * that the window prefers
@@ -70,7 +74,7 @@ static void configure_floating_size(Window *window)
     } else {
         width = window->floating.width;
         height = window->floating.height;
-        /* if the window would still be in the monitor is was moved to,
+        /* if the window would still be in the monitor it was moved to,
          * restore the position, otherwise center the window
          */
         if (get_monitor_from_rectangle(window->floating.x,

@@ -34,6 +34,12 @@ extern Monitor *first_monitor;
 /* Try to initialize randr and the internal monitor linked list. */
 void initialize_monitors(void);
 
+/* The most efficient way to get the monitor containing given frame.
+ *
+ * @return NULL if the frame is not visible.
+ */
+Monitor *get_monitor_containing_frame(Frame *frame);
+
 /* Get the monitor that overlaps given rectangle the most.
  *
  * @return NULL if no monitor intersects the rectangle at all.

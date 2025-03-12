@@ -33,7 +33,7 @@ static const struct {
 /* Check if the given action's argument may be omitted. */
 inline bool has_action_optional_argument(action_t action)
 {
-    return action_information[action].data_type;
+    return action_information[action].is_argument_optional;
 }
 
 /* Get the data type the action expects as parameter. */
