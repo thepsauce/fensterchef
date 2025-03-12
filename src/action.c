@@ -730,6 +730,9 @@ bool do_action(const Action *action, Window *window)
     case ACTION_REMOVE_FRAME:
         (void) stash_frame(focus_frame);
         (void) remove_void(focus_frame);
+        if (focus_window == NULL) {
+            set_focus_window(focus_frame->window);
+        }
         break;
 
     /* changes a non tiling window to a tiling window and vise versa */

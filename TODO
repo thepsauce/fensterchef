@@ -32,10 +32,6 @@
 
 #34 Think about how numbers should be handled when stashing
 
-#35 Fix auto equalization of frames
-    Too many frames are equalized when auto-equalize is enable. It needs to move
-    up to the correct parent frame and not to the root!
-
 #36 ...
 
 #1000 Make a wayland port
@@ -176,3 +172,7 @@
 #30 Find a better monitor to center floating windows
     Right now the existing geometry of the window is used to determine the
     monitor to center the window in. Use the focus_frame/focus_window
+
+#35 ! Fix auto equalization of frames
+    Too many frames are equalized when auto-equalize is enable. It needs to move
+    up to the correct parent frame and not to the root!

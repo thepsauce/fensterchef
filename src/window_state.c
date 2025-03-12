@@ -470,6 +470,8 @@ void hide_window(Window *window)
         if (configuration.tiling.auto_remove) {
             if (frame->parent != NULL) {
                 remove_void(frame);
+            } else if (configuration.tiling.auto_fill_void) {
+                fill_void_with_stash(frame);
             }
         } else if (configuration.tiling.auto_remove_void) {
             /* this option takes precedence */
@@ -486,9 +488,9 @@ void hide_window(Window *window)
         }
         link_frame_into_stash(stash);
 
-        /* make sure no broken focus remains */
-        if (window == focus_window) {
-            set_focus_window(frame->window);
+        /* if nothing is focused, focus the focused frame window */
+        if (focus_window == NULL) {
+            set_focus_window(focus_frame->window);
         }
         break;
 

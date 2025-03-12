@@ -7,6 +7,21 @@
 #include "utility.h"
 #include "window.h"
 
+/* Apply the auto equalizationg to given frame.
+ *
+ * This moves up while the split direction matches the split direction of @to.
+ */
+static void apply_auto_equalize(Frame *to)
+{
+    frame_split_direction_t direction;
+
+    direction = to->split_direction;
+    while (to->parent != NULL && to->parent->split_direction == direction) {
+        to = to->parent;
+    }
+    equalize_frame(to);
+}
+
 /* Split a frame horizontally or vertically. */
 void split_frame(Frame *split_from, Frame *right,
         frame_split_direction_t direction)
@@ -51,7 +66,7 @@ void split_frame(Frame *split_from, Frame *right,
 
     /* size the child frames */
     if (configuration.tiling.auto_equalize) {
-        equalize_frame(get_root_frame(split_from));
+        apply_auto_equalize(split_from);
     } else {
         resize_frame(split_from, split_from->x, split_from->y,
                 split_from->width, split_from->height);
@@ -368,12 +383,8 @@ int remove_void(Frame *frame)
         parent->window = other->window;
     }
 
-    if (configuration.tiling.auto_equalize) {
-        equalize_frame(get_root_frame(parent));
-    } else {
-        resize_frame(parent, parent->x, parent->y, parent->width,
-                parent->height);
-    }
+    resize_frame(parent, parent->x, parent->y, parent->width,
+            parent->height);
 
     LOG("frame %F was removed\n", frame);
 
@@ -401,6 +412,10 @@ int remove_void(Frame *frame)
         }
 
         focus_frame = new;
+    }
+
+    if (configuration.tiling.auto_equalize) {
+        apply_auto_equalize(parent);
     }
 
     destroy_frame(other);
