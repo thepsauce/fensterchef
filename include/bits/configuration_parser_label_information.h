@@ -47,8 +47,6 @@ static const struct configuration_parser_label_name {
         "tiling", NULL, {
         { "auto-split", PARSER_DATA_TYPE_BOOLEAN,
             offsetof(struct configuration, tiling.auto_split) },
-        { "only-hint-split-direction", PARSER_DATA_TYPE_BOOLEAN,
-            offsetof(struct configuration, tiling.only_hint_split_direction) },
         { "auto-equalize", PARSER_DATA_TYPE_BOOLEAN,
             offsetof(struct configuration, tiling.auto_equalize) },
         { "auto-fill-void", PARSER_DATA_TYPE_BOOLEAN,

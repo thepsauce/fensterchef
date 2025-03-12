@@ -739,20 +739,22 @@ bool do_action(const Action *action, Window *window)
 
     /* split the current frame horizontally */
     case ACTION_SPLIT_HORIZONTALLY:
-        if (configuration.tiling.only_hint_split_direction) {
-            focus_frame->split_direction = FRAME_SPLIT_HORIZONTALLY;
-        } else {
-            split_frame(focus_frame, NULL, FRAME_SPLIT_HORIZONTALLY);
-        }
+        split_frame(focus_frame, NULL, FRAME_SPLIT_HORIZONTALLY);
         break;
 
     /* split the current frame vertically */
     case ACTION_SPLIT_VERTICALLY:
-        if (configuration.tiling.only_hint_split_direction) {
-            focus_frame->split_direction = FRAME_SPLIT_VERTICALLY;
-        } else {
-            split_frame(focus_frame, NULL, FRAME_SPLIT_VERTICALLY);
-        }
+        split_frame(focus_frame, NULL, FRAME_SPLIT_VERTICALLY);
+        break;
+
+    /* split the current frame horizontally */
+    case ACTION_HINT_SPLIT_HORIZONTALLY:
+        focus_frame->split_direction = FRAME_SPLIT_HORIZONTALLY;
+        break;
+
+    /* split the current frame vertically */
+    case ACTION_HINT_SPLIT_VERTICALLY:
+        focus_frame->split_direction = FRAME_SPLIT_VERTICALLY;
         break;
 
     /* move the focus to the frame above */

@@ -20,7 +20,6 @@ const struct configuration default_configuration = {
 
     .tiling = {
         .auto_split = false,
-        .only_hint_split_direction = false,
         .auto_equalize = false,
         .auto_fill_void = true,
         .auto_remove = false,

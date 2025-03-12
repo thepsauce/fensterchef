@@ -49,6 +49,10 @@
     X(ACTION_SPLIT_HORIZONTALLY, false, "SPLIT-HORIZONTALLY", PARSER_DATA_TYPE_VOID) \
     /* split the current frame vertically */ \
     X(ACTION_SPLIT_VERTICALLY, false, "SPLIT-VERTICALLY", PARSER_DATA_TYPE_VOID) \
+    /* hint that the current frame should split horizontally */ \
+    X(ACTION_HINT_SPLIT_HORIZONTALLY, false, "HINT-SPLIT-HORIZONTALLY", PARSER_DATA_TYPE_VOID) \
+    /* hint that the current frame should split vertically */ \
+    X(ACTION_HINT_SPLIT_VERTICALLY, false, "HINT-SPLIT-VERTICALLY", PARSER_DATA_TYPE_VOID) \
     /* move the focus to the above frame */ \
     X(ACTION_FOCUS_UP, false, "FOCUS-UP", PARSER_DATA_TYPE_VOID) \
     /* move the focus to the left frame */ \

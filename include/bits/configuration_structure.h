@@ -80,10 +80,6 @@ struct configuration_assignment {
 struct configuration_tiling {
     /* whether to automatically create a split when a window is shown */
     bool auto_split;
-    /* whether to actually split when using `split-*` or just hint the split
-     * direction
-     */
-    bool only_hint_split_direction;
     /* whether to automatically equalize all frames within the root */
     bool auto_equalize;
     /* whether to fill in empty frames automatically */

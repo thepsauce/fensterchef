@@ -46,9 +46,6 @@ first-window-number integer 1
 [tiling]
 auto-split boolean false
    whether to automatically create a split when a window is shown
-only-hint-split-direction boolean false
-   whether to actually split when using `split-*` or just hint the split
-   direction
 auto-equalize boolean false
    whether to automatically equalize all frames within the root
 auto-fill-void boolean true
