@@ -303,106 +303,12 @@ void remove_window_states(Window *window, xcb_atom_t *states,
             window->states);
 }
 
-/* Changes the window state to given value and reconfigures the window only
- * if the mode changed.
+/* When a window changes mode or is shown, this is called.
+ *
+ * This adjusts the window size or puts the window into the tiling layout.
  */
-void set_window_mode(Window *window, window_mode_t mode)
+static void update_shown_window(Window *window)
 {
-    xcb_atom_t states[3];
-
-    if (window->state.mode == mode) {
-        return;
-    }
-
-    LOG("transition window mode of %W from %m to %m\n", window,
-            window->state.mode, mode);
-
-    /* this is true if the window is being initialized */
-    if (window->state.mode == WINDOW_MODE_MAX) {
-        window->state.previous_mode = mode;
-    } else {
-        window->state.previous_mode = window->state.mode;
-    }
-    window->state.mode = mode;
-
-    if (window->state.is_visible) {
-        /* pop out from tiling layout */
-        if (window->state.previous_mode == WINDOW_MODE_TILING) {
-            /* make sure no shortcut is taken in `get_frame_of_window()` */
-            window->state.mode = WINDOW_MODE_TILING;
-            Frame *const frame = get_frame_of_window(window);
-            window->state.mode = mode;
-            frame->window = NULL;
-            if (configuration.tiling.auto_fill_void) {
-                fill_void_with_stash(frame);
-            }
-        }
-
-        switch (mode) {
-        /* replace the focused frame with a frame containing the window */
-        case WINDOW_MODE_TILING:
-            stash_frame(focus_frame);
-            focus_frame->window = window;
-            reload_frame(focus_frame);
-            break;
-
-        /* set the floating size */
-        case WINDOW_MODE_FLOATING:
-            configure_floating_size(window);
-            break;
-
-        /* set the fullscreen size */
-        case WINDOW_MODE_FULLSCREEN:
-            configure_fullscreen_size(window);
-            break;
-
-        /* set the dock size */
-        case WINDOW_MODE_DOCK:
-            configure_dock_size(window);
-            break;
-
-        /* do nothing, the desktop window should know better */
-        case WINDOW_MODE_DESKTOP:
-            break;
-
-        /* not a real window mode */
-        case WINDOW_MODE_MAX:
-            break;
-        }
-    }
-
-    /* update the window states */
-    if (mode == WINDOW_MODE_FULLSCREEN) {
-        states[0] = ATOM(_NET_WM_STATE_FULLSCREEN);
-        states[1] = ATOM(_NET_WM_STATE_MAXIMIZED_HORZ);
-        states[2] = ATOM(_NET_WM_STATE_MAXIMIZED_VERT);
-        add_window_states(window, states, SIZE(states));
-    } else if (window->state.previous_mode == WINDOW_MODE_FULLSCREEN) {
-        states[0] = ATOM(_NET_WM_STATE_FULLSCREEN);
-        states[1] = ATOM(_NET_WM_STATE_MAXIMIZED_HORZ);
-        states[2] = ATOM(_NET_WM_STATE_MAXIMIZED_VERT);
-        remove_window_states(window, states, SIZE(states));
-    }
-
-    /* update the window border */
-    if (has_window_border(window)) {
-        window->border_size = configuration.border.size;
-    } else {
-        window->border_size = 0;
-    }
-
-    update_window_layer(window);
-
-    synchronize_allowed_actions(window);
-}
-
-/* Show the window by mapping it to the X server. */
-void show_window(Window *window)
-{
-    if (window->state.is_visible) {
-        return;
-    }
-
     switch (window->state.mode) {
     /* the window has to become part of the tiling layout */
     case WINDOW_MODE_TILING: {
@@ -461,6 +367,83 @@ void show_window(Window *window)
     case WINDOW_MODE_MAX:
         break;
     }
+}
+
+/* Changes the window state to given value and reconfigures the window only
+ * if the mode changed.
+ */
+void set_window_mode(Window *window, window_mode_t mode)
+{
+    xcb_atom_t states[3];
+
+    if (window->state.mode == mode) {
+        return;
+    }
+
+    LOG("transition window mode of %W from %m to %m\n", window,
+            window->state.mode, mode);
+
+    /* this is true if the window is being initialized */
+    if (window->state.mode == WINDOW_MODE_MAX) {
+        window->state.previous_mode = mode;
+    } else {
+        window->state.previous_mode = window->state.mode;
+    }
+    window->state.mode = mode;
+
+    if (window->state.is_visible) {
+        /* pop out from tiling layout */
+        if (window->state.previous_mode == WINDOW_MODE_TILING) {
+            /* make sure no shortcut is taken in `get_frame_of_window()` */
+            window->state.mode = WINDOW_MODE_TILING;
+            Frame *const frame = get_frame_of_window(window);
+            window->state.mode = mode;
+
+            frame->window = NULL;
+            if (configuration.tiling.auto_remove ||
+                    configuration.tiling.auto_remove_void) {
+                remove_void(frame);
+            } else if (configuration.tiling.auto_fill_void) {
+                fill_void_with_stash(frame);
+            }
+        }
+
+        update_shown_window(window);
+    }
+
+    /* update the window states */
+    if (mode == WINDOW_MODE_FULLSCREEN) {
+        states[0] = ATOM(_NET_WM_STATE_FULLSCREEN);
+        states[1] = ATOM(_NET_WM_STATE_MAXIMIZED_HORZ);
+        states[2] = ATOM(_NET_WM_STATE_MAXIMIZED_VERT);
+        add_window_states(window, states, SIZE(states));
+    } else if (window->state.previous_mode == WINDOW_MODE_FULLSCREEN) {
+        states[0] = ATOM(_NET_WM_STATE_FULLSCREEN);
+        states[1] = ATOM(_NET_WM_STATE_MAXIMIZED_HORZ);
+        states[2] = ATOM(_NET_WM_STATE_MAXIMIZED_VERT);
+        remove_window_states(window, states, SIZE(states));
+    }
+
+    /* update the window border */
+    if (has_window_border(window)) {
+        window->border_size = configuration.border.size;
+    } else {
+        window->border_size = 0;
+    }
+
+    update_window_layer(window);
+
+    synchronize_allowed_actions(window);
+}
+
+/* Show the window by mapping it to the X server. */
+void show_window(Window *window)
+{
+    if (window->state.is_visible) {
+        return;
+    }
+
+    update_shown_window(window);
 
     window->state.is_visible = true;
 }

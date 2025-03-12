@@ -285,12 +285,11 @@ static void move_to_frame(Frame *from, Frame *to, Monitor *monitor,
         bool do_exchange)
 {
     if (do_exchange) {
-        Frame *const saved_frame = stash_frame_later(from);
+        Frame saved_frame;
+
+        saved_frame = *from;
         replace_frame(from, to);
-        if (saved_frame != NULL) {
-            replace_frame(to, saved_frame);
-            free(saved_frame);
-        }
+        replace_frame(to, &saved_frame);
     } else if (monitor != NULL) {
         Window *const window = get_window_covering_monitor(monitor);
         /* focus the window covering the monitor */
@@ -720,6 +719,7 @@ bool do_action(const Action *action, Window *window)
         set_window_mode(window,
                 window->state.mode == WINDOW_MODE_TILING ?
                 WINDOW_MODE_FLOATING : WINDOW_MODE_TILING);
+        set_focus_window_with_frame(window);
         break;
 
     /* toggles the fullscreen state of the currently focused window */
@@ -730,6 +730,7 @@ bool do_action(const Action *action, Window *window)
                     (window->state.previous_mode == WINDOW_MODE_FULLSCREEN ?
                         WINDOW_MODE_FLOATING : window->state.previous_mode) :
                     WINDOW_MODE_FULLSCREEN);
+            set_focus_window_with_frame(window);
         }
         break;
 

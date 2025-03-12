@@ -51,7 +51,8 @@ auto-equalize boolean false
 auto-fill-void boolean true
    whether to fill in empty frames automatically
 auto-remove boolean false
-   whether to remove frames automatically when their inner windows is hidden
+   whether to remove frames automatically when their inner windows is
+   hidden
 auto-remove-void boolean false
    whether to remove frames automatically when they become empty
 

@@ -19,10 +19,6 @@
     Right now the existing geometry of the window is used to determine the
     monitor to center the window in. Use the focus_frame/focus_window
 
-#31 ! Floating window toggle not removing void if configured
-    When auto-remove-void is configured, then making a window floating should
-    remove the gap it leaves, similar for auto-remove
-
 #33 ...
 
 #1000 Make a wayland port
@@ -151,3 +147,7 @@
 #32 Make additional action for hinting split direction
     It was not a good idea to change the split action, revert the change!!
     And then make an additional action for hinting.
+
+#31 ! Floating window toggle not removing void if configured
+    When auto-remove-void is configured, then making a window floating should
+    remove the gap it leaves, similar for auto-remove

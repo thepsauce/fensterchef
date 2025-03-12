@@ -84,7 +84,9 @@ struct configuration_tiling {
     bool auto_equalize;
     /* whether to fill in empty frames automatically */
     bool auto_fill_void;
-    /* whether to remove frames automatically when their inner windows is hidden */
+    /* whether to remove frames automatically when their inner windows is
+     * hidden
+     */
     bool auto_remove;
     /* whether to remove frames automatically when they become empty */
     bool auto_remove_void;
