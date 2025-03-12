@@ -1,6 +1,10 @@
 #ifndef UTF8_H
 #define UTF8_H
 
+/* Thanks for <unicode/utf8.h> for shitting into my code but these macros are
+ * very nice and efficient.
+ */
+
 #include <stdint.h>
 
 typedef uint8_t utf8_t;
@@ -24,7 +28,7 @@ typedef uint8_t utf8_t;
 
 /* Append a valid codepoint to a string. */
 #define U8_APPEND(s, i, c) do { \
-    uint32_t uc_ = (c); \
+    const uint32_t uc_ = (c); \
     if (uc_ <= 0x7f) { \
         (s)[(i)++] = (utf8_t)uc_; \
     } else { \
@@ -65,15 +69,15 @@ typedef uint8_t utf8_t;
             ((c)>=0xe0 ? \
                 ((c)<0xf0 ?  /* U+0800..U+FFFF except surrogates */ \
                     U8_LEAD3_T1_BITS[(c)&=0xf]&(1<<((t_=(s_)[(i) * a_])>>5)) && \
-                    (t_&=0x3f, 1) \
-                :  /* U+10000..U+10FFFF */ \
+                    (t_&=0x3f, 1) : \
+                   /* U+10000..U+10FFFF */ \
                     ((c)-=0xf0)<=4 && \
                     U8_LEAD4_T1_BITS[(t_=(s_)[(i) * a_])>>4]&(1<<(c)) && \
                     ((c)=((c)<<6)|(t_&0x3f), ++(i)!=(n)) && \
                     (t_=(s_)[(i) * a_]-0x80)<=0x3f) && \
                 /* valid second-to-last trail byte */ \
-                ((c)=((c)<<6)|t_, ++(i)!=(n)) \
-            :  /* U+0080..U+07FF */ \
+                ((c)=((c)<<6)|t_, ++(i)!=(n)) : \
+               /* U+0080..U+07FF */ \
                 (c)>=0xc2 && ((c)&=0x1f, 1)) && \
             /* last trail byte */ \
             (t_=(s_)[(i) * a_]-0x80)<=0x3f && \
@@ -85,7 +89,7 @@ typedef uint8_t utf8_t;
 } while (0)
 
 /* Move @i to the position before the current glyph. */
-#define U8_PREV(s, i, c) do { \
+#define U8_PREVIOUS(s, i, c) do { \
     const utf8_t *const s_ = (const utf8_t*) (s); \
     const size_t a_ = sizeof(*(s)); \
     (c) = (utf8_t) s_[--(i) * a_]; \
