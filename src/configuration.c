@@ -442,7 +442,7 @@ int load_configuration_file(const char *file_name,
 
     if (error != PARSER_SUCCESS) {
         clear_configuration(parser.configuration);
-        LOG("got an error reading configuration file: %s\n", file_name);
+        LOG_ERROR("got an error reading configuration file: %s\n", file_name);
         return ERROR;
     }
 

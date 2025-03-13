@@ -1,0 +1,112 @@
+.TH FENSTERCHEF 5 "2025-03-12" "Fensterchef developer" "Fensterchef manual"
+.SH NAME
+fensterchef - format of fensterchef configuration files
+.
+.SH DESCRIPTION
+The fensterchef configuration file format is very simple and easy to understand.
+
+The language is case insensitive (strings however can have mixed case) and it
+supports no dynamic features like setting variables.
+ 
+There are sections indicated by
+.BI [ section-name ]
+and within these sections are the settings the section accepts.
+A section may also accept special settings, for example the
+.B [keybing]
+or
+.B [startup]
+section.
+.
+.SH SECTION
+.I TODO
+.
+.SH ACTION
+.I TODO
+.
+.SH EXAMPLE
+.SS Default configuration
+.EX
+.B [general]
+overlap-percentage 80
+
+.B [tiling]
+auto-remove-void false
+auto-fill-void true
+
+.B [font]
+name Mono
+
+.B [border]
+size 0
+
+.B [gaps]
+inner 0
+outer 0
+
+.B [notification]
+duration 2
+padding 6
+border-color #000000
+border-size 1
+foreground #000000
+background #ffffff
+
+.B [mouse]
+resize-tolerance 8
+modifiers Mod4
+
+ignore-modifiers Lock Mod2 Mod3 Mod5
+LeftButton initiate-resize
+MiddleButton minimize-window
+RightButton initiate-move
+
+.B [keyboard]
+modifiers Mod4
+ignore-modifiers Lock Mod2 Mod3 Mod5
+
+Shift+r reload-configuration
+a parent-frame
+b child-frame
+Shift+a root-frame
+q close-window
+Minus minimize-window
+n next-window
+p previous-window
+r remove-frame
+Shift+Space toggle-tiling
+Space toggle-focus
+f toggle-fullscreen
+v split-horizontally
+s split-vertically
+k focus-up
+h focus-left
+l focus-right
+j focus-down
+Shift+k exchange-up
+Shift+h exchange-left
+Shift+l exchange-right
+Shift+j exchange-down
+w show-window-list
+Return run [ -n "$TERMINAL" ] && "$TERMINAL" || xterm
+.EE
+.SS Initial layout
+.EX
+.B [assignment]
+901 1 ; st-256color
+902 2 ; st-256color
+903 3 ; st-256color
+
+# Use st -n X, this sets the instance name to X
+# (a feature of suckless terminal)
+.B [startup]
+assign 901
+split-horizontally
+focus-right
+assign 902
+split-horizontally
+focus-right
+assign 903
+st -n 1
+st -n 2
+st -n 3
+.EE

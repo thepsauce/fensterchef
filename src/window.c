@@ -544,7 +544,7 @@ static void link_window_into_z_list(Window *below, Window *window)
 /* Put the window on the best suited Z stack position. */
 void update_window_layer(Window *window)
 {
-    Window *below;
+    Window *below = NULL;
 
     unlink_window_from_z_list(window);
 
@@ -560,8 +560,6 @@ void update_window_layer(Window *window)
                     below->state.mode == WINDOW_MODE_DESKTOP) {
                 below = below->above;
             }
-        } else {
-            below = NULL;
         }
         break;
 
@@ -574,7 +572,6 @@ void update_window_layer(Window *window)
 
     /* put the window at the bottom */
     case WINDOW_MODE_DESKTOP:
-        below = NULL;
         break;
 
     /* not a real window mode */
