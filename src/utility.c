@@ -33,28 +33,13 @@ int strcasecmp(const char *string1, const char *string2)
  * IMPLEMENTATION of `glob_match()` from the linux source code.
  * I only added '^' in addition to '!'.
  *
- * glob_match - Shell-style pattern matching, like !fnmatch(pat, str, 0)
- * @pat: Shell-style pattern to match, e.g. "*.[ch]".
- * @str: String to match.  The pattern must match the entire string.
- *
- * Perform shell-style glob matching, returning true (1) if the match
- * succeeds, or false (0) if it fails.  Equivalent to !fnmatch(@pat, @str, 0).
- *
- * Pattern metacharacters are ?, *, [ and \.
- * (And, inside character classes, ^, - and ].)
- *
  * This is small and simple implementation intended for device blacklists
  * where a string is matched against a number of patterns.  Thus, it
  * does not preprocess the patterns.  It is non-recursive, and run-time
  * is at most quadratic: strlen(@str)*strlen(@pat).
  *
- * An example of the worst case is glob_match("*aaaaa", "aaaaaaaaaa");
- * it takes 6 passes over the pattern before matching the string.
- *
- * Like !fnmatch(@pat, @str, 0) and unlike the shell, this does NOT
- * treat / or leading . specially; it isn't actually used for pathnames.
- *
- * An opening bracket without a matching close is matched literally.
+ * An example of the worst case is matching "*aaaaa" against "aaaaaaaaaa".
+ * It takes 6 passes over the pattern before matching the string.
  */
 bool matches_pattern(char const *pat, char const *str)
 {

@@ -129,73 +129,12 @@ void synchronize_client_list(void)
 /* Synchronize the local data with the X server. */
 void synchronize_with_server(void)
 {
-    /* the old work area */
-    static Rectangle workarea;
-
-    Monitor *monitor;
-    Rectangle rectangle;
-
     xcb_atom_t state_atom;
 
-    /**
-     * since the strut of a monitor might have changed because a window with
+    /* since the strut of a monitor might have changed because a window with
      * strut got hidden or shown, we need to recompute those
-     **/
-
-    /* reset all struts before recomputing */
-    for (monitor = first_monitor; monitor != NULL; monitor = monitor->next) {
-        monitor->strut.left = 0;
-        monitor->strut.top = 0;
-        monitor->strut.right = 0;
-        monitor->strut.bottom = 0;
-    }
-
-    rectangle.x = 0;
-    rectangle.y = 0;
-    rectangle.width = 0;
-    rectangle.height = 0;
-    /* recompute all struts */
-    for (Window *window = first_window; window != NULL; window = window->next) {
-        if (!window->state.is_visible) {
-            continue;
-        }
-        monitor = get_monitor_from_rectangle_or_primary(window->x,
-                window->y, window->width, window->height);
-
-        monitor->strut.left += window->strut.reserved.left;
-        monitor->strut.top += window->strut.reserved.top;
-        monitor->strut.right += window->strut.reserved.right;
-        monitor->strut.bottom += window->strut.reserved.bottom;
-
-        rectangle.x += window->strut.reserved.left;
-        rectangle.y += window->strut.reserved.top;
-        rectangle.width += window->strut.reserved.right;
-        rectangle.height += window->strut.reserved.bottom;
-    }
-
-    /* set the work area if it changed */
-    rectangle.width = screen->width_in_pixels - rectangle.x - rectangle.width;
-    rectangle.height = screen->height_in_pixels - rectangle.y -
-        rectangle.height;
-    if (rectangle.x != workarea.x ||
-            rectangle.y != workarea.y ||
-            rectangle.width != workarea.width ||
-            rectangle.height != workarea.height) {
-        workarea = rectangle;
-        xcb_change_property(connection, XCB_PROP_MODE_REPLACE, screen->root,
-                ATOM(_NET_WORKAREA), XCB_ATOM_CARDINAL, 32, 4, &workarea);
-    }
-
-    /* resize all frames to their according size */
-    for (monitor = first_monitor; monitor != NULL; monitor = monitor->next) {
-        resize_frame_and_ignore_ratio(monitor->frame,
-                monitor->x + monitor->strut.left,
-                monitor->y + monitor->strut.top,
-                monitor->width - monitor->strut.right -
-                    monitor->strut.left,
-                monitor->height - monitor->strut.bottom -
-                    monitor->strut.top);
-    }
+     */
+    reconfigure_monitor_frames();
 
     /* set the border colors of the windows */
     for (Window *window = first_window; window != NULL; window = window->next) {
@@ -297,11 +236,18 @@ int next_cycle(void)
         if (old_focus_frame != focus_frame ||
                 (focus_frame->window == focus_window &&
                  old_focus_window != focus_window)) {
-            /* indicate the focused frame */
+            /* indicate the focused frame if there is no window inside or there
+             * is no border to indicate that the frame is focused
+             */
             if (focus_frame->window == NULL ||
                      focus_frame->window->border_size == 0) {
-                set_notification(focus_frame->left == NULL ?
-                        (utf8_t*) "Current frame" : (utf8_t*) "Current frames",
+                char number[APPROXIMATE_DIGITS(focus_frame->number) + 1];
+
+                snprintf(number, sizeof(number), "%" PRIu32,
+                        focus_frame->number);
+                set_notification((utf8_t*) (focus_frame->number > 0 ? number :
+                            focus_frame->left == NULL ?  "Current frame" :
+                            "Current frames"),
                         focus_frame->x + focus_frame->width / 2,
                         focus_frame->y + focus_frame->height / 2);
             }

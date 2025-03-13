@@ -69,6 +69,52 @@ void initialize_monitors(void)
     merge_monitors(query_monitors());
 }
 
+/* Go through all windows to find the total strut and apply it to all monitors.
+*/
+void reconfigure_monitor_frames(void)
+{
+    Monitor *monitor;
+
+    /* reset all struts before recomputing */
+    for (monitor = first_monitor; monitor != NULL; monitor = monitor->next) {
+        monitor->strut.left = 0;
+        monitor->strut.top = 0;
+        monitor->strut.right = 0;
+        monitor->strut.bottom = 0;
+    }
+
+    /* recompute all struts */
+    for (Window *window = first_window; window != NULL; window = window->next) {
+        if (!window->state.is_visible) {
+            continue;
+        }
+
+        monitor = get_monitor_from_rectangle(window->x, window->y,
+                window->width, window->height);
+
+        /* check if the strut is applicable to any monitor */
+        if (monitor == NULL) {
+            continue;
+        }
+
+        monitor->strut.left += window->strut.reserved.left;
+        monitor->strut.top += window->strut.reserved.top;
+        monitor->strut.right += window->strut.reserved.right;
+        monitor->strut.bottom += window->strut.reserved.bottom;
+    }
+
+    /* resize all frames to their according size */
+    for (monitor = first_monitor; monitor != NULL; monitor = monitor->next) {
+        resize_frame_and_ignore_ratio(monitor->frame,
+                monitor->x + monitor->strut.left,
+                monitor->y + monitor->strut.top,
+                monitor->width - monitor->strut.right -
+                    monitor->strut.left,
+                monitor->height - monitor->strut.bottom -
+                    monitor->strut.top);
+    }
+}
+
 /* Get the overlaping size between the two given rectangles.
  *
  * @return true if the rectangles intersect.
@@ -381,6 +427,9 @@ void merge_monitors(Monitor *monitors)
             if (configuration.tiling.auto_fill_void) {
                 monitor->frame = pop_stashed_frame();
             }
+            /* the popped frame might also be NULL which is why this is NOT in
+             * an else statement
+             */
             if (monitor->frame == NULL) {
                 monitor->frame = create_frame();
             }

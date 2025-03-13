@@ -507,7 +507,6 @@ static bool move_to_below_frame(Frame *relative, bool do_exchange)
 /* Do the given action. */
 bool do_action(const Action *action, Window *window)
 {
-    char number[32];
     char *shell;
     uint32_t count;
     Frame *frame;
@@ -554,6 +553,8 @@ bool do_action(const Action *action, Window *window)
                     focus_frame->x + focus_frame->width / 2,
                     focus_frame->y + focus_frame->height / 2);
         } else {
+            char number[APPROXIMATE_DIGITS(focus_frame->number) + 1];
+
             snprintf(number, sizeof(number), "%" PRIu32, focus_frame->number);
             set_notification((utf8_t*) number,
                     focus_frame->x + focus_frame->width / 2,
@@ -564,6 +565,7 @@ bool do_action(const Action *action, Window *window)
     /* focus a frame with given number */
     case ACTION_FOCUS_FRAME:
         frame = get_frame_by_number((uint32_t) action->parameter.integer);
+        /* check if the frame is already shown */
         if (frame != NULL) {
             set_focus_frame(frame);
             break;
@@ -640,7 +642,8 @@ bool do_action(const Action *action, Window *window)
 
     /* equalize the size of the child frames within a frame */
     case ACTION_EQUALIZE_FRAME:
-        equalize_frame(focus_frame);
+        equalize_frame(focus_frame, FRAME_SPLIT_HORIZONTALLY);
+        equalize_frame(focus_frame, FRAME_SPLIT_VERTICALLY);
         break;
 
     /* closes the currently active window */

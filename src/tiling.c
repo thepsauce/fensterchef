@@ -14,12 +14,17 @@
 static void apply_auto_equalize(Frame *to)
 {
     frame_split_direction_t direction;
+    Frame *start_from;
 
     direction = to->split_direction;
-    while (to->parent != NULL && to->parent->split_direction == direction) {
+    start_from = to;
+    while (to->parent != NULL) {
+        if (to->parent->split_direction == direction) {
+            start_from = to->parent;
+        }
         to = to->parent;
     }
-    equalize_frame(to);
+    equalize_frame(start_from, direction);
 }
 
 /* Split a frame horizontally or vertically. */
@@ -65,11 +70,10 @@ void split_frame(Frame *split_from, Frame *right,
     }
 
     /* size the child frames */
+    resize_frame(split_from, split_from->x, split_from->y,
+            split_from->width, split_from->height);
     if (configuration.tiling.auto_equalize) {
         apply_auto_equalize(split_from);
-    } else {
-        resize_frame(split_from, split_from->x, split_from->y,
-                split_from->width, split_from->height);
     }
 
     LOG("split %F(%F, %F)\n", split_from, left, right);
@@ -255,6 +259,7 @@ int32_t bump_frame_edge(Frame *frame, frame_edge_t edge, int32_t amount)
         break;
     }
 
+    /* adjust the ratio */
     if (parent->split_direction == FRAME_SPLIT_HORIZONTALLY) {
         parent->ratio.numerator = parent->left->width;
         parent->ratio.denominator = parent->left->width + parent->right->width;
@@ -311,41 +316,42 @@ static uint32_t count_vertical_frames(Frame *frame)
     return 0;
 }
 
-/* Set the size of all children of @frame to be equal. */
-void equalize_frame(Frame *frame)
+/* Set the size of all children of @frame to be equal within a certain
+ * direction.
+ */
+void equalize_frame(Frame *frame, frame_split_direction_t direction)
 {
     uint32_t left_count, right_count;
 
+    /* check if the frame has any children */
     if (frame->left == NULL) {
         return;
     }
 
-    switch (frame->split_direction) {
-    case FRAME_SPLIT_HORIZONTALLY:
-        left_count = count_horizontal_frames(frame->left);
-        right_count = count_horizontal_frames(frame->right);
-        frame->left->width = frame->width * left_count /
-            (left_count + right_count);
-        frame->right->x = frame->x + frame->left->width;
-        frame->right->width = frame->width - frame->left->width;
-        equalize_frame(frame->left);
-        equalize_frame(frame->right);
-        break;
+    if (direction == frame->split_direction) {
+        switch (direction) {
+        case FRAME_SPLIT_HORIZONTALLY:
+            left_count = count_horizontal_frames(frame->left);
+            right_count = count_horizontal_frames(frame->right);
+            frame->left->width = frame->width * left_count /
+                (left_count + right_count);
+            frame->right->x = frame->x + frame->left->width;
+            frame->right->width = frame->width - frame->left->width;
+            break;
 
-    case FRAME_SPLIT_VERTICALLY:
-        left_count = count_vertical_frames(frame->left);
-        right_count = count_vertical_frames(frame->right);
-        frame->left->height = frame->height * left_count /
-            (left_count + right_count);
-        frame->right->y = frame->y + frame->left->height;
-        frame->right->height = frame->height - frame->left->height;
-        equalize_frame(frame->left);
-        equalize_frame(frame->right);
-        break;
+        case FRAME_SPLIT_VERTICALLY:
+            left_count = count_vertical_frames(frame->left);
+            right_count = count_vertical_frames(frame->right);
+            frame->left->height = frame->height * left_count /
+                (left_count + right_count);
+            frame->right->y = frame->y + frame->left->height;
+            frame->right->height = frame->height - frame->left->height;
+            break;
+        }
     }
 
-    resize_frame_and_ignore_ratio(frame, frame->x, frame->y, frame->width,
-            frame->height);
+    equalize_frame(frame->left, direction);
+    equalize_frame(frame->right, direction);
 }
 
 /* Remove an empty frame from the screen. */

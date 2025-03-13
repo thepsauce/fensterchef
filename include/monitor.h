@@ -34,6 +34,10 @@ extern Monitor *first_monitor;
 /* Try to initialize randr and the internal monitor linked list. */
 void initialize_monitors(void);
 
+/* Go through all windows to find the total strut and apply it to all monitors.
+*/
+void reconfigure_monitor_frames(void);
+
 /* The most efficient way to get the monitor containing given frame.
  *
  * @return NULL if the frame is not visible.

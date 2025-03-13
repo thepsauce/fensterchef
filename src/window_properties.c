@@ -55,8 +55,6 @@ void initialize_root_properties(void)
 
         ATOM(_NET_ACTIVE_WINDOW),
 
-        ATOM(_NET_WORKAREA),
-
         ATOM(_NET_SUPPORTING_WM_CHECK),
 
         ATOM(_NET_CLOSE_WINDOW),
@@ -116,14 +114,6 @@ void initialize_root_properties(void)
     /* set the active window */
     xcb_change_property(connection, XCB_PROP_MODE_REPLACE, screen->root,
             ATOM(_NET_ACTIVE_WINDOW), XCB_ATOM_WINDOW, 32, 1, &screen->root);
-
-    /* set the work area */
-    const Rectangle workarea = {
-        0, 0,
-        screen->width_in_pixels, screen->height_in_pixels
-    };
-    xcb_change_property(connection, XCB_PROP_MODE_REPLACE, screen->root,
-            ATOM(_NET_WORKAREA), XCB_ATOM_CARDINAL, 32, 4, &workarea);
 }
 
 

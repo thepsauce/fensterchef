@@ -310,10 +310,12 @@ void set_configuration(struct configuration *new_configuration)
         }
     }
 
-    /* reload all frames */
+    /* reload all frames since the gaps or border sizes might have changed */
     for (Monitor *monitor = first_monitor; monitor != NULL;
             monitor = monitor->next) {
-        reload_frame_recursively(monitor->frame);
+        resize_frame_and_ignore_ratio(monitor->frame, monitor->frame->x,
+                monitor->frame->y, monitor->frame->width,
+                monitor->frame->height);
     }
 
     /* change border color and size of the notification window */

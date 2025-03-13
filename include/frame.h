@@ -36,11 +36,16 @@ typedef enum {
 /* Frames are used to partition a monitor into multiple rectangular regions.
  *
  * When a frame has one child, it must have a second one, so either BOTH left
- * AND right are NULL or neither are NULL.
- * `parent` is NULL when the frame is a root frame.
+ * AND right are NULL OR neither are NULL.
+ *
+ * `parent` is NULL when the frame is a root frame or stashed frame.
  */
 struct frame {
-    /* the window inside the frame, may be NULL */
+    /* the window inside the frame, may be NULL; it can also happen that this
+     * becomes a completely invalid memory address but only if the frame is
+     * stashed, these invalid windows are resolved once the frame becomes
+     * unstashed
+     */
     Window *window;
 
     /* coordinates and size of the frame */
@@ -122,18 +127,15 @@ void resize_frame_and_ignore_ratio(Frame *frame, int32_t x, int32_t y,
 
 /* Replace @frame (windows and child frames) with @with.
  *
- * Note that this empties @with.
+ * @with is emptied by this function, only the original size remains.
  */
 void replace_frame(Frame *frame, Frame *with);
 
 /* Get the gaps the frame applies to its inner window. */
-void get_frame_gaps(Frame *frame, Extents *gaps);
+void get_frame_gaps(const Frame *frame, Extents *gaps);
 
 /* Resizes the inner window to fit within the frame. */
 void reload_frame(Frame *frame);
-
-/* Reload @frame and all child frames. */
-void reload_frame_recursively(Frame *frame);
 
 /* Set the frame in focus, this also focuses the inner window if it exists. */
 void set_focus_frame(Frame *frame);
@@ -145,6 +147,6 @@ void set_focus_window_with_frame(Window *window);
  *
  * @frame may be NULL, then simply NULL is returned.
  */
-Frame *get_root_frame(Frame *frame);
+Frame *get_root_frame(const Frame *frame);
 
 #endif

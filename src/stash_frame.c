@@ -24,6 +24,45 @@ static void show_inner_windows(Frame *frame)
     }
 }
 
+/* Check if @window still exists as hidden tiling window.
+ *
+ * @window may be NULL or a completely random memory address and this function
+ *         can still handle that.
+ */
+static bool is_window_valid(Window *window)
+{
+    for (Window *other = first_window; other != NULL; other = other->next) {
+        if (other == window) {
+            return window->state.mode == WINDOW_MODE_TILING &&
+                !window->state.is_visible;
+        }
+    }
+    return false;
+}
+
+/* Make sure all window pointers are still valid.
+ *
+ * In theory theory it could happen that a pointer is associated to a different
+ * object even when it has the same address. But even if that happened, it would
+ * not make this function any worse. The user would not even notice.
+ *
+ * @return the number of valid windows.
+ */
+static uint32_t validate_inner_windows(Frame *frame)
+{
+    if (frame->left != NULL) {
+        return validate_inner_windows(frame->left) +
+            validate_inner_windows(frame->right);
+    } else if (frame->window != NULL) {
+        if (!is_window_valid(frame->window)) {
+            frame->window = NULL;
+            return 0;
+        }
+        return 1;
+    }
+    return 0;
+}
+
 /* Take @frame away from the screen, this leaves a singular empty frame. */
 Frame *stash_frame_later(Frame *frame)
 {
@@ -92,46 +131,8 @@ void unlink_frame_from_stash(Frame *frame)
         previous->previous_stashed = frame->previous_stashed;
     }
 
+    (void) validate_inner_windows(frame);
     show_inner_windows(frame);
-}
-
-/* Check if @window still exists as hidden tiling window.
- *
- * @window may be NULL or a completely random memory address and this function
- *         can still handle that.
- */
-static bool is_window_valid(Window *window)
-{
-    for (Window *other = first_window; other != NULL; other = other->next) {
-        if (other == window) {
-            return window->state.mode == WINDOW_MODE_TILING &&
-                !window->state.is_visible;
-        }
-    }
-    return false;
-}
-
-/* Make sure all window pointers are still valid.
- *
- * In theory theory it could happen that a pointer is associated to a different
- * object even when it has the same address. But even if that happened, it would
- * not make this function any worse. The user would not even notice.
- *
- * @return the number of valid windows.
- */
-static uint32_t validate_inner_windows(Frame *frame)
-{
-    if (frame->left != NULL) {
-        return validate_inner_windows(frame->left) +
-            validate_inner_windows(frame->right);
-    } else if (frame->window != NULL) {
-        if (!is_window_valid(frame->window)) {
-            frame->window = NULL;
-            return 0;
-        }
-        return 1;
-    }
-    return 0;
 }
 
 /* Frees @frame and all child frames. */
@@ -147,27 +148,26 @@ static void free_frame_recursively(Frame *frame)
 /* Put the child frames or window into @frame of the recently saved frame. */
 Frame *pop_stashed_frame(void)
 {
-    Frame *pop;
+    Frame *pop = NULL;
 
-    pop = last_stashed_frame;
     /* find the first valid frame in the pop list, it might be that a stashed
      * frame got invalidated because it lost all inner window and is now
      * completely empty
      */
-    while (pop != NULL) {
-        if (validate_inner_windows(pop) > 0 || pop->number > 0) {
+    while (last_stashed_frame != NULL) {
+        if (validate_inner_windows(last_stashed_frame) > 0 ||
+                last_stashed_frame->number > 0) {
             break;
         }
 
-        Frame *const free_me = pop;
-        pop = pop->previous_stashed;
+        Frame *const free_me = last_stashed_frame;
+        last_stashed_frame = last_stashed_frame->previous_stashed;
         free_frame_recursively(free_me);
     }
 
-    if (pop == NULL) {
-        last_stashed_frame = NULL;
-    } else {
-        last_stashed_frame = pop->previous_stashed;
+    if (last_stashed_frame != NULL) {
+        pop = last_stashed_frame;
+        last_stashed_frame = last_stashed_frame->previous_stashed;
         show_inner_windows(pop);
     }
 

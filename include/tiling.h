@@ -42,8 +42,10 @@ Frame *get_below_frame(Frame *frame);
 /* Increases the @edge of @frame by @amount. */
 int32_t bump_frame_edge(Frame *frame, frame_edge_t edge, int32_t amount);
 
-/* Set the size of all children of @frame to be equal. */
-void equalize_frame(Frame *frame);
+/* Set the size of all children of @frame to be equal within a certain
+ * direction.
+ */
+void equalize_frame(Frame *frame, frame_split_direction_t direction);
 
 /* Remove an empty frame from the screen.
  *

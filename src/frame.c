@@ -250,12 +250,13 @@ void replace_frame(Frame *frame, Frame *with)
         with->window = NULL;
     }
 
-    /* reload the frame recursively */
-    reload_frame_recursively(frame);
+    /* size the children so they fit into their new parent */
+    resize_frame_and_ignore_ratio(frame, frame->x, frame->y,
+            frame->width, frame->height);
 }
 
 /* Get the gaps the frame applies to its inner window. */
-void get_frame_gaps(Frame *frame, Extents *gaps)
+void get_frame_gaps(const Frame *frame, Extents *gaps)
 {
     Frame *root;
 
@@ -307,17 +308,6 @@ void reload_frame(Frame *frame)
                 frame->height - gaps.bottom);
 }
 
-/* Reload @frame and all child frames. */
-void reload_frame_recursively(Frame *frame)
-{
-    if (frame->left == NULL) {
-        reload_frame(frame);
-    } else {
-        reload_frame_recursively(frame->left);
-        reload_frame_recursively(frame->right);
-    }
-}
-
 /* Set the frame in focus, this also focuses the inner window if possible. */
 void set_focus_frame(Frame *frame)
 {
@@ -345,7 +335,7 @@ void set_focus_window_with_frame(Window *window)
 }
 
 /* Get the frame above the given one that has no parent. */
-Frame *get_root_frame(Frame *frame)
+Frame *get_root_frame(const Frame *frame)
 {
     if (frame == NULL) {
         return NULL;
@@ -353,5 +343,5 @@ Frame *get_root_frame(Frame *frame)
     while (frame->parent != NULL) {
         frame = frame->parent;
     }
-    return frame;
+    return (Frame*) frame;
 }

@@ -70,6 +70,9 @@ int main(int argc, char **argv)
     /* manage the windows that are already there */
     query_existing_windows();
 
+    /* configure the monitor frames before running the startup actions */
+    reconfigure_monitor_frames();
+
     /* run all startup actions */
     LOG("running startup actions: %A\n",
             configuration.startup.number_of_actions,
