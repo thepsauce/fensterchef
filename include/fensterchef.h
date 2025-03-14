@@ -8,7 +8,7 @@
 
 #define FENSTERCHEF_NAME "fensterchef"
 
-#define FENSTERCHEF_VERSION "1.0"
+#define FENSTERCHEF_VERSION "1.1"
 
 #define FENSTERCHEF_CONFIGURATION "~/.config/fensterchef/fensterchef.config"
 
