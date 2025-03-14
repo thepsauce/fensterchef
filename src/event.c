@@ -241,7 +241,7 @@ int next_cycle(void)
              */
             if (focus_frame->window == NULL ||
                      focus_frame->window->border_size == 0) {
-                char number[APPROXIMATE_DIGITS(focus_frame->number) + 1];
+                char number[MAXIMUM_DIGITS(focus_frame->number) + 1];
 
                 snprintf(number, sizeof(number), "%" PRIu32,
                         focus_frame->number);

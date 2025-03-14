@@ -101,11 +101,33 @@ typedef struct action {
     union parser_data_value parameter;
 } Action;
 
+/* all actions and their string representation and data type */
+extern const struct action_information {
+    /* name of the action */
+    const char *name;
+    /* if the argument of this action should be optional */
+    bool is_argument_optional;
+    /* data type of the action parameter */
+    parser_data_type_t data_type;
+} action_information[ACTION_MAX];
+
 /* Check if the given action's argument may be omitted. */
-bool has_action_optional_argument(action_t action);
+static inline bool has_action_optional_argument(action_t action)
+{
+    return action_information[action].is_argument_optional;
+}
 
 /* Get the data type the action expects as parameter. */
-parser_data_type_t get_action_data_type(action_t action);
+static inline parser_data_type_t get_action_data_type(action_t action)
+{
+    return action_information[action].data_type;
+}
+
+/* Get a string version of an action. */
+static inline const char *action_to_string(action_t action)
+{
+    return action_information[action].name;
+}
 
 /* Get an action from a string (case insensitive). */
 action_t string_to_action(const char *string);

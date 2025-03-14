@@ -2,6 +2,9 @@
 #define WINDOW_STATE_H
 
 #include <stdbool.h>
+#include <time.h>
+
+#include <xcb/xcb.h>
 
 #include "bits/window_typedef.h"
 

@@ -367,7 +367,7 @@ static void log_modifiers(uint32_t mask)
             if (modifier_count > 0) {
                 fputs(CLEAR_COLOR "+" COLOR(MAGENTA), stderr);
             }
-            fprintf(stderr, *modifier);
+            fputs(*modifier, stderr);
             modifier_count++;
         }
     }
@@ -532,7 +532,7 @@ static void log_configure_mask(uint32_t mask)
             if (flag_count > 0) {
                 fputs(CLEAR_COLOR "+" COLOR(MAGENTA), stderr);
             }
-            fprintf(stderr, *flag);
+            fputs(*flag, stderr);
             flag_count++;
         }
     }

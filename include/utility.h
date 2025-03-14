@@ -1,25 +1,68 @@
 #ifndef UTIL_H
 #define UTIL_H
 
+/* Various utility macros and data types. */
+
 #include <ctype.h>
 
 #include <stdbool.h>
+#include <stdio.h>
 #include <stdint.h>
 
 #include "xalloc.h"
 
-/* no error */
+/* success indicator value */
 #define OK 0
+
 /* indicate integer error value */
 #define ERROR 1
 
-/* Get the number of digits this number could take up.
- *
- * We just consider the number of bytes the number needs and since a single byte
- * goes from 0 to 255 (3 digits), multiplying by 3 is rounding up a little but
- * it is also very safe.
+/* Abort the program after printing an error message. */
+#define ABORT(message) do { \
+    fprintf(stderr, "%s:%d: %s\n", __FILE__, __LINE__, (message)); \
+    abort(); \
+} while (false)
+
+/* Wrap these around statements when an if branch is involved to hint to the
+ * compiler whether an if statement is likely (or unlikely) to be true.
+ * For example:
+ *   if (UNLIKELY(pointer == NULL)) {
+ *       printf("I am unlikely to occur\n");
+ *   }
+ * These should ONLY be used when it is guaranteed that a branch is executed
+ * only very rarely.
  */
-#define APPROXIMATE_DIGITS(number_type) (sizeof(number_type) * 3)
+#ifdef __GNUC__
+    #define LIKELY(x) __builtin_expect(!!(x), 1)
+    #define UNLIKELY(x) __builtin_expect(!!(x), 0)
+#else
+    #define LIKELY(x) (x)
+    #define UNLIKELY(x) (x)
+#endif
+
+/* Assert that statement @x is true. If this is not the case, the program is
+ * aborted.
+ */
+#define ASSERT(x, message) do { \
+    if (UNLIKELY(!(x))) { \
+        ABORT(message); \
+    } \
+} while (false)
+
+/* Get the maximum number of digits this number type could take up.
+ *
+ * UINT8_MAX  255 - 3
+ * UINT16_MAX 65535 - 5
+ * UINT32_MAX 4294967295 - 10
+ * UINT64_MAX 18446744073709551615 - 20
+ *
+ * The default case INT32_MIN is chosen so that static array allocations fail.
+ */
+#define MAXIMUM_DIGITS(number_type) ( \
+        sizeof(number_type) == 1 ? 3 : \
+        sizeof(number_type) == 2 ? 5 : \
+        sizeof(number_type) == 4 ? 10 : \
+        sizeof(number_type) == 8 ? 20 : INT32_MIN)
 
 /* Get the size of a statically sized array. */
 #define SIZE(a) (sizeof(a) / sizeof(*(a)))

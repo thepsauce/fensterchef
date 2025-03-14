@@ -303,7 +303,7 @@ static void handle_focus_out(xcb_focus_out_event_t *event)
     }
 
     /* refocus the window list */
-    xcb_set_input_focus(connection, XCB_INPUT_FOCUS_POINTER_ROOT,
+    xcb_set_input_focus(connection, XCB_INPUT_FOCUS_PARENT,
             window_list.client.id, XCB_CURRENT_TIME);
 }
 
@@ -409,7 +409,7 @@ int show_window_list(void)
             XCB_CONFIG_WINDOW_STACK_MODE, general_values);
 
     /* focus the window list */
-    xcb_set_input_focus(connection, XCB_INPUT_FOCUS_POINTER_ROOT,
+    xcb_set_input_focus(connection, XCB_INPUT_FOCUS_PARENT,
             window_list.client.id, XCB_CURRENT_TIME);
     return OK;
 }

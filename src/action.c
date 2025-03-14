@@ -16,31 +16,12 @@
 #include "window_list.h"
 
 /* all actions and their string representation and data type */
-static const struct {
-    /* name of the action */
-    const char *name;
-    /* if the argument of this action should be optional */
-    bool is_argument_optional;
-    /* data type of the action parameter */
-    parser_data_type_t data_type;
-} action_information[ACTION_MAX] = {
+const struct action_information action_information[ACTION_MAX] = {
 #define X(code, is_optional, string, data_type) [code] = \
     { string, is_optional, data_type },
     DECLARE_ALL_ACTIONS
 #undef X
 };
-
-/* Check if the given action's argument may be omitted. */
-inline bool has_action_optional_argument(action_t action)
-{
-    return action_information[action].is_argument_optional;
-}
-
-/* Get the data type the action expects as parameter. */
-inline parser_data_type_t get_action_data_type(action_t action)
-{
-    return action_information[action].data_type;
-}
 
 /* Get an action from a string. */
 action_t string_to_action(const char *string)
@@ -51,12 +32,6 @@ action_t string_to_action(const char *string)
         }
     }
     return ACTION_NULL;
-}
-
-/* Get a string version of an action. */
-inline const char *action_to_string(action_t action)
-{
-    return action_information[action].name;
 }
 
 /* Create a deep copy of given action array. */
@@ -289,7 +264,9 @@ static void move_to_frame(Frame *from, Frame *to, Monitor *monitor,
         bool do_exchange)
 {
     if (do_exchange) {
-        /* if moving into a void, either remove it or replace it */
+        /* if moving into a void, either remove it or replace it and when
+         * replacing it, remove a potential new void that could appear
+         */
         if (is_frame_void(to)) {
             if (to->parent != NULL &&
                     (configuration.tiling.auto_remove ||
@@ -297,8 +274,14 @@ static void move_to_frame(Frame *from, Frame *to, Monitor *monitor,
                 remove_void(to);
                 /* focus stays at `from` */
             } else {
+                /* this makes `from` a void */
                 replace_frame(to, from);
                 set_focus_frame(to);
+                if (from->parent != NULL &&
+                        (configuration.tiling.auto_remove ||
+                         configuration.tiling.auto_remove_void)) {
+                    remove_void(from);
+                }
             }
         /* swap the two frames `from` and `to` */
         } else {
@@ -553,7 +536,7 @@ bool do_action(const Action *action, Window *window)
                     focus_frame->x + focus_frame->width / 2,
                     focus_frame->y + focus_frame->height / 2);
         } else {
-            char number[APPROXIMATE_DIGITS(focus_frame->number) + 1];
+            char number[MAXIMUM_DIGITS(focus_frame->number) + 1];
 
             snprintf(number, sizeof(number), "%" PRIu32, focus_frame->number);
             set_notification((utf8_t*) number,
