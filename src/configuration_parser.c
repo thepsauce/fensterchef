@@ -800,10 +800,31 @@ static parser_error_t parse_key(Parser *parser)
     if (error != PARSER_SUCCESS) {
         return error;
     }
+
     parser->key.modifiers |= parser->configuration.keyboard.modifiers;
-    parser->key.key_symbol = string_to_keysym(parser->identifier);
-    if (parser->key.key_symbol == 0) {
-        return PARSER_ERROR_INVALID_KEY_SYMBOL;
+
+    /* intepret starting with a digit as keycode */
+    if (isdigit(parser->identifier[0])) {
+        parser->key.key_symbol = XCB_NONE;
+        parser->key.key_code = 0;
+        for (uint32_t i = 0; parser->identifier[i] != '\0'; i++) {
+            if (!isdigit(parser->identifier[i])) {
+                error = PARSER_ERROR_INVALID_KEY_SYMBOL;
+                break;
+            }
+            parser->key.key_code *= 10;
+            parser->key.key_code += parser->identifier[i] - '0';
+        }
+    } else {
+        parser->key.key_symbol = string_to_keysym(parser->identifier);
+        if (parser->key.key_symbol == XCB_NONE) {
+            error = PARSER_ERROR_INVALID_KEY_SYMBOL;
+        }
+        parser->key.key_code = 0;
+    }
+
+    if (error != PARSER_SUCCESS) {
+        return error;
     }
 
     error = parse_binding_flags(parser, &parser->key.flags);
@@ -898,8 +919,15 @@ static parser_error_t parse_keyboard_binding(Parser *parser)
         return error;
     }
 
-    key = find_configured_key(&parser->configuration, parser->key.modifiers,
-            parser->key.key_symbol, parser->key.flags);
+    if (parser->key.key_symbol == XCB_NONE) {
+        key = find_configured_key_by_code(&parser->configuration,
+                parser->key.modifiers, parser->key.key_code,
+                parser->key.flags);
+    } else {
+        key = find_configured_key_by_symbol(&parser->configuration,
+                parser->key.modifiers, parser->key.key_symbol,
+                parser->key.flags);
+    }
 
     if (key != NULL) {
         free_actions(key->actions, key->number_of_actions);

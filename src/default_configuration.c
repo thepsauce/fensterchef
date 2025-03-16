@@ -270,7 +270,7 @@ void merge_with_default_key_bindings(struct configuration *configuration)
     for (uint32_t i = 0; i < SIZE(default_bindings); i++) {
         const uint16_t modifiers = default_bindings[i].modifiers |
             configuration->keyboard.modifiers;
-        key = find_configured_key(configuration, modifiers,
+        key = find_configured_key_by_symbol(configuration, modifiers,
                 default_bindings[i].key_symbol, default_bindings[i].flags);
         if (key != NULL) {
             continue;
@@ -290,7 +290,7 @@ void merge_with_default_key_bindings(struct configuration *configuration)
     for (uint32_t i = 0; i < SIZE(default_bindings); i++) {
         const uint16_t modifiers = default_bindings[i].modifiers |
             configuration->keyboard.modifiers;
-        key = find_configured_key(configuration, modifiers,
+        key = find_configured_key_by_symbol(configuration, modifiers,
                 default_bindings[i].key_symbol, default_bindings[i].flags);
         if (key != NULL) {
             continue;
@@ -298,6 +298,7 @@ void merge_with_default_key_bindings(struct configuration *configuration)
         next_key->flags = default_bindings[i].flags;
         next_key->modifiers = modifiers;
         next_key->key_symbol = default_bindings[i].key_symbol;
+        next_key->key_code = 0;
         next_key->actions = xmemdup(&default_bindings[i].action,
                 sizeof(default_bindings[i].action));
         next_key->number_of_actions = 1;

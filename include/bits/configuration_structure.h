@@ -35,6 +35,8 @@ struct configuration_key {
     uint16_t flags;
     /* the key symbol */
     xcb_keysym_t key_symbol;
+    /* the code of the key, used when `key_symbol` is NoSymbol */
+    xcb_keycode_t key_code;
     /* the actions to execute */
     Action *actions;
     uint32_t number_of_actions;

@@ -39,11 +39,21 @@ struct configuration_button *find_configured_button(
 /* Grab the mousebindings so we receive the ButtonPress events for them. */
 void grab_configured_buttons(xcb_window_t window);
 
+/* Get a configured key from key modifiers and a key code.
+ *
+ * @flags is a combination of `BINDING_FLAG_*` where the transparent flag is
+ *        ignored.
+ */
+struct configuration_key *find_configured_key_by_code(
+        struct configuration *configuration,
+        uint16_t modifiers, xcb_keycode_t key_code, uint16_t flags);
+
 /* Get a key from key modifiers and a key symbol.
  *
- * Note that this ignores BINDING_FLAG_TRANSPARENT.
+ * @flags is a combination of `BINDING_FLAG_*` where the transparent flag is
+ *        ignored.
  */
-struct configuration_key *find_configured_key(
+struct configuration_key *find_configured_key_by_symbol(
         struct configuration *configuration,
         uint16_t modifiers, xcb_keysym_t key_symbol, uint16_t flags);
 

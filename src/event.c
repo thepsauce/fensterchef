@@ -436,8 +436,8 @@ static void handle_key_press(xcb_key_press_event_t *event)
 {
     struct configuration_key *key;
 
-    key = find_configured_key(&configuration, event->state,
-            get_keysym(event->detail), 0);
+    key = find_configured_key_by_code(&configuration, event->state,
+            event->detail, 0);
     if (key != NULL) {
         /* before a key binding, hide the notification window */
         alarm(0);
@@ -462,8 +462,8 @@ static void handle_key_release(xcb_key_release_event_t *event)
 {
     struct configuration_key *key;
 
-    key = find_configured_key(&configuration, event->state,
-            get_keysym(event->detail), BINDING_FLAG_RELEASE);
+    key = find_configured_key_by_code(&configuration, event->state,
+            event->detail, BINDING_FLAG_RELEASE);
     if (key != NULL) {
         LOG("performing action(s): %A\n", key->number_of_actions,
                 key->actions);

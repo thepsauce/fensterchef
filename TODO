@@ -39,8 +39,6 @@
     make a hook for an alternative action that should occur (instead of the
     default of focusing this window)
 
-#38 Implement string_to_keysym and add keycodes to binds
-
 #39 Add the set action that can set a variable
     The set action would have the syntax `set <section>.<name> = <value>` and
     dynamically reload the part of the configuration that is relevant
@@ -193,3 +191,7 @@
 #36 Add way to inject commmands
     Do it how ratpoison does it which is quite sensible: Create a window with
     the FENSTERCHEF_COMMAND property which contains a list of actions to execute
+
+#38 Add keycodes to binds
+    When a number is used instead of a word starting with a letter for a key
+    symbol, interpret it as a keycode

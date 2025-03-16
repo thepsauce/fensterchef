@@ -212,8 +212,32 @@ void grab_configured_buttons(xcb_window_t window)
     }
 }
 
-/* Get a key from key modifiers and a key symbol. */
-struct configuration_key *find_configured_key(
+/* Get a configured key from key modifiers and a key code. */
+struct configuration_key *find_configured_key_by_code(
+        struct configuration *configuration,
+        uint16_t modifiers, xcb_keycode_t key_code, uint16_t flags)
+{
+    struct configuration_key *key;
+
+    modifiers &= ~configuration->keyboard.ignore_modifiers;
+    flags &= ~BINDING_FLAG_TRANSPARENT;
+
+    /* find a matching key (the key code AND modifiers must match up) */
+    for (uint32_t i = 0; i < configuration->keyboard.number_of_keys; i++) {
+        key = &configuration->keyboard.keys[i];
+        if (key->modifiers == modifiers &&
+                (key->flags & ~BINDING_FLAG_TRANSPARENT) == flags) {
+            if (key->key_code == key_code || (key->key_symbol != XCB_NONE &&
+                    get_keysym(key_code) == key->key_symbol)) {
+                return key;
+            }
+        }
+    }
+    return NULL;
+}
+
+/* Get a configured key from key modifiers and a key symbol. */
+struct configuration_key *find_configured_key_by_symbol(
         struct configuration *configuration,
         uint16_t modifiers, xcb_keysym_t key_symbol, uint16_t flags)
 {
@@ -222,12 +246,15 @@ struct configuration_key *find_configured_key(
     modifiers &= ~configuration->keyboard.ignore_modifiers;
     flags &= ~BINDING_FLAG_TRANSPARENT;
 
-    /* find a matching key (the keysym AND modifiers must match up) */
+    /* find a matching key (the key symbol AND modifiers must match up) */
     for (uint32_t i = 0; i < configuration->keyboard.number_of_keys; i++) {
         key = &configuration->keyboard.keys[i];
-        if (key->key_symbol == key_symbol && key->modifiers == modifiers &&
+        if (key->modifiers == modifiers &&
                 (key->flags & ~BINDING_FLAG_TRANSPARENT) == flags) {
-            return key;
+            if (key->key_symbol == key_symbol || (key->key_symbol == XCB_NONE &&
+                    get_keysym(key->key_code) == key_symbol)) {
+                return key;
+            }
         }
     }
     return NULL;

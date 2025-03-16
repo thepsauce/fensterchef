@@ -7,7 +7,7 @@
 #define DEFINE_ALL_CONFIGURATION_PARSER_ERRORS \
     /* indicates a successful parsing */ \
     X(PARSER_SUCCESS, "success") \
- \
+\
     /* this may or may not be an error; if for instance an integer is expected
      * and a string is given, this would be an error; however, when an integer
      * is expected, unexpected tokens appear but the argument is optional, no
