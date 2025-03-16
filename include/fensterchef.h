@@ -21,6 +21,15 @@ extern const char *fensterchef_configuration;
 /* true while the window manager is running */
 extern bool is_fensterchef_running;
 
+/* Spawn a window that has the `FENSTERCHEF_COMMAND` property.
+ *
+ * This should be called before any initialization has be done.
+ *
+ * This requests to close fensterchef by setting `is_fensterchef_running` to
+ * false.
+ */
+void run_external_command(const char *command);
+
 /* Close the connection to xcb and exit the program with given exit code. */
 void quit_fensterchef(int exit_code);
 

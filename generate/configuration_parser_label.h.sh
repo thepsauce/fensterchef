@@ -19,14 +19,6 @@ while read -r line ; do
             fi
         done
 
-        echo "    /* invalid label value */"
-        echo "    PARSER_LABEL_NONE,"
-        echo
-        echo "    /* first valid label value */"
-        echo "    PARSER_FIRST_LABEL,"
-        echo
-
-        is_first=true
         while read -r line ; do
             if [ "${line:0:1}" != "[" ] ; then
                 continue
@@ -35,10 +27,6 @@ while read -r line ; do
             line="${line%]*}"
             line="${line^^}"
             line="PARSER_LABEL_$line"
-            if $is_first ; then
-                line="$line = PARSER_FIRST_LABEL"
-                is_first=false
-            fi
             echo "    $line,"
         done <generate/fensterchef.labels
 

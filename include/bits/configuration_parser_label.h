@@ -10,14 +10,8 @@
  * `default_configuration.c`.
  */
 typedef enum configuration_parser_label {
-    /* invalid label value */
-    PARSER_LABEL_NONE,
-
-    /* first valid label value */
-    PARSER_FIRST_LABEL,
-
-    PARSER_LABEL_GENERAL = PARSER_FIRST_LABEL,
     PARSER_LABEL_STARTUP,
+    PARSER_LABEL_GENERAL,
     PARSER_LABEL_ASSIGNMENT,
     PARSER_LABEL_TILING,
     PARSER_LABEL_FONT,

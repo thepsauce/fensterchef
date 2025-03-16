@@ -13,7 +13,8 @@ typedef enum option {
     OPTION_VERSION, /* -v, --version */
     OPTION_VERBOSITY, /* -d VERBOSITY */
     OPTION_VERBOSE, /* --verbose */
-    OPTION_CONFIG, /* -c, --config FILE */
+    OPTION_CONFIG, /* --config FILE */
+    OPTION_COMMAND, /* -e, --command COMMAND */
 } option_t;
 
 /* context the parser needs to parse the options */
@@ -32,7 +33,8 @@ static const struct parse_option {
     [OPTION_VERSION] = { "version", 'v', 0 },
     [OPTION_VERBOSITY] = { NULL, 'd', 1 },
     [OPTION_VERBOSE] = { "verbose", '\0', 0 },
-    [OPTION_CONFIG] = { "config", 'c', 1 },
+    [OPTION_CONFIG] = { "config", '\0', 1 },
+    [OPTION_COMMAND] = { "command", 'e', 1 },
 };
 
 /* Print the usage to standard error output. */
@@ -48,7 +50,8 @@ static void print_usage(void)
             error                   only log errors\n\
             nothing                 log nothing\n\
         --verbose                   log everything\n\
-        -c, --config    FILE        set the path of the configuration\n",
+        --config        FILE        set the path of the configuration\n\
+        -e, --command   COMMAND     run a command within fensterchef\n",
         stderr);
 
 }
@@ -109,6 +112,11 @@ static int handle_option(option_t option, char *value)
     case OPTION_CONFIG:
         fensterchef_configuration = value;
         return OK;
+
+    /* run a command */
+    case OPTION_COMMAND:
+        run_external_command(value);
+        return ERROR;
     }
 
     print_usage();

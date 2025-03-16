@@ -331,8 +331,8 @@ void change_client_attributes(XClient *client, uint32_t border_color)
     }
     client->border_color = border_color;
 
-    LOG("changing attributes of client %w to %#x\n", client->id,
-            (unsigned) border_color);
+    LOG("changing attributes of client %w to %#" PRIx32 "\n",
+            client->id, border_color);
 
     general_values[0] = border_color;
     xcb_change_window_attributes(connection, client->id,

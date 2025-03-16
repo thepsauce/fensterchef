@@ -27,8 +27,6 @@
     X(PARSER_ERROR_INVALID_LABEL, "invalid label name") \
     /* a ']' is missing */ \
     X(PARSER_ERROR_MISSING_CLOSING, "missing a closing ']'") \
-    /* no label was specified */ \
-    X(PARSER_ERROR_NOT_IN_LABEL, "not in a label yet, use `[<label>]` on a previous line") \
     /* invalid boolean identifier */ \
     X(PARSER_ERROR_INVALID_BOOLEAN, "invalid boolean value") \
     /* a label does not define given variable name */ \

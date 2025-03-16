@@ -53,11 +53,12 @@ void grab_configured_keys(void);
 /* Compare the current configuration with the new configuration and set it. */
 void set_configuration(struct configuration *configuration);
 
-/* Load the configuration within given file name.
+/* Load a configuration from a string or file.
  *
- * @return ERROR if the file could not be read, OK otherwise.
+ * @return ERROR if the file could not be read or a syntax error occured,
+ *         OK otherwise.
  */
-int load_configuration_file(const char *file_name,
-        struct configuration *configuration);
+int load_configuration(const char *string,
+        struct configuration *configuration, bool load_from_file);
 
 #endif

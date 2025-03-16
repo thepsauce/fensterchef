@@ -214,7 +214,7 @@ static uint16_t translate_string_to_modifier(const char *string)
 }
 
 /* Converts @error to a string. */
-const char *string_to_parser_error(parser_error_t error)
+inline const char *parser_error_to_string(parser_error_t error)
 {
     return parser_error_strings[error];
 }
@@ -227,7 +227,16 @@ bool read_next_line(Parser *parser)
     parser->line_number++;
     length = 0;
     for (int c;; ) {
-        c = fgetc(parser->file);
+        if (parser->file == NULL) {
+            c = parser->string_source[parser->string_source_index];
+            if (c == '\0') {
+                c = EOF;
+            } else {
+                parser->string_source_index++;
+            }
+        } else {
+            c = fgetc(parser->file);
+        }
 
         if (length == parser->line_capacity) {
             parser->line_capacity *= 2;
@@ -761,7 +770,7 @@ static parser_error_t parse_button(Parser *parser)
     if (error != PARSER_SUCCESS) {
         return error;
     }
-    parser->button.modifiers |= parser->configuration->mouse.modifiers;
+    parser->button.modifiers |= parser->configuration.mouse.modifiers;
 
     parser->button.index = translate_string_to_button(parser->identifier);
     if (parser->button.index == 0) {
@@ -791,7 +800,7 @@ static parser_error_t parse_key(Parser *parser)
     if (error != PARSER_SUCCESS) {
         return error;
     }
-    parser->key.modifiers |= parser->configuration->keyboard.modifiers;
+    parser->key.modifiers |= parser->configuration.keyboard.modifiers;
     parser->key.key_symbol = string_to_keysym(parser->identifier);
     if (parser->key.key_symbol == 0) {
         return PARSER_ERROR_INVALID_KEY_SYMBOL;
@@ -814,14 +823,14 @@ static parser_error_t parse_key(Parser *parser)
 /* Merges the default keybindings into the current parser keybindings. */
 static parser_error_t merge_default_mouse(Parser *parser)
 {
-    merge_with_default_button_bindings(parser->configuration);
+    merge_with_default_button_bindings(&parser->configuration);
     return PARSER_SUCCESS;
 }
 
 /* Merges the default keybindings into the current parser keybindings. */
 static parser_error_t merge_default_keyboard(Parser *parser)
 {
-    merge_with_default_key_bindings(parser->configuration);
+    merge_with_default_key_bindings(&parser->configuration);
     return PARSER_SUCCESS;
 }
 
@@ -838,14 +847,14 @@ static parser_error_t parse_startup_actions(Parser *parser)
     }
 
     /* append the parsed actions to the startup actions */
-    RESIZE(parser->configuration->startup.actions,
-            parser->configuration->startup.number_of_actions +
+    RESIZE(parser->configuration.startup.actions,
+            parser->configuration.startup.number_of_actions +
                 number_of_actions);
-    memcpy(&parser->configuration->startup.actions[
-                parser->configuration->startup.number_of_actions],
+    memcpy(&parser->configuration.startup.actions[
+                parser->configuration.startup.number_of_actions],
             actions,
             sizeof(*actions) * number_of_actions);
-    parser->configuration->startup.number_of_actions += number_of_actions;
+    parser->configuration.startup.number_of_actions += number_of_actions;
     free(actions);
     return PARSER_SUCCESS;
 }
@@ -861,18 +870,18 @@ static parser_error_t parse_mouse_binding(Parser *parser)
         return error;
     }
 
-    button = find_configured_button(parser->configuration,
+    button = find_configured_button(&parser->configuration,
             parser->button.modifiers, parser->button.index,
             parser->button.flags);
 
     if (button != NULL) {
         free_actions(button->actions, button->number_of_actions);
     } else {
-        RESIZE(parser->configuration->mouse.buttons,
-                parser->configuration->mouse.number_of_buttons + 1);
-        button = &parser->configuration->mouse.buttons[
-            parser->configuration->mouse.number_of_buttons];
-        parser->configuration->mouse.number_of_buttons++;
+        RESIZE(parser->configuration.mouse.buttons,
+                parser->configuration.mouse.number_of_buttons + 1);
+        button = &parser->configuration.mouse.buttons[
+            parser->configuration.mouse.number_of_buttons];
+        parser->configuration.mouse.number_of_buttons++;
     }
     *button = parser->button;
     return PARSER_SUCCESS;
@@ -889,17 +898,17 @@ static parser_error_t parse_keyboard_binding(Parser *parser)
         return error;
     }
 
-    key = find_configured_key(parser->configuration, parser->key.modifiers,
+    key = find_configured_key(&parser->configuration, parser->key.modifiers,
             parser->key.key_symbol, parser->key.flags);
 
     if (key != NULL) {
         free_actions(key->actions, key->number_of_actions);
     } else {
-        RESIZE(parser->configuration->keyboard.keys,
-                parser->configuration->keyboard.number_of_keys + 1);
-        key = &parser->configuration->keyboard.keys[
-            parser->configuration->keyboard.number_of_keys];
-        parser->configuration->keyboard.number_of_keys++;
+        RESIZE(parser->configuration.keyboard.keys,
+                parser->configuration.keyboard.number_of_keys + 1);
+        key = &parser->configuration.keyboard.keys[
+            parser->configuration.keyboard.number_of_keys];
+        parser->configuration.keyboard.number_of_keys++;
     }
     *key = parser->key;
     return PARSER_SUCCESS;
@@ -941,11 +950,11 @@ static parser_error_t parse_assignment_association(Parser *parser)
     }
     association.class_pattern = parser->data.string;
 
-    RESIZE(parser->configuration->assignment.associations,
-            parser->configuration->assignment.number_of_associations + 1);
-    parser->configuration->assignment.associations[
-        parser->configuration->assignment.number_of_associations] = association;
-    parser->configuration->assignment.number_of_associations++;
+    RESIZE(parser->configuration.assignment.associations,
+            parser->configuration.assignment.number_of_associations + 1);
+    parser->configuration.assignment.associations[
+        parser->configuration.assignment.number_of_associations] = association;
+    parser->configuration.assignment.number_of_associations++;
 
     return PARSER_SUCCESS;
 }
@@ -973,7 +982,7 @@ parser_error_t parse_line(Parser *parser)
         }
 
         /* check if the label exists */
-        for (parser_label_t i = PARSER_FIRST_LABEL; i < PARSER_LABEL_MAX; i++) {
+        for (parser_label_t i = 0; i < PARSER_LABEL_MAX; i++) {
             if (strcasecmp(labels[i].name, parser->identifier) == 0) {
                 parser->label = i;
                 /* check for an ending ']' */
@@ -986,11 +995,6 @@ parser_error_t parse_line(Parser *parser)
             }
         }
         return PARSER_ERROR_INVALID_LABEL;
-    }
-
-    /* check if we are in a label */
-    if (parser->label == PARSER_LABEL_NONE) {
-        return PARSER_ERROR_NOT_IN_LABEL;
     }
 
     /* if this is the end of the string already, then there is no hope */
@@ -1020,7 +1024,7 @@ parser_error_t parse_line(Parser *parser)
 
             /* set the struct member at given offset */
             union parser_data_value *const value = (union parser_data_value*)
-                ((uint8_t*) parser->configuration + variable->offset);
+                ((uint8_t*) &parser->configuration + variable->offset);
             clear_data_value(variable->data_type, value);
             memcpy(value, &parser->data, data_types[variable->data_type].size);
             return PARSER_SUCCESS;

@@ -52,6 +52,14 @@ struct configuration_association {
 
 /*< START OF CONFIGURATION >*/
 
+/* startup settings */
+struct configuration_startup {
+    /* the actions to run on startup */
+    Action *actions;
+    /* the number of actions to run on startup */
+    uint32_t number_of_actions;
+};
+
 /* general settings */
 struct configuration_general {
     /* at which percentage to consider a window to be overlapped with a monitor */
@@ -66,14 +74,6 @@ struct configuration_general {
     core_cursor_t vertical_cursor;
     /* the name of the cursor used for sizing a window */
     core_cursor_t sizing_cursor;
-};
-
-/* startup settings */
-struct configuration_startup {
-    /* the actions to run on startup */
-    Action *actions;
-    /* the number of actions to run on startup */
-    uint32_t number_of_actions;
 };
 
 /* assignment settings */
@@ -172,10 +172,10 @@ struct configuration_keyboard {
 
 /* configuration settings */
 struct configuration {
-    /* general settings */
-    struct configuration_general general;
     /* startup settings */
     struct configuration_startup startup;
+    /* general settings */
+    struct configuration_general general;
     /* assignment settings */
     struct configuration_assignment assignment;
     /* tiling settings */

@@ -27,6 +27,12 @@ However, for single line comment a */ is put at the end, so the number of
 columns should be 78 here.
 
 ---> Start of code relevant to generation:
+[startup]*actions
+*Action *actions
+   the actions to run on startup
+*uint32_t number_of_actions
+   the number of actions to run on startup
+
 [general]
 overlap-percentage integer 80
    at which percentage to consider a window to be overlapped with a monitor
@@ -40,12 +46,6 @@ vertical-cursor cursor sb-v-double-arrow
    the name of the cursor used for sizing a window vertically
 sizing-cursor cursor sizing
    the name of the cursor used for sizing a window
-
-[startup]*actions
-*Action *actions
-   the actions to run on startup
-*uint32_t number_of_actions
-   the number of actions to run on startup
 
 [assignment]*association
 first-window-number integer 1

@@ -110,6 +110,7 @@ Window *create_window(xcb_window_t xcb_window)
         xcb_discard_reply(connection, geometry_cookie.sequence);
         return NULL;
     }
+
     /* override redirect is used by windows to indicate that our window manager
      * should not tamper with them, we also check if the class is InputOnly
      * which is not a case we want to handle
@@ -118,6 +119,31 @@ Window *create_window(xcb_window_t xcb_window)
             attributes->_class == XCB_WINDOW_CLASS_INPUT_ONLY) {
         free(attributes);
         xcb_discard_reply(connection, geometry_cookie.sequence);
+
+        /* check if the window holds a command */
+        char *const command = get_fensterchef_command_property(xcb_window);
+        if (command != NULL) {
+            struct configuration configuration;
+
+            LOG("window %#" PRIx32 " has command: %s\n", xcb_window, command);
+
+            if (load_configuration(command, &configuration, false) == OK) {
+                for (uint32_t i = 0;
+                        i < configuration.startup.number_of_actions;
+                        i++) {
+                    do_action(&configuration.startup.actions[i], focus_window);
+                }
+                clear_configuration(&configuration);
+            }
+
+            free(command);
+
+            /* signal to the window that we executed its command and it can go
+             * now
+             */
+            xcb_delete_property(connection, xcb_window,
+                    ATOM(FENSTERCHEF_COMMAND));
+        }
         return NULL;
     }
 

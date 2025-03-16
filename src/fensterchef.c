@@ -15,6 +15,95 @@ bool is_fensterchef_running;
 /* the path of the configuration file */
 const char *fensterchef_configuration = FENSTERCHEF_CONFIGURATION;
 
+/* Spawn a window that has the `FENSTERCHEF_COMMAND` property. */
+void run_external_command(const char *command)
+{
+    xcb_connection_t *connection;
+    int screen_number;
+    int connection_error;
+
+    const xcb_setup_t *setup;
+    xcb_screen_iterator_t i;
+    xcb_screen_t *screen;
+
+    xcb_intern_atom_cookie_t atom_cookie;
+    xcb_intern_atom_reply_t *atom;
+    xcb_atom_t command_atom;
+
+    xcb_window_t window;
+    xcb_generic_event_t *event;
+
+    connection = xcb_connect(NULL, &screen_number);
+    connection_error = xcb_connection_has_error(connection);
+    if (connection_error > 0) {
+        fprintf(stderr, "fensterchef command: "
+                    "could not connect to the X server\n");
+        return;
+    }
+
+    setup = xcb_get_setup(connection);
+
+    /* iterator over all screens to find the one with the screen number */
+    for(i = xcb_setup_roots_iterator(setup); i.rem > 0; xcb_screen_next(&i)) {
+        if (screen_number == 0) {
+            screen = i.data;
+            break;
+        }
+        screen_number--;
+    }
+
+    window = xcb_generate_id(connection);
+
+    atom_cookie = xcb_intern_atom(connection, false,
+            strlen("FENSTERCHEF_COMMAND"), "FENSTERCHEF_COMMAND");
+
+    general_values[0] = XCB_EVENT_MASK_PROPERTY_CHANGE;
+    xcb_create_window(connection, XCB_COPY_FROM_PARENT, window,
+            screen->root, 0, 0, 1, 1, 0, XCB_WINDOW_CLASS_INPUT_ONLY,
+            XCB_COPY_FROM_PARENT, XCB_CW_EVENT_MASK, general_values);
+
+    atom = xcb_intern_atom_reply(connection, atom_cookie, NULL);
+    if (atom == NULL) {
+        fprintf(stderr, "fensterchef command: could not intern atom %s\n",
+                "FENSTERCHEF_COMMAND");
+        xcb_disconnect(connection);
+        return;
+    }
+    command_atom = atom->atom;
+    free(atom);
+
+    xcb_change_property(connection, XCB_PROP_MODE_REPLACE, window,
+            command_atom, XCB_ATOM_STRING, 8, strlen(command), command);
+
+    xcb_map_window(connection, window);
+
+    fprintf(stderr, "fensterchef command: command was dispatched, "
+                "waiting until execution...\n");
+
+    xcb_flush(connection);
+
+    /* wait until the property gets removed or an error occurs */
+    while (event = xcb_wait_for_event(connection), event != NULL) {
+        if (event->response_type == 0) {
+            fprintf(stderr, "fensterchef command: an error occured\n");
+            break;
+        }
+        if (event->response_type == XCB_PROPERTY_NOTIFY) {
+            xcb_property_notify_event_t *notify;
+
+            notify = (xcb_property_notify_event_t*) event;
+            /* if the property gets removed, it means the command was executed
+             */
+            if (notify->atom == command_atom &&
+                    notify->state == XCB_PROPERTY_DELETE) {
+                break;
+            }
+        }
+    }
+
+    xcb_disconnect(connection);
+}
+
 /* Close the connection to the X server and exit the program with given exit
  * code.
  */

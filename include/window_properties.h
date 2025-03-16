@@ -181,7 +181,10 @@
     X(_NET_WM_ACTION_BELOW) \
 \
     /* hints defined by the motif window manager */ \
-    X(_MOTIF_WM_HINTS)
+    X(_MOTIF_WM_HINTS) \
+\
+    /* our special property for running commands */ \
+    X(FENSTERCHEF_COMMAND)
 
 /* get the atom identifier from an atom constant */
 #define ATOM(id) (x_atoms[id].atom)
@@ -209,6 +212,9 @@ int initialize_atoms(void);
 
 /* Set the initial root window properties. */
 void initialize_root_properties(void);
+
+/* Gets the `FENSTERCHEF_COMMAND` property from @window. */
+char *get_fensterchef_command_property(xcb_window_t window);
 
 /* Initialize all properties within @window.
  *

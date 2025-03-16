@@ -128,15 +128,12 @@ static inline xcb_get_property_reply_t *get_property(
     cookie = xcb_get_property(connection, false, window, property, type, 0,
             length);
     reply = xcb_get_property_reply(connection, cookie, NULL);
-    if (reply == NULL) {
-        return NULL;
-    }
     /* check if the property is in the needed format and if it is long enough */
-    if (reply->format != format || (uint32_t)
-            xcb_get_property_value_length(reply) < length * format / 8) {
+    if (reply != NULL && (reply->format != format || (uint32_t)
+            xcb_get_property_value_length(reply) < length * format / 8)) {
         LOG("window %w has misformatted property %a\n", window, property);
         free(reply);
-        return NULL;
+        reply = NULL;
     }
     return reply;
 }
@@ -151,16 +148,30 @@ static inline xcb_get_property_reply_t *get_text_property(xcb_window_t window,
     cookie = xcb_get_property(connection, false, window, property,
             XCB_GET_PROPERTY_TYPE_ANY, 0, 2048);
     reply = xcb_get_property_reply(connection, cookie, NULL);
-    if (reply == NULL) {
-        return NULL;
-    }
     /* check if the property is in the needed format */
-    if (reply->format != 8) {
+    if (reply != NULL && reply->format != 8) {
         LOG("window %w has misformatted property %a\n", window, property);
         free(reply);
-        return NULL;
+        reply = NULL;
     }
     return reply;
+}
+
+/* Gets the `FENSTERCHEF_COMMAND` property from @window. */
+char *get_fensterchef_command_property(xcb_window_t window)
+{
+    xcb_get_property_reply_t *command_property;
+    char *command = NULL;
+
+    command_property = get_text_property(window, ATOM(FENSTERCHEF_COMMAND));
+    if (command_property != NULL) {
+        command = xstrndup(
+                xcb_get_property_value(command_property),
+                xcb_get_property_value_length(command_property));
+        free(command_property);
+    }
+
+    return command;
 }
 
 /* Update the name within @properties. */
@@ -169,22 +180,21 @@ static void update_window_name(Window *window)
     xcb_get_property_reply_t *name;
 
     free(window->name);
+    window->name = NULL;
 
     name = get_text_property(window->client.id, ATOM(_NET_WM_NAME));
+    /* try to fall back to `WM_NAME` */
     if (name == NULL) {
-        /* fall back to `WM_NAME` */
         name = get_text_property(window->client.id, XCB_ATOM_WM_NAME);
-        if (name == NULL) {
-            window->name = NULL;
-            return;
-        }
     }
 
-    window->name = (utf8_t*) xstrndup(
-            xcb_get_property_value(name),
-            xcb_get_property_value_length(name));
+    if (name != NULL) {
+        window->name = (utf8_t*) xstrndup(
+                xcb_get_property_value(name),
+                xcb_get_property_value_length(name));
 
-    free(name);
+        free(name);
+    }
 }
 
 /* Update the size_hints within @properties. */
@@ -215,10 +225,9 @@ static void update_window_hints(Window *window)
 /* Update the strut partial property within @properties. */
 static void update_window_strut(Window *window)
 {
-    wm_strut_partial_t new_strut;
     xcb_get_property_reply_t *strut;
 
-    memset(&new_strut, 0, sizeof(new_strut));
+    memset(&window->strut, 0, sizeof(window->strut));
 
     strut = get_property(window->client.id,
             ATOM(_NET_WM_STRUT_PARTIAL), XCB_ATOM_CARDINAL, 32,
@@ -230,17 +239,14 @@ static void update_window_strut(Window *window)
         strut = get_property(window->client.id,
                 ATOM(_NET_WM_STRUT), XCB_ATOM_CARDINAL, 32,
                 sizeof(Extents) / sizeof(uint32_t));
-        if (strut == NULL) {
-            return;
+        if (strut != NULL) {
+            window->strut.reserved = *(Extents*) xcb_get_property_value(strut);
         }
-        new_strut.reserved = *(Extents*) xcb_get_property_value(strut);
     } else {
-        new_strut = *(wm_strut_partial_t*) xcb_get_property_value(strut);
+        window->strut = *(wm_strut_partial_t*) xcb_get_property_value(strut);
     }
 
     free(strut);
-
-    window->strut = new_strut;
 }
 
 /* Get a window property as list of atoms. */

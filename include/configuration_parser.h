@@ -21,6 +21,10 @@
 typedef struct parser {
     /* the file being read from */
     FILE *file;
+    /* a string being read from, this is used if `file` is NULL. */
+    const char *string_source;
+    /* the current index within `string_source` */
+    size_t string_source_index;
     /* the current line being parsed */
     char *line;
     /* the number of allocated bytes for the line */
@@ -32,7 +36,7 @@ typedef struct parser {
     /* the current position on the line */
     size_t column;
     /* the configuration being filled */
-    struct configuration *configuration;
+    struct configuration configuration;
     /* the labels that have appeared in the configuration */
     bool has_label[PARSER_LABEL_MAX];
     /* the currently active label */
@@ -52,7 +56,7 @@ typedef struct parser {
 } Parser;
 
 /* Converts @error to a string. */
-const char *string_to_parser_error(parser_error_t error);
+const char *parser_error_to_string(parser_error_t error);
 
 /* Read the next line from the file.
  *

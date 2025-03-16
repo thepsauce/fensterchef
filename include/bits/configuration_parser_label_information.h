@@ -21,6 +21,12 @@ static const struct configuration_parser_label_name {
         size_t offset;
     } variables[7];
 } labels[PARSER_LABEL_MAX] = {
+    [PARSER_LABEL_STARTUP] = {
+        "startup", parse_startup_actions, {
+        /* null terminate the end */
+        { NULL, 0, 0 } }
+    },
+
     [PARSER_LABEL_GENERAL] = {
         "general", NULL, {
         { "overlap-percentage", PARSER_DATA_TYPE_INTEGER,
@@ -35,12 +41,6 @@ static const struct configuration_parser_label_name {
             offsetof(struct configuration, general.vertical_cursor) },
         { "sizing-cursor", PARSER_DATA_TYPE_CURSOR,
             offsetof(struct configuration, general.sizing_cursor) },
-        /* null terminate the end */
-        { NULL, 0, 0 } }
-    },
-
-    [PARSER_LABEL_STARTUP] = {
-        "startup", parse_startup_actions, {
         /* null terminate the end */
         { NULL, 0, 0 } }
     },
@@ -152,12 +152,12 @@ static const struct configuration_parser_command {
     /* the procedure to execute (parses and executes the command) */
     parser_error_t (*procedure)(Parser *parser);
 } commands[PARSER_LABEL_MAX][2] = {
-    [PARSER_LABEL_GENERAL] = {
+    [PARSER_LABEL_STARTUP] = {
         /* null terminate the end */
         { NULL, NULL }
     },
 
-    [PARSER_LABEL_STARTUP] = {
+    [PARSER_LABEL_GENERAL] = {
         /* null terminate the end */
         { NULL, NULL }
     },

@@ -597,7 +597,8 @@ static FT_Face cache_glyph(uint32_t glyph)
     /* find the face that has the glyph and load it */
     face = load_glyph(glyph, FT_LOAD_RENDER);
     if (face == NULL) {
-        LOG_VERBOSE("could not load face for glyph: " COLOR(GREEN) "U+%08x\n",
+        LOG_VERBOSE("could not load face for glyph: " COLOR(GREEN)
+                    "U+%08" PRIx32 "\n",
                 glyph);
         return NULL;
     }
@@ -630,7 +631,7 @@ static FT_Face cache_glyph(uint32_t glyph)
 
     free(temporary_bitmap);
 
-    LOG_VERBOSE("cached glyph: " COLOR(GREEN) "U+%08x\n", glyph);
+    LOG_VERBOSE("cached glyph: " COLOR(GREEN) "U+%08" PRIx32 "\n", glyph);
 
     /* mark the glyph as cached */
     FcCharSetAddChar(font.charset, glyph);

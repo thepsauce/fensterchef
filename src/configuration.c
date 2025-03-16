@@ -125,7 +125,7 @@ void reload_user_configuration(void)
         path = xstrdup(fensterchef_configuration);
     }
 
-    if (load_configuration_file(path, &configuration) == OK) {
+    if (load_configuration(path, &configuration, true) == OK) {
         set_configuration(&configuration);
     }
 
@@ -384,30 +384,35 @@ void set_configuration(struct configuration *new_configuration)
     clear_configuration(&old_configuration);
 }
 
-/* Load the configuration within given file. */
-int load_configuration_file(const char *file_name,
-        struct configuration *destination_configuration)
+/* Load a configuration from a string or file. */
+int load_configuration(const char *string,
+        struct configuration *destination_configuration,
+        bool load_from_file)
 {
     Parser parser;
     parser_error_t error;
 
     memset(&parser, 0, sizeof(parser));
 
-    parser.file = fopen(file_name, "r");
-    if (parser.file == NULL) {
-        LOG_ERROR("could not open configuration file %s: %s\n",
-                file_name, strerror(errno));
-        return ERROR;
+    /* either load from a file or a string source */
+    if (load_from_file) {
+        parser.file = fopen(string, "r");
+        if (parser.file == NULL) {
+            LOG_ERROR("could not open configuration file %s: %s\n",
+                    string, strerror(errno));
+            return ERROR;
+        }
+    } else {
+        parser.string_source = string;
     }
 
     parser.line_capacity = 128;
     parser.line = xmalloc(parser.line_capacity);
 
-    parser.configuration = destination_configuration;
-    *parser.configuration = default_configuration;
-    duplicate_configuration(parser.configuration);
+    parser.configuration = default_configuration;
+    duplicate_configuration(&parser.configuration);
 
-    /* parse file line by line */
+    /* parse line by line */
     while (read_next_line(&parser)) {
         error = parse_line(&parser);
         /* emit an error if a good line has any trailing characters */
@@ -416,8 +421,13 @@ int load_configuration_file(const char *file_name,
         }
 
         if (error != PARSER_SUCCESS) {
-            LOG("%s:%zu: %s\n", file_name, parser.line_number,
-                    string_to_parser_error(error));
+            if (load_from_file) {
+                LOG("%s:%zu: %s\n", string, parser.line_number,
+                        parser_error_to_string(error));
+            } else {
+                LOG("%zu: %s\n", parser.line_number,
+                        parser_error_to_string(error));
+            }
             fprintf(stderr, "%5zu %s\n", parser.line_number, parser.line);
             for (int i = 0; i <= 5; i++) {
                 fprintf(stderr, " ");
@@ -452,40 +462,42 @@ int load_configuration_file(const char *file_name,
     }
 
     free(parser.line);
-    fclose(parser.file);
 
-    if (error != PARSER_SUCCESS) {
-        clear_configuration(parser.configuration);
-        LOG_ERROR("got an error reading configuration file: %s\n", file_name);
-        return ERROR;
+    if (parser.file != NULL) {
+        fclose(parser.file);
     }
 
-    /* set the existing startup actions if no startup section is specified */
-    if (!parser.has_label[PARSER_LABEL_STARTUP]) {
-        parser.configuration->startup.actions =
-            duplicate_actions(configuration.startup.actions,
-                configuration.startup.number_of_actions);
-        parser.configuration->startup.number_of_actions =
-            configuration.startup.number_of_actions;
+    if (error != PARSER_SUCCESS) {
+        clear_configuration(&parser.configuration);
+        if (load_from_file) {
+            LOG_ERROR("got an error reading configuration file %s\n", string);
+        } else {
+            LOG_ERROR("got an error reading configuration string\n");
+        }
+        return ERROR;
     }
 
     /* set the existing button bindings if no mouse section is specified */
     if (!parser.has_label[PARSER_LABEL_MOUSE]) {
-        parser.configuration->mouse.buttons = configuration.mouse.buttons;
-        parser.configuration->mouse.number_of_buttons =
+        parser.configuration.mouse.buttons = configuration.mouse.buttons;
+        parser.configuration.mouse.number_of_buttons =
             configuration.mouse.number_of_buttons;
-        duplicate_configuration_button_bindings(parser.configuration);
+        duplicate_configuration_button_bindings(&parser.configuration);
     }
 
     /* set the existing key bindings if no keyboard section is specified */
     if (!parser.has_label[PARSER_LABEL_KEYBOARD]) {
-        parser.configuration->keyboard.keys = configuration.keyboard.keys;
-        parser.configuration->keyboard.number_of_keys =
+        parser.configuration.keyboard.keys = configuration.keyboard.keys;
+        parser.configuration.keyboard.number_of_keys =
             configuration.keyboard.number_of_keys;
-        duplicate_configuration_key_bindings(parser.configuration);
+        duplicate_configuration_key_bindings(&parser.configuration);
     }
 
-    LOG("successfully read configuration file: %s\n", file_name);
+    if (load_from_file) {
+        LOG("successfully read configuration file %s\n", string);
+    }
+
+    *destination_configuration = parser.configuration;
 
     return OK;
 }

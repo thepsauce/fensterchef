@@ -265,7 +265,7 @@ static void log_boolean(bool boolean)
 
 static void log_hexadecimal(uint32_t x)
 {
-    fprintf(stderr, COLOR(GREEN) "%#x" CLEAR_COLOR, x);
+    fprintf(stderr, COLOR(GREEN) "%#" PRIx32 CLEAR_COLOR, x);
 }
 
 static void log_point(int32_t x, int32_t y)
@@ -1226,7 +1226,7 @@ static void log_actions(const Action *actions, uint32_t number_of_actions)
             break;
 
         case PARSER_DATA_TYPE_COLOR:
-            fprintf(stderr, COLOR(YELLOW) " #%06x" CLEAR_COLOR,
+            fprintf(stderr, COLOR(YELLOW) " #%06" PRIx32 CLEAR_COLOR,
                 actions[i].parameter.color);
             break;
 

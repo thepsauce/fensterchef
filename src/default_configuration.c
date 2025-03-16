@@ -6,6 +6,10 @@
 
 /* the default configuration */
 const struct configuration default_configuration = {
+    .startup = {
+        0
+    },
+
     .general = {
         .overlap_percentage = 80,
         .root_cursor = XCURSOR_LEFT_PTR,
@@ -13,10 +17,6 @@ const struct configuration default_configuration = {
         .horizontal_cursor = XCURSOR_SB_H_DOUBLE_ARROW,
         .vertical_cursor = XCURSOR_SB_V_DOUBLE_ARROW,
         .sizing_cursor = XCURSOR_SIZING,
-    },
-
-    .startup = {
-        0
     },
 
     .assignment = {

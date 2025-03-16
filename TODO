@@ -34,21 +34,24 @@
 
 #34 Think about how numbers should be handled when stashing
 
-#36 Add way to inject commmands
-    Do it how ratpoison does it which is quite sensible: Create a window with
-    the FENSTERCHEF_COMMAND property which contains a list of actions to execute
-
 #37 Add hooks
     When certain events occur like showing a window, the user should be able to
     make a hook for an alternative action that should occur (instead of the
     default of focusing this window)
 
-#38 ...
+#38 Implement string_to_keysym and add keycodes to binds
+
+#39 Add the set action that can set a variable
+    The set action would have the syntax `set <section>.<name> = <value>` and
+    dynamically reload the part of the configuration that is relevant
+
+#40 ...
 
 #1000 Make a wayland port
     Make an additional repository that hosts fensterchef-wayland
 
 [In Progress]
+
 [Recheck]
 #8 ? Improve font rendering once again
     Is there any way to make colored emojis work? Is artifical scaling needed?
@@ -186,3 +189,7 @@
 
 #4 Add cursor management and resource management
     Handle the setting of the cursor and manage X resources
+
+#36 Add way to inject commmands
+    Do it how ratpoison does it which is quite sensible: Create a window with
+    the FENSTERCHEF_COMMAND property which contains a list of actions to execute
