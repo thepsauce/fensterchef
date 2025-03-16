@@ -14,6 +14,12 @@
 
 #include "utf8.h"
 
+/* the version of the underlying X renderer */
+extern struct xrender_version {
+    uint32_t major;
+    uint32_t minor;
+} render_version;
+
 /* stock object indexes */
 enum {
     /* xcb_render_picture_t used for drawing text */
@@ -33,11 +39,18 @@ enum {
 /* graphical objects with the id referring to the X id */
 extern uint32_t stock_objects[STOCK_MAX];
 
-/* Initialize the graphical stock objects that can be used for rendering. */
+/* Initialize the graphical stock objects that can be used for rendering and
+ * font rendering.
+ *
+ * @return OK even when the renderer completely failed initializing.
+ *         This is so start up can continue. This is just for rendering the
+ *         fensterchef windows anyway. The fensterchef core can function without
+ *         it.
+ */
 int initialize_renderer(void);
 
-/* Free all resources associated to rendering. */
-void deinitialize_renderer(void);
+/* Get a good picture format for given depth. */
+xcb_render_pictformat_t get_picture_format(uint8_t depth);
 
 /* Create a picture for the given window (or retrieves it from the cache). */
 xcb_render_picture_t cache_window_picture(xcb_drawable_t xcb_drawable);

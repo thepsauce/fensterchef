@@ -24,12 +24,13 @@
  *  ConfigureRequest
  *  MapRequest
  *
- * And button press/release events.
+ * And button press/release and property change events.
  */
 #define ROOT_EVENT_MASK (XCB_EVENT_MASK_SUBSTRUCTURE_REDIRECT | \
                          XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY | \
                          XCB_EVENT_MASK_BUTTON_PRESS | \
-                         XCB_EVENT_MASK_BUTTON_RELEASE)
+                         XCB_EVENT_MASK_BUTTON_RELEASE | \
+                         XCB_EVENT_MASK_PROPERTY_CHANGE)
 
 /* connection to the xcb server */
 xcb_connection_t *connection;

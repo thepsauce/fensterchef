@@ -14,6 +14,7 @@
 #include "log.h"
 #include "monitor.h"
 #include "render.h"
+#include "stash_frame.h"
 #include "utility.h"
 #include "window.h"
 #include "window_list.h"

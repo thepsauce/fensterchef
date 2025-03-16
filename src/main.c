@@ -1,3 +1,4 @@
+#include "cursor.h"
 #include "default_configuration.h"
 #include "event.h"
 #include "fensterchef.h"
@@ -7,6 +8,7 @@
 #include "monitor.h"
 #include "program_options.h"
 #include "render.h"
+#include "resources.h"
 #include "window.h"
 #include "window_properties.h"
 #include "x11_management.h"
@@ -15,6 +17,11 @@
 /* FENSTERCHEF main entry point. */
 int main(int argc, char **argv)
 {
+    fensterchef_home = getenv("HOME");
+    if (fensterchef_home == NULL) {
+        LOG_ERROR("HOME is not set\n");
+    }
+
     /* parse the program arguments */
     if (parse_program_arguments(argc, argv) != OK) {
         exit(EXIT_FAILURE);
@@ -31,7 +38,7 @@ int main(int argc, char **argv)
 
     /* initialize the X atoms */
     if (initialize_atoms() != OK) {
-        return ERROR;
+        quit_fensterchef(EXIT_FAILURE);
     }
 
     /* try to take control of the window manager role and create utility windows

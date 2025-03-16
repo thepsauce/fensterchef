@@ -56,6 +56,16 @@ struct configuration_association {
 struct configuration_general {
     /* at which percentage to consider a window to be overlapped with a monitor */
     int32_t overlap_percentage;
+    /* the name of the cursor used on the root window */
+    core_cursor_t root_cursor;
+    /* the name of the cursor used for moving a window */
+    core_cursor_t moving_cursor;
+    /* the name of the cursor used for sizing a window horizontally */
+    core_cursor_t horizontal_cursor;
+    /* the name of the cursor used for sizing a window vertically */
+    core_cursor_t vertical_cursor;
+    /* the name of the cursor used for sizing a window */
+    core_cursor_t sizing_cursor;
 };
 
 /* startup settings */

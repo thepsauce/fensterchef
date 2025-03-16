@@ -2,7 +2,7 @@
 CC := gcc
 
 # Packages
-PACKAGES := x11 xcb xcb-randr xcb-icccm xcb-keysyms xcb-event xcb-render freetype2 fontconfig
+PACKAGES := x11 xcb xcb-image xcb-randr xcb-icccm xcb-keysyms xcb-event xcb-render freetype2 fontconfig
 
 # Packages only used within tests and not the end build
 TEST_PACKAGES := xcb-errors

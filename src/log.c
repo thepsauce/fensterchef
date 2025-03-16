@@ -1234,6 +1234,12 @@ static void log_actions(const Action *actions, uint32_t number_of_actions)
             fputc(' ', stderr);
             log_modifiers(actions[i].parameter.modifiers);
             break;
+
+        case PARSER_DATA_TYPE_CURSOR:
+            fputc(' ', stderr);
+            fprintf(stderr, COLOR(GREEN) "%s" CLEAR_COLOR,
+                    xcursor_core_strings[actions[i].parameter.cursor]);
+            break;
         }
     }
 }

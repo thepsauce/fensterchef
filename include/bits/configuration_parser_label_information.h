@@ -25,6 +25,16 @@ static const struct configuration_parser_label_name {
         "general", NULL, {
         { "overlap-percentage", PARSER_DATA_TYPE_INTEGER,
             offsetof(struct configuration, general.overlap_percentage) },
+        { "root-cursor", PARSER_DATA_TYPE_CURSOR,
+            offsetof(struct configuration, general.root_cursor) },
+        { "moving-cursor", PARSER_DATA_TYPE_CURSOR,
+            offsetof(struct configuration, general.moving_cursor) },
+        { "horizontal-cursor", PARSER_DATA_TYPE_CURSOR,
+            offsetof(struct configuration, general.horizontal_cursor) },
+        { "vertical-cursor", PARSER_DATA_TYPE_CURSOR,
+            offsetof(struct configuration, general.vertical_cursor) },
+        { "sizing-cursor", PARSER_DATA_TYPE_CURSOR,
+            offsetof(struct configuration, general.sizing_cursor) },
         /* null terminate the end */
         { NULL, 0, 0 } }
     },

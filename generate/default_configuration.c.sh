@@ -41,7 +41,13 @@ data_type_to_string() {
             esac
             echo -n "XCB_MOD_MASK_${m^^}"
         done
+        echo
         IFS=
+        ;;
+    cursor)
+        cursor="${2^^}"
+        cursor="${cursor//-/_}"
+        echo XCURSOR_$cursor
         ;;
     *)
         echo "WHAT IS $1 - $0" >&2

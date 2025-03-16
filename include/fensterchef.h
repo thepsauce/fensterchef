@@ -12,6 +12,9 @@
 
 #define FENSTERCHEF_CONFIGURATION "~/.config/fensterchef/fensterchef.config"
 
+/* the home directory */
+extern const char *fensterchef_home;
+
 /* the path of the configuration file */
 extern const char *fensterchef_configuration;
 
@@ -28,6 +31,6 @@ void quit_fensterchef(int exit_code);
  * @x Center x position.
  * @y Center y position.
  */
-void set_notification(const uint8_t *message, int32_t x, int32_t y);
+void set_notification(const utf8_t *message, int32_t x, int32_t y);
 
 #endif

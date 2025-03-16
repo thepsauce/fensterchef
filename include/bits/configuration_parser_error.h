@@ -41,6 +41,8 @@
     X(PARSER_ERROR_INVALID_QUAD, "invalid quad (either 1, 2 or 4 integers)") \
     /* invalid syntax for modifiers */ \
     X(PARSER_ERROR_INVALID_MODIFIERS, "invalid modifiers") \
+    /* invalid cursor name */ \
+    X(PARSER_ERROR_INVALID_CURSOR, "invalid cursor name") \
     /* invalid button name */ \
     X(PARSER_ERROR_INVALID_BUTTON, "invalid button name") \
     /* invalid button flag */ \

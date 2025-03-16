@@ -6,6 +6,9 @@
 #include "render.h"
 #include "x11_management.h"
 
+/* the home directory */
+const char *fensterchef_home;
+
 /* true while the window manager is running */
 bool is_fensterchef_running;
 
@@ -23,7 +26,7 @@ void quit_fensterchef(int exit_code)
 }
 
 /* Show the notification window with given message at given coordinates. */
-void set_notification(const uint8_t *message, int32_t x, int32_t y)
+void set_notification(const utf8_t *message, int32_t x, int32_t y)
 {
     size_t              message_length;
     struct text_measure measure;

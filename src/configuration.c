@@ -9,6 +9,7 @@
 #include "log.h"
 #include "monitor.h"
 #include "render.h"
+#include "resources.h"
 #include "utility.h"
 #include "window.h"
 #include "window_list.h"
@@ -115,12 +116,11 @@ void reload_user_configuration(void)
 
     if (fensterchef_configuration[0] == '~' &&
             fensterchef_configuration[1] == '/') {
-        const char *const home = getenv("HOME");
-        if (home == NULL) {
-            LOG_ERROR("could not get home directory ($HOME is unset)\n");
+        if (fensterchef_home == NULL) {
             return;
         }
-        path = xasprintf("%s/%s", home, &fensterchef_configuration[2]);
+        path = xasprintf("%s/%s", fensterchef_home,
+                &fensterchef_configuration[2]);
     } else {
         path = xstrdup(fensterchef_configuration);
     }
@@ -293,6 +293,14 @@ void set_configuration(struct configuration *new_configuration)
     old_configuration = configuration;
     configuration = *new_configuration;
 
+    /* reload all X cursors and cursor themes */
+    reload_resources();
+
+    /* set the root cursor */
+    general_values[0] = load_cursor(configuration.general.root_cursor);
+    xcb_change_window_attributes(connection, screen->root, XCB_CW_CURSOR,
+            general_values);
+
     /* reload the font */
     if (configuration.font.name != NULL) {
         set_font(configuration.font.name);
@@ -334,23 +342,27 @@ void set_configuration(struct configuration *new_configuration)
 
     /* check if notification background changed */
     if (old_configuration.notification.background !=
-            configuration.notification.background) {
+            configuration.notification.background &&
+            stock_objects[STOCK_WHITE_PEN] != XCB_NONE) {
         convert_color_to_xcb_color(&color,
                 configuration.notification.background);
         set_pen_color(stock_objects[STOCK_WHITE_PEN], color);
     }
     /* check if notification foreground changed */
     if (old_configuration.notification.foreground !=
-            configuration.notification.foreground) {
+            configuration.notification.foreground &&
+            stock_objects[STOCK_WHITE_PEN] != XCB_NONE) {
         convert_color_to_xcb_color(&color,
                 configuration.notification.foreground);
         set_pen_color(stock_objects[STOCK_BLACK_PEN], color);
     }
     /* check if notification foreground or background changed */
-    if (old_configuration.notification.foreground !=
+    if ((old_configuration.notification.foreground !=
             configuration.notification.foreground ||
             old_configuration.notification.background !=
-                configuration.notification.background) {
+                configuration.notification.background) &&
+            stock_objects[STOCK_GC] != XCB_NONE &&
+            stock_objects[STOCK_INVERTED_GC] != XCB_NONE) {
         general_values[0] = configuration.notification.background;
         general_values[1] = configuration.notification.foreground;
         xcb_change_gc(connection, stock_objects[STOCK_GC],

@@ -14,6 +14,7 @@
 #include "log.h"
 #include "monitor.h"
 #include "tiling.h"
+#include "resources.h"
 #include "utility.h"
 #include "window.h"
 #include "window_list.h"
@@ -276,6 +277,7 @@ void initiate_window_move_resize(Window *window,
     xcb_grab_pointer_cookie_t grab_cookie;
     xcb_grab_pointer_reply_t *grab;
     xcb_generic_error_t *error;
+    core_cursor_t cursor;
 
     /* check if no window is already being moved/resized */
     if (move_resize.window != NULL) {
@@ -344,12 +346,33 @@ void initiate_window_move_resize(Window *window,
     move_resize.start.x = start_x;
     move_resize.start.y = start_y;
 
+    /* determine a fitting cursor */
+    switch (direction) {
+    case _NET_WM_MOVERESIZE_MOVE:
+        cursor = configuration.general.moving_cursor;
+        break;
+
+    case _NET_WM_MOVERESIZE_SIZE_LEFT:
+    case _NET_WM_MOVERESIZE_SIZE_RIGHT:
+        cursor = configuration.general.horizontal_cursor;
+        break;
+
+    case _NET_WM_MOVERESIZE_SIZE_TOP:
+    case _NET_WM_MOVERESIZE_SIZE_BOTTOM:
+        cursor = configuration.general.vertical_cursor;
+        break;
+
+    default:
+        cursor = configuration.general.sizing_cursor;
+    }
+
+    const xcb_cursor_t xcb_cursor = load_cursor(cursor);
     /* grab mouse events, we will then receive all mouse events */
     grab_cookie = xcb_grab_pointer(connection, false, screen->root,
             XCB_EVENT_MASK_BUTTON_PRESS | XCB_EVENT_MASK_BUTTON_RELEASE |
                 XCB_EVENT_MASK_BUTTON_MOTION,
             XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC, screen->root,
-            XCB_NONE, XCB_CURRENT_TIME);
+            xcb_cursor, XCB_CURRENT_TIME);
     grab = xcb_grab_pointer_reply(connection, grab_cookie, &error);
     if (grab == NULL) {
         LOG_ERROR("could not grab pointer: %E\n", error);
@@ -733,6 +756,14 @@ static void handle_destroy_notify(xcb_destroy_notify_event_t *event)
 static void handle_property_notify(xcb_property_notify_event_t *event)
 {
     Window *window;
+
+    /* reload the resources if they changed */
+    if (event->window == screen->root) {
+        if (event->atom == XCB_ATOM_RESOURCE_MANAGER) {
+            reload_resources();
+        }
+        return;
+    }
 
     window = get_window_of_xcb_window(event->window);
     if (window == NULL) {

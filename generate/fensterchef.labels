@@ -11,6 +11,8 @@ A variable starting with ! is a special command and not really a variable.
 Otherwise it is a regular variable in the form:
 <name> <data type> <default value>
 
+To make an empty string default value, add a single trailing space.
+
 fensterchef.data_types includes all data types.
 
 The format of this file is very strict. After each label declaration (with
@@ -28,6 +30,16 @@ columns should be 78 here.
 [general]
 overlap-percentage integer 80
    at which percentage to consider a window to be overlapped with a monitor
+root-cursor cursor left-ptr
+   the name of the cursor used on the root window
+moving-cursor cursor fleur
+   the name of the cursor used for moving a window
+horizontal-cursor cursor sb-h-double-arrow
+   the name of the cursor used for sizing a window horizontally
+vertical-cursor cursor sb-v-double-arrow
+   the name of the cursor used for sizing a window vertically
+sizing-cursor cursor sizing
+   the name of the cursor used for sizing a window
 
 [startup]*actions
 *Action *actions

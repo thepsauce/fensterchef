@@ -2,6 +2,7 @@
 #include <stddef.h>
 #include <string.h>
 
+#include "cursor.h"
 #include "configuration_parser.h"
 #include "log.h"
 #include "utility.h"
@@ -107,6 +108,9 @@ static parser_error_t parse_color(Parser *parser);
 /* Parse key modifiers, e.g.: Control+Shift. */
 static parser_error_t parse_modifiers(Parser *parser);
 
+/* Parse a cursor constant, e.g.: left-ptr. */
+static parser_error_t parse_cursor(Parser *parser);
+
 /* size in bytes of all data types */
 static struct parser_data_type_information {
     /* size in bytes of the data type */
@@ -138,6 +142,10 @@ static struct parser_data_type_information {
     [PARSER_DATA_TYPE_MODIFIERS] = {
         sizeof(((union parser_data_value*) 0)->modifiers),
         parse_modifiers
+    },
+    [PARSER_DATA_TYPE_CURSOR] = {
+        sizeof(((union parser_data_value*) 0)->cursor),
+        parse_cursor
     }
 };
 
@@ -174,7 +182,7 @@ static xcb_button_t translate_string_to_button(const char *string)
             tolower(string[5]) == 'n') {
         uint32_t index = 0;
 
-        string += sizeof("button") - 1;
+        string += strlen("button");
         while (isdigit(string[0])) {
             index *= 10;
             index += string[0] - '0';
@@ -301,10 +309,10 @@ static parser_error_t parse_identifier(Parser *parser)
 static parser_error_t parse_boolean(Parser *parser)
 {
     static const char *truth_values[] = {
-        "on", "true", "yes"
+        "on", "true", "yes", "1"
     };
     static const char *false_values[] = {
-        "off", "false", "no"
+        "off", "false", "no", "0"
     };
 
     parser_error_t error;
@@ -550,6 +558,34 @@ static parser_error_t parse_modifiers(Parser *parser)
     return error;
 }
 
+/* Parse a cursor constant, e.g.: left-ptr. */
+static parser_error_t parse_cursor(Parser *parser)
+{
+    parser_error_t error;
+    core_cursor_t cursor;
+
+    error = parse_identifier(parser);
+    if (error != PARSER_SUCCESS) {
+        return error;
+    }
+
+    /* translate - to _ */
+    for (uint32_t i = 0; parser->identifier[i] != '\0'; i++) {
+        if (parser->identifier[i] == '-') {
+            parser->identifier[i] = '_';
+        }
+    }
+
+    cursor = string_to_cursor(parser->identifier);
+    if (cursor == XCURSOR_MAX) {
+        return PARSER_ERROR_INVALID_CURSOR;
+    }
+
+    parser->data.cursor = cursor;
+
+    return PARSER_SUCCESS;
+}
+
 /* Duplicates given @value deeply into itself. */
 void duplicate_data_value(parser_data_type_t type,
         union parser_data_value *value)
@@ -567,6 +603,7 @@ void duplicate_data_value(parser_data_type_t type,
     case PARSER_DATA_TYPE_QUAD:
     case PARSER_DATA_TYPE_COLOR:
     case PARSER_DATA_TYPE_MODIFIERS:
+    case PARSER_DATA_TYPE_CURSOR:
         break;
     }
 }
@@ -587,6 +624,7 @@ void clear_data_value(parser_data_type_t type, union parser_data_value *value)
     case PARSER_DATA_TYPE_QUAD:
     case PARSER_DATA_TYPE_COLOR:
     case PARSER_DATA_TYPE_MODIFIERS:
+    case PARSER_DATA_TYPE_CURSOR:
         break;
     }
 }

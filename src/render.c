@@ -3,6 +3,7 @@
 #include "log.h"
 #include "render.h"
 #include "utf8.h"
+#include "resources.h"
 #include "utility.h"
 #include "x11_management.h"
 
@@ -12,8 +13,11 @@
  * TODO: and how to get fonts with fixed size to scale?
  */
 
+/* the version of the underlying X renderer */
+struct xrender_version render_version;
+
 /* the render formats for pictures */
-static xcb_render_query_pict_formats_reply_t *formats;
+static xcb_render_query_pict_formats_reply_t *picture_formats;
 
 /* graphical objects with the id referring to the X server id */
 uint32_t stock_objects[STOCK_MAX];
@@ -51,31 +55,35 @@ static xcb_render_pictformat_t find_visual_format(xcb_visualid_t visual)
     xcb_render_pictdepth_iterator_t depths;
     xcb_render_pictvisual_iterator_t visuals;
 
+    if (picture_formats == NULL) {
+        return XCB_NONE;
+    }
+
     /* for each screen */
-    for (screens = xcb_render_query_pict_formats_screens_iterator(formats);
-            screens.rem > 0; xcb_render_pictscreen_next(&screens)) {
+    screens = xcb_render_query_pict_formats_screens_iterator(picture_formats);
+    for (; screens.rem > 0; xcb_render_pictscreen_next(&screens)) {
         /* for each screen's supported depths */
-	    for (depths = xcb_render_pictscreen_depths_iterator(screens.data);
-	            depths.rem > 0; xcb_render_pictdepth_next(&depths)) {
+        depths = xcb_render_pictscreen_depths_iterator(screens.data);
+	    for (; depths.rem > 0; xcb_render_pictdepth_next(&depths)) {
             /* for each supported depth's visuals  */
-	        for (visuals = xcb_render_pictdepth_visuals_iterator(depths.data);
-	                visuals.rem > 0; xcb_render_pictvisual_next(&visuals)) {
+            visuals = xcb_render_pictdepth_visuals_iterator(depths.data);
+	        for (; visuals.rem > 0; xcb_render_pictvisual_next(&visuals)) {
 		        if (visuals.data->visual == visual) {
 		            return visuals.data->format;
 		        }
 		    }
 		}
 	}
-    return 0;
+    return XCB_NONE;
 }
 
 /* Get a good picture format for given depth. */
-static xcb_render_pictformat_t get_picture_format(uint8_t depth)
+xcb_render_pictformat_t get_picture_format(uint8_t depth)
 {
     xcb_render_pictforminfo_iterator_t i;
 
     /* iterate over all picture formats and pick the one with needed depth */
-    for (i = xcb_render_query_pict_formats_formats_iterator(formats);
+    for (i = xcb_render_query_pict_formats_formats_iterator(picture_formats);
             i.rem > 0; xcb_render_pictforminfo_next(&i)) {
         /* the direct type is for storing colors per pixel without a palette */
         if (i.data->depth == depth &&
@@ -111,6 +119,10 @@ static int initialize_font_drawing(void)
     FT_Error ft_error;
     xcb_generic_error_t *error;
 
+    if (picture_formats == NULL) {
+        return ERROR;
+    }
+
     /* initialize the freetype library */
     ft_error = FT_Init_FreeType(&font.library);
     if (ft_error != FT_Err_Ok) {
@@ -143,20 +155,32 @@ static int initialize_font_drawing(void)
 /* Initialize the graphical stock objects that can be used for rendering. */
 int initialize_renderer(void)
 {
+    const xcb_query_extension_reply_t *extension;
+    xcb_render_query_version_cookie_t version_cookie;
     xcb_render_query_pict_formats_cookie_t formats_cookie;
+    xcb_render_query_version_reply_t *version;
     xcb_generic_error_t *error;
     xcb_render_color_t color;
-    xcb_render_picture_t pen;
 
-    /* the picture formats are the possible ways colors can be represented,
-     * for example ARGB, 8 bit colors etc.
-     */
-    formats_cookie = xcb_render_query_pict_formats(connection);
-    formats = xcb_render_query_pict_formats_reply(connection,
-            formats_cookie, &error);
-    if (formats == NULL) {
-        LOG_ERROR("could not query picture formats: %E\n", error);
-        return ERROR;
+    extension = xcb_get_extension_data(connection, &xcb_render_id);
+    if (extension != NULL && extension->present) {
+        version_cookie = xcb_render_query_version(connection,
+                XCB_RENDER_MAJOR_VERSION, XCB_RENDER_MINOR_VERSION);
+        formats_cookie = xcb_render_query_pict_formats(connection);
+
+        version = xcb_render_query_version_reply(connection, version_cookie,
+                NULL);
+        if (version != NULL) {
+            render_version.major = version->major_version;
+            render_version.minor = version->minor_version;
+            free(version);
+        }
+
+        /* the picture formats are the possible ways colors can be represented,
+         * for example ARGB, 8 bit colors etc.
+         */
+        picture_formats = xcb_render_query_pict_formats_reply(connection,
+                formats_cookie, &error);
     }
 
     for (uint32_t i = 0; i < STOCK_MAX; i++) {
@@ -166,81 +190,36 @@ int initialize_renderer(void)
     /* create a graphics context */
     general_values[0] = screen->black_pixel;
     general_values[1] = screen->white_pixel;
-    error = xcb_request_check(connection,
-            xcb_create_gc_checked(connection, stock_objects[STOCK_GC],
-                screen->root, XCB_GC_FOREGROUND | XCB_GC_BACKGROUND,
-                general_values));
-    if (error != NULL) {
-        LOG_ERROR("could not create graphics context for notifications: %E\n",
-                error);
-        free(error);
-        return ERROR;
-    }
+    xcb_create_gc(connection, stock_objects[STOCK_GC],
+            screen->root, XCB_GC_FOREGROUND | XCB_GC_BACKGROUND,
+            general_values);
 
     /* create a graphics context with inverted colors */
     general_values[0] = screen->white_pixel;
     general_values[1] = screen->black_pixel;
-    error = xcb_request_check(connection,
-            xcb_create_gc_checked(connection,
-                stock_objects[STOCK_INVERTED_GC], screen->root,
-                XCB_GC_FOREGROUND | XCB_GC_BACKGROUND, general_values));
-    if (error != NULL) {
-        LOG_ERROR("could not create inverted graphics context for notifications: %E\n",
-                error);
-        free(error);
-        return ERROR;
-    }
-
-    /* create a white pen */
-    convert_color_to_xcb_color(&color, screen->white_pixel);
-    pen = create_pen(color);
-    if (pen == XCB_NONE) {
-        return ERROR;
-    }
-    stock_objects[STOCK_WHITE_PEN] = create_pen(color);
-
-    /* create a black pen */
-    convert_color_to_xcb_color(&color, screen->black_pixel);
-    pen = create_pen(color);
-    if (pen == XCB_NONE) {
-        return ERROR;
-    }
-    stock_objects[STOCK_BLACK_PEN] = pen;
+    xcb_create_gc(connection, stock_objects[STOCK_INVERTED_GC], screen->root,
+            XCB_GC_FOREGROUND | XCB_GC_BACKGROUND, general_values);
 
     /* continue running even when fonts do not work */
     if (initialize_font_drawing() == OK) {
+        /* create a white pen (for drawing white text) */
+        convert_color_to_xcb_color(&color, screen->white_pixel);
+        stock_objects[STOCK_WHITE_PEN] = create_pen(color);
+
+        /* create a black pen (for drawing black text) */
+        convert_color_to_xcb_color(&color, screen->black_pixel);
+        stock_objects[STOCK_BLACK_PEN] = create_pen(color);
+
         font.available = true;
     }
 
+    /* even if no rendering works at all, this shall not stop fensterchef from
+     * starting up
+     *
+     * it might cause log messages to omit errors in the future, but they can be
+     * ignored
+     */
     return OK;
-}
-
-/* Free all resources associated to rendering. */
-void deinitialize_renderer(void)
-{
-    struct window_picture_cache *cache, *next;
-
-    for (cache = window_picture_cache_head;
-            cache != NULL; cache = next) {
-        next = cache->next;
-        xcb_render_free_picture(connection, cache->picture);
-        free(cache);
-    }
-
-    xcb_render_free_picture(connection, stock_objects[STOCK_WHITE_PEN]);
-    xcb_render_free_picture(connection, stock_objects[STOCK_BLACK_PEN]);
-    xcb_free_gc(connection, stock_objects[STOCK_GC]);
-    xcb_free_gc(connection, stock_objects[STOCK_INVERTED_GC]);
-
-    if (!font.available) {
-        return;
-    }
-
-    free_font();
-    xcb_render_free_glyph_set(connection, font.glyphset);
-
-    FT_Done_FreeType(font.library);
-    FcFini();
 }
 
 /* Create a picture for the given window (or retrieve it from the cache).
@@ -354,7 +333,6 @@ static FT_Face create_font_face(FcPattern *pattern)
     FT_Face face;
     FT_Error ft_error;
     FT_Matrix matrix;
-    FT_UInt horizontal_dpi, vertical_dpi;
 
     /* get the file name of the font */
     if (FcPatternGet(pattern, FC_FILE, 0, &fc_file) != FcResultMatch) {
@@ -399,21 +377,11 @@ static FT_Face create_font_face(FcPattern *pattern)
     /* select the charmap closest to unicode */
     FT_Select_Charmap(face, FT_ENCODING_UNICODE);
 
-    /* compute the dpi (dots per inch) with the pixel size and millimeter size,
-     * multiplying by 254 and then diving by 10 converts the millimeters to
-     * inches, adding half the divisor before dividing will round better
-     */
-    horizontal_dpi = (FT_UInt) (screen->width_in_pixels * 254 +
-            screen->width_in_millimeters * 5) /
-        (screen->width_in_millimeters * 10);
-    vertical_dpi = (FT_UInt) (screen->height_in_pixels * 254 +
-            screen->height_in_millimeters * 5) /
-        (screen->height_in_millimeters * 10);
     /* try to set the size of the face, we need to multiply by 64 because
      * FT_Set_Char_Size() expects 26.6 fractional points
      */
     if (FT_Set_Char_Size(face, 0, fc_size.u.d * 64,
-                horizontal_dpi, vertical_dpi) != FT_Err_Ok) {
+                resources.dpi, resources.dpi) != FT_Err_Ok) {
         /* fallback to setting the first availabe size, this must be a font
          * without support for resizing
          */

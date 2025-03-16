@@ -18,3 +18,5 @@ color 1 uint32_t
    color in the format (X: hexadecimal digit): #XXXXXX
 modifiers 1 uint16_t
    key modifiers, e.g.: Control+Shift
+cursor 1 core_cursor_t
+   Xcursor constant, e.g. left-ptr

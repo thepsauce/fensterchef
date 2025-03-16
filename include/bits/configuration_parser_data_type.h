@@ -4,6 +4,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "cursor.h"
+
 /* This had to be moved into bits/ because both action.h and
  * configuration_parser.h need it and there were unresolvable intersections
  * between the header files.
@@ -30,6 +32,8 @@ typedef enum parser_data_type {
     PARSER_DATA_TYPE_COLOR,
     /* key modifiers, e.g.: Control+Shift */
     PARSER_DATA_TYPE_MODIFIERS,
+    /* Xcursor constant, e.g. left-ptr */
+    PARSER_DATA_TYPE_CURSOR,
 } parser_data_type_t;
 
 /* the value of a data type */
@@ -46,6 +50,8 @@ union parser_data_value {
     uint32_t color;
     /* key modifiers, e.g.: Control+Shift */
     uint16_t modifiers;
+    /* cursor constant, e.g. left-ptr */
+    core_cursor_t cursor;
 };
 
 /*** Implemented in configuration_parser.c ***/
