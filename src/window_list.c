@@ -225,6 +225,31 @@ static Window *get_valid_window_after(Window *last_valid, Window *start)
     return last_valid;
 }
 
+/* Show @window and focus it.
+ *
+ * @shift controls how the window appears. Either it is put directly into the
+ * current frame or simply shown which allows auto splitting to occur.
+ */
+static inline void focus_and_let_window_appear(Window *window, bool shift)
+{
+    /* if shift is down, show the window in the current frame */
+    if (shift && !window->state.is_visible) {
+        /* clear the old frame and stash it */
+        (void) stash_frame(focus_frame);
+        /* put the window into the focused frame, size and show it */
+        set_window_mode(window, WINDOW_MODE_TILING);
+        focus_frame->window = window;
+        reload_frame(focus_frame);
+        window->state.is_visible = true;
+    } else {
+        /* put floating windows on the top */
+        update_window_layer(window);
+
+        show_window(window);
+    }
+    set_focus_window_with_frame(window);
+}
+
 /* Handle a key press for the window list window. */
 static void handle_key_press(xcb_key_press_event_t *event)
 {
@@ -245,12 +270,8 @@ static void handle_key_press(xcb_key_press_event_t *event)
     case XK_Return:
         if (window_list.selected != NULL &&
                 window_list.selected != focus_window) {
-            /* put floating windows on the top */
-            update_window_layer(window_list.selected);
-
-            show_window(window_list.selected);
-            set_focus_window_with_frame(window_list.selected);
-
+            focus_and_let_window_appear(window_list.selected,
+                    !!(event->state & XCB_MOD_MASK_SHIFT));
             window_list.should_revert_focus = false;
         }
         unmap_client(&window_list.client);
