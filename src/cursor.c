@@ -429,23 +429,20 @@ static FILE *open_cursor_file(const char *theme, const char *name,
     for (path = xcursor_settings.path;
             path != NULL && file == NULL;
             path = (separator != NULL ? separator + 1 : NULL)) {
-        char *themedir = NULL;
-        char *full = NULL;
+        char *theme_directory;
+        char *full;
 
         separator = strchr(path, ':');
 
         const int path_length = separator ? (size_t) (separator - path) :
             strlen(path);
         if (path[0] == '~' && path[1] == '/') {
-            if (fensterchef_home == NULL) {
-                continue;
-            }
-            themedir = xasprintf("%s/%.*s/%s", fensterchef_home,
+            theme_directory = xasprintf("%s/%.*s/%s", fensterchef_home,
                     path_length - 2, &path[2], theme);
         } else {
-            themedir = xasprintf("%.*s/%s", path_length, path, theme);
+            theme_directory = xasprintf("%.*s/%s", path_length, path, theme);
         }
-        full = xasprintf("%s/cursors/%s", themedir, name);
+        full = xasprintf("%s/cursors/%s", theme_directory, name);
         file = fopen(full, "r");
         if (file != NULL) {
             *pointer_path = full;
@@ -455,11 +452,11 @@ static FILE *open_cursor_file(const char *theme, const char *name,
 
         /* themes can inherit data from other themes */
         if (file == NULL && inherits == NULL) {
-            full = xasprintf("%s/index.theme", themedir);
+            full = xasprintf("%s/index.theme", theme_directory);
             inherits = get_theme_inherits(full);
             free(full);
         }
-        free(themedir);
+        free(theme_directory);
     }
 
     /* avoid recursing through theme files if there is a cycle */

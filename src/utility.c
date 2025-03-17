@@ -29,8 +29,7 @@ int strcasecmp(const char *string1, const char *string2)
     return result;
 }
 
-/**
- * IMPLEMENTATION of `glob_match()` from the linux source code.
+/* IMPLEMENTATION of `glob_match()` from the linux source code.
  * I only added '^' in addition to '!'.
  *
  * This is small and simple implementation intended for device blacklists

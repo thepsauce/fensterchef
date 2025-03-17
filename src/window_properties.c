@@ -148,6 +148,10 @@ static inline xcb_get_property_reply_t *get_text_property(xcb_window_t window,
     cookie = xcb_get_property(connection, false, window, property,
             XCB_GET_PROPERTY_TYPE_ANY, 0, 2048);
     reply = xcb_get_property_reply(connection, cookie, NULL);
+    if (reply->format == 0) {
+        free(reply);
+        reply = NULL;
+    }
     /* check if the property is in the needed format */
     if (reply != NULL && reply->format != 8) {
         LOG("window %w has misformatted property %a\n", window, property);

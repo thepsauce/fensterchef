@@ -39,10 +39,6 @@
     The set action would have the syntax `set <section>.<name> = <value>` and
     dynamically reload the part of the configuration that is relevant
 
-#40 Add parser include command
-    There should be an identifier usable in any label that includes another
-    configuration file
-
 #41 ...
 
 #1000 Make a wayland port
@@ -198,3 +194,7 @@
 #38 Add keycodes to binds
     When a number is used instead of a word starting with a letter for a key
     symbol, interpret it as a keycode
+
+#40 Add parser include command
+    There should be an identifier usable in any label that includes another
+    configuration file

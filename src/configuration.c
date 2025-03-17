@@ -116,9 +116,6 @@ void reload_user_configuration(void)
 
     if (fensterchef_configuration[0] == '~' &&
             fensterchef_configuration[1] == '/') {
-        if (fensterchef_home == NULL) {
-            return;
-        }
         path = xasprintf("%s/%s", fensterchef_home,
                 &fensterchef_configuration[2]);
     } else {

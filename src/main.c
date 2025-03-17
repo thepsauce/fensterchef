@@ -19,7 +19,8 @@ int main(int argc, char **argv)
 {
     fensterchef_home = getenv("HOME");
     if (fensterchef_home == NULL) {
-        LOG_ERROR("HOME is not set\n");
+        fprintf(stderr, "to run fensterchef, you must set HOME\n");
+        exit(EXIT_FAILURE);
     }
 
     /* parse the program arguments */

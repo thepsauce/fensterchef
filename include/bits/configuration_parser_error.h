@@ -23,6 +23,12 @@
     /* the identifier exceeds the limit */ \
     X(PARSER_ERROR_TOO_LONG, "identifier exceeds identifier limit " \
        STRINGIFY(PARSER_IDENTIFIER_LIMIT)) \
+    /* include files go too deep (or cycle) */ \
+    X(PARSER_ERROR_INCLUDE_OVERFLOW, "too hight include depth") \
+    /* a file could not be included because it is missing or it has bad file
+     * permissions
+     */ \
+    X(PARSER_ERROR_INVALID_INCLUDE, "could not include file") \
     /* label does not exist */ \
     X(PARSER_ERROR_INVALID_LABEL, "invalid label name") \
     /* a ']' is missing */ \

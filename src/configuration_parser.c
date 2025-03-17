@@ -3,6 +3,7 @@
 #include <string.h>
 
 #include "cursor.h"
+#include "fensterchef.h"
 #include "configuration_parser.h"
 #include "log.h"
 #include "utility.h"
@@ -247,7 +248,17 @@ bool read_next_line(Parser *parser)
         /* terminate line at \n or EOF */
         case EOF:
             if (length == 0) {
-                return false;
+                if (parser->number_of_pushed_files == 0) {
+                    return false;
+                }
+                /* pop the file */
+                fclose(parser->file);
+                parser->number_of_pushed_files--;
+                parser->label =
+                    parser->file_stack[parser->number_of_pushed_files].label;
+                parser->file =
+                    parser->file_stack[parser->number_of_pushed_files].file;
+                break;
             }
         /* fall through */
         case '\n':
@@ -1034,6 +1045,49 @@ parser_error_t parse_line(Parser *parser)
     error = parse_identifier(parser);
     if (error != PARSER_SUCCESS) {
         return error;
+    }
+
+    /* check for a general parser command */
+    if (strcasecmp(parser->identifier, "include") == 0) {
+        char *path;
+
+        /* check for a stack overflow */
+        if (parser->number_of_pushed_files == SIZE(parser->file_stack)) {
+            return PARSER_ERROR_INCLUDE_OVERFLOW;
+        }
+
+        /* push the current label and file onto the file stack */
+        parser->file_stack[parser->number_of_pushed_files].label =
+            parser->label;
+        parser->file_stack[parser->number_of_pushed_files].file = parser->file;
+        parser->number_of_pushed_files++;
+
+        /* get the file name */
+        error = parse_string(parser);
+        if (error != PARSER_SUCCESS) {
+            return error;
+        }
+
+        /* expand the file path */
+        if (parser->data.string[0] == '~' && parser->data.string[1] == '/') {
+            path = xasprintf("%s/%s", fensterchef_home,
+                    &parser->data.string[2]);
+            free(parser->data.string);
+        } else {
+            path = (char*) parser->data.string;
+        }
+
+        /* open the file */
+        parser->file = fopen(path, "r");
+        free(path);
+        if (parser->file == NULL) {
+            return PARSER_ERROR_INVALID_INCLUDE;
+        }
+
+        /* reset the label */
+        parser->label = 0;
+
+        return PARSER_SUCCESS;
     }
 
     /* check for a variable setting */

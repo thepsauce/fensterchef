@@ -55,4 +55,4 @@ can try out **fensterchef**.
 Report any issues directly to us over the Github issues tab.
 
 An issue should start with the version, the rest is up to you. Try to add steps
-to reproduce the issure and add the relevant excerpts from the log.
+to reproduce the issue and add the relevant excerpts from the log.

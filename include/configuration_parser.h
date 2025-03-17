@@ -21,6 +21,15 @@
 typedef struct parser {
     /* the file being read from */
     FILE *file;
+    /* stack of include files */
+    struct parser_file_stack_entry {
+        /* the label before opening `file` */
+        parser_label_t label;
+        /* the deeper file */
+        FILE *file;
+    } file_stack[32];
+    /* the number of files on the file stack */
+    uint32_t number_of_pushed_files;
     /* a string being read from, this is used if `file` is NULL. */
     const char *string_source;
     /* the current index within `string_source` */
