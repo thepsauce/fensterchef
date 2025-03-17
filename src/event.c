@@ -284,6 +284,12 @@ void initiate_window_move_resize(Window *window,
         return;
     }
 
+    /* only allow sizing/moving of floating and tiling windows */
+    if (window->state.mode != WINDOW_MODE_FLOATING &&
+            window->state.mode != WINDOW_MODE_TILING) {
+        return;
+    }
+
     LOG("starting to move/resize %W\n", window);
 
     /* get the mouse position if the caller does not supply it */
@@ -841,9 +847,6 @@ static void handle_client_message(xcb_client_message_event_t *event)
         set_window_size(window, x, y, width, height);
     /* request to dynamically move and resize the window */
     } else if (event->type == ATOM(_NET_WM_MOVERESIZE)) {
-        if (window->state.mode != WINDOW_MODE_FLOATING) {
-            return;
-        }
         if (event->data.data32[2] == _NET_WM_MOVERESIZE_CANCEL) {
             cancel_window_move_resize();
             return;
