@@ -191,6 +191,7 @@ void query_existing_windows(void)
     xcb_window_t *windows;
     int length;
     Window *window;
+    struct configuration_association association;
 
     /* get a list of child windows of the root in bottom-to-top stacking order
      */
@@ -204,7 +205,7 @@ void query_existing_windows(void)
     windows = xcb_query_tree_children(tree);
     length = xcb_query_tree_children_length(tree);
     for (int i = 0; i < length; i++) {
-        window = create_window(windows[i]);
+        window = create_window(windows[i], &association);
         if (window != NULL && window->client.is_mapped) {
             show_window(window);
         }

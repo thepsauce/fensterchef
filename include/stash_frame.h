@@ -8,9 +8,6 @@
  * @frame is made into a completely empty frame as all children and windows are
  * taken out.
  *
- * Do not use `destroy_frame()` on the frame returned by this.
- * If you need to free it, simply use `free()`.
- *
  * Consider using `link_into_stash()` after calling this.
  *
  * @return may be NULL if the frame is not worth stashing.

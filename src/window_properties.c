@@ -390,7 +390,8 @@ static bool is_atom_included(const xcb_atom_t *atoms, xcb_atom_t atom)
 }
 
 /* Initialize all properties within @properties. */
-window_mode_t initialize_window_properties(Window *window)
+window_mode_t initialize_window_properties(Window *window,
+        struct configuration_association *output_association)
 {
     xcb_list_properties_cookie_t list_properties_cookie;
     xcb_list_properties_reply_t *list_properties;
@@ -405,6 +406,8 @@ window_mode_t initialize_window_properties(Window *window)
     xcb_atom_t *states = NULL;
     xcb_atom_t *types = NULL;
     window_mode_t predicted_mode = WINDOW_MODE_TILING;
+
+    memset(output_association, 0, sizeof(*output_association));
 
     /* get a list of properties currently set on the window */
     list_properties_cookie = xcb_list_properties(connection, window->client.id);
@@ -479,13 +482,13 @@ window_mode_t initialize_window_properties(Window *window)
         for (uint32_t i = 0;
                 i < configuration.assignment.number_of_associations;
                 i++) {
-            struct configuration_association *association =
+            struct configuration_association *const association =
                 &configuration.assignment.associations[i];
-            if (matches_pattern((char*) class_name,
-                        (char*) association->class_pattern) &&
-                    matches_pattern((char*) instance_name,
-                        (char*) association->instance_pattern)) {
-                window->number = association->number;
+            if (matches_pattern((char*) association->instance_pattern,
+                        (char*) instance_name) &&
+                    matches_pattern((char*) association->class_pattern,
+                        (char*) class_name)) {
+                *output_association = *association;
                 break;
             }
         }

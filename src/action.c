@@ -645,15 +645,29 @@ bool do_action(const Action *action, Window *window)
         hide_window(window);
         break;
 
+    /* show a window */
+    case ACTION_SHOW_WINDOW:
+        if (action->parameter.integer != 0) {
+            for (window = first_window; window != NULL; window = window->next) {
+                if (window->number == (uint32_t) action->parameter.integer) {
+                    break;
+                }
+            }
+        }
+
+        if (window == NULL) {
+            return false;
+        }
+
+        show_window(window);
+        update_window_layer(window);
+        break;
+
     /* focus a window */
     case ACTION_FOCUS_WINDOW:
         if (action->parameter.integer == 0) {
             if (window == focus_window) {
-                return false;
-            }
-            set_focus_window_with_frame(window);
-            if (window != NULL) {
-                update_window_layer(window);
+                window = NULL;
             }
         } else {
             for (window = first_window; window != NULL; window = window->next) {
@@ -661,13 +675,15 @@ bool do_action(const Action *action, Window *window)
                     break;
                 }
             }
-            if (window == NULL) {
-                break;
-            }
-            show_window(window);
-            set_focus_window_with_frame(window);
-            update_window_layer(window);
         }
+
+        if (window == NULL) {
+            return false;
+        }
+
+        show_window(window);
+        update_window_layer(window);
+        set_focus_window_with_frame(window);
         break;
 
     /* start moving a window with the mouse */

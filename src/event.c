@@ -721,10 +721,11 @@ static void handle_map_request(xcb_map_request_event_t *event)
 {
     Window *window;
     bool is_first_time = false;
+    struct configuration_association association = { .number_of_actions = 0 };
 
     window = get_window_of_xcb_window(event->window);
     if (window == NULL) {
-        window = create_window(event->window);
+        window = create_window(event->window, &association);
         is_first_time = true;
     }
     if (window == NULL) {
@@ -732,16 +733,27 @@ static void handle_map_request(xcb_map_request_event_t *event)
         return;
     }
 
-    /* if a window does not start in normal state, do not map it */
-    if (is_first_time && (window->hints.flags & XCB_ICCCM_WM_HINT_STATE) &&
-            window->hints.initial_state != XCB_ICCCM_WM_STATE_NORMAL) {
-        LOG("window %w starts off as hidden window\n", event->window);
-        return;
-    }
+    /* check if the user defined actions to run when this window receives its
+     * number
+     */
+    if (association.number_of_actions > 0) {
+        LOG("running associated actions: %A\n", association.number_of_actions,
+                association.actions);
+        for (uint32_t j = 0; j < association.number_of_actions; j++) {
+            do_action(&association.actions[j], window);
+        }
+    } else {
+        /* if a window does not start in normal state, do not map it */
+        if (is_first_time && (window->hints.flags & XCB_ICCCM_WM_HINT_STATE) &&
+                window->hints.initial_state != XCB_ICCCM_WM_STATE_NORMAL) {
+            LOG("window %W starts off as hidden window\n", window);
+            return;
+        }
 
-    show_window(window);
-    if (does_window_accept_focus(window)) {
-        set_focus_window_with_frame(window);
+        show_window(window);
+        if (does_window_accept_focus(window)) {
+            set_focus_window_with_frame(window);
+        }
     }
 }
 
@@ -779,38 +791,42 @@ static void handle_property_notify(xcb_property_notify_event_t *event)
 }
 
 /* Configure requests are received when a window wants to choose its own
- * position and size. We allow this for unmanaged windows and floating windows.
+ * position and size. We allow this for unmanaged windows.
  */
 static void handle_configure_request(xcb_configure_request_event_t *event)
 {
     Window *window;
     int value_index = 0;
-    uint32_t mask = 0;
 
     window = get_window_of_xcb_window(event->window);
-    if (window != NULL && window->state.mode != WINDOW_MODE_FLOATING) {
+    if (window != NULL) {
         return;
     }
 
     if ((event->value_mask & XCB_CONFIG_WINDOW_X)) {
         general_values[value_index++] = event->x;
-        mask |= XCB_CONFIG_WINDOW_X;
     }
     if ((event->value_mask & XCB_CONFIG_WINDOW_Y)) {
         general_values[value_index++] = event->y;
-        mask |= XCB_CONFIG_WINDOW_Y;
     }
     if ((event->value_mask & XCB_CONFIG_WINDOW_WIDTH)) {
         general_values[value_index++] = event->width;
-        mask |= XCB_CONFIG_WINDOW_WIDTH;
     }
     if ((event->value_mask & XCB_CONFIG_WINDOW_HEIGHT)) {
         general_values[value_index++] = event->height;
-        mask |= XCB_CONFIG_WINDOW_HEIGHT;
     }
-    /* ignore border width, stacking etc. */
+    if ((event->value_mask & XCB_CONFIG_WINDOW_BORDER_WIDTH)) {
+        general_values[value_index++] = event->border_width;
+    }
+    if ((event->value_mask & XCB_CONFIG_WINDOW_SIBLING)) {
+        general_values[value_index++] = event->sibling;
+    }
+    if ((event->value_mask & XCB_CONFIG_WINDOW_STACK_MODE)) {
+        general_values[value_index++] = event->stack_mode;
+    }
 
-    xcb_configure_window(connection, event->window, mask, general_values);
+    xcb_configure_window(connection, event->window, event->value_mask,
+            general_values);
 }
 
 /* Client messages are sent by a client to our window manager to request certain

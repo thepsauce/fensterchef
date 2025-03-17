@@ -56,7 +56,7 @@ extern log_severity_t log_severity;
 
 /* Print a formatted string to standard error output.
  *
- * The following format specifiers are supported on top of the reqular
+ * The following format specifiers are supported on top of the regular
  * format specifiers (some printf format specifiers might be overwritten):
  * %P   int32_t, int32_t        X+Y
  * %S   uint32_t, uint32_t      WIDTHxHEIGHT

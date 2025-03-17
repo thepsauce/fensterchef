@@ -9,6 +9,12 @@
 #include "utf8.h"
 #include "utility.h"
 
+/**
+ * When adding anything to the configuration, make sure to modify the duplicate
+ * and clear functions in configuration.c so all recources are managment
+ * properly.
+ */
+
 /* if the binding should be for a release event */
 #define BINDING_FLAG_RELEASE 0x1
 /* if the event should be passed down to the window */
@@ -50,7 +56,16 @@ struct configuration_association {
     utf8_t *instance_pattern;
     /* the pattern the class should match */
     utf8_t *class_pattern;
+    /* the actions to run when a window gets assigned a number */
+    Action *actions;
+    /* the number of actions in `actions` */
+    uint32_t number_of_actions;
 };
+
+/**
+ * Do not touch anything below this point, it is business of the code generator
+ * script.
+ */
 
 /*< START OF CONFIGURATION >*/
 

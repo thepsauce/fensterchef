@@ -204,9 +204,19 @@ sizing-cursor
 (default: sizing)
 .SS [assignment]
 Here assignments can be written in the format
-.I integer string
-;
-.IR string .
+.I integer
+.I string
+.I ;
+.I string
+.I ;
+.IR actions .
+The actions are executed when the window gets assigned its number.
+If you supply actions, this will overwrite the default behaviour of showing and
+focusing the window.
+The
+.I ;
+.I actions
+may be omitted.
 .PP
 first-window-number
 .I integer
@@ -361,6 +371,11 @@ close-window
 .PP
 minimize-window
     Hides the currently active window.
+.PP
+show-window
+.I integer
+.B ?
+    Show the window with given number or the clicked window.
 .PP
 focus-window
 .I integer
@@ -554,5 +569,10 @@ auto-remove true
 .B [keyboard]
 v hint-split-horizontally
 s hint-split-vertically
-
+.EE
+.SS Start ALL windows as floating besides terminal windows
+.EX
+.B [assignment]
+0 * ; st-256color
+0 * ; * ; toggle-tiling ; focus-window
 .EE

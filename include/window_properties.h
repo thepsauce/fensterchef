@@ -1,6 +1,8 @@
 #ifndef WINDOW_PROPERTIES_H
 #define WINDOW_PROPERTIES_H
 
+#include "bits/configuration_structure.h"
+
 #include "window_state.h"
 
 /* expands to all atoms, this system with `X()` makes it easy to maintain
@@ -218,13 +220,12 @@ char *get_fensterchef_command_property(xcb_window_t window);
 
 /* Initialize all properties within @window.
  *
- * This also sets the initial window number based on the window class and
- * configured associations. If no association exists, the window number is left
- * as it is.
+ * @association is filled with any association found that relates to the window.
  *
  * @return the mode the window should be in initially.
  */
-window_mode_t initialize_window_properties(Window *window);
+window_mode_t initialize_window_properties(Window *window,
+        struct configuration_association *association);
 
 /* Update the property within @window corresponding to given @atom. */
 bool cache_window_property(Window *window, xcb_atom_t atom);

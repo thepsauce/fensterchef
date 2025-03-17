@@ -3,11 +3,7 @@
 
 /* labels with form "[<name>]"
  *
- * NOTE: After editing this enum, also edit the `labels[]` array in
- * `configuration_parser.c`.
- * To add variables to the label, edit `variables[]` in `parse_line()` and also
- * add it to the configuration in `configuration.c` AND add a default option in
- * `default_configuration.c`.
+ * NOTE: Labels should not be added here but in "generate/fensterchef.labels".
  */
 typedef enum configuration_parser_label {
     PARSER_LABEL_STARTUP,

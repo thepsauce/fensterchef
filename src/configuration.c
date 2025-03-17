@@ -25,7 +25,8 @@ static void duplicate_configuration_associations(
             duplicate->assignment.associations,
             sizeof(*duplicate->assignment.associations) *
                 duplicate->assignment.number_of_associations);
-    for (uint32_t i = 0; i < duplicate->assignment.number_of_associations;
+    for (uint32_t i = 0;
+            i < duplicate->assignment.number_of_associations;
             i++) {
         struct configuration_association *const association =
             &duplicate->assignment.associations[i];
@@ -33,6 +34,8 @@ static void duplicate_configuration_associations(
             xstrdup((char*) association->instance_pattern);
         association->class_pattern = (utf8_t*)
             xstrdup((char*) association->class_pattern);
+        association->actions = duplicate_actions(association->actions,
+                association->number_of_actions);
     }
 }
 
@@ -86,10 +89,14 @@ void clear_configuration(struct configuration *configuration)
             configuration->startup.number_of_actions);
 
     /* free associations */
-    for (uint32_t i = 0; i < configuration->assignment.number_of_associations;
+    for (uint32_t i = 0;
+            i < configuration->assignment.number_of_associations;
             i++) {
-        free(configuration->assignment.associations[i].instance_pattern);
-        free(configuration->assignment.associations[i].class_pattern);
+        struct configuration_association *const association =
+            &configuration->assignment.associations[i];
+        free(association->instance_pattern);
+        free(association->class_pattern);
+        free_actions(association->actions, association->number_of_actions);
     }
     free(configuration->assignment.associations);
 
@@ -446,10 +453,10 @@ int load_configuration(const char *string,
 
         if (error != PARSER_SUCCESS) {
             if (load_from_file) {
-                LOG("%s:%zu: %s\n", string, parser.line_number,
+                LOG_ERROR("%s:%zu: %s\n", string, parser.line_number,
                         parser_error_to_string(error));
             } else {
-                LOG("%zu: %s\n", parser.line_number,
+                LOG_ERROR("%zu: %s\n", parser.line_number,
                         parser_error_to_string(error));
             }
             fprintf(stderr, "%5zu %s\n", parser.line_number, parser.line);
@@ -493,11 +500,6 @@ int load_configuration(const char *string,
 
     if (error != PARSER_SUCCESS) {
         clear_configuration(&parser.configuration);
-        if (load_from_file) {
-            LOG_ERROR("got an error reading configuration file %s\n", string);
-        } else {
-            LOG_ERROR("got an error reading configuration string\n");
-        }
         return ERROR;
     }
 

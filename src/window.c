@@ -87,7 +87,8 @@ static inline Window *find_window_number(uint32_t number)
 }
 
 /* Create a window struct and add it to the window list. */
-Window *create_window(xcb_window_t xcb_window)
+Window *create_window(xcb_window_t xcb_window,
+        struct configuration_association *association)
 {
     xcb_get_window_attributes_cookie_t attributes_cookie;
     xcb_get_geometry_cookie_t geometry_cookie;
@@ -189,7 +190,8 @@ Window *create_window(xcb_window_t xcb_window)
     window->border_color = window->client.border_color;
 
     /* get the initial mode and set the window number */
-    mode = initialize_window_properties(window);
+    mode = initialize_window_properties(window, association);
+    window->number = association->number;
 
     /* link into the Z, age and number linked lists */
     if (first_window == NULL) {

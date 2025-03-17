@@ -989,6 +989,19 @@ static parser_error_t parse_assignment_association(Parser *parser)
     }
     association.class_pattern = parser->data.string;
 
+    /* an optional list of actions may be supplied */
+    if (parser->line[parser->column] == ';') {
+        parser->column++;
+        error = parse_actions(parser, &association.actions,
+                &association.number_of_actions);
+    }
+
+    if (error != PARSER_SUCCESS) {
+        free(association.instance_pattern);
+        free(association.class_pattern);
+        return error;
+    }
+
     RESIZE(parser->configuration.assignment.associations,
             parser->configuration.assignment.number_of_associations + 1);
     parser->configuration.assignment.associations[

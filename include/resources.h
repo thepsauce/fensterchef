@@ -4,7 +4,7 @@
 #include "cursor.h"
 
 /**
- * Management the X resources set on `RESOURCE_MANAGER`.
+ * Manage the X resources set on `RESOURCE_MANAGER`.
  */
 
 /* the cached resources we are interested in */

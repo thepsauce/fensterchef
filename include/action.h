@@ -27,6 +27,8 @@
     X(ACTION_CLOSE_WINDOW, false, "CLOSE-WINDOW", PARSER_DATA_TYPE_VOID) \
     /* hides the currently active window */ \
     X(ACTION_MINIMIZE_WINDOW, false, "MINIMIZE-WINDOW", PARSER_DATA_TYPE_VOID) \
+    /* show the window with given number or the clicked window */ \
+    X(ACTION_SHOW_WINDOW, true, "SHOW-WINDOW", PARSER_DATA_TYPE_INTEGER) \
     /* focus the window with given number or the clicked window */ \
     X(ACTION_FOCUS_WINDOW, true, "FOCUS-WINDOW", PARSER_DATA_TYPE_INTEGER) \
     /* start moving a window with the mouse */ \

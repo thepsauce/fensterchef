@@ -6,6 +6,7 @@
 #include "bits/window_typedef.h"
 #include "bits/frame_typedef.h"
 
+#include "configuration.h"
 #include "monitor.h"
 #include "utility.h"
 #include "window_state.h"
@@ -111,8 +112,12 @@ extern Window *focus_window;
 /* the focus that existed before entering the event cycle */
 extern Window *old_focus_window;
 
-/* Create a window object and add it to all window lists. */
-Window *create_window(xcb_window_t xcb);
+/* Create a window object and add it to all window lists.
+ *
+ * @association is filled with any associations found belonging to the window.
+ */
+Window *create_window(xcb_window_t xcb,
+        struct configuration_association *association);
 
 /* Destroy given window and removes it from the window linked list.
  * This does NOT destroy the underlying X window.
