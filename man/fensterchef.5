@@ -1,4 +1,4 @@
-.TH FENSTERCHEF 5 "2025-03-12" "Fensterchef developer" "Fensterchef manual"
+.TH FENSTERCHEF 5 "2025-03-17" "Fensterchef developer" "Fensterchef manual"
 .SH NAME
 fensterchef - format of fensterchef configuration files
 .
@@ -16,12 +16,442 @@ A section may also accept special settings, for example the
 or
 .B [startup]
 section.
+By default the
+.B [startup]
+section is used.
+This can be imagined like a
+.B [startup]
+being at the first line.
+.
+.SH DATA TYPE
+A handful of data types are supported.
+.SS boolean
+A value that is either true or false.
+Examples:
+    true
+    0
+    on
+.PP
+Possible values are:
+.BR on ,
+.BR yes ,
+.B true
+.BR off ,
+.BR no ,
+.BR false .
+.SS string
+A utf8 encoded sequence of bytes. Characters can be escaped using
+.BR \[rs] .
+Examples:
+    I am not quoted and can not be quoted
+    \[rs] I have a leading and trailing space\[rs] 
+.SS integer
+An integer in base 10 notation with an optional sign.
+Integers are limited to 1000000.
+Examples:
+    -11
+    384
+    123454678910
+.RI ( 1000000 )
+.SS quad
+A set of 1, 2 or 4 integers.
+Examples:
+    1 2 3 4
+    -4 4 (expands to -4 4 -4 4)
+    2 (expands to 2 2 2 2)
+.SS color
+A color in RRGGBB format.
+Examples:
+    #ff00ff
+    #edceef
+    #00000
+.SS modifiers
+A series of keyboard modifiers.
+Examples:
+    Shift
+    Control + Shift
+    Mod1+Mod4
+.PP
+The possible modifiers are:
+.BR Shift ,
+.BR Lock ,
+.BR CapsLock ,
+.BR Ctrl ,
+.BR Control ,
+.BR Alt ,
+.BR Super ,
+.BR Mod1 ,
+.BR Mod2 ,
+.BR Mod3 ,
+.BR Mod4 ,
+.BR Mod5 .
+.SS cursor
+A cursor constant.
+Examples:
+    left-ptr
+    fleur
+    sizing
+.PP
+This is a complete list of the possible cursors:
+    X-cursor
+    arrow
+    based-arrow-down
+    based-arrow-up
+    boat
+    bogosity
+    bottom-left-corner
+    bottom-right-corner
+    bottom-side
+    bottom-tee
+    box-spiral
+    center-ptr
+    circle
+    clock
+    coffee-mug
+    cross
+    cross-reverse
+    crosshair
+    diamond-cross
+    dot
+    dotbox
+    double-arrow
+    draft-large
+    draft-small
+    draped-box
+    exchange
+    fleur
+    gobbler
+    gumby
+    hand1
+    hand2
+    heart
+    icon
+    iron-cross
+    left-ptr
+    left-side
+    left-tee
+    leftbutton
+    ll-angle
+    lr-angle
+    man
+    middlebutton
+    mouse
+    pencil
+    pirate
+    plus
+    question-arrow
+    right-ptr
+    right-side
+    right-tee
+    rightbutton
+    rtl-logo
+    sailboat
+    sb-down-arrow
+    sb-h-double-arrow
+    sb-left-arrow
+    sb-right-arrow
+    sb-up-arrow
+    sb-v-double-arrow
+    shuttle
+    sizing
+    spider
+    spraycan
+    star
+    target
+    tcross
+    top-left-arrow
+    top-left-corner
+    top-right-corner
+    top-side
+    top-tee
+    trek
+    ul-angle
+    umbrella
+    ur-angle
+    watch
+    xterm
 .
 .SH SECTION
-.I TODO
+.SS [startup]
+This section is equipped by default.
+It holds a list of actions, either separated by a new line or a semicolon.
+Nothing else can be put into this section.
+.SS [general]
+This section contains a few miscallaneous options.
+.PP
+overlap-percentage
+.I integer
+(default: 80)
+.PP
+root-cursor
+.I cursor
+(default: left-ptr)
+.PP
+moving-cursor
+.I cursor
+(default: fleur)
+.PP
+horizontal-cursor
+.I cursor
+(default: sb-h-double-arrow)
+.PP
+vertical-cursor
+.I cursor
+(default: sb-v-double-arrow)
+.PP
+sizing-cursor
+.I cursor
+(default: sizing)
+.SS [assignment]
+Here assignments can be written in the format
+.I integer string
+;
+.IR string .
+.PP
+first-window-number
+.I integer
+(default: 1)
+.SS [tiling]
+Control how windows should be tiled.
+.PP
+auto-split
+.I boolean
+(default: false)
+.PP
+auto-equalize
+.I boolean
+(default: false)
+.PP
+auto-fill-void
+.I boolean
+(default: true)
+.PP
+auto-remove
+.I boolean
+(default: false)
+.PP
+auto-remove-void
+.I boolean
+(default: false)
+.SS [font]
+Set the name of the font used for the window list and notifications.
+.PP
+name
+.I string
+(default: Mono)
+.SS [border]
+Change the style of the window bordes.
+.PP
+size
+.I integer
+(default: 0)
+.PP
+color
+.I color
+(default: #36454f)
+.PP
+active-color
+.I color
+(default: #71797e)
+.PP
+focus-color
+.I color
+(default: #c7bb28)
+.SS [gaps]
+Change the size of the gaps.
+.PP
+inner
+.I quad
+(default: 0)
+.PP
+outer
+.I quad
+(default: 0)
+.SS [notification]
+Set the style of the window list and notification windows.
+.PP
+duration
+.I integer
+(default: 2)
+.PP
+padding
+.I integer
+(default: 6)
+.PP
+border-size
+.I integer
+(default: 1)
+.PP
+border-color
+.I color
+(default: #000000)
+.PP
+foreground
+.I color
+(default: #000000)
+.PP
+background
+.I color
+(default: #ffffff)
+.SS [mouse]
+Add mouse bindings. Mouse bindings have the format:
+.I modifiers
++
+.I button index actions
+.PP
+resize-tolerance
+.I integer
+(default: 8)
+.PP
+modifiers
+.I modifiers
+(default: Mod4)
+.PP
+ignore-modifiers
+.I modifiers
+(default: Lock+Mod2+Mod3+Mod5)
+.SS [keyboard]
+Add keyboard bindings. Keyboard bindings have the format:
+.I modifiers
++
+.I key symbol
+or
+.I key code actions
+.PP
+modifiers
+.I modifiers
+(default: Mod4)
+.PP
+ignore-modifiers
+.I modifiers
+(default: Lock+Mod2+Mod3+Mod5)
 .
 .SH ACTION
-.I TODO
+.PP
+none
+    No action at all.
+.PP
+reload-configuration
+    Reload the configuration file.
+.PP
+assign
+.I integer
+    Assign a number to a frame.
+.PP
+focus-frame
+.I integer
+.B ?
+    Focus a frame with given number.
+.PP
+focus-parent
+.I integer
+.B ?
+    Move the focus to the parent frame.
+.PP
+focus-child
+.I integer
+.B ?
+    Move the focus to the child frame.
+.PP
+equalize-frame
+    Equalize the size of the child frames within a frame.
+.PP
+close-window
+    Closes the currently active window.
+.PP
+minimize-window
+    Hides the currently active window.
+.PP
+focus-window
+.I integer
+.B ?
+    Focus the window with given number or the clicked window.
+.PP
+initiate-move
+    Start moving a window with the mouse.
+.PP
+initiate-resize
+    Start resizing a window with the mouse.
+.PP
+next-window
+.I integer
+.B ?
+    Go to the next window in the window list.
+.PP
+previous-window
+.I integer
+.B ?
+    Go to the previous window in the window list.
+.PP
+remove-frame
+    Remove the current frame.
+.PP
+toggle-tiling
+    Changes a non tiling window to a tiling window and vise versa.
+.PP
+toggle-fullscreen
+    Toggles the fullscreen state of the currently focused window.
+.PP
+toggle-focus
+    Change the focus from tiling to non tiling or vise versa.
+.PP
+split-horizontally
+    Split the current frame horizontally.
+.PP
+split-vertically
+    Split the current frame vertically.
+.PP
+hint-split-horizontally
+    Hint that the current frame should split horizontally.
+.PP
+hint-split-vertically
+    Hint that the current frame should split vertically.
+.PP
+focus-up
+    Move the focus to the above frame.
+.PP
+focus-left
+    Move the focus to the left frame.
+.PP
+focus-right
+    Move the focus to the right frame.
+.PP
+focus-down
+    Move the focus to the frame below.
+.PP
+exchange-up
+    Exchange the current frame with the above one.
+.PP
+exchange-left
+    Exchange the current frame with the left one.
+.PP
+exchange-right
+    Exchange the current frame with the right one.
+.PP
+exchange-down
+    Exchange the current frame with the below one.
+.PP
+show-window-list
+    Show the interactive window list.
+.PP
+run
+.I string
+    Run a shell program.
+.PP
+show-message
+.I string
+    Show a notification with a string message.
+.PP
+show-message-run
+.I string
+    Show a notification with a message extracted from a shell program.
+.PP
+resize-by
+.I quad
+    Resize the edges of the current window.
+.PP
+quit
+    Quit fensterchef.
 .
 .SH EXAMPLE
 .SS Default configuration
@@ -100,13 +530,29 @@ Return run [ -n "$TERMINAL" ] && "$TERMINAL" || xterm
 # (a feature of suckless terminal)
 .B [startup]
 assign 901
+
 split-horizontally
 focus-right
 assign 902
+
 split-horizontally
 focus-right
 assign 903
+
 st -n 1
 st -n 2
 st -n 3
+.EE
+.SS i3-like tiling
+.EX
+.B [tiling]
+auto-split true
+auto-equalize true
+auto-fill-void true
+auto-remove true
+
+.B [keyboard]
+v hint-split-horizontally
+s hint-split-vertically
+
 .EE

@@ -43,6 +43,7 @@ void run_external_command(const char *command)
 
     setup = xcb_get_setup(connection);
 
+    screen = NULL;
     /* iterator over all screens to find the one with the screen number */
     for(i = xcb_setup_roots_iterator(setup); i.rem > 0; xcb_screen_next(&i)) {
         if (screen_number == 0) {
@@ -50,6 +51,12 @@ void run_external_command(const char *command)
             break;
         }
         screen_number--;
+    }
+
+    if (screen == NULL) {
+        fprintf(stderr, "fensterchef command: "
+                    "screen %d does not exist\n", screen_number);
+        return;
     }
 
     window = xcb_generate_id(connection);

@@ -8,7 +8,7 @@
 #define DECLARE_ALL_ACTIONS \
     /* invalid action value */ \
     X(ACTION_NULL, false, NULL, 0) \
- \
+\
     /* no action at all */ \
     X(ACTION_NONE, false, "NONE", PARSER_DATA_TYPE_VOID) \
     /* reload the configuration file */ \

@@ -8,10 +8,6 @@
     Try to check electron source code I guess... I do not know if it was made
     using electron actually
 
-#14 Generate documentation
-    Make shell scripts to generate the manual page (should the wiki be
-    continued?)
-
 #24 ! Monitor frames wrong when screen size changes
     Exactly in what circumstances this bug appears is not known but running
     randfix.sh gets a window in a bugged state, this might have to do with
@@ -43,12 +39,19 @@
     The set action would have the syntax `set <section>.<name> = <value>` and
     dynamically reload the part of the configuration that is relevant
 
-#40 ...
+#40 Add parser include command
+    There should be an identifier usable in any label that includes another
+    configuration file
+
+#41 ...
 
 #1000 Make a wayland port
     Make an additional repository that hosts fensterchef-wayland
 
 [In Progress]
+#14 Generate documentation
+    Make shell scripts to generate the manual page (should the wiki be
+    continued?)
 
 [Recheck]
 #8 ? Improve font rendering once again

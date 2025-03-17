@@ -11,27 +11,32 @@ fensterchef - tiling done the right way
 .BR -h ,
 .BR --help ,
 .B --usage
-    Show help
+    Show help.
 .PP
 .BR -v ,
 .B --version
-    Print the version
+    Print the version.
 .PP
 .B -d
 .IR all | info | error | nothing
 .B (default: info)
-    Set the output logging verbosity
+    Set the output logging verbosity.
 .PP
 .B --verbose
-    Log everything
+    Log everything.
 .PP
-.BR -c ,
 .B --config
 .I FILE
 .B (default: ~/.config/fensterchef/fensterchef.config)
     Load
 .I FILE
-as configuration file
+as configuration file.
+.PP
+.BR -e ,
+.B --command
+.I COMMAND
+    Run a command within fensterchef.
+    The command is a list of actions separated by a semicolon (;).
 .
 .SH DESCRIPTION
 The

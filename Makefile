@@ -62,6 +62,9 @@ generate/default_configuration.c.sh: generate/fensterchef.labels \
  generate/fensterchef.data_types
 	touch $@
 
+generate/fensterchef.5.sh: include/action.h
+	touch $@
+
 src/%: generate/%.sh
 	./generate/generate.sh $<
 
