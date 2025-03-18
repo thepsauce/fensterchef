@@ -1187,6 +1187,59 @@ static void log_frame(const Frame *frame)
     }
 }
 
+/* Log a data type to standard error output. */
+static void log_data_type(data_type_t type, const GenericData *data)
+{
+    switch (type) {
+    case DATA_TYPE_VOID:
+        /* nothing */
+        break;
+
+    case DATA_TYPE_BOOLEAN:
+        fputc(' ', stderr);
+        log_boolean(data->boolean);
+        break;
+
+    case DATA_TYPE_STRING:
+        fputc(' ', stderr);
+        fprintf(stderr, COLOR(GREEN) "%s" CLEAR_COLOR,
+                (char*) data->string);
+        break;
+
+    case DATA_TYPE_INTEGER:
+        fputc(' ', stderr);
+        log_integer(data->integer);
+        break;
+
+    case DATA_TYPE_QUAD:
+        fprintf(stderr, COLOR(GREEN)
+                    " %" PRId32 " %" PRId32 " %" PRId32 " %" PRId32
+                    CLEAR_COLOR,
+                data->quad[0], data->quad[1],
+                data->quad[2], data->quad[3]);
+        break;
+
+    case DATA_TYPE_COLOR:
+        fprintf(stderr, COLOR(YELLOW) " #%06" PRIx32 CLEAR_COLOR,
+            data->color);
+        break;
+
+    case DATA_TYPE_MODIFIERS:
+        fputc(' ', stderr);
+        log_modifiers(data->modifiers);
+        break;
+
+    case DATA_TYPE_CURSOR:
+        fprintf(stderr, " " COLOR(GREEN) "%s" CLEAR_COLOR,
+                xcursor_core_strings[data->cursor]);
+        break;
+
+    /* not a real data type */
+    case DATA_TYPE_MAX:
+        break;
+    }
+}
+
 /* Log an action to standard error output. */
 static void log_actions(const Action *actions, uint32_t number_of_actions)
 {
@@ -1196,51 +1249,7 @@ static void log_actions(const Action *actions, uint32_t number_of_actions)
         }
         fprintf(stderr, COLOR(CYAN) "%s" CLEAR_COLOR,
                 action_to_string(actions[i].code));
-        switch (get_action_data_type(actions[i].code)) {
-        case PARSER_DATA_TYPE_VOID:
-            /* nothing */
-            break;
-
-        case PARSER_DATA_TYPE_BOOLEAN:
-            fputc(' ', stderr);
-            log_boolean(actions[i].parameter.boolean);
-            break;
-
-        case PARSER_DATA_TYPE_STRING:
-            fputc(' ', stderr);
-            fprintf(stderr, COLOR(GREEN) "%s" CLEAR_COLOR,
-                    (char*) actions[i].parameter.string);
-            break;
-
-        case PARSER_DATA_TYPE_INTEGER:
-            fputc(' ', stderr);
-            log_integer(actions[i].parameter.integer);
-            break;
-
-        case PARSER_DATA_TYPE_QUAD:
-            fprintf(stderr, COLOR(GREEN)
-                        " %" PRId32 " %" PRId32 " %" PRId32 " %" PRId32
-                        CLEAR_COLOR,
-                    actions[i].parameter.quad[0], actions[i].parameter.quad[1],
-                    actions[i].parameter.quad[2], actions[i].parameter.quad[3]);
-            break;
-
-        case PARSER_DATA_TYPE_COLOR:
-            fprintf(stderr, COLOR(YELLOW) " #%06" PRIx32 CLEAR_COLOR,
-                actions[i].parameter.color);
-            break;
-
-        case PARSER_DATA_TYPE_MODIFIERS:
-            fputc(' ', stderr);
-            log_modifiers(actions[i].parameter.modifiers);
-            break;
-
-        case PARSER_DATA_TYPE_CURSOR:
-            fputc(' ', stderr);
-            fprintf(stderr, COLOR(GREEN) "%s" CLEAR_COLOR,
-                    xcursor_core_strings[actions[i].parameter.cursor]);
-            break;
-        }
+        log_data_type(get_action_data_type(actions[i].code), &actions[i].data);
     }
 }
 

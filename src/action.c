@@ -42,7 +42,7 @@ Action *duplicate_actions(Action *actions, uint32_t number_of_actions)
     duplicate = xmemdup(actions, sizeof(*actions) * number_of_actions);
     for (uint32_t i = 0; i < number_of_actions; i++) {
         duplicate_data_value(get_action_data_type(duplicate[i].code),
-                &duplicate[i].parameter);
+                &duplicate[i].data);
     }
     return duplicate;
 }
@@ -52,7 +52,7 @@ void free_actions(Action *actions, uint32_t number_of_actions)
 {
     for (uint32_t i = 0; i < number_of_actions; i++) {
         clear_data_value(get_action_data_type(actions[i].code),
-                &actions[i].parameter);
+                &actions[i].data);
     }
     free(actions);
 }
@@ -516,12 +516,12 @@ bool do_action(const Action *action, Window *window)
     /* assign a number to a frame */
     case ACTION_ASSIGN:
         /* remove the number from the old frame if there is any */
-        frame = get_frame_by_number((uint32_t) action->parameter.integer);
+        frame = get_frame_by_number((uint32_t) action->data.integer);
         /* also try to find it in the stash */
         if (frame == NULL) {
             frame = last_stashed_frame;
             for (; frame != NULL; frame = frame->previous_stashed) {
-                if (frame->number == (uint32_t) action->parameter.integer) {
+                if (frame->number == (uint32_t) action->data.integer) {
                     break;
                 }
             }
@@ -530,7 +530,7 @@ bool do_action(const Action *action, Window *window)
             frame->number = 0;
         }
 
-        focus_frame->number = action->parameter.integer;
+        focus_frame->number = action->data.integer;
         if (focus_frame->number == 0) {
             set_notification((utf8_t*) "Number removed",
                     focus_frame->x + focus_frame->width / 2,
@@ -547,7 +547,7 @@ bool do_action(const Action *action, Window *window)
 
     /* focus a frame with given number */
     case ACTION_FOCUS_FRAME:
-        frame = get_frame_by_number((uint32_t) action->parameter.integer);
+        frame = get_frame_by_number((uint32_t) action->data.integer);
         /* check if the frame is already shown */
         if (frame != NULL) {
             set_focus_frame(frame);
@@ -557,7 +557,7 @@ bool do_action(const Action *action, Window *window)
         frame = last_stashed_frame;
         /* also try to find it in the stash */
         for (; frame != NULL; frame = frame->previous_stashed) {
-            if (frame->number == (uint32_t) action->parameter.integer) {
+            if (frame->number == (uint32_t) action->data.integer) {
                 break;
             }
         }
@@ -580,7 +580,7 @@ bool do_action(const Action *action, Window *window)
 
     /* move the focus to the parent frame */
     case ACTION_FOCUS_PARENT:
-        count = action->parameter.integer;
+        count = action->data.integer;
         if (count == 0) {
             count = 1;
         }
@@ -603,7 +603,7 @@ bool do_action(const Action *action, Window *window)
 
     /* move the focus to the child frame */
     case ACTION_FOCUS_CHILD:
-        count = action->parameter.integer;
+        count = action->data.integer;
         if (count == 0) {
             count = 1;
         }
@@ -647,9 +647,9 @@ bool do_action(const Action *action, Window *window)
 
     /* show a window */
     case ACTION_SHOW_WINDOW:
-        if (action->parameter.integer != 0) {
+        if (action->data.integer != 0) {
             for (window = first_window; window != NULL; window = window->next) {
-                if (window->number == (uint32_t) action->parameter.integer) {
+                if (window->number == (uint32_t) action->data.integer) {
                     break;
                 }
             }
@@ -665,13 +665,13 @@ bool do_action(const Action *action, Window *window)
 
     /* focus a window */
     case ACTION_FOCUS_WINDOW:
-        if (action->parameter.integer == 0) {
+        if (action->data.integer == 0) {
             if (window == focus_window) {
                 window = NULL;
             }
         } else {
             for (window = first_window; window != NULL; window = window->next) {
-                if (window->number == (uint32_t) action->parameter.integer) {
+                if (window->number == (uint32_t) action->data.integer) {
                     break;
                 }
             }
@@ -704,7 +704,7 @@ bool do_action(const Action *action, Window *window)
 
     /* go to the next window in the window list */
     case ACTION_NEXT_WINDOW:
-        count = action->parameter.integer;
+        count = action->data.integer;
         if (count == 0) {
             count = 1;
         }
@@ -717,7 +717,7 @@ bool do_action(const Action *action, Window *window)
 
     /* go to the previous window in the window list */
     case ACTION_PREVIOUS_WINDOW:
-        count = action->parameter.integer;
+        count = action->data.integer;
         if (count == 0) {
             count = 1;
         }
@@ -823,26 +823,21 @@ bool do_action(const Action *action, Window *window)
         }
         break;
 
-    /* quit fensterchef */
-    case ACTION_QUIT:
-        is_fensterchef_running = false;
-        break;
-
     /* run a shell program */
     case ACTION_RUN:
-        run_shell((char*) action->parameter.string);
+        run_shell((char*) action->data.string);
         break;
 
     /* show the user a message */
     case ACTION_SHOW_MESSAGE:
-        set_notification((utf8_t*) action->parameter.string,
+        set_notification((utf8_t*) action->data.string,
                 focus_frame->x + focus_frame->width / 2,
                 focus_frame->y + focus_frame->height / 2);
         break;
 
     /* show a message by getting output from a shell script */
     case ACTION_SHOW_MESSAGE_RUN:
-        shell = run_shell_and_get_output((char*) action->parameter.string);
+        shell = run_shell_and_get_output((char*) action->data.string);
         if (shell == NULL) {
             return false;
         }
@@ -855,10 +850,15 @@ bool do_action(const Action *action, Window *window)
     /* resize the edges of the current window */
     case ACTION_RESIZE_BY:
         return resize_frame_or_window_by(window,
-                action->parameter.quad[0],
-                action->parameter.quad[1],
-                action->parameter.quad[2],
-                action->parameter.quad[3]);
+                action->data.quad[0],
+                action->data.quad[1],
+                action->data.quad[2],
+                action->data.quad[3]);
+
+    /* quit fensterchef */
+    case ACTION_QUIT:
+        is_fensterchef_running = false;
+        break;
 
     /* not a real action */
     case ACTION_MAX:

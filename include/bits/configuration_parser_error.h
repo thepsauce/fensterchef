@@ -36,7 +36,7 @@
     /* invalid boolean identifier */ \
     X(PARSER_ERROR_INVALID_BOOLEAN, "invalid boolean value") \
     /* a label does not define given variable name */ \
-    X(PARSER_ERROR_INVALID_VARIABLE_NAME, "the current label does not have that variable name") \
+    X(PARSER_ERROR_INVALID_VARIABLE_NAME, "the label does not have that variable name") \
     /* color is not in the right format */ \
     X(PARSER_ERROR_BAD_COLOR_FORMAT, "bad color format (expect #XXXXXX)") \
     /* a line is terminated but tokens were expected first */ \
@@ -61,6 +61,8 @@
     X(PARSER_ERROR_EXPECTED_SEPARATOR, "expected separator ';'") \
     /* an unsigned integer was expected */ \
     X(PARSER_ERROR_EXPECTED_UNSIGNED_INTEGER, "expected an unsigned integer") \
+    /* a data type does not support an operation */ \
+    X(PARSER_ERROR_INVALID_OPERATOR, "operator not defined for this data type") \
 
 /* parser error codes */
 typedef enum {

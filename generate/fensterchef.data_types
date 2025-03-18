@@ -5,6 +5,7 @@ They are in the format:
 <name> <count of elements> <c data type>
    <comment>
 Note the 3 space indentation.
+The set data type is not included because it is not really a data type.
 
 boolean 1 bool 
    true or false value, one of: on yes true off no false

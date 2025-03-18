@@ -16,7 +16,7 @@ static const struct configuration_parser_label_name {
         /* name of the variable */
         const char *name;
         /* type of the variable */
-        parser_data_type_t data_type;
+        data_type_t data_type;
         /* offset within a `struct configuration` */
         size_t offset;
     } variables[7];
@@ -29,17 +29,17 @@ static const struct configuration_parser_label_name {
 
     [PARSER_LABEL_GENERAL] = {
         "general", NULL, {
-        { "overlap-percentage", PARSER_DATA_TYPE_INTEGER,
+        { "overlap-percentage", DATA_TYPE_INTEGER,
             offsetof(struct configuration, general.overlap_percentage) },
-        { "root-cursor", PARSER_DATA_TYPE_CURSOR,
+        { "root-cursor", DATA_TYPE_CURSOR,
             offsetof(struct configuration, general.root_cursor) },
-        { "moving-cursor", PARSER_DATA_TYPE_CURSOR,
+        { "moving-cursor", DATA_TYPE_CURSOR,
             offsetof(struct configuration, general.moving_cursor) },
-        { "horizontal-cursor", PARSER_DATA_TYPE_CURSOR,
+        { "horizontal-cursor", DATA_TYPE_CURSOR,
             offsetof(struct configuration, general.horizontal_cursor) },
-        { "vertical-cursor", PARSER_DATA_TYPE_CURSOR,
+        { "vertical-cursor", DATA_TYPE_CURSOR,
             offsetof(struct configuration, general.vertical_cursor) },
-        { "sizing-cursor", PARSER_DATA_TYPE_CURSOR,
+        { "sizing-cursor", DATA_TYPE_CURSOR,
             offsetof(struct configuration, general.sizing_cursor) },
         /* null terminate the end */
         { NULL, 0, 0 } }
@@ -47,7 +47,7 @@ static const struct configuration_parser_label_name {
 
     [PARSER_LABEL_ASSIGNMENT] = {
         "assignment", parse_assignment_association, {
-        { "first-window-number", PARSER_DATA_TYPE_INTEGER,
+        { "first-window-number", DATA_TYPE_INTEGER,
             offsetof(struct configuration, assignment.first_window_number) },
         /* null terminate the end */
         { NULL, 0, 0 } }
@@ -55,15 +55,15 @@ static const struct configuration_parser_label_name {
 
     [PARSER_LABEL_TILING] = {
         "tiling", NULL, {
-        { "auto-split", PARSER_DATA_TYPE_BOOLEAN,
+        { "auto-split", DATA_TYPE_BOOLEAN,
             offsetof(struct configuration, tiling.auto_split) },
-        { "auto-equalize", PARSER_DATA_TYPE_BOOLEAN,
+        { "auto-equalize", DATA_TYPE_BOOLEAN,
             offsetof(struct configuration, tiling.auto_equalize) },
-        { "auto-fill-void", PARSER_DATA_TYPE_BOOLEAN,
+        { "auto-fill-void", DATA_TYPE_BOOLEAN,
             offsetof(struct configuration, tiling.auto_fill_void) },
-        { "auto-remove", PARSER_DATA_TYPE_BOOLEAN,
+        { "auto-remove", DATA_TYPE_BOOLEAN,
             offsetof(struct configuration, tiling.auto_remove) },
-        { "auto-remove-void", PARSER_DATA_TYPE_BOOLEAN,
+        { "auto-remove-void", DATA_TYPE_BOOLEAN,
             offsetof(struct configuration, tiling.auto_remove_void) },
         /* null terminate the end */
         { NULL, 0, 0 } }
@@ -71,7 +71,7 @@ static const struct configuration_parser_label_name {
 
     [PARSER_LABEL_FONT] = {
         "font", NULL, {
-        { "name", PARSER_DATA_TYPE_STRING,
+        { "name", DATA_TYPE_STRING,
             offsetof(struct configuration, font.name) },
         /* null terminate the end */
         { NULL, 0, 0 } }
@@ -79,13 +79,13 @@ static const struct configuration_parser_label_name {
 
     [PARSER_LABEL_BORDER] = {
         "border", NULL, {
-        { "size", PARSER_DATA_TYPE_INTEGER,
+        { "size", DATA_TYPE_INTEGER,
             offsetof(struct configuration, border.size) },
-        { "color", PARSER_DATA_TYPE_COLOR,
+        { "color", DATA_TYPE_COLOR,
             offsetof(struct configuration, border.color) },
-        { "active-color", PARSER_DATA_TYPE_COLOR,
+        { "active-color", DATA_TYPE_COLOR,
             offsetof(struct configuration, border.active_color) },
-        { "focus-color", PARSER_DATA_TYPE_COLOR,
+        { "focus-color", DATA_TYPE_COLOR,
             offsetof(struct configuration, border.focus_color) },
         /* null terminate the end */
         { NULL, 0, 0 } }
@@ -93,9 +93,9 @@ static const struct configuration_parser_label_name {
 
     [PARSER_LABEL_GAPS] = {
         "gaps", NULL, {
-        { "inner", PARSER_DATA_TYPE_QUAD,
+        { "inner", DATA_TYPE_QUAD,
             offsetof(struct configuration, gaps.inner) },
-        { "outer", PARSER_DATA_TYPE_QUAD,
+        { "outer", DATA_TYPE_QUAD,
             offsetof(struct configuration, gaps.outer) },
         /* null terminate the end */
         { NULL, 0, 0 } }
@@ -103,17 +103,17 @@ static const struct configuration_parser_label_name {
 
     [PARSER_LABEL_NOTIFICATION] = {
         "notification", NULL, {
-        { "duration", PARSER_DATA_TYPE_INTEGER,
+        { "duration", DATA_TYPE_INTEGER,
             offsetof(struct configuration, notification.duration) },
-        { "padding", PARSER_DATA_TYPE_INTEGER,
+        { "padding", DATA_TYPE_INTEGER,
             offsetof(struct configuration, notification.padding) },
-        { "border-size", PARSER_DATA_TYPE_INTEGER,
+        { "border-size", DATA_TYPE_INTEGER,
             offsetof(struct configuration, notification.border_size) },
-        { "border-color", PARSER_DATA_TYPE_COLOR,
+        { "border-color", DATA_TYPE_COLOR,
             offsetof(struct configuration, notification.border_color) },
-        { "foreground", PARSER_DATA_TYPE_COLOR,
+        { "foreground", DATA_TYPE_COLOR,
             offsetof(struct configuration, notification.foreground) },
-        { "background", PARSER_DATA_TYPE_COLOR,
+        { "background", DATA_TYPE_COLOR,
             offsetof(struct configuration, notification.background) },
         /* null terminate the end */
         { NULL, 0, 0 } }
@@ -121,11 +121,11 @@ static const struct configuration_parser_label_name {
 
     [PARSER_LABEL_MOUSE] = {
         "mouse", parse_mouse_binding, {
-        { "resize-tolerance", PARSER_DATA_TYPE_INTEGER,
+        { "resize-tolerance", DATA_TYPE_INTEGER,
             offsetof(struct configuration, mouse.resize_tolerance) },
-        { "modifiers", PARSER_DATA_TYPE_MODIFIERS,
+        { "modifiers", DATA_TYPE_MODIFIERS,
             offsetof(struct configuration, mouse.modifiers) },
-        { "ignore-modifiers", PARSER_DATA_TYPE_MODIFIERS,
+        { "ignore-modifiers", DATA_TYPE_MODIFIERS,
             offsetof(struct configuration, mouse.ignore_modifiers) },
         /* null terminate the end */
         { NULL, 0, 0 } }
@@ -133,9 +133,9 @@ static const struct configuration_parser_label_name {
 
     [PARSER_LABEL_KEYBOARD] = {
         "keyboard", parse_keyboard_binding, {
-        { "modifiers", PARSER_DATA_TYPE_MODIFIERS,
+        { "modifiers", DATA_TYPE_MODIFIERS,
             offsetof(struct configuration, keyboard.modifiers) },
-        { "ignore-modifiers", PARSER_DATA_TYPE_MODIFIERS,
+        { "ignore-modifiers", DATA_TYPE_MODIFIERS,
             offsetof(struct configuration, keyboard.ignore_modifiers) },
         /* null terminate the end */
         { NULL, 0, 0 } }

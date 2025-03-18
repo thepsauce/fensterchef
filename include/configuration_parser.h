@@ -4,10 +4,10 @@
 #include <stdbool.h>
 #include <stdio.h>
 
-#include "bits/configuration_parser_data_type.h"
 #include "bits/configuration_parser_error.h"
 #include "bits/configuration_parser_label.h"
 
+#include "data_type.h"
 #include "default_configuration.h"
 #include "utility.h"
 
@@ -57,7 +57,7 @@ typedef struct parser {
     char character;
 
     /* parsed data value */
-    union parser_data_value data;
+    GenericData data;
     /* mousebinding, e.g.: MiddleButton close-window */
     struct configuration_button button;
     /* keybinding, e.g.: n next-window */

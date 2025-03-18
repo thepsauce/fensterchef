@@ -100,7 +100,7 @@ echo '    struct configuration_parser_label_variable {'
 echo '        /* name of the variable */'
 echo '        const char *name;'
 echo '        /* type of the variable */'
-echo '        parser_data_type_t data_type;'
+echo '        data_type_t data_type;'
 echo '        /* offset within a `struct configuration` */'
 echo '        size_t offset;'
 echo "    } variables[$max_count];"
@@ -141,7 +141,7 @@ for label in "${labels_in_order[@]}" ; do
             
             data_type_length="${data_type%% *}"
             c_variable_name="${variable_name//-/_}"
-            echo "        { \"${variable_name}\", PARSER_DATA_TYPE_${variable_type^^},"
+            echo "        { \"${variable_name}\", DATA_TYPE_${variable_type^^},"
             echo "            offsetof(struct configuration, $label.$c_variable_name) },"
             ;;
         esac

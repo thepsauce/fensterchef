@@ -28,17 +28,18 @@
     xrandr --output $MON2 --dpi 96
     ```
 
-#39 Add the set action that can set a variable
-    The set action would have the syntax `set <section>.<name> = <value>` and
-    dynamically reload the part of the configuration that is relevant
-
 #42 Better position for floating windows/dock windows
     When two dock windows appear on the same edge, they currently overlap.
     Improve this. And then two floating windows spawn, they are completely
     covering each over. Add an offset like Windows. Maybe add a configurable
     option for how large floating windows should be?
 
-#43 ...
+#43 Make perfect focus management
+    Make it so the focus can not be broken by focus_thief.
+    Make a proper design in your head how focus can be managed. The difficulty
+    is that override redirect windows can have focus.
+
+#44 ...
 
 #1000 Make a wayland port
     Make an additional repository that hosts fensterchef-wayland
@@ -72,6 +73,10 @@
     When certain events occur like showing a window, the user should be able to
     make a hook for an alternative action that should occur (instead of the
     default of focusing this window)
+
+#39 ? Add the set action that can set a variable
+    The set action would have the syntax `set <section>.<name> = <value>` and
+    dynamically reload the part of the configuration that is relevant
 
 [Done]
 #9 Add maintainability macros

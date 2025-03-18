@@ -24,7 +24,7 @@ void clear_configuration(struct configuration *configuration);
  *
  * Due to a bug, this function can not be called directly. Use
  * `reload_requested = true` instead, this will then call this function in
- * `main()`.
+ * `next_cycle()`.
  */
 void reload_user_configuration(void);
 

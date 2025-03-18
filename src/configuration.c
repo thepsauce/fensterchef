@@ -318,10 +318,10 @@ void grab_configured_keys(void)
 /* Compare the current configuration with the new configuration and set it. */
 void set_configuration(struct configuration *new_configuration)
 {
-    struct configuration old_configuration;
     xcb_render_color_t color;
 
-    old_configuration = configuration;
+    /* replace the configuration */
+    clear_configuration(&configuration);
     configuration = *new_configuration;
 
     /* reload all X cursors and cursor themes */
@@ -371,28 +371,20 @@ void set_configuration(struct configuration *new_configuration)
             window_list.client.y, window_list.client.width,
             window_list.client.height, configuration.notification.border_size);
 
-    /* check if notification background changed */
-    if (old_configuration.notification.background !=
-            configuration.notification.background &&
-            stock_objects[STOCK_WHITE_PEN] != XCB_NONE) {
+    /* change the text colors */
+    if (stock_objects[STOCK_WHITE_PEN] != XCB_NONE) {
         convert_color_to_xcb_color(&color,
                 configuration.notification.background);
         set_pen_color(stock_objects[STOCK_WHITE_PEN], color);
     }
-    /* check if notification foreground changed */
-    if (old_configuration.notification.foreground !=
-            configuration.notification.foreground &&
-            stock_objects[STOCK_WHITE_PEN] != XCB_NONE) {
+    if (stock_objects[STOCK_BLACK_PEN] != XCB_NONE) {
         convert_color_to_xcb_color(&color,
                 configuration.notification.foreground);
         set_pen_color(stock_objects[STOCK_BLACK_PEN], color);
     }
-    /* check if notification foreground or background changed */
-    if ((old_configuration.notification.foreground !=
-            configuration.notification.foreground ||
-            old_configuration.notification.background !=
-                configuration.notification.background) &&
-            stock_objects[STOCK_GC] != XCB_NONE &&
+
+    /* change the background colors */
+    if (stock_objects[STOCK_GC] != XCB_NONE &&
             stock_objects[STOCK_INVERTED_GC] != XCB_NONE) {
         general_values[0] = configuration.notification.background;
         general_values[1] = configuration.notification.foreground;
@@ -410,9 +402,6 @@ void set_configuration(struct configuration *new_configuration)
         grab_configured_buttons(window->client.id);
     }
     grab_configured_keys();
-
-    /* free the resources of the old configuration */
-    clear_configuration(&old_configuration);
 }
 
 /* Load a configuration from a string or file. */

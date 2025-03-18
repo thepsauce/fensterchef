@@ -135,7 +135,7 @@ void merge_with_default_button_bindings(struct configuration *configuration)
                 sizeof(default_bindings[i].action));
         next_button->number_of_actions = 1;
         duplicate_data_value(get_action_data_type(next_button->actions[0].code),
-                    &next_button->actions[0].parameter);
+                    &next_button->actions[0].data);
         next_button++;
     }
     configuration->mouse.number_of_buttons = new_count;
@@ -303,7 +303,7 @@ void merge_with_default_key_bindings(struct configuration *configuration)
                 sizeof(default_bindings[i].action));
         next_key->number_of_actions = 1;
         duplicate_data_value(get_action_data_type(next_key->actions[0].code),
-                    &next_key->actions[0].parameter);
+                    &next_key->actions[0].data);
         next_key++;
     }
     configuration->keyboard.number_of_keys = new_count;
