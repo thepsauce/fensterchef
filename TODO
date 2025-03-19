@@ -6,7 +6,7 @@
 #7 ! Discord hides itself again on WM_CHANGE_STATE
     When starting Discord, it sometimes hides itself again
     Try to check electron source code I guess... I do not know if it was made
-    using electron actually
+    using electron actually. Is this on purpose??
 
 #24 ! Monitor frames wrong when screen size changes
     Exactly in what circumstances this bug appears is not known but running
@@ -28,7 +28,7 @@
     xrandr --output $MON2 --dpi 96
     ```
 
-#44 ...
+#46 ...
 
 #1000 Make a wayland port
     Make an additional repository that hosts fensterchef-wayland
@@ -71,6 +71,9 @@
     Make it so the focus can not be broken by focus_thief.
     Make a proper design in your head how focus can be managed. The difficulty
     is that override redirect windows can have focus.
+
+#45 ! Fix weird flicker of Steam window
+    Steam flickers back and forth (once) when hovering over a menu item
 
 [Done]
 #9 Add maintainability macros
@@ -213,3 +216,6 @@
     Improve this. And then two floating windows spawn, they are completely
     covering each over. Add an offset like Windows. Maybe add a configurable
     option for how large floating windows should be?
+
+#44 Handle the add of _NET_WM_STATE_MAXIMIZED_HORZ
+    The steam window uses this to maximize itself.

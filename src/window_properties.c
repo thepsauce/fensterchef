@@ -471,7 +471,9 @@ window_mode_t initialize_window_properties(Window *window,
     }
 
     /* these are three direct checks */
-    if (is_atom_included(states, ATOM(_NET_WM_STATE_FULLSCREEN))) {
+    if (is_atom_included(states, ATOM(_NET_WM_STATE_FULLSCREEN)) ||
+            is_atom_included(states, ATOM(_NET_WM_STATE_MAXIMIZED_HORZ)) ||
+            is_atom_included(states, ATOM(_NET_WM_STATE_MAXIMIZED_VERT))) {
         predicted_mode = WINDOW_MODE_FULLSCREEN;
     } else if (is_atom_included(types, ATOM(_NET_WM_WINDOW_TYPE_DOCK))) {
         predicted_mode = WINDOW_MODE_DOCK;

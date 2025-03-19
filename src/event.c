@@ -879,7 +879,9 @@ static void handle_client_message(xcb_client_message_event_t *event)
         }
     /* a window wants to change a window state */
     } else if (event->type == ATOM(_NET_WM_STATE)) {
-        if (event->data.data32[1] == ATOM(_NET_WM_STATE_FULLSCREEN)) {
+        if (event->data.data32[1] == ATOM(_NET_WM_STATE_FULLSCREEN) ||
+                event->data.data32[1] == ATOM(_NET_WM_STATE_MAXIMIZED_HORZ) ||
+                event->data.data32[1] == ATOM(_NET_WM_STATE_MAXIMIZED_VERT)) {
             switch (event->data.data32[0]) {
             /* put the window out of fullscreen */
             case _NET_WM_STATE_REMOVE:
