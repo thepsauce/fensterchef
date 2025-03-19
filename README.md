@@ -1,11 +1,30 @@
-# Fensterchef – The X11 Tiling Window Manager for Linux
+# Fensterchef – The X11 Tiling Window Manager
 
-Fensterchef is a lightweight, lightning-fast window manager for Linux, focused on manual tiling.
+Fensterchef is a keyboard-centric tiling window manager for X11.
 
-🔹 Manual Tiling: Arrange your windows exactly how you want — no rigid grids or enforced layouts. </br>
-🔹 Lightweight & Fast: Minimal overhead ensures smooth performance, even on low-end hardware. </br>
-🔹 Highly Customizable: Configure Fensterchef easily with a simple configuration file. </br>
-🔹 Keyboard-Centric: Navigate your workspace effortlessly with intuitive shortcuts. </br>
+### Fensterchef includes
+
+- Manual tiling
+- Dynamic tiling
+- Floating windows
+- Dock windows of any kind
+- Desktop windows
+- Fullscreen windows
+- Minimizing windows
+- A simple configuration
+- Sending of external commands
+
+### Fensterchef does not include
+
+- A builtin bar
+- Window frames (only simple borders)
+- Desktops or workspaces in i3 terms
+
+### Why no workspaces?
+
+Workspaces are a good way to group windows together but since windows can be
+minimized and re-opened at any time through the window list or special hotkeys,
+there is no need for that.
 
 ## Gallery
 
@@ -29,10 +48,12 @@ Then simply type the following and enter your password.
 sudo make install
 ```
 
-Now you have the **fensterchef** executable (`/usr/bin/fensterchef`)
-and the two manual pages (`/usr/share/man/man1/fensterchef.1.gz` and `/usr/share/man/man5/fensterchef.5.gz`).
+Now you have the **fensterchef** executable (`/usr/bin/fensterchef`) and the two
+manual pages (`/usr/share/man/man1/fensterchef.1.gz` and
+`/usr/share/man/man5/fensterchef.5.gz`).
 
-If you are using a login manager, you can simply put this at the end of your `~/.xsession`:
+If you are using a login manager, you can simply put this at the end of your
+`~/.xsession`:
 ```
 mkdir -p ~/.local/share/fensterchef
 exec /usr/bin/fensterchef -dinfo 2>~/.local/share/fensterchef
@@ -50,9 +71,16 @@ make sandbox
 This will open a 800x600 window in your current desktop environment in which you
 can try out **fensterchef**.
 
-## Bugs
+## Bugs and feature requests
 
 Report any issues directly to us over the Github issues tab.
 
 An issue should start with the version, the rest is up to you. Try to add steps
 to reproduce the issue and add the relevant excerpts from the log.
+
+If it is a feature request, you can freely write anything.
+
+## IRC
+
+If you want to hang out with fensterchef users and developers you can join
+irc.libera.chat:6697 and find us in the channel named ##fensterchef.
