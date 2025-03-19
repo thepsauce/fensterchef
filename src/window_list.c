@@ -65,10 +65,10 @@ static inline char get_indicator_character(Window *window)
 {
     return !window->state.is_visible ? '-' :
             window->state.mode == WINDOW_MODE_FLOATING ?
-                (window == focus_window ? '#' : '=') :
+                (window == Window_focus ? '#' : '=') :
             window->state.mode == WINDOW_MODE_FULLSCREEN ?
-                (window == focus_window ? '@' : 'F') :
-            window == focus_window ? '*' : '+';
+                (window == Window_focus ? '@' : 'F') :
+            window == Window_focus ? '*' : '+';
 }
 
 static inline void get_window_string(Window *window, utf8_t *buffer,
@@ -86,7 +86,7 @@ static void render_window_list(void)
     struct text_measure     measure;
     uint32_t                height_per_item;
     uint32_t                max_width;
-    Frame                   *root_frame;
+    Monitor                 *monitor;
     uint32_t                index = 0;
     uint32_t                maximum_item;
     xcb_rectangle_t         rectangle;
@@ -100,7 +100,7 @@ static void render_window_list(void)
     measure.ascent = 12;
     measure.descent = -4;
     max_width = 0;
-    for (Window *window = first_window; window != NULL; window = window->next) {
+    for (Window *window = Window_first; window != NULL; window = window->next) {
         if (!is_valid_for_display(window)) {
             continue;
         }
@@ -124,10 +124,16 @@ static void render_window_list(void)
     height_per_item = measure.ascent - measure.descent +
         configuration.notification.padding;
 
-    root_frame = get_root_frame(focus_frame);
+    if (Window_focus == NULL || Frame_focus->window == Window_focus) {
+        monitor = get_monitor_containing_frame(Frame_focus);
+    } else {
+        monitor = get_monitor_from_rectangle_or_primary(
+                Window_focus->x, Window_focus->y, Window_focus->width,
+                Window_focus->height);
+    }
 
     /* the number of items that can fit on screen */
-    maximum_item = (root_frame->height -
+    maximum_item = (monitor->height -
             configuration.notification.border_size) / height_per_item;
     maximum_item = MIN(maximum_item, window_count);
 
@@ -143,10 +149,10 @@ static void render_window_list(void)
      * containing the focus frame
      */
     configure_client(&window_list.client,
-            root_frame->x + root_frame->width - max_width -
+            monitor->x + monitor->width - max_width -
                 configuration.notification.padding / 2 -
                 configuration.notification.border_size * 2,
-            root_frame->y,
+            monitor->y,
             max_width + configuration.notification.padding / 2,
             maximum_item * height_per_item,
             window_list.client.border_width);
@@ -157,7 +163,7 @@ static void render_window_list(void)
     rectangle.width = max_width + configuration.notification.padding / 2;
     rectangle.height = height_per_item;
     index = 0;
-    for (Window *window = first_window; window != NULL; window = window->next) {
+    for (Window *window = Window_first; window != NULL; window = window->next) {
         if (!is_valid_for_display(window)) {
             continue;
         }
@@ -234,19 +240,13 @@ static inline void focus_and_let_window_appear(Window *window, bool shift)
 {
     /* if shift is down, show the window in the current frame */
     if (shift && !window->state.is_visible) {
-        /* clear the old frame and stash it */
-        (void) stash_frame(focus_frame);
-        /* put the window into the focused frame, size and show it */
+        stash_frame(Frame_focus);
         set_window_mode(window, WINDOW_MODE_TILING);
-        focus_frame->window = window;
-        reload_frame(focus_frame);
-        window->state.is_visible = true;
     } else {
         /* put floating windows on the top */
         update_window_layer(window);
-
-        show_window(window);
     }
+    show_window(window);
     set_focus_window_with_frame(window);
 }
 
@@ -269,7 +269,7 @@ static void handle_key_press(xcb_key_press_event_t *event)
     case XK_y:
     case XK_Return:
         if (window_list.selected != NULL &&
-                window_list.selected != focus_window) {
+                window_list.selected != Window_focus) {
             focus_and_let_window_appear(window_list.selected,
                     !!(event->state & XCB_MOD_MASK_SHIFT));
             window_list.should_revert_focus = false;
@@ -279,13 +279,13 @@ static void handle_key_press(xcb_key_press_event_t *event)
 
     /* go to the first item */
     case XK_Home:
-        window_list.selected = get_valid_window_after(NULL, first_window);
+        window_list.selected = get_valid_window_after(NULL, Window_first);
         break;
 
     /* go to the last item */
     case XK_End:
         window_list.selected = get_valid_window_before(window_list.selected,
-                first_window, NULL);
+                Window_first, NULL);
         break;
 
     /* go to the previous item */
@@ -294,7 +294,7 @@ static void handle_key_press(xcb_key_press_event_t *event)
     case XK_Left:
     case XK_Up:
         window_list.selected = get_valid_window_before(window_list.selected,
-                first_window, window_list.selected);
+                Window_first, window_list.selected);
         break;
 
     /* go to the next item */
@@ -338,7 +338,7 @@ static void handle_unmap_notify(xcb_unmap_notify_event_t *event)
 
     /* give focus back to the last window */
     if (window_list.should_revert_focus) {
-        set_input_focus(focus_window);
+        set_input_focus(Window_focus);
     }
 }
 
@@ -355,7 +355,7 @@ static void handle_destroy_notify(xcb_destroy_notify_event_t *event)
     if (window == window_list.selected) {
         window_list.selected = get_valid_window_before(
                 get_valid_window_after(NULL, window_list.selected->next),
-                first_window, window_list.selected);
+                Window_first, window_list.selected);
     }
 }
 
@@ -401,10 +401,10 @@ int show_window_list(void)
     }
 
     /* get the initially selected window */
-    if (focus_window != NULL) {
-        selected = focus_window;
+    if (Window_focus != NULL) {
+        selected = Window_focus;
     } else {
-        for (selected = first_window; selected != NULL;
+        for (selected = Window_first; selected != NULL;
                 selected = selected->next) {
             if (is_valid_for_display(selected)) {
                 break;
@@ -414,8 +414,8 @@ int show_window_list(void)
 
     if (selected == NULL) {
         set_notification((utf8_t*) "No managed windows",
-                focus_frame->x + focus_frame->width / 2,
-                focus_frame->y + focus_frame->height / 2);
+                Frame_focus->x + Frame_focus->width / 2,
+                Frame_focus->y + Frame_focus->height / 2);
         return ERROR;
     }
 

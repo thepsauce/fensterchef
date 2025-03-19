@@ -79,13 +79,13 @@ struct frame {
 };
 
 /* the last frame in the frame stashed linked list */
-extern Frame *last_stashed_frame;
+extern Frame *Frame_last_stashed;
 
 /* the currently selected/focused frame */
-extern Frame *focus_frame;
+extern Frame *Frame_focus;
 
 /* the focus that existed before entering the event loop */
-extern Frame *old_focus_frame;
+extern Frame *Frame_old_focus;
 
 /* Create a frame object. */
 Frame *create_frame(void);

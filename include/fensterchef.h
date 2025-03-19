@@ -13,13 +13,13 @@
 #define FENSTERCHEF_CONFIGURATION "~/.config/fensterchef/fensterchef.config"
 
 /* the home directory */
-extern const char *fensterchef_home;
+extern const char *Fensterchef_home;
 
 /* the path of the configuration file */
-extern const char *fensterchef_configuration;
+extern const char *Fensterchef_configuration;
 
 /* true while the window manager is running */
-extern bool is_fensterchef_running;
+extern bool Fensterchef_is_running;
 
 /* Spawn a window that has the `FENSTERCHEF_COMMAND` property.
  *

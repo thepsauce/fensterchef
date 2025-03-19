@@ -49,6 +49,18 @@ window_mode_t predict_window_mode(Window *window);
 /* Check if @window has a visible border currently. */
 bool has_window_border(Window *window);
 
+/* Get the side of a monitor @window would like to attach to.
+ *
+ * This is based on the window strut if it is set, otherwise the gravity in
+ * `size_hints` is used.
+ *
+ * @return XCB_WINDOW_GRAVITY_STATIC if there is no preference.
+ */
+xcb_gravity_t get_window_gravity(Window *window);
+
+/* Set the position and size of the window to a dock window. */
+void configure_dock_size(Window *window);
+
 /* Add window states to the window's properties. */
 void add_window_states(Window *window, xcb_atom_t *states,
         uint32_t number_of_states);
@@ -79,6 +91,7 @@ void show_window(Window *window);
 void hide_window(Window *window);
 
 /* Hide the window without touching the tiling or focus.
+ *
  * Note: The focus however is removed if @window is the focus.
  */
 void hide_window_abruptly(Window *window);

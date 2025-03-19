@@ -31,7 +31,7 @@ static void show_inner_windows(Frame *frame)
  */
 static bool is_window_valid(Window *window)
 {
-    for (Window *other = first_window; other != NULL; other = other->next) {
+    for (Window *other = Window_first; other != NULL; other = other->next) {
         if (other == window) {
             return window->state.mode == WINDOW_MODE_TILING &&
                 !window->state.is_visible;
@@ -101,8 +101,8 @@ void link_frame_into_stash(Frame *frame)
     if (frame == NULL) {
         return;
     }
-    frame->previous_stashed = last_stashed_frame;
-    last_stashed_frame = frame;
+    frame->previous_stashed = Frame_last_stashed;
+    Frame_last_stashed = frame;
 }
 
 /* Take @frame away from the screen, this leaves a singular empty frame. */
@@ -121,10 +121,10 @@ void unlink_frame_from_stash(Frame *frame)
 {
     Frame *previous;
 
-    if (last_stashed_frame == frame) {
-        last_stashed_frame = last_stashed_frame->previous_stashed;
+    if (Frame_last_stashed == frame) {
+        Frame_last_stashed = Frame_last_stashed->previous_stashed;
     } else {
-        previous = last_stashed_frame;
+        previous = Frame_last_stashed;
         while (previous->previous_stashed != frame) {
             previous = previous->previous_stashed;
         }
@@ -154,20 +154,20 @@ Frame *pop_stashed_frame(void)
      * frame got invalidated because it lost all inner window and is now
      * completely empty
      */
-    while (last_stashed_frame != NULL) {
-        if (validate_inner_windows(last_stashed_frame) > 0 ||
-                last_stashed_frame->number > 0) {
+    while (Frame_last_stashed != NULL) {
+        if (validate_inner_windows(Frame_last_stashed) > 0 ||
+                Frame_last_stashed->number > 0) {
             break;
         }
 
-        Frame *const free_me = last_stashed_frame;
-        last_stashed_frame = last_stashed_frame->previous_stashed;
+        Frame *const free_me = Frame_last_stashed;
+        Frame_last_stashed = Frame_last_stashed->previous_stashed;
         free_frame_recursively(free_me);
     }
 
-    if (last_stashed_frame != NULL) {
-        pop = last_stashed_frame;
-        last_stashed_frame = last_stashed_frame->previous_stashed;
+    if (Frame_last_stashed != NULL) {
+        pop = Frame_last_stashed;
+        Frame_last_stashed = Frame_last_stashed->previous_stashed;
         show_inner_windows(pop);
     }
 

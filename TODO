@@ -28,17 +28,6 @@
     xrandr --output $MON2 --dpi 96
     ```
 
-#42 Better position for floating windows/dock windows
-    When two dock windows appear on the same edge, they currently overlap.
-    Improve this. And then two floating windows spawn, they are completely
-    covering each over. Add an offset like Windows. Maybe add a configurable
-    option for how large floating windows should be?
-
-#43 Make perfect focus management
-    Make it so the focus can not be broken by focus_thief.
-    Make a proper design in your head how focus can be managed. The difficulty
-    is that override redirect windows can have focus.
-
 #44 ...
 
 #1000 Make a wayland port
@@ -77,6 +66,11 @@
 #39 ? Add the set action that can set a variable
     The set action would have the syntax `set <section>.<name> = <value>` and
     dynamically reload the part of the configuration that is relevant
+
+#43 ? Make perfect focus management
+    Make it so the focus can not be broken by focus_thief.
+    Make a proper design in your head how focus can be managed. The difficulty
+    is that override redirect windows can have focus.
 
 [Done]
 #9 Add maintainability macros
@@ -213,3 +207,9 @@
 #41 Add actions to assignments
     Add actions to the end of assignments that are executed when a window
     receives the window number
+
+#42 Better position for floating windows/dock windows
+    When two dock windows appear on the same edge, they currently overlap.
+    Improve this. And then two floating windows spawn, they are completely
+    covering each over. Add an offset like Windows. Maybe add a configurable
+    option for how large floating windows should be?

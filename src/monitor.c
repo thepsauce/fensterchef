@@ -20,7 +20,7 @@
 static bool randr_enabled = false;
 
 /* the first monitor in the monitor linked list */
-Monitor *first_monitor;
+Monitor *Monitor_first;
 
 /* Create a screenless monitor. */
 static Monitor *create_monitor(const char *name, uint32_t name_len)
@@ -43,6 +43,8 @@ void initialize_monitors(void)
     /* get the data for the randr extension and check if it is there */
     extension = xcb_get_extension_data(connection, &xcb_randr_id);
     if (!extension->present) {
+        /* merge with a default monitor surrounding everything */
+        merge_monitors(NULL);
         return;
     }
 
@@ -50,7 +52,7 @@ void initialize_monitors(void)
     version_cookie = xcb_randr_query_version(connection,
             XCB_RANDR_MAJOR_VERSION, XCB_RANDR_MINOR_VERSION);
     version = xcb_randr_query_version_reply(connection, version_cookie, &error);
-    if (error != NULL) {
+    if (version == NULL) {
         LOG_ERROR("could not query randr version: %E\n", error);
         free(error);
     } else {
@@ -69,23 +71,106 @@ void initialize_monitors(void)
     merge_monitors(query_monitors());
 }
 
+/* Push all dock windows coming after @window. */
+static void push_other_dock_windows(Monitor *monitor, Window *window)
+{
+    const xcb_gravity_t gravity = get_window_gravity(window);
+    if (gravity == XCB_GRAVITY_STATIC) {
+        return;
+    }
+
+    for (Window *other = window->next; other != NULL; other = other->next) {
+        if (!other->state.is_visible) {
+            continue;
+        }
+        if (other->state.mode != WINDOW_MODE_DOCK) {
+            continue;
+        }
+
+        Monitor *const other_monitor = get_monitor_from_rectangle(
+                other->x, other->y, other->width, other->height);
+        if (other_monitor != monitor) {
+            continue;
+        }
+
+        const xcb_gravity_t other_gravity = get_window_gravity(other);
+        switch (gravity) {
+        case XCB_GRAVITY_NORTH:
+            if (other_gravity == XCB_GRAVITY_SOUTH) {
+                break;
+            }
+            if (other_gravity != gravity && other->height > window->height) {
+                other->height -= window->height;
+            }
+            other->y = window->y + window->height;
+            break;
+
+        case XCB_GRAVITY_WEST:
+            if (other_gravity == XCB_GRAVITY_EAST) {
+                break;
+            }
+            if (other_gravity != gravity && other->width > window->width) {
+                other->width -= window->width;
+            }
+            other->x = window->x + window->width;
+            break;
+
+        case XCB_GRAVITY_SOUTH:
+            if (other_gravity == XCB_GRAVITY_NORTH) {
+                break;
+            }
+            if (other_gravity == gravity) {
+                other->y = window->y - other->height;
+            } else if (other->height > window->height) {
+                other->height -= window->height;
+            }
+            break;
+
+        case XCB_GRAVITY_EAST:
+            if (other_gravity == XCB_GRAVITY_WEST) {
+                break;
+            }
+            if (other_gravity == gravity) {
+                other->x = window->x - other->width;
+            } else if (other->width > window->width) {
+                other->width -= window->width;
+            }
+            break;
+
+        default:
+            break;
+        }
+    }
+}
+
 /* Go through all windows to find the total strut and apply it to all monitors.
-*/
+ */
 void reconfigure_monitor_frames(void)
 {
     Monitor *monitor;
 
     /* reset all struts before recomputing */
-    for (monitor = first_monitor; monitor != NULL; monitor = monitor->next) {
+    for (monitor = Monitor_first; monitor != NULL; monitor = monitor->next) {
         monitor->strut.left = 0;
         monitor->strut.top = 0;
         monitor->strut.right = 0;
         monitor->strut.bottom = 0;
     }
 
-    /* recompute all struts */
-    for (Window *window = first_window; window != NULL; window = window->next) {
+    /* reconfigure all dock windows */
+    for (Window *window = Window_first; window != NULL; window = window->next) {
+        if (window->state.mode != WINDOW_MODE_DOCK) {
+            continue;
+        }
+        configure_dock_size(window);
+    }
+
+    /* recompute all struts and push dock windows */
+    for (Window *window = Window_first; window != NULL; window = window->next) {
         if (!window->state.is_visible) {
+            continue;
+        }
+        if (window->state.mode != WINDOW_MODE_DOCK) {
             continue;
         }
 
@@ -101,17 +186,25 @@ void reconfigure_monitor_frames(void)
         monitor->strut.top += window->strut.reserved.top;
         monitor->strut.right += window->strut.reserved.right;
         monitor->strut.bottom += window->strut.reserved.bottom;
+
+        push_other_dock_windows(monitor, window);
     }
 
     /* resize all frames to their according size */
-    for (monitor = first_monitor; monitor != NULL; monitor = monitor->next) {
+    for (monitor = Monitor_first; monitor != NULL; monitor = monitor->next) {
+        const int32_t strut_x = MIN((uint32_t) monitor->strut.left,
+                monitor->width);
+        const int32_t strut_y = MIN((uint32_t) monitor->strut.top,
+                monitor->height);
+        const uint32_t strut_sum_x = strut_x + monitor->strut.right;
+        const uint32_t strut_sum_y = strut_y + monitor->strut.bottom;
         resize_frame_and_ignore_ratio(monitor->frame,
-                monitor->x + monitor->strut.left,
-                monitor->y + monitor->strut.top,
-                monitor->width - monitor->strut.right -
-                    monitor->strut.left,
-                monitor->height - monitor->strut.bottom -
-                    monitor->strut.top);
+                monitor->x + strut_x,
+                monitor->y + strut_y,
+                strut_sum_x >= monitor->width ? 1 :
+                    monitor->width - strut_sum_x,
+                strut_sum_y >= monitor->height ? 1 :
+                    monitor->height - strut_sum_y);
     }
 }
 
@@ -143,7 +236,7 @@ static inline bool get_overlap(int32_t x1, int32_t y1, uint32_t width1,
 Monitor *get_monitor_containing_frame(Frame *frame)
 {
     frame = get_root_frame(frame);
-    for (Monitor *monitor = first_monitor; monitor != NULL;
+    for (Monitor *monitor = Monitor_first; monitor != NULL;
             monitor = monitor->next) {
         if (monitor->frame == frame) {
             return monitor;
@@ -160,7 +253,7 @@ Monitor *get_monitor_from_rectangle(int32_t x, int32_t y,
     uint64_t best_area = 0, area;
     Size overlap;
 
-    for (Monitor *monitor = first_monitor; monitor != NULL;
+    for (Monitor *monitor = Monitor_first; monitor != NULL;
             monitor = monitor->next) {
         if (!get_overlap(x, y, width, height, monitor->x, monitor->y,
                     monitor->width, monitor->height, &overlap)) {
@@ -185,7 +278,7 @@ Monitor *get_monitor_from_rectangle_or_primary(int32_t x, int32_t y,
     Monitor *monitor;
 
     monitor = get_monitor_from_rectangle(x, y, width, height);
-    return monitor == NULL ? first_monitor : monitor;
+    return monitor == NULL ? Monitor_first : monitor;
 }
 
 /* Get a monitor with given name from the monitor linked list. */
@@ -211,7 +304,7 @@ Window *get_window_covering_monitor(Monitor *monitor)
 
     monitor_area = (uint64_t) monitor->width * monitor->height;
     /* go through the windows from bottom to top */
-    for (Window *window = bottom_window; window != NULL;
+    for (Window *window = Window_bottom; window != NULL;
             window = window->above) {
         /* only consider floating and fullscreen windows */
         if (window->state.mode != WINDOW_MODE_FLOATING &&
@@ -389,7 +482,7 @@ void merge_monitors(Monitor *monitors)
     /* copy frames from the old monitors to the new ones with same name */
     for (Monitor *monitor = monitors; monitor != NULL;
             monitor = monitor->next) {
-        Monitor *const other = get_monitor_by_name(first_monitor,
+        Monitor *const other = get_monitor_by_name(Monitor_first,
                 monitor->name, strlen(monitor->name));
         if (other == NULL) {
             continue;
@@ -399,15 +492,15 @@ void merge_monitors(Monitor *monitors)
         other->frame = NULL;
     }
 
-    focus_frame_root = get_root_frame(focus_frame);
+    focus_frame_root = get_root_frame(Frame_focus);
     /* drop the frames that are no longer valid */
-    for (Monitor *monitor = first_monitor, *next_monitor; monitor != NULL;
+    for (Monitor *monitor = Monitor_first, *next_monitor; monitor != NULL;
             monitor = next_monitor) {
         next_monitor = monitor->next;
         if (monitor->frame != NULL) {
             /* make sure no broken frame focus remains */
             if (focus_frame_root == monitor->frame) {
-                focus_frame = NULL;
+                Frame_focus = NULL;
             }
 
             /* stash away the frame */
@@ -418,7 +511,7 @@ void merge_monitors(Monitor *monitors)
         free(monitor);
     }
 
-    first_monitor = monitors;
+    Monitor_first = monitors;
 
     /* initialize the remaining monitors' frames */
     for (Monitor *monitor = monitors; monitor != NULL;
@@ -442,7 +535,7 @@ void merge_monitors(Monitor *monitors)
     }
 
     /* if the focus frame was abonded, focus a different one */
-    if (focus_frame == NULL) {
-        set_focus_frame(first_monitor->frame);
+    if (Frame_focus == NULL) {
+        set_focus_frame(Monitor_first->frame);
     }
 }

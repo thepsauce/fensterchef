@@ -121,12 +121,12 @@ void reload_user_configuration(void)
     char *path;
     struct configuration configuration;
 
-    if (fensterchef_configuration[0] == '~' &&
-            fensterchef_configuration[1] == '/') {
-        path = xasprintf("%s/%s", fensterchef_home,
-                &fensterchef_configuration[2]);
+    if (Fensterchef_configuration[0] == '~' &&
+            Fensterchef_configuration[1] == '/') {
+        path = xasprintf("%s/%s", Fensterchef_home,
+                &Fensterchef_configuration[2]);
     } else {
-        path = xstrdup(fensterchef_configuration);
+        path = xstrdup(Fensterchef_configuration);
     }
 
     if (load_configuration(path, &configuration, true) == OK) {
@@ -338,8 +338,8 @@ void set_configuration(struct configuration *new_configuration)
     }
 
     /* refresh the border size and color of all windows */
-    for (Window *window = first_window; window != NULL; window = window->next) {
-        if (window == focus_window) {
+    for (Window *window = Window_first; window != NULL; window = window->next) {
+        if (window == Window_focus) {
             window->border_color = configuration.border.focus_color;
         } else {
             window->border_color = configuration.border.color;
@@ -350,7 +350,7 @@ void set_configuration(struct configuration *new_configuration)
     }
 
     /* reload all frames since the gaps or border sizes might have changed */
-    for (Monitor *monitor = first_monitor; monitor != NULL;
+    for (Monitor *monitor = Monitor_first; monitor != NULL;
             monitor = monitor->next) {
         resize_frame_and_ignore_ratio(monitor->frame, monitor->frame->x,
                 monitor->frame->y, monitor->frame->width,
@@ -398,7 +398,7 @@ void set_configuration(struct configuration *new_configuration)
     }
 
     /* re-grab all bindings */
-    for (Window *window = first_window; window != NULL; window = window->next) {
+    for (Window *window = Window_first; window != NULL; window = window->next) {
         grab_configured_buttons(window->client.id);
     }
     grab_configured_keys();

@@ -50,10 +50,7 @@ struct window {
     /* the region the window should appear at as fullscreen window */
     Extents fullscreen_monitors;
 
-    /* the motif window manager hints */
-    motif_wm_hints_t motif_wm_hints;
-
-    /* the window states */
+    /* the window states containing atoms `_NET_WM_STATE_*` */
     xcb_atom_t *states;
 
     /* the window state */
@@ -65,6 +62,10 @@ struct window {
     uint32_t width;
     uint32_t height;
 
+    /* if the window should have no border as floating window; to check if a
+     * window *actually* has a border, use `has_window_border()`
+     */
+    bool is_borderless;
     /* size and color of the border */
     uint32_t border_size;
     uint32_t border_color;
@@ -94,23 +95,28 @@ struct window {
     Window *next;
 };
 
+/* the number of all windows within the linked list, this value is kept up to
+ * date through `create_window()` and `destroy_window()`
+ */
+extern uint32_t Window_count;
+
 /* the window that was created before any other */
-extern Window *oldest_window;
+extern Window *Window_oldest;
 
 /* the window at the bottom of the Z stack */
-extern Window *bottom_window;
+extern Window *Window_bottom;
 
 /* the window at the top of the Z stack */
-extern Window *top_window;
+extern Window *Window_top;
 
 /* the first window in the number linked list */
-extern Window *first_window;
+extern Window *Window_first;
 
 /* the currently focused window */
-extern Window *focus_window;
+extern Window *Window_focus;
 
 /* the focus that existed before entering the event cycle */
-extern Window *old_focus_window;
+extern Window *Window_old_focus;
 
 /* Create a window object and add it to all window lists.
  *
@@ -135,7 +141,7 @@ void close_window(Window *window);
 
 /* Adjust given @x and @y such that it follows the @window_gravity. */
 void adjust_for_window_gravity(Monitor *monitor, int32_t *x, int32_t *y,
-        uint32_t width, uint32_t height, uint32_t window_gravity);
+        uint32_t width, uint32_t height, xcb_gravity_t gravity);
 
 /* Move the window such that it is in bounds of the screen. */
 void place_window_in_bounds(Window *window);

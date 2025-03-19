@@ -7,13 +7,13 @@
 #include "x11_management.h"
 
 /* the home directory */
-const char *fensterchef_home;
+const char *Fensterchef_home;
 
 /* true while the window manager is running */
-bool is_fensterchef_running;
+bool Fensterchef_is_running;
 
 /* the path of the configuration file */
-const char *fensterchef_configuration = FENSTERCHEF_CONFIGURATION;
+const char *Fensterchef_configuration = FENSTERCHEF_CONFIGURATION;
 
 /* Spawn a window that has the `FENSTERCHEF_COMMAND` property. */
 void run_external_command(const char *command)

@@ -110,7 +110,7 @@ static int handle_option(option_t option, char *value)
 
     /* set the configuration */
     case OPTION_CONFIG:
-        fensterchef_configuration = value;
+        Fensterchef_configuration = value;
         return OK;
 
     /* run a command */

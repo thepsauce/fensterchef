@@ -10,23 +10,28 @@
 #include "window_properties.h"
 #include "xalloc.h"
 
+/* the number of all windows within the linked list, this value is kept up to
+ * date through `create_window()` and `destroy_window()`
+ */
+uint32_t Window_count;
+
 /* the window that was created before any other */
-Window *oldest_window;
+Window *Window_oldest;
 
 /* the window at the bottom of the Z stack */
-Window *bottom_window;
+Window *Window_bottom;
 
 /* the window at the top of the Z stack */
-Window *top_window;
+Window *Window_top;
 
 /* the first window in the number linked list */
-Window *first_window;
+Window *Window_first;
 
 /* the currently focused window */
-Window *focus_window;
+Window *Window_focus;
 
 /* the focus that existed before entering the event loop */
-Window *old_focus_window;
+Window *Window_old_focus;
 
 /* Find where in the number linked list a gap is.
  *
@@ -39,12 +44,12 @@ static inline Window *find_number_gap(void)
     /* if the first window has window number greater than the first number that
      * means there is space at the front
      */
-    if (first_window->number > (uint32_t)
+    if (Window_first->number > (uint32_t)
             configuration.assignment.first_window_number) {
         return NULL;
     }
 
-    previous = first_window;
+    previous = Window_first;
     /* find the first window with a higher number than
      * `first_window_number`
      */
@@ -72,11 +77,11 @@ static inline Window *find_window_number(uint32_t number)
 {
     Window *previous;
 
-    if (first_window == NULL || first_window->number > number) {
+    if (Window_first == NULL || Window_first->number > number) {
         return NULL;
     }
 
-    previous = first_window;
+    previous = Window_first;
     /* find a gap in the window numbers */
     for (; previous->next != NULL; previous = previous->next) {
         if (previous->next->number > number) {
@@ -132,7 +137,7 @@ Window *create_window(xcb_window_t xcb_window,
                 for (uint32_t i = 0;
                         i < configuration.startup.number_of_actions;
                         i++) {
-                    do_action(&configuration.startup.actions[i], focus_window);
+                    do_action(&configuration.startup.actions[i], Window_focus);
                 }
                 clear_configuration(&configuration);
             }
@@ -194,16 +199,16 @@ Window *create_window(xcb_window_t xcb_window,
     window->number = association->number;
 
     /* link into the Z, age and number linked lists */
-    if (first_window == NULL) {
-        oldest_window = window;
-        bottom_window = window;
-        top_window = window;
-        first_window = window;
+    if (Window_first == NULL) {
+        Window_oldest = window;
+        Window_bottom = window;
+        Window_top = window;
+        Window_first = window;
         if (window->number == 0) {
             window->number = configuration.assignment.first_window_number;
         }
     } else {
-        previous = first_window;
+        previous = Window_first;
         if (window->number == 0) {
             previous = find_number_gap();
         } else {
@@ -211,8 +216,8 @@ Window *create_window(xcb_window_t xcb_window,
         }
 
         if (previous == NULL) {
-            window->next = first_window;
-            first_window = window;
+            window->next = Window_first;
+            Window_first = window;
             if (window->number == 0) {
                 window->number = configuration.assignment.first_window_number;
             }
@@ -225,17 +230,20 @@ Window *create_window(xcb_window_t xcb_window,
         }
 
         /* put the window at the top of the Z linked list */
-        window->below = top_window;
-        top_window->above = window;
-        top_window = window;
+        window->below = Window_top;
+        Window_top->above = window;
+        Window_top = window;
 
         /* put the window into the age linked list */
-        previous = oldest_window;
+        previous = Window_oldest;
         while (previous->newer != NULL) {
             previous = previous->newer;
         }
         previous->newer = window;
     }
+
+    /* new window is now in the list */
+    Window_count++;
 
     /* initialize the window mode and Z position */
     set_window_mode(window, mode);
@@ -260,11 +268,11 @@ static void unlink_window_from_z_list(Window *window)
         window->above->below = window->below;
     }
 
-    if (window == bottom_window) {
-        bottom_window = window->above;
+    if (window == Window_bottom) {
+        Window_bottom = window->above;
     }
-    if (window == top_window) {
-        top_window = window->below;
+    if (window == Window_top) {
+        Window_top = window->below;
     }
 
     window->above = NULL;
@@ -288,8 +296,8 @@ void destroy_window(Window *window)
     hide_window_abruptly(window);
 
     /* exceptional state, this should never happen */
-    if (window == focus_window) {
-        focus_window = NULL;
+    if (window == Window_focus) {
+        Window_focus = NULL;
         LOG_ERROR("destroying window with focus\n");
     }
 
@@ -306,10 +314,10 @@ void destroy_window(Window *window)
     unlink_window_from_z_list(window);
 
     /* remove from the age linked list */
-    if (oldest_window == window) {
-        oldest_window = oldest_window->newer;
+    if (Window_oldest == window) {
+        Window_oldest = Window_oldest->newer;
     } else {
-        previous = oldest_window;
+        previous = Window_oldest;
         while (previous->newer != window) {
             previous = previous->newer;
         }
@@ -317,15 +325,18 @@ void destroy_window(Window *window)
     }
 
     /* remove from the number linked list */
-    if (first_window == window) {
-        first_window = first_window->next;
+    if (Window_first == window) {
+        Window_first = Window_first->next;
     } else {
-        previous = first_window;
+        previous = Window_first;
         while (previous->next != window) {
             previous = previous->next;
         }
         previous->next = window->next;
     }
+
+    /* window is gone from the list now */
+    Window_count--;
 
     has_client_list_changed = true;
 
@@ -333,8 +344,8 @@ void destroy_window(Window *window)
      * pointer to be re-used for a different frame and then end up not
      * registering the focus change
      */
-    if (window == old_focus_window) {
-        old_focus_window = &i_am_used_as_marker;
+    if (window == Window_old_focus) {
+        Window_old_focus = &i_am_used_as_marker;
     }
 
     free(window->name);
@@ -382,9 +393,9 @@ void close_window(Window *window)
 
 /* Adjust given @x and @y such that it follows the @window_gravity. */
 void adjust_for_window_gravity(Monitor *monitor, int32_t *x, int32_t *y,
-        uint32_t width, uint32_t height, uint32_t window_gravity)
+        uint32_t width, uint32_t height, xcb_gravity_t gravity)
 {
-    switch (window_gravity) {
+    switch (gravity) {
     /* attach to the top left */
     case XCB_GRAVITY_NORTH_WEST:
         *x = monitor->x;
@@ -436,7 +447,7 @@ void adjust_for_window_gravity(Monitor *monitor, int32_t *x, int32_t *y,
         break;
 
     /* nothing to do */
-    case XCB_GRAVITY_STATIC:
+    default:
         break;
     }
 }
@@ -487,7 +498,7 @@ void place_window_in_bounds(Window *window)
     /* make the window vertically visible */
     if (window->y + (int32_t) window->height < WINDOW_MINIMUM_VISIBLE_SIZE) {
         window->y = WINDOW_MINIMUM_VISIBLE_SIZE - window->height;
-    } else if (WINDOW_MINIMUM_VISIBLE_SIZE >=
+    } else if (window->y + WINDOW_MINIMUM_VISIBLE_SIZE >=
             (int32_t) screen->height_in_pixels) {
         window->y = screen->height_in_pixels - WINDOW_MINIMUM_VISIBLE_SIZE;
     }
@@ -519,6 +530,8 @@ void set_window_size(Window *window, int32_t x, int32_t y, uint32_t width,
     window->y = y;
     window->width = width;
     window->height = height;
+
+    place_window_in_bounds(window);
 }
 
 /* Links the window into the z linked list at a specific place and synchronizes
@@ -534,13 +547,13 @@ static void link_window_into_z_list(Window *below, Window *window)
     if (below == NULL) {
         LOG("putting %W at the bottom of the stack\n", window);
 
-        if (bottom_window != NULL) {
-            bottom_window->below = window;
-            window->above = bottom_window;
+        if (Window_bottom != NULL) {
+            Window_bottom->below = window;
+            window->above = Window_bottom;
         } else {
-            top_window = window;
+            Window_top = window;
         }
-        bottom_window = window;
+        Window_bottom = window;
 
         general_values[0] = XCB_STACK_MODE_BELOW;
     /* link it above `below` */
@@ -555,8 +568,8 @@ static void link_window_into_z_list(Window *below, Window *window)
         below->above = window;
         window->below = below;
 
-        if (below == top_window) {
-            top_window = window;
+        if (below == Window_top) {
+            Window_top = window;
         }
 
         general_values[0] = below->client.id;
@@ -581,9 +594,9 @@ void update_window_layer(Window *window)
      * windows otherwise put it at the bottom
      */
     case WINDOW_MODE_TILING:
-        if (bottom_window != NULL &&
-                bottom_window->state.mode == WINDOW_MODE_DESKTOP) {
-            below = bottom_window;
+        if (Window_bottom != NULL &&
+                Window_bottom->state.mode == WINDOW_MODE_DESKTOP) {
+            below = Window_bottom;
             while (below->above != NULL &&
                     below->state.mode == WINDOW_MODE_DESKTOP) {
                 below = below->above;
@@ -595,7 +608,7 @@ void update_window_layer(Window *window)
     case WINDOW_MODE_FLOATING:
     case WINDOW_MODE_FULLSCREEN:
     case WINDOW_MODE_DOCK:
-        below = top_window;
+        below = Window_top;
         break;
 
     /* put the window at the bottom */
@@ -621,7 +634,7 @@ void update_window_layer(Window *window)
 /* Get the internal window that has the associated xcb window. */
 Window *get_window_of_xcb_window(xcb_window_t xcb_window)
 {
-    for (Window *window = first_window; window != NULL;
+    for (Window *window = Window_first; window != NULL;
             window = window->next) {
         if (window->client.id == xcb_window) {
             return window;
@@ -645,7 +658,7 @@ static Frame *find_frame_recursively(Frame *frame, const Window *window)
     if (find != NULL) {
         return find;
     }
-    
+
     return find_frame_recursively(frame->right, window);
 }
 
@@ -657,7 +670,7 @@ Frame *get_frame_of_window(const Window *window)
         return NULL;
     }
 
-    for (Monitor *monitor = first_monitor; monitor != NULL;
+    for (Monitor *monitor = Monitor_first; monitor != NULL;
             monitor = monitor->next) {
         Frame *const find = find_frame_recursively(monitor->frame, window);
         if (find != NULL) {
@@ -706,11 +719,11 @@ void set_focus_window(Window *window)
             if (!does_window_accept_focus(window)) {
                 LOG_ERROR("the window can not be focused\n");
                 window = NULL;
-            } else if (window == focus_window) {
+            } else if (window == Window_focus) {
                 LOG("the window is already focused\n");
             }
         }
     }
 
-    focus_window = window;
+    Window_focus = window;
 }

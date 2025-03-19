@@ -32,24 +32,6 @@ typedef struct wm_strut_partial {
     uint32_t bottom_end_x;
 } wm_strut_partial_t;
 
-/* whether the window has decorations */
-#define MOTIF_WM_HINTS_DECORATIONS (1 << 1)
-
-/* needed for a`_MOTIF_WM_HINTS` to determine if a window wants to hide borders
- */
-typedef struct motif_wm_hints {
-    /* what fields below are available */
-    uint32_t flags;
-    /* IGNORED */
-    uint32_t functions;
-    /* IGNORED */
-    uint32_t decorations;
-    /* IGNORED */
-    uint32_t input_mode;
-    /* IGNORED */
-    uint32_t status;
-} motif_wm_hints_t;
-
 /* `_NET_WM_MOVERESIZE` window movement or resizing */
 typedef enum {
     /* resizing applied on the top left edge */

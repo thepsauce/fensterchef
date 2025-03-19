@@ -93,38 +93,33 @@ void synchronize_client_list(void)
     } client_list;
 
     Window *window;
-    uint32_t number_of_windows = 0;
     uint32_t index = 0;
 
-    for (window = first_window; window != NULL; window = window->next) {
-        number_of_windows++;
-    }
-
-    if (number_of_windows > client_list.length) {
-        client_list.length = number_of_windows;
+    if (Window_count > client_list.length) {
+        client_list.length = Window_count;
         RESIZE(client_list.ids, client_list.length);
     }
 
-    /* sort the list in order of the Z stacking */
-    for (window = oldest_window; window != NULL; window = window->newer) {
+    /* sort the list in order of their age (oldest to newest) */
+    for (window = Window_oldest; window != NULL; window = window->newer) {
         client_list.ids[index] = window->client.id;
         index++;
     }
     /* set the `_NET_CLIENT_LIST` property */
     xcb_change_property(connection, XCB_PROP_MODE_REPLACE, screen->root,
             ATOM(_NET_CLIENT_LIST), XCB_ATOM_WINDOW, 32,
-            number_of_windows, client_list.ids);
+            Window_count, client_list.ids);
 
     index = 0;
-    /* sort the list in order of the Z stacking */
-    for (window = bottom_window; window != NULL; window = window->above) {
+    /* sort the list in order of the Z stacking (bottom to top) */
+    for (window = Window_bottom; window != NULL; window = window->above) {
         client_list.ids[index] = window->client.id;
         index++;
     }
     /* set the `_NET_CLIENT_LIST_STACKING` property */
     xcb_change_property(connection, XCB_PROP_MODE_REPLACE, screen->root,
             ATOM(_NET_CLIENT_LIST_STACKING), XCB_ATOM_WINDOW, 32,
-            number_of_windows, client_list.ids);
+            Window_count, client_list.ids);
 }
 
 /* Synchronize the local data with the X server. */
@@ -138,16 +133,16 @@ void synchronize_with_server(void)
     reconfigure_monitor_frames();
 
     /* set the border colors of the windows */
-    for (Window *window = first_window; window != NULL; window = window->next) {
-        if (window != focus_window) {
+    for (Window *window = Window_first; window != NULL; window = window->next) {
+        if (window != Window_focus) {
             state_atom = ATOM(_NET_WM_STATE_FOCUSED);
             remove_window_states(window, &state_atom, 1);
         }
-        if (window == focus_window) {
+        if (window == Window_focus) {
             window->border_color = configuration.border.focus_color;
-        } else if (window == focus_frame->window ||
+        } else if (window == Frame_focus->window ||
                 (window->state.mode == WINDOW_MODE_FLOATING &&
-                 window == top_window)) {
+                 window == Window_top)) {
             window->border_color = configuration.border.active_color;
         } else {
             window->border_color = configuration.border.color;
@@ -155,11 +150,10 @@ void synchronize_with_server(void)
     }
 
     /* configure all visible windows and map them */
-    for (Window *window = top_window; window != NULL; window = window->below) {
+    for (Window *window = Window_top; window != NULL; window = window->below) {
         if (!window->state.is_visible) {
             continue;
         }
-        place_window_in_bounds(window);
         configure_client(&window->client, window->x, window->y,
                 window->width, window->height, window->border_size);
         change_client_attributes(&window->client, window->border_color);
@@ -169,7 +163,7 @@ void synchronize_with_server(void)
     }
 
     /* unmap all invisible windows */
-    for (Window *window = bottom_window; window != NULL;
+    for (Window *window = Window_bottom; window != NULL;
             window = window->above) {
         if (!window->state.is_visible) {
             state_atom = ATOM(_NET_WM_STATE_HIDDEN);
@@ -187,7 +181,7 @@ int next_cycle(void)
     fd_set set;
 
     connection_error = xcb_connection_has_error(connection);
-    if (!is_fensterchef_running || connection_error > 0) {
+    if (!Fensterchef_is_running || connection_error > 0) {
         if (connection_error > 0) {
             LOG_ERROR("connection error: %X\n", connection_error);
         }
@@ -197,8 +191,8 @@ int next_cycle(void)
     /* these values are only used for comparison, the pointers itself might get
      * set to an invalid frame or window
      */
-    old_focus_window = focus_window;
-    old_focus_frame = focus_frame;
+    Window_old_focus = Window_focus;
+    Frame_old_focus = Frame_focus;
 
     /* prepare `set` for `select()` */
     FD_ZERO(&set);
@@ -230,29 +224,29 @@ int next_cycle(void)
             has_client_list_changed = false;
         }
 
-        if (old_focus_window != focus_window) {
-            set_input_focus(focus_window);
+        if (Window_old_focus != Window_focus) {
+            set_input_focus(Window_focus);
         }
 
-        if (old_focus_frame != focus_frame ||
-                (focus_frame->window == focus_window &&
-                 old_focus_window != focus_window)) {
+        if (Frame_old_focus != Frame_focus ||
+                (Frame_focus->window == Window_focus &&
+                 Window_old_focus != Window_focus)) {
             /* indicate the focused frame if there is no window inside or there
              * is no border to indicate that the frame is focused
              */
-            if (focus_frame->window == NULL ||
-                     focus_frame->window->border_size == 0) {
-                char number[MAXIMUM_DIGITS(focus_frame->number) + 1];
+            if (Frame_focus->window == NULL ||
+                     Frame_focus->window->border_size == 0) {
+                char number[MAXIMUM_DIGITS(Frame_focus->number) + 1];
 
                 snprintf(number, sizeof(number), "%" PRIu32,
-                        focus_frame->number);
-                set_notification((utf8_t*) (focus_frame->number > 0 ? number :
-                            focus_frame->left == NULL ?  "Current frame" :
+                        Frame_focus->number);
+                set_notification((utf8_t*) (Frame_focus->number > 0 ? number :
+                            Frame_focus->left == NULL ?  "Current frame" :
                             "Current frames"),
-                        focus_frame->x + focus_frame->width / 2,
-                        focus_frame->y + focus_frame->height / 2);
+                        Frame_focus->x + Frame_focus->width / 2,
+                        Frame_focus->y + Frame_focus->height / 2);
             }
-            LOG("frame %F was focused\n", focus_frame);
+            LOG("frame %F was focused\n", Frame_focus);
         }
     }
 
@@ -452,7 +446,7 @@ static void handle_key_press(xcb_key_press_event_t *event)
         LOG("performing action(s): %A\n", key->number_of_actions,
                 key->actions);
         for (uint32_t i = 0; i < key->number_of_actions; i++) {
-            do_action(&key->actions[i], focus_window);
+            do_action(&key->actions[i], Window_focus);
         }
 
         /* make the event pass through to the focused client */
@@ -474,7 +468,7 @@ static void handle_key_release(xcb_key_release_event_t *event)
         LOG("performing action(s): %A\n", key->number_of_actions,
                 key->actions);
         for (uint32_t i = 0; i < key->number_of_actions; i++) {
-            do_action(&key->actions[i], focus_window);
+            do_action(&key->actions[i], Window_focus);
         }
 
         /* make the event pass through to the focused client */

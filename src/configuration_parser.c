@@ -691,7 +691,7 @@ static parser_error_t parse_actions(Parser *parser,
         number_of_actions++;
 
         skip_space(parser);
-        
+
         if (parser->line[parser->column] != ';') {
             break;
         }
@@ -954,7 +954,7 @@ parser_error_t parse_line(Parser *parser)
 
     /* remove leading whitespace */
     skip_space(parser);
-    
+
     /* ignore empty lines and comments */
     if (parser->line[parser->column] == '\0' || parser->line[parser->column] == '#') {
         parser->column += strlen(&parser->line[parser->column]);
@@ -1019,7 +1019,7 @@ parser_error_t parse_line(Parser *parser)
 
         /* expand the file path */
         if (parser->data.string[0] == '~' && parser->data.string[1] == '/') {
-            path = xasprintf("%s/%s", fensterchef_home,
+            path = xasprintf("%s/%s", Fensterchef_home,
                     &parser->data.string[2]);
             free(parser->data.string);
         } else {

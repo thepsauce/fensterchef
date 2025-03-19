@@ -437,7 +437,7 @@ static FILE *open_cursor_file(const char *theme, const char *name,
         const int path_length = separator ? (size_t) (separator - path) :
             strlen(path);
         if (path[0] == '~' && path[1] == '/') {
-            theme_directory = xasprintf("%s/%.*s/%s", fensterchef_home,
+            theme_directory = xasprintf("%s/%.*s/%s", Fensterchef_home,
                     path_length - 2, &path[2], theme);
         } else {
             theme_directory = xasprintf("%.*s/%s", path_length, path, theme);

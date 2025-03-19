@@ -387,7 +387,7 @@ static void log_xcb_window(xcb_window_t xcb_window)
     } else if (xcb_window == screen->root) {
         fputs("<root>", stderr);
     } else {
-        for (Window *window = first_window; window != NULL;
+        for (Window *window = Window_first; window != NULL;
                 window = window->next) {
             if (window->client.id == xcb_window) {
                 fprintf(stderr, "<%" PRIu32 ">", window->number);

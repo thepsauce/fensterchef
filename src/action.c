@@ -130,7 +130,7 @@ static bool resize_frame_or_window_by(Window *window, int32_t left, int32_t top,
     Frame *frame;
 
     if (window == NULL) {
-        frame = focus_frame;
+        frame = Frame_focus;
         if (frame == NULL) {
             return false;
         }
@@ -171,11 +171,11 @@ bool set_showable_tiling_window(bool previous)
 {
     Window *start, *next, *valid_window = NULL;
 
-    if (focus_frame->window == NULL) {
+    if (Frame_focus->window == NULL) {
         start = NULL;
-        next = first_window;
+        next = Window_first;
     } else {
-        start = focus_frame->window;
+        start = Frame_focus->window;
         next = start->next;
     }
 
@@ -183,7 +183,7 @@ bool set_showable_tiling_window(bool previous)
     for (;; next = next->next) {
         /* wrap around */
         if (start != NULL && next == NULL) {
-            next = first_window;
+            next = Window_first;
         }
 
         /* check if we went around */
@@ -204,16 +204,16 @@ bool set_showable_tiling_window(bool previous)
 
     if (valid_window == NULL) {
         set_notification((utf8_t*) "No other window",
-                focus_frame->x + focus_frame->width / 2,
-                focus_frame->y + focus_frame->height / 2);
+                Frame_focus->x + Frame_focus->width / 2,
+                Frame_focus->y + Frame_focus->height / 2);
         return false;
     }
 
     /* clear the old frame and stash it */
-    (void) stash_frame(focus_frame);
+    (void) stash_frame(Frame_focus);
     /* put the window into the focused frame, size and show it */
-    focus_frame->window = valid_window;
-    reload_frame(focus_frame);
+    Frame_focus->window = valid_window;
+    reload_frame(Frame_focus);
     valid_window->state.is_visible = true;
     /* focus the shown window */
     set_focus_window(valid_window);
@@ -233,14 +233,14 @@ bool toggle_focus(void)
      * 3. A floating window is focused
      */
 
-    if (focus_window == NULL ||
-            focus_window->state.mode == WINDOW_MODE_TILING) {
+    if (Window_focus == NULL ||
+            Window_focus->state.mode == WINDOW_MODE_TILING) {
         /* check for case 1.1 */
-        for (window = top_window; window != NULL; window = window->below) {
+        for (window = Window_top; window != NULL; window = window->below) {
             if (window->state.mode == WINDOW_MODE_TILING) {
                 break;
             }
-            if (window->state.is_visible) {
+            if (does_window_accept_focus(window) && window->state.is_visible) {
                 /* cover case 1.1 */
                 set_focus_window(window);
                 return true;
@@ -248,12 +248,12 @@ bool toggle_focus(void)
         }
 
         /* this covers case 1.2 and 2 */
-        if (focus_frame->window != NULL) {
-            set_focus_window(focus_frame->window);
+        if (Frame_focus->window != NULL) {
+            set_focus_window(Frame_focus->window);
         }
-    } else if (focus_frame->window != focus_window) {
+    } else if (Frame_focus->window != Window_focus) {
         /* cover case 3 */
-        set_focus_window(focus_frame->window);
+        set_focus_window(Frame_focus->window);
         return true;
     }
     return false;
@@ -297,7 +297,7 @@ static void move_to_frame(Frame *from, Frame *to, Monitor *monitor,
         Window *const window = get_window_covering_monitor(monitor);
         if (window != NULL) {
             set_focus_window(window);
-            focus_frame = to;
+            Frame_focus = to;
         } else {
             set_focus_frame(to);
         }
@@ -452,8 +452,8 @@ static bool move_to_below_frame(Frame *relative, bool do_exchange)
      * is aligned with the movement
      */
     if (!do_exchange && relative->left != NULL &&
-            focus_frame->split_direction == FRAME_SPLIT_VERTICALLY) {
-        frame = focus_frame->right;
+            Frame_focus->split_direction == FRAME_SPLIT_VERTICALLY) {
+        frame = Frame_focus->right;
     } else {
         frame = get_below_frame(relative);
         if (frame == NULL) {
@@ -519,7 +519,7 @@ bool do_action(const Action *action, Window *window)
         frame = get_frame_by_number((uint32_t) action->data.integer);
         /* also try to find it in the stash */
         if (frame == NULL) {
-            frame = last_stashed_frame;
+            frame = Frame_last_stashed;
             for (; frame != NULL; frame = frame->previous_stashed) {
                 if (frame->number == (uint32_t) action->data.integer) {
                     break;
@@ -530,18 +530,18 @@ bool do_action(const Action *action, Window *window)
             frame->number = 0;
         }
 
-        focus_frame->number = action->data.integer;
-        if (focus_frame->number == 0) {
+        Frame_focus->number = action->data.integer;
+        if (Frame_focus->number == 0) {
             set_notification((utf8_t*) "Number removed",
-                    focus_frame->x + focus_frame->width / 2,
-                    focus_frame->y + focus_frame->height / 2);
+                    Frame_focus->x + Frame_focus->width / 2,
+                    Frame_focus->y + Frame_focus->height / 2);
         } else {
-            char number[MAXIMUM_DIGITS(focus_frame->number) + 1];
+            char number[MAXIMUM_DIGITS(Frame_focus->number) + 1];
 
-            snprintf(number, sizeof(number), "%" PRIu32, focus_frame->number);
+            snprintf(number, sizeof(number), "%" PRIu32, Frame_focus->number);
             set_notification((utf8_t*) number,
-                    focus_frame->x + focus_frame->width / 2,
-                    focus_frame->y + focus_frame->height / 2);
+                    Frame_focus->x + Frame_focus->width / 2,
+                    Frame_focus->y + Frame_focus->height / 2);
         }
         break;
 
@@ -554,7 +554,7 @@ bool do_action(const Action *action, Window *window)
             break;
         }
 
-        frame = last_stashed_frame;
+        frame = Frame_last_stashed;
         /* also try to find it in the stash */
         for (; frame != NULL; frame = frame->previous_stashed) {
             if (frame->number == (uint32_t) action->data.integer) {
@@ -569,13 +569,13 @@ bool do_action(const Action *action, Window *window)
         /* make the frame no longer stashed */
         unlink_frame_from_stash(frame);
         /* clear the old frame and stash it */
-        (void) stash_frame(focus_frame);
+        (void) stash_frame(Frame_focus);
         /* put the new frame into the focused frame */
-        replace_frame(focus_frame, frame);
+        replace_frame(Frame_focus, frame);
         /* destroy this now empty frame */
         destroy_frame(frame);
         /* focus a window that might have appeared */
-        set_focus_window(focus_frame->window);
+        set_focus_window(Frame_focus->window);
         break;
 
     /* move the focus to the parent frame */
@@ -585,7 +585,7 @@ bool do_action(const Action *action, Window *window)
             count = 1;
         }
         /* move to the count'th parent */
-        for (frame = focus_frame; frame->parent != NULL && count > 0; count--) {
+        for (frame = Frame_focus; frame->parent != NULL && count > 0; count--) {
             if (frame == frame->parent->left) {
                 frame->parent->moved_from_left = true;
             } else {
@@ -594,7 +594,7 @@ bool do_action(const Action *action, Window *window)
             frame = frame->parent;
         }
 
-        if (frame == focus_frame) {
+        if (frame == Frame_focus) {
             return false;
         }
 
@@ -608,7 +608,7 @@ bool do_action(const Action *action, Window *window)
             count = 1;
         }
         /* move to the count'th child */
-        for (frame = focus_frame; frame->left != NULL && count > 0; count--) {
+        for (frame = Frame_focus; frame->left != NULL && count > 0; count--) {
             if (frame->moved_from_left) {
                 frame = frame->left;
             } else {
@@ -616,7 +616,7 @@ bool do_action(const Action *action, Window *window)
             }
         }
 
-        if (frame == focus_frame) {
+        if (frame == Frame_focus) {
             return false;
         }
 
@@ -625,8 +625,8 @@ bool do_action(const Action *action, Window *window)
 
     /* equalize the size of the child frames within a frame */
     case ACTION_EQUALIZE_FRAME:
-        equalize_frame(focus_frame, FRAME_SPLIT_HORIZONTALLY);
-        equalize_frame(focus_frame, FRAME_SPLIT_VERTICALLY);
+        equalize_frame(Frame_focus, FRAME_SPLIT_HORIZONTALLY);
+        equalize_frame(Frame_focus, FRAME_SPLIT_VERTICALLY);
         break;
 
     /* closes the currently active window */
@@ -648,7 +648,7 @@ bool do_action(const Action *action, Window *window)
     /* show a window */
     case ACTION_SHOW_WINDOW:
         if (action->data.integer != 0) {
-            for (window = first_window; window != NULL; window = window->next) {
+            for (window = Window_first; window != NULL; window = window->next) {
                 if (window->number == (uint32_t) action->data.integer) {
                     break;
                 }
@@ -666,11 +666,11 @@ bool do_action(const Action *action, Window *window)
     /* focus a window */
     case ACTION_FOCUS_WINDOW:
         if (action->data.integer == 0) {
-            if (window == focus_window) {
+            if (window == Window_focus) {
                 window = NULL;
             }
         } else {
-            for (window = first_window; window != NULL; window = window->next) {
+            for (window = Window_first; window != NULL; window = window->next) {
                 if (window->number == (uint32_t) action->data.integer) {
                     break;
                 }
@@ -730,10 +730,10 @@ bool do_action(const Action *action, Window *window)
 
     /* remove the current frame */
     case ACTION_REMOVE_FRAME:
-        (void) stash_frame(focus_frame);
-        (void) remove_void(focus_frame);
-        if (focus_window == NULL) {
-            set_focus_window(focus_frame->window);
+        (void) stash_frame(Frame_focus);
+        (void) remove_void(Frame_focus);
+        if (Window_focus == NULL) {
+            set_focus_window(Frame_focus->window);
         }
         break;
 
@@ -765,55 +765,55 @@ bool do_action(const Action *action, Window *window)
 
     /* split the current frame horizontally */
     case ACTION_SPLIT_HORIZONTALLY:
-        split_frame(focus_frame, NULL, FRAME_SPLIT_HORIZONTALLY);
+        split_frame(Frame_focus, NULL, FRAME_SPLIT_HORIZONTALLY);
         break;
 
     /* split the current frame vertically */
     case ACTION_SPLIT_VERTICALLY:
-        split_frame(focus_frame, NULL, FRAME_SPLIT_VERTICALLY);
+        split_frame(Frame_focus, NULL, FRAME_SPLIT_VERTICALLY);
         break;
 
     /* split the current frame horizontally */
     case ACTION_HINT_SPLIT_HORIZONTALLY:
-        focus_frame->split_direction = FRAME_SPLIT_HORIZONTALLY;
+        Frame_focus->split_direction = FRAME_SPLIT_HORIZONTALLY;
         break;
 
     /* split the current frame vertically */
     case ACTION_HINT_SPLIT_VERTICALLY:
-        focus_frame->split_direction = FRAME_SPLIT_VERTICALLY;
+        Frame_focus->split_direction = FRAME_SPLIT_VERTICALLY;
         break;
 
     /* move the focus to the frame above */
     case ACTION_FOCUS_UP:
-        return move_to_above_frame(focus_frame, false);
+        return move_to_above_frame(Frame_focus, false);
 
     /* move the focus to the left frame */
     case ACTION_FOCUS_LEFT:
-        return move_to_left_frame(focus_frame, false);
+        return move_to_left_frame(Frame_focus, false);
 
     /* move the focus to the right frame */
     case ACTION_FOCUS_RIGHT:
-        return move_to_right_frame(focus_frame, false);
+        return move_to_right_frame(Frame_focus, false);
 
     /* move the focus to the frame below */
     case ACTION_FOCUS_DOWN:
-        return move_to_below_frame(focus_frame, false);
+        return move_to_below_frame(Frame_focus, false);
 
     /* exchange the current frame with the above one */
     case ACTION_EXCHANGE_UP:
-        return move_to_above_frame(focus_frame, true);
+        return move_to_above_frame(Frame_focus, true);
 
     /* exchange the current frame with the left one */
     case ACTION_EXCHANGE_LEFT:
-        return move_to_left_frame(focus_frame, true);
+        return move_to_left_frame(Frame_focus, true);
 
     /* exchange the current frame with the right one */
     case ACTION_EXCHANGE_RIGHT:
-        return move_to_right_frame(focus_frame, true);
+        return move_to_right_frame(Frame_focus, true);
 
     /* exchange the current frame with the below one */
     case ACTION_EXCHANGE_DOWN:
-        return move_to_below_frame(focus_frame, true);
+        return move_to_below_frame(Frame_focus, true);
 
     /* toggle visibility of the interactive window list */
     case ACTION_SHOW_WINDOW_LIST:
@@ -831,8 +831,8 @@ bool do_action(const Action *action, Window *window)
     /* show the user a message */
     case ACTION_SHOW_MESSAGE:
         set_notification((utf8_t*) action->data.string,
-                focus_frame->x + focus_frame->width / 2,
-                focus_frame->y + focus_frame->height / 2);
+                Frame_focus->x + Frame_focus->width / 2,
+                Frame_focus->y + Frame_focus->height / 2);
         break;
 
     /* show a message by getting output from a shell script */
@@ -842,8 +842,8 @@ bool do_action(const Action *action, Window *window)
             return false;
         }
         set_notification((utf8_t*) shell,
-                focus_frame->x + focus_frame->width / 2,
-                focus_frame->y + focus_frame->height / 2);
+                Frame_focus->x + Frame_focus->width / 2,
+                Frame_focus->y + Frame_focus->height / 2);
         free(shell);
         break;
 
@@ -857,7 +857,7 @@ bool do_action(const Action *action, Window *window)
 
     /* quit fensterchef */
     case ACTION_QUIT:
-        is_fensterchef_running = false;
+        Fensterchef_is_running = false;
         break;
 
     /* not a real action */

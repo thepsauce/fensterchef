@@ -10,18 +10,18 @@
 #include "window.h"
 
 /* the last frame in the frame stashed linked list */
-Frame *last_stashed_frame;
+Frame *Frame_last_stashed;
 
 /* the currently selected/focused frame */
-Frame *focus_frame;
+Frame *Frame_focus;
 
 /* the focus that existed before entering the event loop */
-Frame *old_focus_frame;
+Frame *Frame_old_focus;
 
 /* Create a frame object. */
 inline Frame *create_frame(void)
 {
-    return xcalloc(1, sizeof(*focus_frame));
+    return xcalloc(1, sizeof(*Frame_focus));
 }
 
 /* Frees the frame object (but not the child frames). */
@@ -32,9 +32,9 @@ void destroy_frame(Frame *frame)
 
     Frame *previous;
 
-    if (frame == focus_frame) {
+    if (frame == Frame_focus) {
         LOG_ERROR("the focused frame is being freed :(\n");
-        focus_frame = NULL;
+        Frame_focus = NULL;
         /* we can only hope the focused frame is set to something sensible after
          * this
          */
@@ -44,15 +44,15 @@ void destroy_frame(Frame *frame)
      * pointer to be re-used for a different frame and then end up not
      * registering the focus change
      */
-    if (old_focus_frame == frame) {
-        old_focus_frame = &i_am_used_as_marker;
+    if (Frame_old_focus == frame) {
+        Frame_old_focus = &i_am_used_as_marker;
     }
 
     /* remove from the stash linked list if it is contained in it */
-    if (last_stashed_frame == frame) {
-        last_stashed_frame = last_stashed_frame->previous_stashed;
+    if (Frame_last_stashed == frame) {
+        Frame_last_stashed = Frame_last_stashed->previous_stashed;
     } else {
-        previous = last_stashed_frame;
+        previous = Frame_last_stashed;
         while (previous != NULL && previous->previous_stashed != frame) {
             previous = previous->previous_stashed;
         }
@@ -92,7 +92,7 @@ Frame *get_frame_by_number(uint32_t number)
 {
     Frame *frame = NULL;
 
-    for (Monitor *monitor = first_monitor; monitor != NULL;
+    for (Monitor *monitor = Monitor_first; monitor != NULL;
             monitor = monitor->next) {
         frame = get_frame_by_number_recursively(monitor->frame, number);
         if (frame != NULL) {
@@ -122,7 +122,7 @@ Frame *get_frame_at_position(int32_t x, int32_t y)
 {
     Frame *frame;
 
-    for (Monitor *monitor = first_monitor; monitor != NULL;
+    for (Monitor *monitor = Monitor_first; monitor != NULL;
             monitor = monitor->next) {
         frame = monitor->frame;
         if (is_point_in_frame(frame, x, y)) {
@@ -313,7 +313,7 @@ void set_focus_frame(Frame *frame)
 {
     set_focus_window(frame->window);
 
-    focus_frame = frame;
+    Frame_focus = frame;
 }
 
 /* Focus @window and the frame it is contained in if any. */
@@ -322,7 +322,7 @@ void set_focus_window_with_frame(Window *window)
     if (window == NULL) {
         set_focus_window(NULL);
     /* if the frame the window is contained in is already focused */
-    } else if (focus_frame->window == window) {
+    } else if (Frame_focus->window == window) {
         set_focus_window(window);
     } else {
         Frame *const frame = get_frame_of_window(window);

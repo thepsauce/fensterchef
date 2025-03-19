@@ -17,8 +17,8 @@
 /* FENSTERCHEF main entry point. */
 int main(int argc, char **argv)
 {
-    fensterchef_home = getenv("HOME");
-    if (fensterchef_home == NULL) {
+    Fensterchef_home = getenv("HOME");
+    if (Fensterchef_home == NULL) {
         fprintf(stderr, "to run fensterchef, you must set HOME\n");
         exit(EXIT_FAILURE);
     }
@@ -30,7 +30,7 @@ int main(int argc, char **argv)
 
     LOG("parsed arguments, starting to log\n");
     LOG("welcome to " FENSTERCHEF_NAME " " FENSTERCHEF_VERSION "\n");
-    LOG("the configuration file may reside in %s\n", fensterchef_configuration);
+    LOG("the configuration file may reside in %s\n", Fensterchef_configuration);
 
     /* initialize the X connection */
     if (initialize_x11() != OK) {
@@ -86,7 +86,7 @@ int main(int argc, char **argv)
             configuration.startup.number_of_actions,
             configuration.startup.actions);
     for (uint32_t i = 0; i < configuration.startup.number_of_actions; i++) {
-        do_action(&configuration.startup.actions[i], focus_window);
+        do_action(&configuration.startup.actions[i], Window_focus);
     }
 
     /* do an inital synchronization */
@@ -96,11 +96,11 @@ int main(int argc, char **argv)
     /* before entering the loop, flush all the initialization calls */
     xcb_flush(connection);
 
-    is_fensterchef_running = true;
+    Fensterchef_is_running = true;
     /* run the main event loop */
     while (next_cycle() == OK) {
         /* nothing to do */
     }
 
-    quit_fensterchef(is_fensterchef_running ? EXIT_FAILURE : EXIT_SUCCESS);
+    quit_fensterchef(Fensterchef_is_running ? EXIT_FAILURE : EXIT_SUCCESS);
 }

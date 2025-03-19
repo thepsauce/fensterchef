@@ -29,13 +29,15 @@ typedef struct monitor {
 } Monitor;
 
 /* the first monitor in the monitor linked list */
-extern Monitor *first_monitor;
+extern Monitor *Monitor_first;
 
 /* Try to initialize randr and the internal monitor linked list. */
 void initialize_monitors(void);
 
 /* Go through all windows to find the total strut and apply it to all monitors.
-*/
+ *
+ * This also adjusts all dock windows so that they do not overlap.
+ */
 void reconfigure_monitor_frames(void);
 
 /* The most efficient way to get the monitor containing given frame.

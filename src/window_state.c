@@ -25,11 +25,72 @@ bool has_window_border(Window *window)
     if (window->state.mode != WINDOW_MODE_FLOATING) {
         return false;
     }
-    /* if the window has borders itself (not set by the window manager) */
-    if ((window->motif_wm_hints.flags & MOTIF_WM_HINTS_DECORATIONS)) {
-        return false;
+    return !window->is_borderless;
+}
+
+/* Get the side of a monitor @window would like to attach to. */
+xcb_gravity_t get_window_gravity(Window *window)
+{
+    if (window->strut.reserved.left > 0) {
+        return XCB_GRAVITY_WEST;
     }
-    return true;
+    if (window->strut.reserved.top > 0) {
+        return XCB_GRAVITY_NORTH;
+    }
+    if (window->strut.reserved.right > 0) {
+        return XCB_GRAVITY_EAST;
+    }
+    if (window->strut.reserved.bottom > 0) {
+        return XCB_GRAVITY_SOUTH;
+    }
+
+    if ((window->size_hints.flags & XCB_ICCCM_SIZE_HINT_P_WIN_GRAVITY)) {
+        return window->size_hints.win_gravity;
+    }
+    return XCB_GRAVITY_STATIC;
+}
+
+/* Return a comparison value for two windows. */
+static int sort_by_x(const void *a, const void *b)
+{
+    const Window *const window_a = *(Window**) a;
+    const Window *const window_b = *(Window**) b;
+    return window_a->x - window_b->x;
+}
+
+/* Put windows along a diagonal line, spacing them out a little. */
+static inline void move_to_next_available(Monitor *monitor, Window *window,
+        int *x, int *y)
+{
+    /* step 1: get all windows on the diagonal line */
+    Window *in_line_windows[Window_count];
+    uint32_t count = 0;
+
+    *x = monitor->x + monitor->width / 10;
+    *y = monitor->y + monitor->height / 10;
+
+    for (Window *other = Window_first; other != NULL; other = other->next) {
+        if (other == window) {
+            continue;
+        }
+        if ((other->x - *x) % 20 != 0 || (other->y - *y) % 20 != 0) {
+            continue;
+        }
+        in_line_windows[count] = other;
+        count++;
+    }
+
+    /* step 2: sort them according to their x coordinate */
+    qsort(in_line_windows, count, sizeof(*in_line_windows), sort_by_x);
+
+    /* step 3: find a gap */
+    for (uint32_t i = 0; i < count; i++) {
+        if (in_line_windows[i]->x != *x || in_line_windows[i]->y != *y) {
+            break;
+        }
+        *x += 20;
+        *y += 20;
+    }
 }
 
 /* Set the window size and position according to the size hints. */
@@ -39,11 +100,11 @@ static void configure_floating_size(Window *window)
     int32_t x, y;
     uint32_t width, height;
 
-    if (focus_window != NULL) {
-        monitor = get_monitor_from_rectangle_or_primary(focus_window->x,
-                focus_window->y, focus_window->width, focus_window->height);
+    if (Window_focus != NULL) {
+        monitor = get_monitor_from_rectangle_or_primary(Window_focus->x,
+                Window_focus->y, Window_focus->width, Window_focus->height);
     } else {
-        monitor = get_monitor_containing_frame(focus_frame);
+        monitor = get_monitor_containing_frame(Frame_focus);
     }
 
     /* if the window never had a floating size, use the size hints to get a size
@@ -56,6 +117,9 @@ static void configure_floating_size(Window *window)
         } else {
             width = monitor->width * 2 / 3;
             height = monitor->height * 2 / 3;
+            /* this is for people using monitors larger than 1920x1080 */
+            width = MIN(width, 1920 * 2 / 3);
+            height = MIN(height, 1080 * 2 / 3);
         }
 
         if ((window->size_hints.flags & XCB_ICCCM_SIZE_HINT_P_MIN_SIZE)) {
@@ -68,9 +132,19 @@ static void configure_floating_size(Window *window)
             height = MIN(height, (uint32_t) window->size_hints.max_height);
         }
 
-        /* center the window */
-        x = monitor->x + (int32_t) (monitor->width - width) / 2;
-        y = monitor->y + (int32_t) (monitor->height - height) / 2;
+        /* non resizable windows are centered */
+        if ((window->size_hints.flags &
+                (XCB_ICCCM_SIZE_HINT_P_MIN_SIZE |
+                 XCB_ICCCM_SIZE_HINT_P_MAX_SIZE)) ==
+                (XCB_ICCCM_SIZE_HINT_P_MIN_SIZE |
+                 XCB_ICCCM_SIZE_HINT_P_MAX_SIZE) &&
+                (window->size_hints.min_width == window->size_hints.max_width ||
+                 window->size_hints.min_height == window->size_hints.max_height)) {
+            x = monitor->x + (int32_t) ((monitor->width - width) / 2);
+            y = monitor->y + (int32_t) ((monitor->height - height) / 2);
+        } else {
+            move_to_next_available(monitor, window, &x, &y);
+        }
     } else {
         width = window->floating.width;
         height = window->floating.height;
@@ -91,7 +165,7 @@ static void configure_floating_size(Window *window)
     set_window_size(window, x, y, width, height);
 }
 
-/* Sets the position and size of the window to fullscreen. */
+/* Set the position and size of the window to fullscreen. */
 static void configure_fullscreen_size(Window *window)
 {
     Monitor *monitor;
@@ -111,63 +185,64 @@ static void configure_fullscreen_size(Window *window)
     }
 }
 
-/* Sets the position and size of the window to a dock window. */
-static void configure_dock_size(Window *window)
+/* Set the position and size of the window to a dock window. */
+void configure_dock_size(Window *window)
 {
-    const uint32_t both_hints = XCB_ICCCM_SIZE_HINT_P_POSITION |
-        XCB_ICCCM_SIZE_HINT_P_SIZE;
     Monitor *monitor;
     int32_t x, y;
     uint32_t width, height;
 
-    /* check if the window has both position and size defined */
-    if ((window->size_hints.flags & both_hints) == both_hints) {
-        x = window->size_hints.x;
-        y = window->size_hints.y;
-        width = window->size_hints.width;
-        height = window->size_hints.height;
-        monitor = get_monitor_from_rectangle_or_primary(window->x, window->y,
-                window->width, window->height);
-    } else {
-        monitor = get_monitor_from_rectangle_or_primary(window->x, window->y,
-                1, 1);
+    monitor = get_monitor_from_rectangle_or_primary(window->x, window->y, 1, 1);
 
-        /* if the window does not specify a size itself, then do it based on the
-         * strut the window defines, reasoning is that when the window wants to
-         * occupy screen space, then it should be within that occupied space
+    if (!is_strut_empty(&window->strut)) {
+        x = monitor->x;
+        y = monitor->y;
+        width = monitor->width;
+        height = monitor->height;
+
+        /* do the sizing/position based on the strut the window defines,
+         * reasoning is that when the window wants to occupy screen space, then
+         * it should be within that occupied space
          */
         if (window->strut.reserved.left != 0) {
-            x = monitor->x;
-            y = window->strut.left_start_y;
             width = window->strut.reserved.left;
-            height = window->strut.left_end_y - window->strut.left_start_y + 1;
+            /* check if the extended strut is set or if it is malformed */
+            if (window->strut.left_start_y < window->strut.left_end_y) {
+                y = window->strut.left_start_y;
+                height = window->strut.left_end_y -
+                    window->strut.left_start_y + 1;
+            }
         } else if (window->strut.reserved.top != 0) {
-            x = window->strut.top_start_x;
-            y = monitor->y;
-            width = window->strut.top_end_x - window->strut.top_start_x + 1;
             height = window->strut.reserved.top;
+            if (window->strut.top_start_x < window->strut.top_end_x) {
+                x = window->strut.top_start_x;
+                width = window->strut.top_end_x - window->strut.top_start_x + 1;
+            }
         } else if (window->strut.reserved.right != 0) {
             x = monitor->x + monitor->width - window->strut.reserved.right;
-            y = window->strut.right_start_y;
             width = window->strut.reserved.right;
-            height = window->strut.right_end_y -
-                window->strut.right_start_y + 1;
+            if (window->strut.right_start_y < window->strut.right_end_y) {
+                y = window->strut.right_start_y;
+                height = window->strut.right_end_y -
+                    window->strut.right_start_y + 1;
+            }
         } else if (window->strut.reserved.bottom != 0) {
-            x = window->strut.bottom_start_x;
             y = monitor->y + monitor->height - window->strut.reserved.bottom;
-            width = window->strut.bottom_end_x -
-                window->strut.bottom_start_x + 1;
             height = window->strut.reserved.bottom;
-        } else {
-            width = window->width;
-            height = window->height;
+            if (window->strut.bottom_start_x < window->strut.bottom_end_x) {
+                x = window->strut.bottom_start_x;
+                width = window->strut.bottom_end_x -
+                    window->strut.bottom_start_x + 1;
+            }
         }
-    }
+    } else {
+        x = window->x;
+        y = window->y;
+        width = window->width;
+        height = window->height;
 
-    /* consider the window gravity, i.e. where the window wants to be */
-    if ((window->size_hints.flags & XCB_ICCCM_SIZE_HINT_P_WIN_GRAVITY)) {
-        adjust_for_window_gravity(monitor, &x, &y, width, height,
-            window->size_hints.win_gravity);
+        const xcb_gravity_t gravity = get_window_gravity(window);
+        adjust_for_window_gravity(monitor, &x, &y, width, height, gravity);
     }
 
     set_window_size(window, x, y, width, height);
@@ -334,16 +409,15 @@ static void update_shown_window(Window *window)
             break;
         }
 
-        if (configuration.tiling.auto_split &&
-                (focus_frame->left != NULL || focus_frame->window != NULL)) {
+        if (configuration.tiling.auto_split && Frame_focus->window != NULL) {
             Frame *const wrap = create_frame();
             wrap->window = window;
-            split_frame(focus_frame, wrap, focus_frame->split_direction);
-            focus_frame = wrap;
+            split_frame(Frame_focus, wrap, Frame_focus->split_direction);
+            Frame_focus = wrap;
         } else {
-            stash_frame(focus_frame);
-            focus_frame->window = window;
-            reload_frame(focus_frame);
+            stash_frame(Frame_focus);
+            Frame_focus->window = window;
+            reload_frame(Frame_focus);
         }
         break;
     }
@@ -489,8 +563,8 @@ void hide_window(Window *window)
         link_frame_into_stash(stash);
 
         /* if nothing is focused, focus the focused frame window */
-        if (focus_window == NULL) {
-            set_focus_window(focus_frame->window);
+        if (Window_focus == NULL) {
+            set_focus_window(Frame_focus->window);
         }
         break;
 
@@ -499,11 +573,11 @@ void hide_window(Window *window)
     case WINDOW_MODE_FULLSCREEN:
     case WINDOW_MODE_DOCK:
     case WINDOW_MODE_DESKTOP:
-        if (window == focus_window) {
+        if (window == Window_focus) {
             Window *next;
 
             /* first get a top window that is visible and not a tiling window */
-            for (next = top_window; next != NULL; next = next->below) {
+            for (next = Window_top; next != NULL; next = next->below) {
                 if (next->state.mode == WINDOW_MODE_TILING) {
                     next = NULL;
                     break;
@@ -515,7 +589,7 @@ void hide_window(Window *window)
 
             /* if no such window exists, then we focus the current frame */
             if (next == NULL) {
-                set_focus_frame(focus_frame);
+                set_focus_frame(Frame_focus);
             } else {
                 set_focus_window_with_frame(next);
             }
@@ -541,7 +615,7 @@ void hide_window_abruptly(Window *window)
     window->state.is_visible = false;
 
     /* make sure there is no invalid focus window */
-    if (window == focus_window) {
+    if (window == Window_focus) {
         set_focus_window(NULL);
     }
 }

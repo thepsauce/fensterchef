@@ -275,7 +275,7 @@ static inline xcb_atom_t *get_atom_list(xcb_window_t window, xcb_atom_t atom)
     return atoms;
 }
 
-/* Update the `transient_for` property within @properties. */
+/* Update the `transient_for` property within @window. */
 static void update_window_transient_for(Window *window)
 {
     xcb_get_property_cookie_t transient_for_cookie;
@@ -288,7 +288,7 @@ static void update_window_transient_for(Window *window)
     }
 }
 
-/* Update the `protocols` property within @properties. */
+/* Update the `protocols` property within @window. */
 static void update_window_protocols(Window *window)
 {
     free(window->protocols);
@@ -296,7 +296,7 @@ static void update_window_protocols(Window *window)
             ATOM(WM_PROTOCOLS));
 }
 
-/* Update the `fullscreen_monitors` property within @properties. */
+/* Update the `fullscreen_monitors` property within @window. */
 static void update_window_fullscreen_monitors(Window *window)
 {
     xcb_get_property_reply_t *monitors;
@@ -314,20 +314,45 @@ static void update_window_fullscreen_monitors(Window *window)
     }
 }
 
-/* Update the `motif_wm_hints` within @properties. */
+/* Update `is_borderless` within @window base on `_MOTIF_WM_HINTS`. */
 static void update_motif_wm_hints(Window *window)
 {
     xcb_get_property_reply_t *motif_wm_hints;
+    struct motif_wm_hints {
+        /* what fields below are available */
+        uint32_t flags;
+        /* IGNORED */
+        uint32_t functions;
+        /* border/frame decoration flags */
+        uint32_t decorations;
+        /* IGNORED */
+        uint32_t input_mode;
+        /* IGNORED */
+        uint32_t status;
+    } hints;
+
+    const uint32_t decorations_flag = (1 << 1);
+    const uint32_t decorate_all = (1 << 0);
+    const uint32_t decorate_border = (1 << 2) | (1 << 3);
 
     motif_wm_hints = get_property(window->client.id,
             ATOM(_MOTIF_WM_HINTS), ATOM(_MOTIF_WM_HINTS), 32,
-            sizeof(window->motif_wm_hints) / sizeof(uint32_t));
-    if (motif_wm_hints == NULL) {
-        window->motif_wm_hints.flags = 0;
-    } else {
-        window->motif_wm_hints =
-            *(motif_wm_hints_t*) xcb_get_property_value(motif_wm_hints);
+            sizeof(hints) / sizeof(uint32_t));
+    if (motif_wm_hints != NULL) {
+        hints = *(struct motif_wm_hints*)
+            xcb_get_property_value(motif_wm_hints);
         free(motif_wm_hints);
+
+        if ((hints.flags & decorations_flag)) {
+            /* if `decorate_all` is set, the other flags are exclusive */
+            if ((hints.decorations & decorate_all)) {
+                if (!(hints.decorations & decorate_border)) {
+                    window->is_borderless = true;
+                }
+            } else if ((hints.decorations & decorate_border)) {
+                window->is_borderless = true;
+            }
+        }
     }
 }
 
@@ -464,10 +489,8 @@ window_mode_t initialize_window_properties(Window *window,
                  XCB_ICCCM_SIZE_HINT_P_MAX_SIZE)) ==
                 (XCB_ICCCM_SIZE_HINT_P_MIN_SIZE |
                  XCB_ICCCM_SIZE_HINT_P_MAX_SIZE) &&
-            (window->size_hints.min_width ==
-                window->size_hints.max_width ||
-            window->size_hints.min_height ==
-                window->size_hints.max_height)) {
+            (window->size_hints.min_width == window->size_hints.max_width ||
+             window->size_hints.min_height == window->size_hints.max_height)) {
         predicted_mode = WINDOW_MODE_FLOATING;
     /* floating windows have a window type that is not the normal window type */
     } else if (types != NULL &&

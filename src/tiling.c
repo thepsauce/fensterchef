@@ -65,8 +65,8 @@ void split_frame(Frame *split_from, Frame *right,
     left->parent = split_from;
     right->parent = split_from;
 
-    if (split_from == focus_frame) {
-        focus_frame = left;
+    if (split_from == Frame_focus) {
+        Frame_focus = left;
     }
 
     /* size the child frames */
@@ -394,7 +394,7 @@ int remove_void(Frame *frame)
 
     LOG("frame %F was removed\n", frame);
 
-    if (focus_frame->parent == parent) {
+    if (Frame_focus->parent == parent) {
         Frame *new;
 
         const int x = parent->x + parent->width / 2;
@@ -417,7 +417,7 @@ int remove_void(Frame *frame)
             }
         }
 
-        focus_frame = new;
+        Frame_focus = new;
     }
 
     if (configuration.tiling.auto_equalize) {
