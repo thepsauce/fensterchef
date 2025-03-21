@@ -61,13 +61,6 @@
     Make shell scripts to generate the manual page (should the wiki be
     continued?)
 
-#46 Add "other" action
-    This action should pop a frame from the space and replace it with the
-    current frame
-
-#47 Add left/top split actions
-    These actions should split like usually but in the other direction
-
 [Recheck]
 #8 ? Improve font rendering once again
     Is there any way to make colored emojis work? Is artifical scaling needed?
@@ -252,3 +245,10 @@
 
 #48 Add move actions
     Add actions to move windows
+
+#46 Add "other" action
+    This action should pop a frame from the space and replace it with the
+    current frame
+
+#47 Add left/top split actions
+    These actions should split like usually but in the other direction

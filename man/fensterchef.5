@@ -338,149 +338,155 @@ ignore-modifiers
 .
 .SH ACTION
 .PP
-none
+.B none
     No action at all.
 .PP
-reload-configuration
+.B reload-configuration
     Reload the configuration file.
 .PP
-assign
+.B assign
 .I integer
     Assign a number to a frame.
 .PP
-focus-frame
+.B focus-frame
 .I integer
 .B ?
     Focus a frame with given number.
 .PP
-focus-parent
+.B focus-parent
 .I integer
 .B ?
     Move the focus to the parent frame.
 .PP
-focus-child
+.B focus-child
 .I integer
 .B ?
     Move the focus to the child frame.
 .PP
-equalize-frame
+.B equalize-frame
     Equalize the size of the child frames within a frame.
 .PP
-close-window
+.B close-window
     Closes the currently active window.
 .PP
-minimize-window
+.B minimize-window
     Hides the currently active window.
 .PP
-show-window
+.B show-window
 .I integer
 .B ?
     Show the window with given number or the clicked window.
 .PP
-focus-window
+.B focus-window
 .I integer
 .B ?
     Focus the window with given number or the clicked window.
 .PP
-initiate-move
+.B initiate-move
     Start moving a window with the mouse.
 .PP
-initiate-resize
+.B initiate-resize
     Start resizing a window with the mouse.
 .PP
-next-window
+.B next-window
 .I integer
 .B ?
     Go to the next window in the window list.
 .PP
-previous-window
+.B previous-window
 .I integer
 .B ?
     Go to the previous window in the window list.
 .PP
-remove-frame
+.B remove-frame
     Remove the current frame.
 .PP
-other-frame
+.B other-frame
     Remove the current frame and replace it with a frame from the stash.
 .PP
-toggle-tiling
+.B toggle-tiling
     Changes a non tiling window to a tiling window and vise versa.
 .PP
-toggle-fullscreen
+.B toggle-fullscreen
     Toggles the fullscreen state of the currently focused window.
 .PP
-toggle-focus
+.B toggle-focus
     Change the focus from tiling to non tiling or vise versa.
 .PP
-split-horizontally
+.B split-horizontally
     Split the current frame horizontally.
 .PP
-split-vertically
+.B split-vertically
     Split the current frame vertically.
 .PP
-hint-split-horizontally
+.B left-split-horizontally
+    Split the current frame left horizontally.
+.PP
+.B left-split-vertically
+    Split the current frame left vertically.
+.PP
+.B hint-split-horizontally
     Hint that the current frame should split horizontally.
 .PP
-hint-split-vertically
+.B hint-split-vertically
     Hint that the current frame should split vertically.
 .PP
-focus-up
+.B focus-up
     Move the focus to the above frame.
 .PP
-focus-left
+.B focus-left
     Move the focus to the left frame.
 .PP
-focus-right
+.B focus-right
     Move the focus to the right frame.
 .PP
-focus-down
+.B focus-down
     Move the focus to the frame below.
 .PP
-exchange-up
+.B exchange-up
     Exchange the current frame with the above one.
 .PP
-exchange-left
+.B exchange-left
     Exchange the current frame with the left one.
 .PP
-exchange-right
+.B exchange-right
     Exchange the current frame with the right one.
 .PP
-exchange-down
+.B exchange-down
     Exchange the current frame with the below one.
 .PP
-move-up
+.B move-up
     Move the current frame up.
 .PP
-move-left
+.B move-left
     Move the current frame to the left.
 .PP
-move-right
+.B move-right
     Move the current frame to the right.
 .PP
-move-down
+.B move-down
     Move the current frame down.
 .PP
-show-window-list
+.B show-window-list
     Show the interactive window list.
 .PP
-run
+.B run
 .I string
     Run a shell program.
 .PP
-show-message
+.B show-message
 .I string
     Show a notification with a string message.
 .PP
-show-message-run
+.B show-message-run
 .I string
     Show a notification with a message extracted from a shell program.
 .PP
-resize-by
+.B resize-by
 .I quad
     Resize the edges of the current window.
 .PP
-quit
+.B quit
     Quit fensterchef.
 .
 .SH EXAMPLE

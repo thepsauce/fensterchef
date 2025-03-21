@@ -725,6 +725,16 @@ bool do_action(const Action *action, Window *window)
         break;
 
     /* split the current frame horizontally */
+    case ACTION_LEFT_SPLIT_HORIZONTALLY:
+        split_frame(Frame_focus, NULL, true, FRAME_SPLIT_HORIZONTALLY);
+        break;
+
+    /* split the current frame vertically */
+    case ACTION_LEFT_SPLIT_VERTICALLY:
+        split_frame(Frame_focus, NULL, true, FRAME_SPLIT_VERTICALLY);
+        break;
+
+    /* split the current frame horizontally */
     case ACTION_HINT_SPLIT_HORIZONTALLY:
         Frame_focus->split_direction = FRAME_SPLIT_HORIZONTALLY;
         break;

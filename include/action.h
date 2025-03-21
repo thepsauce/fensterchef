@@ -60,6 +60,10 @@
     X(ACTION_SPLIT_HORIZONTALLY, false, "SPLIT-HORIZONTALLY", DATA_TYPE_VOID) \
     /* split the current frame vertically */ \
     X(ACTION_SPLIT_VERTICALLY, false, "SPLIT-VERTICALLY", DATA_TYPE_VOID) \
+    /* split the current frame left horizontally */ \
+    X(ACTION_LEFT_SPLIT_HORIZONTALLY, false, "LEFT-SPLIT-HORIZONTALLY", DATA_TYPE_VOID) \
+    /* split the current frame left vertically */ \
+    X(ACTION_LEFT_SPLIT_VERTICALLY, false, "LEFT-SPLIT-VERTICALLY", DATA_TYPE_VOID) \
     /* hint that the current frame should split horizontally */ \
     X(ACTION_HINT_SPLIT_HORIZONTALLY, false, "HINT-SPLIT-HORIZONTALLY", DATA_TYPE_VOID) \
     /* hint that the current frame should split vertically */ \
