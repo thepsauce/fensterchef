@@ -41,17 +41,10 @@
 #52 ! Let more frames tank size
     When resizing a frame, let it push frames
 
-#53 ! Numbers assigned wrongly
-    When there are no assignments, windows are not number starting from the
-    configured first-window-number
-
 #54 Handle overlapping monitors
     When monitors overlap, one should be ignored
 
-#55 Window centering not using new method
-    Make the configure_floating method public and use it
-
-#56 ...
+#55 ...
 
 #1000 Make a wayland port
     Make an additional repository that hosts fensterchef-wayland
@@ -252,3 +245,7 @@
 
 #47 Add left/top split actions
     These actions should split like usually but in the other direction
+
+#53 ! Numbers assigned wrongly
+    When there are no assignments, windows are not number starting from the
+    configured first-window-number

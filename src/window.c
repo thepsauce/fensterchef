@@ -223,7 +223,13 @@ Window *create_window(xcb_window_t xcb_window,
             }
         } else {
             if (window->number == 0) {
-                window->number = previous->number + 1;
+                if (previous->number < (uint32_t)
+                        configuration.assignment.first_window_number) {
+                    window->number =
+                        configuration.assignment.first_window_number;
+                } else {
+                    window->number = previous->number + 1;
+                }
             }
             window->next = previous->next;
             previous->next = window;
