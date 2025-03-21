@@ -178,7 +178,7 @@ Window *get_window_of_xcb_window(xcb_window_t xcb_window);
 Frame *get_frame_of_window(const Window *window);
 
 /* Check if the window accepts input focus. */
-bool does_window_accept_focus(Window *window);
+bool is_window_focusable(Window *window);
 
 /* Set the window that is in focus. */
 void set_focus_window(Window *window);

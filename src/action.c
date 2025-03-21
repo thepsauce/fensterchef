@@ -245,7 +245,7 @@ bool toggle_focus(void)
             if (window->state.mode == WINDOW_MODE_TILING) {
                 break;
             }
-            if (does_window_accept_focus(window) && window->state.is_visible) {
+            if (is_window_focusable(window) && window->state.is_visible) {
                 /* cover case 1.1 */
                 set_focus_window(window);
                 return true;

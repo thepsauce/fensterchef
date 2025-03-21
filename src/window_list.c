@@ -57,7 +57,7 @@ int initialize_window_list(void)
 /* Check if @window should appear in the window list. */
 static bool is_valid_for_display(Window *window)
 {
-    return does_window_accept_focus(window);
+    return is_window_focusable(window);
 }
 
 /* Get character indicating the window state. */

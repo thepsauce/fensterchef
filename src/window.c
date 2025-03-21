@@ -687,7 +687,7 @@ Frame *get_frame_of_window(const Window *window)
 }
 
 /* Check if @window accepts input focus. */
-bool does_window_accept_focus(Window *window)
+bool is_window_focusable(Window *window)
 {
     /* if this protocol is supported, we can make use of it */
     if (supports_protocol(window, ATOM(WM_TAKE_FOCUS))) {
@@ -722,7 +722,7 @@ void set_focus_window(Window *window)
         } else {
             LOG("focusing window %W\n", window);
 
-            if (!does_window_accept_focus(window)) {
+            if (!is_window_focusable(window)) {
                 LOG_ERROR("the window can not be focused\n");
                 window = NULL;
             } else if (window == Window_focus) {

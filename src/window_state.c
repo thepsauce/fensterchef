@@ -605,25 +605,7 @@ void hide_window(Window *window)
     case WINDOW_MODE_DOCK:
     case WINDOW_MODE_DESKTOP:
         if (window == Window_focus) {
-            Window *next;
-
-            /* first get a top window that is visible and not a tiling window */
-            for (next = Window_top; next != NULL; next = next->below) {
-                if (next->state.mode == WINDOW_MODE_TILING) {
-                    next = NULL;
-                    break;
-                }
-                if (next != window && next->state.is_visible) {
-                    break;
-                }
-            }
-
-            /* if no such window exists, then we focus the current frame */
-            if (next == NULL) {
-                set_focus_frame(Frame_focus);
-            } else {
-                set_focus_window_with_frame(next);
-            }
+            set_focus_frame(Frame_focus);
         }
         break;
 

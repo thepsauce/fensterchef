@@ -28,14 +28,10 @@
     xrandr --output $MON2 --dpi 96
     ```
 
-#49 Make refocus more natural when a window is destroyed
-    When a non tiling window is destroyed, the focus may move to a different
-    monitor which is unnatural
-
 #50 ! The default of pressing MiddleButton to close a window
     When doing this, the below window gets the event as well
 
-#51 ! Fix fixed size fonts messing up
+#51/#8 ! Fix fixed size fonts messing up
     Fixed size fonts like emoji fonts are not scaled and it looks very weird
 
 #52 ! Let more frames tank size
@@ -78,6 +74,7 @@
     When certain events occur like showing a window, the user should be able to
     make a hook for an alternative action that should occur (instead of the
     default of focusing this window)
+    This is implemented but only for mapping windows for the first time
 
 #39 ? Add the set action that can set a variable
     The set action would have the syntax `set <section>.<name> = <value>` and
@@ -249,3 +246,7 @@
 #53 ! Numbers assigned wrongly
     When there are no assignments, windows are not number starting from the
     configured first-window-number
+
+#49 Make refocus more natural when a window is hidden
+    When a non tiling window is hidden, the focus may move to a different
+    monitor which is unnatural
