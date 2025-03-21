@@ -115,7 +115,9 @@ extern Window *Window_first;
 /* the currently focused window */
 extern Window *Window_focus;
 
-/* the focus that existed before entering the event cycle */
+/* the focus that existed before entering an event cycle, this shall only be
+ * used for pointer comparison and NOTHING else
+ */
 extern Window *Window_old_focus;
 
 /* Create a window object and add it to all window lists.

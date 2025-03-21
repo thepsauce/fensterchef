@@ -37,6 +37,8 @@ typedef enum {
  *
  * When a frame has one child, it must have a second one, so either BOTH left
  * AND right are NULL OR neither are NULL.
+ * That is why `frame->left != NULL` is always used as a test for checking if a
+ * frame has children or not.
  *
  * `parent` is NULL when the frame is a root frame or stashed frame.
  */
@@ -84,13 +86,19 @@ extern Frame *Frame_last_stashed;
 /* the currently selected/focused frame */
 extern Frame *Frame_focus;
 
-/* the focus that existed before entering the event loop */
+/* the focus that existed before entering an event cycle, this shall only be
+ * used for pointer comparison and NOTHING else
+ */
 extern Frame *Frame_old_focus;
 
 /* Create a frame object. */
 Frame *create_frame(void);
 
-/* Frees the frame object (but not the child frames). */
+/* Free the frame object.
+ *
+ * @frame must have no parent or children and it shall not be the root frame
+ *        of a monitor.
+ */
 void destroy_frame(Frame *frame);
 
 /* Look through all visible frames to find a frame with given @number. */
@@ -111,22 +119,12 @@ bool is_point_in_frame(const Frame *frame, int32_t x, int32_t y);
  */
 Frame *get_frame_at_position(int32_t x, int32_t y);
 
-/* Set the size of a frame, this also resize the child frames and windows. */
-void resize_frame(Frame *frame, int32_t x, int32_t y,
-        uint32_t width, uint32_t height);
-
-/* Set the size of a frame, this also resizes the child frames and windows.
+/* Replace @frame with @with.
  *
- * This function ignores the @frame->ratio and instead uses the existing ratio
- * between the windows to size them.
- *
- * This function is good for reloading child frames if the parent resized.
- */
-void resize_frame_and_ignore_ratio(Frame *frame, int32_t x, int32_t y,
-        uint32_t width, uint32_t height);
-
-/* Replace @frame (windows and child frames) with @with.
- *
+ * @frame receives the children or the window within @with and the
+ *        number, split direction and ration @with has.
+ *        @frame only keeps its size.
+ *        @frame should be a void (pass `is_frame_void()`).
  * @with is emptied by this function, only the original size remains.
  */
 void replace_frame(Frame *frame, Frame *with);
@@ -137,7 +135,11 @@ void get_frame_gaps(const Frame *frame, Extents *gaps);
 /* Resizes the inner window to fit within the frame. */
 void reload_frame(Frame *frame);
 
-/* Set the frame in focus, this also focuses the inner window if it exists. */
+/* Set the frame in focus, this also focuses the inner window if it exists.
+ *
+ * If you just want to set the focused frame without focusing the inner window:
+ * `Frame_focus = frame` suffices.
+ */
 void set_focus_frame(Frame *frame);
 
 /* Focus @window and the frame it is in. */

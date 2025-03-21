@@ -1,56 +1,25 @@
 #ifndef TILING_H
 #define TILING_H
 
-#include "frame.h"
+#include "bits/frame_typedef.h"
 
 /* Split a frame horizontally or vertically.
  *
- * @frame is put into the right/bottom of the split. It may be NULL, then one is
- *        allocated by this function and filled by the stash.
+ * @split_from is the frame to split a frame off of.
+ * @other is put into the the slot created by the split. It may be NULL, then
+ *        one is allocated by this function and filled using the stash.
+ * @is_left_split controls where @other goes, either on the top/left or
+ *                bottom/right.
  */
-void split_frame(Frame *split_from, Frame *right,
+void split_frame(Frame *split_from, Frame *other, bool is_left_split,
         frame_split_direction_t direction);
 
-/* Note for all `get_XXX_frame()` functions that the frame returned usually is a
- * parent frame, meaning it has children, for example:
- * +------+----+
- * |      | 2  |
- * |  1   +----+
- * |      | 3  |
- * +------+----+
+/* Remove a frame from the screen.
  *
- * (pointers illustrated by above numbers)
- * `get_left_frame(2)` -> 1
- * `get_left_frame(3)` -> 1
- * `get_right_frame(1)` -> frame surrounding 2 and 3
- * `get_above_frame(3)` -> 2
- * `get_above_frame(2)` -> NULL
- */
-
-/* Get the frame on the left of @frame. */
-Frame *get_left_frame(Frame *frame);
-
-/* Get the frame above @frame. */
-Frame *get_above_frame(Frame *frame);
-
-/* Get the frame on the right of @frame. */
-Frame *get_right_frame(Frame *frame);
-
-/* Get the frame below @frame. */
-Frame *get_below_frame(Frame *frame);
-
-/* Increases the @edge of @frame by @amount. */
-int32_t bump_frame_edge(Frame *frame, frame_edge_t edge, int32_t amount);
-
-/* Set the size of all children of @frame to be equal within a certain
- * direction.
- */
-void equalize_frame(Frame *frame, frame_split_direction_t direction);
-
-/* Remove an empty frame from the screen.
+ * This keeps the children within @frame in tact.
  *
- * @return ERROR when the given frame is a root frame, otherwise OK.
+ * @frame shall not be a root frame.
  */
-int remove_void(Frame *frame);
+void remove_frame(Frame *frame);
 
 #endif

@@ -335,6 +335,8 @@ static void update_motif_wm_hints(Window *window)
     const uint32_t decorate_all = (1 << 0);
     const uint32_t decorate_border = (1 << 2) | (1 << 3);
 
+    window->is_borderless = false;
+
     motif_wm_hints = get_property(window->client.id,
             ATOM(_MOTIF_WM_HINTS), ATOM(_MOTIF_WM_HINTS), 32,
             sizeof(hints) / sizeof(uint32_t));
@@ -346,10 +348,10 @@ static void update_motif_wm_hints(Window *window)
         if ((hints.flags & decorations_flag)) {
             /* if `decorate_all` is set, the other flags are exclusive */
             if ((hints.decorations & decorate_all)) {
-                if (!(hints.decorations & decorate_border)) {
+                if ((hints.decorations & decorate_border)) {
                     window->is_borderless = true;
                 }
-            } else if ((hints.decorations & decorate_border)) {
+            } else if (!(hints.decorations & decorate_border)) {
                 window->is_borderless = true;
             }
         }

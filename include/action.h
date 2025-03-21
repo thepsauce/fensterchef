@@ -1,6 +1,12 @@
 #ifndef ACTION_H
 #define ACTION_H
 
+/**
+ * Actions expose internal functionality to the user.
+ *
+ * The user can invoke any actions in any order at any time.
+ */
+
 #include "bits/window_typedef.h"
 
 #include "data_type.h"
@@ -72,6 +78,14 @@
     X(ACTION_EXCHANGE_RIGHT, false, "EXCHANGE-RIGHT", DATA_TYPE_VOID) \
     /* exchange the current frame with the below one */ \
     X(ACTION_EXCHANGE_DOWN, false, "EXCHANGE-DOWN", DATA_TYPE_VOID) \
+    /* move the current frame up */ \
+    X(ACTION_MOVE_UP, false, "MOVE-UP", DATA_TYPE_VOID) \
+    /* move the current frame to the left */ \
+    X(ACTION_MOVE_LEFT, false, "MOVE-LEFT", DATA_TYPE_VOID) \
+    /* move the current frame to the right */ \
+    X(ACTION_MOVE_RIGHT, false, "MOVE-RIGHT", DATA_TYPE_VOID) \
+    /* move the current frame down */ \
+    X(ACTION_MOVE_DOWN, false, "MOVE-DOWN", DATA_TYPE_VOID) \
     /* show the interactive window list */ \
     X(ACTION_SHOW_WINDOW_LIST, false, "SHOW-WINDOW-LIST", DATA_TYPE_VOID) \
     /* run a shell program */ \

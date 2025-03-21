@@ -62,6 +62,30 @@ Monitor *get_monitor_from_rectangle_or_primary(int32_t x, int32_t y,
 /* Get a window covering given monitor. */
 Window *get_window_covering_monitor(Monitor *monitor);
 
+/* Get the monitor on the left of @monitor.
+ *
+ * @return NULL if there is no monitor at the left.
+ */
+Monitor *get_left_monitor(Monitor *monitor);
+
+/* Get the monitor above @monitor.
+ *
+ * @return NULL if there is no monitor above.
+ */
+Monitor *get_above_monitor(Monitor *monitor);
+
+/* Get the monitor on the right of @monitor.
+ *
+ * @return NULL if there is no monitor at the right.
+ */
+Monitor *get_right_monitor(Monitor *monitor);
+
+/* Get the monitor below of @monitor.
+ *
+ * @return NULL if there is no monitor below.
+ */
+Monitor *get_below_monitor(Monitor *monitor);
+
 /* Gets a list of monitors that are associated to the screen.
  *
  * @return NULL when randr is not supported or when there are no monitors.

@@ -67,7 +67,7 @@ static uint32_t validate_inner_windows(Frame *frame)
 Frame *stash_frame_later(Frame *frame)
 {
     /* check if it is worth saving this frame */
-    if (is_frame_void(frame) && frame->number != 0) {
+    if (is_frame_void(frame) && frame->number == 0) {
         return NULL;
     }
 

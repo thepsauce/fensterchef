@@ -1,7 +1,7 @@
 #include <inttypes.h>
-#include <unistd.h>
-#include <string.h> // strcmp()
-#include <sys/wait.h> // wait()
+#include <unistd.h> // fork(), setsid(), _exit(), execl()
+#include <string.h> // strcasecmp()
+#include <sys/wait.h> // waitpid()
 
 #include "action.h"
 #include "configuration.h"
@@ -10,6 +10,8 @@
 #include "frame.h"
 #include "log.h"
 #include "monitor.h"
+#include "move_frame.h"
+#include "size_frame.h"
 #include "stash_frame.h"
 #include "tiling.h"
 #include "utility.h"
@@ -264,34 +266,7 @@ static void move_to_frame(Frame *from, Frame *to, Monitor *monitor,
         bool do_exchange)
 {
     if (do_exchange) {
-        /* if moving into a void, either remove it or replace it and when
-         * replacing it, remove a potential new void that could appear
-         */
-        if (is_frame_void(to)) {
-            if (to->parent != NULL &&
-                    (configuration.tiling.auto_remove ||
-                     configuration.tiling.auto_remove_void)) {
-                remove_void(to);
-                /* focus stays at `from` */
-            } else {
-                /* this makes `from` a void */
-                replace_frame(to, from);
-                set_focus_frame(to);
-                if (from->parent != NULL &&
-                        (configuration.tiling.auto_remove ||
-                         configuration.tiling.auto_remove_void)) {
-                    remove_void(from);
-                }
-            }
-        /* swap the two frames `from` and `to` */
-        } else {
-            Frame saved_frame;
-
-            saved_frame = *from;
-            replace_frame(from, to);
-            replace_frame(to, &saved_frame);
-            set_focus_frame(to);
-        }
+        exchange_frames(from, to);
     /* check if a window is covering the monitor */
     } else if (monitor != NULL) {
         Window *const window = get_window_covering_monitor(monitor);
@@ -322,8 +297,9 @@ static bool move_to_above_frame(Frame *relative, bool do_exchange)
     } else {
         frame = get_above_frame(relative);
         if (frame == NULL) {
-            monitor = get_monitor_from_rectangle(
-                    relative->x, relative->y - 1, 1, 1);
+            /* move across monitors */
+            monitor = get_monitor_containing_frame(relative);
+            monitor = get_above_monitor(monitor);
             if (monitor != NULL) {
                 frame = monitor->frame;
             }
@@ -334,20 +310,7 @@ static bool move_to_above_frame(Frame *relative, bool do_exchange)
         return false;
     }
 
-    const int x = relative->x + relative->width / 2;
-    /* move into the most bottom frame */
-    while (frame->left != NULL) {
-        if (frame->split_direction == FRAME_SPLIT_HORIZONTALLY) {
-            if (frame->left->x + (int32_t) frame->left->width >= x) {
-                frame = frame->left;
-            } else {
-                frame = frame->right;
-            }
-        } else {
-            frame = frame->right;
-        }
-    }
-
+    frame = get_bottom_leaf_frame(frame, relative->x + relative->width / 2);
     move_to_frame(relative, frame, monitor, do_exchange);
     return true;
 }
@@ -367,8 +330,9 @@ static bool move_to_left_frame(Frame *relative, bool do_exchange)
     } else {
         frame = get_left_frame(relative);
         if (frame == NULL) {
-            monitor = get_monitor_from_rectangle(
-                    relative->x - 1, relative->y, 1, 1);
+            /* move across monitors */
+            monitor = get_monitor_containing_frame(relative);
+            monitor = get_left_monitor(monitor);
             if (monitor != NULL) {
                 frame = monitor->frame;
             }
@@ -379,20 +343,8 @@ static bool move_to_left_frame(Frame *relative, bool do_exchange)
         return false;
     }
 
-    const int y = relative->y + relative->height / 2;
-    /* move into the most right frame */
-    while (frame->left != NULL) {
-        if (frame->split_direction == FRAME_SPLIT_VERTICALLY) {
-            if (frame->left->y + (int32_t) frame->left->height >= y) {
-                frame = frame->left;
-            } else {
-                frame = frame->right;
-            }
-        } else {
-            frame = frame->right;
-        }
-    }
-
+    frame = get_most_right_leaf_frame(frame,
+            relative->y + relative->height / 2);
     move_to_frame(relative, frame, monitor, do_exchange);
     return true;
 }
@@ -412,8 +364,9 @@ static bool move_to_right_frame(Frame *relative, bool do_exchange)
     } else {
         frame = get_right_frame(relative);
         if (frame == NULL) {
-            monitor = get_monitor_from_rectangle(
-                    relative->x + relative->width, relative->y, 1, 1);
+            /* move across monitors */
+            monitor = get_monitor_containing_frame(relative);
+            monitor = get_right_monitor(monitor);
             if (monitor != NULL) {
                 frame = monitor->frame;
             }
@@ -424,20 +377,7 @@ static bool move_to_right_frame(Frame *relative, bool do_exchange)
         return false;
     }
 
-    const int y = relative->y + relative->height / 2;
-    /* move into the most left frame */
-    while (frame->left != NULL) {
-        if (frame->split_direction == FRAME_SPLIT_VERTICALLY) {
-            if (frame->left->y + (int32_t) frame->left->height >= y) {
-                frame = frame->left;
-            } else {
-                frame = frame->right;
-            }
-        } else {
-            frame = frame->left;
-        }
-    }
-
+    frame = get_most_left_leaf_frame(frame, relative->y + relative->height / 2);
     move_to_frame(relative, frame, monitor, do_exchange);
     return true;
 }
@@ -457,8 +397,9 @@ static bool move_to_below_frame(Frame *relative, bool do_exchange)
     } else {
         frame = get_below_frame(relative);
         if (frame == NULL) {
-            monitor = get_monitor_from_rectangle(
-                    relative->x, relative->y + relative->height, 1, 1);
+            /* move across monitors */
+            monitor = get_monitor_containing_frame(relative);
+            monitor = get_below_monitor(monitor);
             if (monitor != NULL) {
                 frame = monitor->frame;
             }
@@ -469,20 +410,7 @@ static bool move_to_below_frame(Frame *relative, bool do_exchange)
         return false;
     }
 
-    const int x = relative->x + relative->width / 2;
-    /* move into the most top frame */
-    while (frame->left != NULL) {
-        if (frame->split_direction == FRAME_SPLIT_HORIZONTALLY) {
-            if (frame->left->x + (int32_t) frame->left->width >= x) {
-                frame = frame->left;
-            } else {
-                frame = frame->right;
-            }
-        } else {
-            frame = frame->left;
-        }
-    }
-
+    frame = get_top_leaf_frame(frame, relative->y + relative->height / 2);
     move_to_frame(relative, frame, monitor, do_exchange);
     return true;
 }
@@ -730,8 +658,16 @@ bool do_action(const Action *action, Window *window)
 
     /* remove the current frame */
     case ACTION_REMOVE_FRAME:
-        (void) stash_frame(Frame_focus);
-        (void) remove_void(Frame_focus);
+        frame = Frame_focus;
+        (void) stash_frame(frame);
+        if (frame->parent != NULL) {
+            remove_frame(frame);
+            destroy_frame(frame);
+        }
+
+        /* if nothing is focused/no longer focused, focus the window within the
+         * current frame
+         */
         if (Window_focus == NULL) {
             set_focus_window(Frame_focus->window);
         }
@@ -765,12 +701,12 @@ bool do_action(const Action *action, Window *window)
 
     /* split the current frame horizontally */
     case ACTION_SPLIT_HORIZONTALLY:
-        split_frame(Frame_focus, NULL, FRAME_SPLIT_HORIZONTALLY);
+        split_frame(Frame_focus, NULL, false, FRAME_SPLIT_HORIZONTALLY);
         break;
 
     /* split the current frame vertically */
     case ACTION_SPLIT_VERTICALLY:
-        split_frame(Frame_focus, NULL, FRAME_SPLIT_VERTICALLY);
+        split_frame(Frame_focus, NULL, false, FRAME_SPLIT_VERTICALLY);
         break;
 
     /* split the current frame horizontally */
@@ -814,6 +750,22 @@ bool do_action(const Action *action, Window *window)
     /* exchange the current frame with the below one */
     case ACTION_EXCHANGE_DOWN:
         return move_to_below_frame(Frame_focus, true);
+
+    /* move the current frame up */
+    case ACTION_MOVE_UP:
+        return move_frame_up(Frame_focus);
+
+    /* move the current frame to the left */
+    case ACTION_MOVE_LEFT:
+        return move_frame_left(Frame_focus);
+
+    /* move the current frame to the right */
+    case ACTION_MOVE_RIGHT:
+        return move_frame_right(Frame_focus);
+
+    /* move the current frame down */
+    case ACTION_MOVE_DOWN:
+        return move_frame_down(Frame_focus);
 
     /* toggle visibility of the interactive window list */
     case ACTION_SHOW_WINDOW_LIST:

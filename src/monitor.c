@@ -9,6 +9,7 @@
 #include "log.h"
 #include "monitor.h"
 #include "render.h"
+#include "size_frame.h"
 #include "stash_frame.h"
 #include "tiling.h"
 #include "utility.h"
@@ -326,6 +327,246 @@ Window *get_window_covering_monitor(Monitor *monitor)
         }
     }
     return best_window;
+}
+
+/* Get the monitor left of @monitor.
+ *
+ * The main design goal of this and the three functions below was to have a way
+ * to able to access ALL monitors in the most natural way.
+ */
+Monitor *get_left_monitor(Monitor *monitor)
+{
+    Monitor *best_monitor = NULL;
+    int32_t best_y = INT32_MAX, y;
+    int32_t best_right = INT32_MAX;
+    bool best_is_y_axis_overlapping = false;
+
+    const int32_t center_y = monitor->y + monitor->height / 2;
+    const int32_t right = monitor->x + monitor->width;
+    const int32_t bottom = monitor->y + monitor->height;
+    for (Monitor *other = Monitor_first; other != NULL; other = other->next) {
+        /* ignore monitors not on the left */
+        const int32_t other_right = other->x + other->width;
+        if (other_right >= right) {
+            continue;
+        }
+
+        const int32_t other_bottom = other->y + other->height;
+        const bool is_y_axis_overlapping =
+            other->y < bottom && monitor->y < other_bottom;
+
+        /* ignore any non overlapping monitors we alread have an overlapping on
+         */
+        if (!is_y_axis_overlapping && best_is_y_axis_overlapping) {
+            continue;
+        }
+
+        /* get the distance from the center */
+        if (other->y >= center_y) {
+            y = other->y - center_y;
+        } else if (other_bottom <= center_y) {
+            y = center_y - other_bottom + 1;
+        } else {
+            y = 0;
+        }
+
+        if (best_monitor == NULL ||
+                /* if the y axis of this monitor overlaps whereas the previous
+                 * does not, we take the monitor as best monitor
+                 */
+                best_is_y_axis_overlapping != is_y_axis_overlapping ||
+                /* if the y axis overlaps, prefer monitors more on the right
+                 * over monitors closer to the center
+                 */
+                (is_y_axis_overlapping &&
+                    ((other_right == best_right && y < best_y) ||
+                        other_right > best_right)) ||
+                /* this preference is flipped if it does not overlap */
+                (!is_y_axis_overlapping &&
+                    ((y == best_y && other_right > best_right) ||
+                        y < best_y))) {
+            best_monitor = other;
+            best_y = y;
+            best_right = other_right;
+            best_is_y_axis_overlapping = is_y_axis_overlapping;
+        }
+    }
+    return best_monitor;
+}
+
+/* Get the monitor above @monitor. */
+Monitor *get_above_monitor(Monitor *monitor)
+{
+    Monitor *best_monitor = NULL;
+    int32_t best_x = INT32_MAX, x;
+    int32_t best_bottom = INT32_MAX;
+    bool best_is_x_axis_overlapping = false;
+
+    const int32_t center_x = monitor->x + monitor->width / 2;
+    const int32_t right = monitor->x + monitor->width;
+    const int32_t bottom = monitor->y + monitor->height;
+    for (Monitor *other = Monitor_first; other != NULL; other = other->next) {
+        /* ignore monitors not below */
+        const int32_t other_bottom = other->y + other->height;
+        if (other_bottom >= bottom) {
+            continue;
+        }
+
+        const int32_t other_right = other->x + other->width;
+        const bool is_x_axis_overlapping =
+            other->x < right && monitor->x < other_right;
+
+        /* ignore any non overlapping monitors we alread have an overlapping on
+         */
+        if (!is_x_axis_overlapping && best_is_x_axis_overlapping) {
+            continue;
+        }
+
+        /* get the distance from the center */
+        if (other->x >= center_x) {
+            x = other->x - center_x;
+        } else if (other_right <= center_x) {
+            x = center_x - other_right + 1;
+        } else {
+            x = 0;
+        }
+
+        if (best_monitor == NULL ||
+                /* if the y axis of this monitor overlaps whereas the previous
+                 * does not, we take the monitor as best monitor
+                 */
+                best_is_x_axis_overlapping != is_x_axis_overlapping ||
+                /* if the y axis overlaps, prefer monitors more on the right
+                 * over monitors closer to the center
+                 */
+                (is_x_axis_overlapping &&
+                    ((other_bottom == best_bottom && x < best_x) ||
+                        other_bottom > best_bottom)) ||
+                /* this preference is flipped if it does not overlap */
+                (!is_x_axis_overlapping &&
+                    ((x == best_x && other_bottom > best_bottom) ||
+                        x < best_x))) {
+            best_monitor = other;
+            best_x = x;
+            best_bottom = other_bottom;
+            best_is_x_axis_overlapping = is_x_axis_overlapping;
+        }
+    }
+    return best_monitor;
+}
+
+/* Get the monitor right of @monitor. */
+Monitor *get_right_monitor(Monitor *monitor)
+{
+    Monitor *best_monitor = NULL;
+    int32_t best_y = INT32_MAX, y;
+    bool best_is_y_axis_overlapping = false;
+
+    const int32_t center_y = monitor->y + monitor->height / 2;
+    const int32_t bottom = monitor->y + monitor->height;
+    for (Monitor *other = Monitor_first; other != NULL; other = other->next) {
+        /* ignore monitors not on the right */
+        if (other->x <= monitor->x) {
+            continue;
+        }
+
+        const int32_t other_bottom = other->y + other->height;
+        const bool is_y_axis_overlapping =
+            other->y < bottom && monitor->y < other_bottom;
+
+        /* ignore any non overlapping monitors we alread have an overlapping on
+         */
+        if (!is_y_axis_overlapping && best_is_y_axis_overlapping) {
+            continue;
+        }
+
+        /* get the distance from the center */
+        if (other->y >= center_y) {
+            y = other->y - center_y;
+        } else if (other_bottom <= center_y) {
+            y = center_y - other_bottom + 1;
+        } else {
+            y = 0;
+        }
+
+        if (best_monitor == NULL ||
+                /* if the y axis of this monitor overlaps whereas the previous
+                 * does not, we take the monitor as best monitor
+                 */
+                best_is_y_axis_overlapping != is_y_axis_overlapping ||
+                /* if the y axis overlaps, prefer monitors more on the left
+                 * over monitors closer to the center
+                 */
+                (is_y_axis_overlapping &&
+                    ((other->x == best_monitor->x && y < best_y) ||
+                        other->x < best_monitor->x)) ||
+                /* this preference is flipped if it does not overlap */
+                (!is_y_axis_overlapping &&
+                    ((y == best_y && other->x < best_monitor->x) ||
+                        y < best_y))) {
+            best_monitor = other;
+            best_y = y;
+            best_is_y_axis_overlapping = is_y_axis_overlapping;
+        }
+    }
+    return best_monitor;
+}
+
+/* Get the monitor below @monitor. */
+Monitor *get_below_monitor(Monitor *monitor)
+{
+    Monitor *best_monitor = NULL;
+    int32_t best_x = INT32_MAX, x;
+    bool best_is_x_axis_overlapping = false;
+
+    const int32_t center_x = monitor->x + monitor->width / 2;
+    const int32_t right = monitor->x + monitor->width;
+    for (Monitor *other = Monitor_first; other != NULL; other = other->next) {
+        /* ignore monitors not below */
+        if (other->y <= monitor->y) {
+            continue;
+        }
+
+        const int32_t other_right = other->x + other->width;
+        const bool is_x_axis_overlapping =
+            other->x < right && monitor->x < other_right;
+
+        /* ignore any non overlapping monitors we alread have an overlapping on
+         */
+        if (!is_x_axis_overlapping && best_is_x_axis_overlapping) {
+            continue;
+        }
+
+        /* get the distance from the center */
+        if (other->x >= center_x) {
+            x = other->x - center_x;
+        } else if (other_right <= center_x) {
+            x = center_x - other_right + 1;
+        } else {
+            x = 0;
+        }
+
+        if (best_monitor == NULL ||
+                /* if the y axis of this monitor overlaps whereas the previous
+                 * does not, we take the monitor as best monitor
+                 */
+                best_is_x_axis_overlapping != is_x_axis_overlapping ||
+                /* if the y axis overlaps, prefer monitors more on the right
+                 * over monitors closer to the center
+                 */
+                (is_x_axis_overlapping &&
+                    ((other->y == best_monitor->y && x < best_x) ||
+                        other->y < best_monitor->y)) ||
+                /* this preference is flipped if it does not overlap */
+                (!is_x_axis_overlapping &&
+                    ((x == best_x && other->y < best_monitor->y) ||
+                        x < best_x))) {
+            best_monitor = other;
+            best_x = x;
+            best_is_x_axis_overlapping = is_x_axis_overlapping;
+        }
+    }
+    return best_monitor;
 }
 
 /* Gets a list of monitors that are associated to the screen. */

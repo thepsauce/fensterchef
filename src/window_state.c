@@ -70,7 +70,7 @@ static inline void move_to_next_available(Monitor *monitor, Window *window,
     *y = monitor->y + monitor->height / 10;
 
     for (Window *other = Window_first; other != NULL; other = other->next) {
-        if (other == window) {
+        if (other == window || !other->state.is_visible) {
             continue;
         }
         if ((other->x - *x) % 20 != 0 || (other->y - *y) % 20 != 0) {
@@ -96,7 +96,7 @@ static inline void move_to_next_available(Monitor *monitor, Window *window,
 /* Set the window size and position according to the size hints. */
 static void configure_floating_size(Window *window)
 {
-    Monitor *monitor;
+    Monitor *monitor, *original_monitor;
     int32_t x, y;
     uint32_t width, height;
 
@@ -107,11 +107,19 @@ static void configure_floating_size(Window *window)
         monitor = get_monitor_containing_frame(Frame_focus);
     }
 
+    /* the monitor the window was on before */
+    original_monitor = get_monitor_from_rectangle(window->floating.x,
+            window->floating.y, window->floating.width,
+            window->floating.height);
+
     /* if the window never had a floating size, use the size hints to get a size
      * that the window prefers
      */
-    if (window->floating.width == 0) {
-        if ((window->size_hints.flags & XCB_ICCCM_SIZE_HINT_P_SIZE)) {
+    if (monitor != original_monitor) {
+        if (window->floating.width > 0) {
+            width = window->floating.width;
+            height = window->floating.height;
+        } else if ((window->size_hints.flags & XCB_ICCCM_SIZE_HINT_P_SIZE)) {
             width = window->size_hints.width;
             height = window->size_hints.height;
         } else {
@@ -140,26 +148,16 @@ static void configure_floating_size(Window *window)
                  XCB_ICCCM_SIZE_HINT_P_MAX_SIZE) &&
                 (window->size_hints.min_width == window->size_hints.max_width ||
                  window->size_hints.min_height == window->size_hints.max_height)) {
-            x = monitor->x + (int32_t) ((monitor->width - width) / 2);
-            y = monitor->y + (int32_t) ((monitor->height - height) / 2);
+            x = monitor->x + (monitor->width - width) / 2;
+            y = monitor->y + (monitor->height - height) / 2;
         } else {
             move_to_next_available(monitor, window, &x, &y);
         }
     } else {
+        x = window->floating.x;
+        y = window->floating.y;
         width = window->floating.width;
         height = window->floating.height;
-        /* if the window would still be in the monitor it was moved to,
-         * restore the position, otherwise center the window
-         */
-        if (get_monitor_from_rectangle(window->floating.x,
-                    window->floating.y, window->floating.width,
-                    window->floating.height) == monitor) {
-            x = window->floating.x;
-            y = window->floating.y;
-        } else {
-            x = monitor->x + (int32_t) (monitor->width - width) / 2;
-            y = monitor->y + (int32_t) (monitor->height - height) / 2;
-        }
     }
 
     set_window_size(window, x, y, width, height);
@@ -412,7 +410,7 @@ static void update_shown_window(Window *window)
         if (configuration.tiling.auto_split && Frame_focus->window != NULL) {
             Frame *const wrap = create_frame();
             wrap->window = window;
-            split_frame(Frame_focus, wrap, Frame_focus->split_direction);
+            split_frame(Frame_focus, wrap, false, Frame_focus->split_direction);
             Frame_focus = wrap;
         } else {
             stash_frame(Frame_focus);
@@ -480,7 +478,8 @@ void set_window_mode(Window *window, window_mode_t mode)
             frame->window = NULL;
             if (configuration.tiling.auto_remove ||
                     configuration.tiling.auto_remove_void) {
-                remove_void(frame);
+                remove_frame(frame);
+                destroy_frame(frame);
             } else if (configuration.tiling.auto_fill_void) {
                 fill_void_with_stash(frame);
             }
@@ -543,7 +542,8 @@ void hide_window(Window *window)
         stash = stash_frame_later(frame);
         if (configuration.tiling.auto_remove) {
             if (frame->parent != NULL) {
-                remove_void(frame);
+                remove_frame(frame);
+                destroy_frame(frame);
             } else if (configuration.tiling.auto_fill_void) {
                 fill_void_with_stash(frame);
             }
@@ -552,10 +552,12 @@ void hide_window(Window *window)
             if (configuration.tiling.auto_fill_void) {
                 fill_void_with_stash(frame);
                 if (is_frame_void(frame)) {
-                    remove_void(frame);
+                    remove_frame(frame);
+                    destroy_frame(frame);
                 }
             } else if (frame->parent != NULL) {
-                remove_void(frame);
+                remove_frame(frame);
+                destroy_frame(frame);
             }
         } else if (configuration.tiling.auto_fill_void) {
             fill_void_with_stash(frame);

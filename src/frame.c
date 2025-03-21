@@ -5,7 +5,9 @@
 #include "frame.h"
 #include "log.h"
 #include "monitor.h"
+#include "size_frame.h"
 #include "stash_frame.h"
+#include "tiling.h"
 #include "utility.h"
 #include "window.h"
 
@@ -24,7 +26,7 @@ inline Frame *create_frame(void)
     return xcalloc(1, sizeof(*Frame_focus));
 }
 
-/* Frees the frame object (but not the child frames). */
+/* Free the frame object. */
 void destroy_frame(Frame *frame)
 {
     /* special marker used as pointer, see below */
@@ -32,11 +34,30 @@ void destroy_frame(Frame *frame)
 
     Frame *previous;
 
+    if (frame->parent != NULL) {
+        LOG_ERROR("the frame being destroyed still has a parent\n");
+        remove_frame(frame);
+        /* execution should be fine after this point but this still only gets
+         * triggered by a bug, frames should always be disconnected before
+         * destroying them
+         */
+    }
+
+    if (frame->left != NULL) {
+        LOG_ERROR("the frame being destroyed still has children,"
+                "this might leak memory\n");
+    }
+
+    /* we could also check for a case where the frame is the root frame of a
+     * monitor but checking too much is not good; these things should not happen
+     * anyway
+     */
+
     if (frame == Frame_focus) {
         LOG_ERROR("the focused frame is being freed :(\n");
         Frame_focus = NULL;
         /* we can only hope the focused frame is set to something sensible after
-         * this
+         * this, we can not set it to something sensible here
          */
     }
 
@@ -144,91 +165,7 @@ Frame *get_frame_at_position(int32_t x, int32_t y)
     return NULL;
 }
 
-/* Set the size of a frame, this also resizes the inner frames and windows. */
-void resize_frame(Frame *frame, int32_t x, int32_t y,
-        uint32_t width, uint32_t height)
-{
-    Frame *left, *right;
-    uint32_t left_size;
-
-    frame->x = x;
-    frame->y = y;
-    frame->width = width;
-    frame->height = height;
-    reload_frame(frame);
-
-    left = frame->left;
-    right = frame->right;
-
-    /* check if the frame has children */
-    if (left == NULL) {
-        return;
-    }
-
-    switch (frame->split_direction) {
-    /* left to right split */
-    case FRAME_SPLIT_HORIZONTALLY:
-        left_size = (uint64_t) width * frame->ratio.numerator /
-            frame->ratio.denominator;
-        resize_frame(left, x, y, left_size, height);
-        resize_frame(right, x + left_size, y, width - left_size, height);
-        break;
-
-    /* top to bottom split */
-    case FRAME_SPLIT_VERTICALLY:
-        left_size = (uint64_t) height * frame->ratio.numerator /
-            frame->ratio.denominator;
-        resize_frame(left, x, y, width, left_size);
-        resize_frame(right, x, y + left_size, width, height - left_size);
-        break;
-    }
-}
-
-/* Set the size of a frame, this also resizes the child frames and windows. */
-void resize_frame_and_ignore_ratio(Frame *frame, int32_t x, int32_t y,
-        uint32_t width, uint32_t height)
-{
-    Frame *left, *right;
-    uint32_t left_size;
-
-    frame->x = x;
-    frame->y = y;
-    frame->width = width;
-    frame->height = height;
-    reload_frame(frame);
-
-    left = frame->left;
-    right = frame->right;
-
-    /* check if the frame has children */
-    if (left == NULL) {
-        return;
-    }
-
-    switch (frame->split_direction) {
-    /* left to right split */
-    case FRAME_SPLIT_HORIZONTALLY:
-        /* keep ratio when resizing or use the default 1/2 ratio */
-        left_size = left->width == 0 || right->width == 0 ? width / 2 :
-            width * left->width / (left->width + right->width);
-        resize_frame_and_ignore_ratio(left, x, y, left_size, height);
-        resize_frame_and_ignore_ratio(right, x + left_size, y,
-                width - left_size, height);
-        break;
-
-    /* top to bottom split */
-    case FRAME_SPLIT_VERTICALLY:
-        /* keep ratio when resizing or use the default 1/2 ratio */
-        left_size = left->height == 0 || right->height == 0 ? height / 2 :
-            height * left->height / (left->height + right->height);
-        resize_frame_and_ignore_ratio(left, x, y, width, left_size);
-        resize_frame_and_ignore_ratio(right, x, y + left_size,
-                width, height - left_size);
-        break;
-    }
-}
-
-/* Replace @frame (windows and child frames) with @with. */
+/* Replace @frame with @with. */
 void replace_frame(Frame *frame, Frame *with)
 {
     frame->number = with->number;

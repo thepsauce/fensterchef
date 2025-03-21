@@ -83,4 +83,4 @@ If it is a feature request, you can freely write anything.
 ## IRC
 
 If you want to hang out with fensterchef users and developers you can join
-irc.libera.chat:6697 and find us in the channel named ##fensterchef.
+`irc.libera.chat:6697` and find us in the channel named `#fensterchef`.

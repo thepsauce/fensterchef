@@ -15,6 +15,7 @@
 #include "monitor.h"
 #include "tiling.h"
 #include "resources.h"
+#include "size_frame.h"
 #include "utility.h"
 #include "window.h"
 #include "window_list.h"
@@ -122,6 +123,16 @@ void synchronize_client_list(void)
             Window_count, client_list.ids);
 }
 
+/* Recursively check if the window is contained within @frame. */
+static bool is_window_part_of(Window *window, Frame *frame)
+{
+    if (frame->left != NULL) {
+        return is_window_part_of(window, frame->left) ||
+            is_window_part_of(window, frame->right);
+    }
+    return frame->window == window;
+}
+
 /* Synchronize the local data with the X server. */
 void synchronize_with_server(void)
 {
@@ -138,8 +149,17 @@ void synchronize_with_server(void)
             state_atom = ATOM(_NET_WM_STATE_FOCUSED);
             remove_window_states(window, &state_atom, 1);
         }
+        /* set the color of the focused window */
         if (window == Window_focus) {
             window->border_color = configuration.border.focus_color;
+        /* deeply set the colors of all windows within the focused frame */
+        } else if (Window_focus == NULL &&
+                window->state.mode == WINDOW_MODE_TILING &&
+                is_window_part_of(window, Frame_focus)) {
+            window->border_color = configuration.border.focus_color;
+        /* if the window is the top window or within the focused frame, give it
+         * the active color
+         */
         } else if (window == Frame_focus->window ||
                 (window->state.mode == WINDOW_MODE_FLOATING &&
                  window == Window_top)) {
@@ -188,9 +208,7 @@ int next_cycle(void)
         return ERROR;
     }
 
-    /* these values are only used for comparison, the pointers itself might get
-     * set to an invalid frame or window
-     */
+    /* save the old focus for comparison (checking if the focus changed) */
     Window_old_focus = Window_focus;
     Frame_old_focus = Frame_focus;
 

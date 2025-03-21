@@ -28,7 +28,30 @@
     xrandr --output $MON2 --dpi 96
     ```
 
-#46 ...
+#49 Make refocus more natural when a window is destroyed
+    When a non tiling window is destroyed, the focus may move to a different
+    monitor which is unnatural
+
+#50 ! The default of pressing MiddleButton to close a window
+    When doing this, the below window gets the event as well
+
+#51 ! Fix fixed size fonts messing up
+    Fixed size fonts like emoji fonts are not scaled and it looks very weird
+
+#52 ! Let more frames tank size
+    When resizing a frame, let it push frames
+
+#53 ! Numbers assigned wrongly
+    When there are no assignments, windows are not number starting from the
+    configured first-window-number
+
+#54 Handle overlapping monitors
+    When monitors overlap, one should be ignored
+
+#55 Window centering not using new method
+    Make the configure_floating method public and use it
+
+#56 ...
 
 #1000 Make a wayland port
     Make an additional repository that hosts fensterchef-wayland
@@ -37,6 +60,13 @@
 #14 Generate documentation
     Make shell scripts to generate the manual page (should the wiki be
     continued?)
+
+#46 Add "other" action
+    This action should pop a frame from the space and replace it with the
+    current frame
+
+#47 Add left/top split actions
+    These actions should split like usually but in the other direction
 
 [Recheck]
 #8 ? Improve font rendering once again
@@ -219,3 +249,6 @@
 
 #44 Handle the add of _NET_WM_STATE_MAXIMIZED_HORZ
     The steam window uses this to maximize itself.
+
+#48 Add move actions
+    Add actions to move windows
