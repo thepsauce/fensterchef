@@ -478,8 +478,11 @@ void set_window_mode(Window *window, window_mode_t mode)
             frame->window = NULL;
             if (configuration.tiling.auto_remove ||
                     configuration.tiling.auto_remove_void) {
-                remove_frame(frame);
-                destroy_frame(frame);
+                /* do not remove a root */
+                if (frame->parent != NULL) {
+                    remove_frame(frame);
+                    destroy_frame(frame);
+                }
             } else if (configuration.tiling.auto_fill_void) {
                 fill_void_with_stash(frame);
             }
@@ -536,22 +539,35 @@ void hide_window(Window *window)
 
     switch (window->state.mode) {
     /* the window is replaced by another window in the tiling layout */
-    case WINDOW_MODE_TILING:
+    case WINDOW_MODE_TILING: {
+        Frame *pop;
+
         frame = get_frame_of_window(window);
+
+        pop = pop_stashed_frame();
 
         stash = stash_frame_later(frame);
         if (configuration.tiling.auto_remove) {
+            /* if the frame is not a root frame, remove it, otherwise
+             * auto-fill-void is checked
+             */
             if (frame->parent != NULL) {
                 remove_frame(frame);
                 destroy_frame(frame);
             } else if (configuration.tiling.auto_fill_void) {
-                fill_void_with_stash(frame);
+                if (pop != NULL) {
+                    replace_frame(frame, pop);
+                }
             }
         } else if (configuration.tiling.auto_remove_void) {
             /* this option takes precedence */
             if (configuration.tiling.auto_fill_void) {
-                fill_void_with_stash(frame);
-                if (is_frame_void(frame)) {
+                if (pop != NULL) {
+                    replace_frame(frame, pop);
+                }
+                /* if the frame is no root and kept on being a void, remove it
+                 */
+                if (frame->parent != NULL && is_frame_void(frame)) {
                     remove_frame(frame);
                     destroy_frame(frame);
                 }
@@ -560,8 +576,20 @@ void hide_window(Window *window)
                 destroy_frame(frame);
             }
         } else if (configuration.tiling.auto_fill_void) {
-            fill_void_with_stash(frame);
+            if (pop != NULL) {
+                replace_frame(frame, pop);
+            }
         }
+
+        /* put `pop` back onto the stack, if it was used it will be empty and
+         * therefore not be put onto the stack again but it will in any case be
+         * destroyed
+         */
+        if (pop != NULL) {
+            stash_frame(pop);
+            destroy_frame(pop);
+        }
+
         link_frame_into_stash(stash);
 
         /* if nothing is focused, focus the focused frame window */
@@ -569,6 +597,7 @@ void hide_window(Window *window)
             set_focus_window(Frame_focus->window);
         }
         break;
+    }
 
     /* need to just focus a different window */
     case WINDOW_MODE_FLOATING:

@@ -72,25 +72,7 @@ Frame *stash_frame_later(Frame *frame)
     }
 
     Frame *const stash = xcalloc(1, sizeof(*stash));
-    stash->number = frame->number;
-    frame->number = 0;
-    /* reparent the child frames */
-    if (frame->left != NULL) {
-        stash->split_direction = frame->split_direction;
-        stash->ratio = frame->ratio;
-        stash->left = frame->left;
-        stash->right = frame->right;
-        stash->left->parent = stash;
-        stash->right->parent = stash;
-
-        frame->left = NULL;
-        frame->right = NULL;
-    } else {
-        stash->window = frame->window;
-
-        frame->window = NULL;
-    }
-
+    replace_frame(stash, frame);
     hide_inner_windows(stash);
     return stash;
 }
@@ -109,9 +91,6 @@ void link_frame_into_stash(Frame *frame)
 Frame *stash_frame(Frame *frame)
 {
     Frame *const stash = stash_frame_later(frame);
-    if (stash == NULL) {
-        return NULL;
-    }
     link_frame_into_stash(stash);
     return stash;
 }
@@ -141,11 +120,14 @@ static void free_frame_recursively(Frame *frame)
     if (frame->left != NULL) {
         free_frame_recursively(frame->left);
         free_frame_recursively(frame->right);
+        frame->left = NULL;
+        frame->right = NULL;
     }
+    frame->parent = NULL;
     destroy_frame(frame);
 }
 
-/* Put the child frames or window into @frame of the recently saved frame. */
+/* Pop a frame from the stashed frame list. */
 Frame *pop_stashed_frame(void)
 {
     Frame *pop = NULL;

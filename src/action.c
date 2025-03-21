@@ -169,7 +169,7 @@ static bool resize_frame_or_window_by(Window *window, int32_t left, int32_t top,
  *
  * @return if there is another window.
  */
-bool set_showable_tiling_window(bool previous)
+bool set_showable_tiling_window(uint32_t count, bool previous)
 {
     Window *start, *next, *valid_window = NULL;
 
@@ -199,7 +199,10 @@ bool set_showable_tiling_window(bool previous)
              * find the window before the current window
              */
             if (!previous) {
-                break;
+                count--;
+                if (count == 0) {
+                    break;
+                }
             }
         }
     }
@@ -419,8 +422,9 @@ static bool move_to_below_frame(Frame *relative, bool do_exchange)
 bool do_action(const Action *action, Window *window)
 {
     char *shell;
-    uint32_t count;
+    int32_t count;
     Frame *frame;
+    bool is_previous = true;
 
     switch (action->code) {
     /* invalid action value */
@@ -512,6 +516,9 @@ bool do_action(const Action *action, Window *window)
         if (count == 0) {
             count = 1;
         }
+        if (count < 0) {
+            count = INT32_MAX;
+        }
         /* move to the count'th parent */
         for (frame = Frame_focus; frame->parent != NULL && count > 0; count--) {
             if (frame == frame->parent->left) {
@@ -526,7 +533,7 @@ bool do_action(const Action *action, Window *window)
             return false;
         }
 
-        set_focus_frame(frame);
+        Frame_focus = frame;
         break;
 
     /* move the focus to the child frame */
@@ -534,6 +541,9 @@ bool do_action(const Action *action, Window *window)
         count = action->data.integer;
         if (count == 0) {
             count = 1;
+        }
+        if (count < 0) {
+            count = INT32_MAX;
         }
         /* move to the count'th child */
         for (frame = Frame_focus; frame->left != NULL && count > 0; count--) {
@@ -548,7 +558,7 @@ bool do_action(const Action *action, Window *window)
             return false;
         }
 
-        set_focus_frame(frame);
+        Frame_focus = frame;
         break;
 
     /* equalize the size of the child frames within a frame */
@@ -632,34 +642,25 @@ bool do_action(const Action *action, Window *window)
 
     /* go to the next window in the window list */
     case ACTION_NEXT_WINDOW:
-        count = action->data.integer;
-        if (count == 0) {
-            count = 1;
-        }
-        for (; count > 0; count--) {
-            if (!set_showable_tiling_window(false)) {
-                return false;
-            }
-        }
-        break;
-
+        is_previous = false;
+        /* fall through */
     /* go to the previous window in the window list */
     case ACTION_PREVIOUS_WINDOW:
         count = action->data.integer;
         if (count == 0) {
             count = 1;
         }
-        for (; count > 0; count--) {
-            if (!set_showable_tiling_window(true)) {
-                return false;
-            }
+        if (count < 0) {
+            count *= -1;
+            is_previous = !is_previous;
         }
-        break;
+        return set_showable_tiling_window(count, is_previous);
 
     /* remove the current frame */
     case ACTION_REMOVE_FRAME:
         frame = Frame_focus;
         (void) stash_frame(frame);
+        /* do not remove a root frame */
         if (frame->parent != NULL) {
             remove_frame(frame);
             destroy_frame(frame);
@@ -672,6 +673,20 @@ bool do_action(const Action *action, Window *window)
             set_focus_window(Frame_focus->window);
         }
         break;
+
+    /* remove the current frame and replace it with a frame from the stash */
+    case ACTION_OTHER_FRAME: {
+        Frame *const pop = pop_stashed_frame();
+        if (pop == NULL) {
+            return false;
+        }
+        stash_frame(Frame_focus);
+        replace_frame(Frame_focus, pop);
+        destroy_frame(pop);
+        /* focus any window that might have appeared */
+        set_focus_window(Frame_focus->window);
+        break;
+    }
 
     /* changes a non tiling window to a tiling window and vise versa */
     case ACTION_TOGGLE_TILING:

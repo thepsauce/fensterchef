@@ -62,18 +62,18 @@ void *xreallocarray(void *ptr, size_t nmemb, size_t size)
 }
 
 /* Combination of `xmalloc()` and `memcpy()`. */
-void *xmemdup(const void *ptr, size_t size)
+void *xmemdup(const void *pointer, size_t size)
 {
-    char *p_dup;
+    char *duplicate;
 
     if (size == 0) {
         return NULL;
     }
 
-    p_dup = malloc(size);
-    ASSERT(p_dup != NULL, strerror(errno));
+    duplicate = malloc(size);
+    ASSERT(duplicate != NULL, strerror(errno));
 
-    return memcpy(p_dup, ptr, size);
+    return memcpy(duplicate, pointer, size);
 }
 
 /* Duplicates the null-terminated @string pointer by creating a copy. */

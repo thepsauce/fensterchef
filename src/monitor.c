@@ -307,6 +307,10 @@ Window *get_window_covering_monitor(Monitor *monitor)
     /* go through the windows from bottom to top */
     for (Window *window = Window_bottom; window != NULL;
             window = window->above) {
+        /* ignore invisible windows */
+        if (!window->state.is_visible) {
+            continue;
+        }
         /* only consider floating and fullscreen windows */
         if (window->state.mode != WINDOW_MODE_FLOATING &&
                 window->state.mode != WINDOW_MODE_FULLSCREEN) {

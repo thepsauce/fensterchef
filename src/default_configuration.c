@@ -184,6 +184,9 @@ void merge_with_default_key_bindings(struct configuration *configuration)
         /* remove the current tiling frame */
         { 0, 0, XK_r, { .code = ACTION_REMOVE_FRAME } },
 
+        /* put the stashed frame into the current one */
+        { 0, 0, XK_o, { .code = ACTION_OTHER_FRAME } },
+
         /* toggle between tiling and the previous mode */
         { XCB_MOD_MASK_SHIFT, 0, XK_space, { .code = ACTION_TOGGLE_TILING } },
 

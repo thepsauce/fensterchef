@@ -159,8 +159,11 @@ static void do_resplit(Frame *frame, Frame *original, bool is_left_split,
             Frame_focus = frame;
         }
         replace_frame(frame, original);
-        remove_frame(original);
-        destroy_frame(original);
+        /* do not destroy root frames */
+        if (original->parent != NULL) {
+            remove_frame(original);
+            destroy_frame(original);
+        }
     } else {
         const bool refocus = Frame_focus == original;
         if (original->parent == NULL) {
@@ -374,9 +377,9 @@ bool move_frame_down(Frame *frame)
 void exchange_frames(Frame *from, Frame *to)
 {
     /* swap the focus if one frame has it */
-    if (from == Frame_focus) {
+    if (Frame_focus == from) {
         Frame_focus = to;
-    } else if (to == Frame_focus) {
+    } else if (Frame_focus == to) {
         Frame_focus = from;
     }
 

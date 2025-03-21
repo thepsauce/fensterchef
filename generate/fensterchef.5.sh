@@ -47,7 +47,7 @@ while read -r line ; do
                     data_type="${data_type,,}"
 
                     echo ".PP"
-                    echo "$name"
+                    echo ".B $name"
                     if [ "$data_type" != "void" ] ; then
                         echo ".I $data_type"
                     fi

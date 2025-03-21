@@ -930,6 +930,9 @@ static parser_error_t parse_assignment_association(Parser *parser)
         parser->column++;
         error = parse_actions(parser, &association.actions,
                 &association.number_of_actions);
+    } else {
+        association.actions = NULL;
+        association.number_of_actions = 0;
     }
 
     if (error != PARSER_SUCCESS) {

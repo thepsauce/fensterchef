@@ -93,6 +93,8 @@ void hide_window(Window *window);
 /* Hide the window without touching the tiling or focus.
  *
  * Note: The focus however is removed if @window is the focus.
+ *
+ * To abrubtly show a window, simply do: `window->state.is_visible = true`.
  */
 void hide_window_abruptly(Window *window);
 

@@ -6,7 +6,7 @@
 /* Take frame away from the screen, this leaves a singular empty frame.
  *
  * @frame is made into a completely empty frame as all children and windows are
- * taken out.
+ *        taken out.
  *
  * Consider using `link_into_stash()` after calling this.
  *

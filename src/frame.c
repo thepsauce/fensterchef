@@ -178,11 +178,18 @@ void replace_frame(Frame *frame, Frame *with)
         frame->right = with->right;
         frame->left->parent = frame;
         frame->right->parent = frame;
+        /* one null set for convenience, otherwise the very natural looking
+         * swapping in `exchange_frames()` would not work
+         */
+        frame->window = NULL;
 
         with->left = NULL;
         with->right = NULL;
     } else {
         frame->window = with->window;
+        /* two null sets for convenience */
+        frame->left = NULL;
+        frame->right = NULL;
 
         with->window = NULL;
     }

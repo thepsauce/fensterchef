@@ -48,6 +48,8 @@
     X(ACTION_PREVIOUS_WINDOW, true, "PREVIOUS-WINDOW", DATA_TYPE_INTEGER) \
     /* remove the current frame */ \
     X(ACTION_REMOVE_FRAME, false, "REMOVE-FRAME", DATA_TYPE_VOID) \
+    /* remove the current frame and replace it with a frame from the stash */ \
+    X(ACTION_OTHER_FRAME, false, "OTHER-FRAME", DATA_TYPE_VOID) \
     /* changes a non tiling window to a tiling window and vise versa */ \
     X(ACTION_TOGGLE_TILING, false, "TOGGLE-TILING", DATA_TYPE_VOID) \
     /* toggles the fullscreen state of the currently focused window */ \
