@@ -102,6 +102,8 @@
     X(ACTION_SHOW_MESSAGE_RUN, false, "SHOW-MESSAGE-RUN", DATA_TYPE_STRING) \
     /* resize the edges of the current window */ \
     X(ACTION_RESIZE_BY, false, "RESIZE-BY", DATA_TYPE_QUAD) \
+    /* center a window to given monitor (glob pattern) or the monitor the window is currently on */ \
+    X(ACTION_CENTER_TO, true, "CENTER-TO", DATA_TYPE_STRING) \
     /* quit fensterchef */ \
     X(ACTION_QUIT, false, "QUIT", DATA_TYPE_VOID)
 

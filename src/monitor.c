@@ -596,7 +596,20 @@ Monitor *get_below_monitor(Monitor *monitor)
     return best_monitor;
 }
 
-/* Gets a list of monitors that are associated to the screen. */
+/* Get the first monitor matching given pattern. */
+Monitor *get_monitor_by_pattern(const char *pattern)
+{
+    for (Monitor *monitor = Monitor_first;
+            monitor != NULL;
+            monitor = monitor->next) {
+        if (matches_pattern(pattern, monitor->name)) {
+            return monitor;
+        }
+    }
+    return NULL;
+}
+
+/* Get a list of monitors that are associated to the screen. */
 Monitor *query_monitors(void)
 {
     xcb_generic_error_t *error;

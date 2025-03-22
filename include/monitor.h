@@ -86,6 +86,9 @@ Monitor *get_right_monitor(Monitor *monitor);
  */
 Monitor *get_below_monitor(Monitor *monitor);
 
+/* Get the first monitor matching given pattern. */
+Monitor *get_monitor_by_pattern(const char *pattern);
+
 /* Gets a list of monitors that are associated to the screen.
  *
  * @return NULL when randr is not supported or when there are no monitors.

@@ -832,6 +832,32 @@ bool do_action(const Action *action, Window *window)
                 action->data.quad[2],
                 action->data.quad[3]);
 
+    /* center a window to given monitor (glob pattern) */
+    case ACTION_CENTER_TO: {
+        Monitor *monitor;
+
+        if (window == NULL) {
+            return false;
+        }
+
+        if (action->data.string == NULL) {
+            monitor = get_monitor_from_rectangle(window->x,
+                    window->y, window->width, window->height);
+        } else {
+            monitor = get_monitor_by_pattern((char*) action->data.string);
+        }
+
+        if (monitor == NULL) {
+            return false;
+        }
+
+        set_window_size(window,
+                (monitor->x + monitor->width - window->width) / 2,
+                (monitor->y + monitor->height - window->height) / 2,
+                window->width, window->height);
+        break;
+    }
+
     /* quit fensterchef */
     case ACTION_QUIT:
         Fensterchef_is_running = false;

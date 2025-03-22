@@ -162,7 +162,7 @@ static inline void propagate_size(Frame *frame,
 /* Increase the @edge of @frame by @amount. */
 int32_t bump_frame_edge(Frame *frame, frame_edge_t edge, int32_t amount)
 {
-    Frame *parent, *right;
+    Frame *parent, *right = NULL;
     Size size;
     int32_t space;
     int32_t self_amount;

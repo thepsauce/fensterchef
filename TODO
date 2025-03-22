@@ -34,10 +34,6 @@
 #51/#8 ! Fix fixed size fonts messing up
     Fixed size fonts like emoji fonts are not scaled and it looks very weird
 
-#55 Add center-to action
-    This action should center a window to a specific monitor by name (glob
-    pattern)
-
 #56 Add resize-to action
     This action should set the size and position of a window relative to the
     monitor it is on
@@ -285,3 +281,7 @@
 
 #54 Handle overlapping monitors
     When monitors overlap, one should be ignored
+
+#55 Add center-to action
+    This action should center a window to a specific monitor by name (glob
+    pattern)
