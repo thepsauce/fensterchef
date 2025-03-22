@@ -324,7 +324,8 @@ Window *get_window_covering_monitor(Monitor *monitor)
 
     monitor_area = (uint64_t) monitor->width * monitor->height;
     /* go through the windows from bottom to top */
-    for (Window *window = Window_bottom; window != NULL;
+    for (Window *window = Window_bottom;
+            window != NULL;
             window = window->above) {
         /* ignore invisible windows */
         if (!window->state.is_visible) {
@@ -727,6 +728,49 @@ Monitor *query_monitors(void)
     }
 
     free(resources);
+
+    /* remove monitors that are contained within other monitors */
+    for (Monitor *monitor = first_monitor;
+            monitor != NULL;
+            monitor = monitor->next) {
+        /* go through all monitors coming after */
+        for (Monitor *previous, *next = monitor;; ) {
+            previous = next;
+            next = next->next;
+            if (next == NULL) {
+                break;
+            }
+
+            const int32_t right = monitor->x + monitor->width;
+            const int32_t bottom = monitor->y + monitor->height;
+            const int32_t next_right = next->x + next->width;
+            const int32_t next_bottom = next->y + next->height;
+            /* check if `monitor` is within `next` */
+            if (monitor->x >= next->x && monitor->y >= next->y &&
+                    right <= next_right && bottom <= next_bottom) {
+                /* inflate the monitor */
+                monitor->x = next->x;
+                monitor->y = next->y;
+                monitor->width = next->width;
+                monitor->height = next->height;
+            /* check if `next` is within `monitor` */
+            } else if (next->x >= monitor->x && next->y >= monitor->y &&
+                    next_right <= right && next_bottom <= bottom) {
+                /* nothing */
+            } else {
+                /* they are not contained in any way */
+                continue;
+            }
+
+            LOG("merged monitor %s into %s\n", next->name, monitor->name);
+
+            previous->next = next->next;
+            free(next->name);
+            free(next);
+
+            next = previous;
+        }
+    }
 
     return first_monitor;
 }

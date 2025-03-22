@@ -79,9 +79,6 @@
     Make shell scripts to generate the manual page (should the wiki be
     continued?)
 
-#54 Handle overlapping monitors
-    When monitors overlap, one should be ignored
-
 [Recheck]
 #8 ? Improve font rendering once again
     Is there any way to make colored emojis work? Is artifical scaling needed?
@@ -285,3 +282,6 @@
 
 #52 ! Let more frames tank size
     When resizing a frame, let it push frames
+
+#54 Handle overlapping monitors
+    When monitors overlap, one should be ignored
