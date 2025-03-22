@@ -212,6 +212,12 @@ void merge_with_default_key_bindings(struct configuration *configuration)
         { XCB_MOD_MASK_SHIFT, 0, XK_l, { .code = ACTION_EXCHANGE_RIGHT } },
         { XCB_MOD_MASK_SHIFT, 0, XK_j, { .code = ACTION_EXCHANGE_DOWN } },
 
+        /* move a window */
+        { 0, 0, XK_Left, { ACTION_RESIZE_BY, { .quad = { 20, 0, -20, 0 } } } },
+        { 0, 0, XK_Up, { ACTION_RESIZE_BY, { .quad = { 0, 20, 0, -20 } } } },
+        { 0, 0, XK_Right, { ACTION_RESIZE_BY, { .quad = { -20, 0, 20, 0 } } } },
+        { 0, 0, XK_Down, { ACTION_RESIZE_BY, { .quad = { 0, -20, 0, 20 } } } },
+
         /* resizing the top/left edges of a window */
         { XCB_MOD_MASK_CONTROL, 0, XK_Left, { ACTION_RESIZE_BY, {
                 .quad = { 20, 0, 0, 0 } } } },
@@ -232,23 +238,15 @@ void merge_with_default_key_bindings(struct configuration *configuration)
         { XCB_MOD_MASK_SHIFT, 0, XK_Down, { ACTION_RESIZE_BY, {
                 .quad = { 0, 0, 0, 20 } } } },
 
-        /* move a window */
-        { 0, 0, XK_Left, { ACTION_RESIZE_BY, {
-                .quad = { 20, 0, -20, 0 } } } },
-        { 0, 0, XK_Up, { ACTION_RESIZE_BY, {
-                .quad = { 0, 20, 0, -20 } } } },
-        { 0, 0, XK_Right, { ACTION_RESIZE_BY, {
-                .quad = { -20, 0, 20, 0 } } } },
-        { 0, 0, XK_Down, { ACTION_RESIZE_BY, {
-                .quad = { 0, -20, 0, 20 } } } },
-
         /* inflate/deflate a window */
-        { XCB_MOD_MASK_CONTROL, 0, XK_plus, { ACTION_RESIZE_BY, {
-                .quad = { 10, 10, 10, 10 } } } },
-        { XCB_MOD_MASK_CONTROL, 0, XK_minus, { ACTION_RESIZE_BY, {
-                .quad = { -10, -10, -10, -10 } } } },
-        { XCB_MOD_MASK_CONTROL, 0, XK_equal, { ACTION_RESIZE_BY, {
-                .quad = { 10, 10, 10, 10 } } } },
+        { XCB_MOD_MASK_CONTROL | XCB_MOD_MASK_SHIFT, 0, XK_plus, {
+                ACTION_RESIZE_BY, { .quad = { 10, 10, 10, 10 } } } },
+        { XCB_MOD_MASK_CONTROL | XCB_MOD_MASK_SHIFT, 0, XK_minus, {
+                ACTION_RESIZE_BY, { .quad = { -10, -10, -10, -10 } } } },
+        { XCB_MOD_MASK_CONTROL, 0, XK_plus, {
+                ACTION_RESIZE_BY, { .quad = { 10, 10, 10, 10 } } } },
+        { XCB_MOD_MASK_CONTROL, 0, XK_minus, {
+                ACTION_RESIZE_BY, { .quad = { -10, -10, -10, -10 } } } },
 
         /* show the interactive window list */
         { 0, 0, XK_w, { .code = ACTION_SHOW_WINDOW_LIST } },

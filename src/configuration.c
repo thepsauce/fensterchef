@@ -71,9 +71,7 @@ static void duplicate_configuration_key_bindings(
 /* Create a deep copy of @duplicate and put it into itself. */
 void duplicate_configuration(struct configuration *duplicate)
 {
-    if (duplicate->font.name != NULL) {
-        duplicate->font.name = (utf8_t*) xstrdup((char*) duplicate->font.name);
-    }
+    duplicate->font.name = (utf8_t*) xstrdup((char*) duplicate->font.name);
     duplicate->startup.actions = duplicate_actions(duplicate->startup.actions,
             duplicate->startup.number_of_actions);
     duplicate_configuration_associations(duplicate);

@@ -82,6 +82,10 @@ char *xstrdup(const char *string)
     size_t length;
     char *result;
 
+    if (string == NULL) {
+        return NULL;
+    }
+
     /* +1 for the null terminator */
     length = strlen(string) + 1;
     result = xmalloc(length);

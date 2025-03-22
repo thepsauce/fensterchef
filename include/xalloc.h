@@ -51,7 +51,10 @@ void *xreallocarray(void *pointer, size_t number_of_elements,
 /* Combination of `xmalloc()` and `memcpy()`. */
 void *xmemdup(const void *pointer, size_t size);
 
-/* Duplicate the null-terminated @string pointer by creating a copy. */
+/* Duplicate the null-terminated @string pointer by creating a copy.
+ *
+ * @string may be NULL, then NULL is returned.
+ */
 char *xstrdup(const char *string);
 
 /* Like `xstrdup()` but stop at @length when the null-terminator is not yet
