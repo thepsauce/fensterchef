@@ -34,10 +34,6 @@
 #51/#8 ! Fix fixed size fonts messing up
     Fixed size fonts like emoji fonts are not scaled and it looks very weird
 
-#56 Add resize-to action
-    This action should set the size and position of a window relative to the
-    monitor it is on
-
 #57 Make higher scripting capabilities
     Actions already return true or false, I made this for the future. This is an
     example of an advanced fensterchef configuration:
@@ -74,6 +70,10 @@
 #14 Generate documentation
     Make shell scripts to generate the manual page (should the wiki be
     continued?)
+
+#56 Add resize-to action
+    This action should set the size and position of a window relative to the
+    monitor it is on
 
 [Recheck]
 #8 ? Improve font rendering once again

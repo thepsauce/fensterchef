@@ -832,6 +832,19 @@ bool do_action(const Action *action, Window *window)
                 action->data.quad[2],
                 action->data.quad[3]);
 
+    /* resize the edges of the current window */
+    case ACTION_RESIZE_TO: {
+        Monitor *monitor;
+
+        monitor = get_monitor_from_rectangle_or_primary(window->x,
+                window->y, window->width, window->height);
+        return resize_frame_or_window_by(window,
+                window->x - (monitor->x + action->data.quad[0]),
+                window->y - (monitor->y + action->data.quad[1]),
+                monitor->x + action->data.quad[2] - window->x - window->width,
+                monitor->y + action->data.quad[3] - window->y - window->height);
+    }
+
     /* center a window to given monitor (glob pattern) */
     case ACTION_CENTER_TO: {
         Monitor *monitor;
@@ -852,8 +865,8 @@ bool do_action(const Action *action, Window *window)
         }
 
         set_window_size(window,
-                (monitor->x + monitor->width - window->width) / 2,
-                (monitor->y + monitor->height - window->height) / 2,
+                monitor->x + (monitor->width - window->width) / 2,
+                monitor->y + (monitor->height - window->height) / 2,
                 window->width, window->height);
         break;
     }
