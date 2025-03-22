@@ -1,6 +1,7 @@
 #include "move_frame.h"
 #include "utility.h"
 #include "size_frame.h"
+#include "log.h"
 
 /* Apply the auto equalizationg to given frame. */
 void apply_auto_equalize(Frame *to)
@@ -22,6 +23,8 @@ void apply_auto_equalize(Frame *to)
 /* Get the minimum size the given frame should have. */
 void get_minimum_frame_size(Frame *frame, Size *size)
 {
+    Extents gaps;
+
     if (frame->left != NULL) {
         Size left_size, right_size;
 
@@ -38,6 +41,10 @@ void get_minimum_frame_size(Frame *frame, Size *size)
         size->width = FRAME_MINIMUM_SIZE;
         size->height = FRAME_MINIMUM_SIZE;
     }
+
+    get_frame_gaps(frame, &gaps);
+    size->width += gaps.left + gaps.right;
+    size->height += gaps.top + gaps.bottom;
 }
 
 /* Set the size of a frame, this also resizes the inner frames and windows. */
@@ -106,7 +113,7 @@ void resize_frame_and_ignore_ratio(Frame *frame, int32_t x, int32_t y,
     case FRAME_SPLIT_HORIZONTALLY:
         /* keep ratio when resizing or use the default 1/2 ratio */
         left_size = left->width == 0 || right->width == 0 ? width / 2 :
-            width * left->width / (left->width + right->width);
+                (uint64_t) width * left->width / (left->width + right->width);
         resize_frame_and_ignore_ratio(left, x, y, left_size, height);
         resize_frame_and_ignore_ratio(right, x + left_size, y,
                 width - left_size, height);
@@ -116,11 +123,39 @@ void resize_frame_and_ignore_ratio(Frame *frame, int32_t x, int32_t y,
     case FRAME_SPLIT_VERTICALLY:
         /* keep ratio when resizing or use the default 1/2 ratio */
         left_size = left->height == 0 || right->height == 0 ? height / 2 :
-            height * left->height / (left->height + right->height);
+              (uint64_t) height * left->height / (left->height + right->height);
         resize_frame_and_ignore_ratio(left, x, y, width, left_size);
         resize_frame_and_ignore_ratio(right, x, y + left_size,
                 width, height - left_size);
         break;
+    }
+}
+
+/* Set the ratio, position and size of all parents of @frame to match their
+ * children whenever their split direction matches @direction.
+ */
+static inline void propagate_size(Frame *frame,
+        frame_split_direction_t direction)
+{
+    while (frame->parent != NULL) {
+        frame = frame->parent;
+        if (frame->split_direction == direction) {
+            if (direction == FRAME_SPLIT_HORIZONTALLY) {
+                frame->ratio.numerator = frame->right->width;
+                frame->ratio.denominator = frame->left->width +
+                    frame->right->width;
+
+                frame->x = frame->left->x;
+                frame->width = frame->left->width + frame->right->width;
+            } else {
+                frame->ratio.numerator = frame->right->height;
+                frame->ratio.denominator = frame->left->height +
+                    frame->right->height;
+
+                frame->y = frame->left->y;
+                frame->height = frame->left->height + frame->right->height;
+            }
+        }
     }
 }
 
@@ -130,6 +165,7 @@ int32_t bump_frame_edge(Frame *frame, frame_edge_t edge, int32_t amount)
     Frame *parent, *right;
     Size size;
     int32_t space;
+    int32_t self_amount;
 
     parent = frame->parent;
 
@@ -144,8 +180,7 @@ int32_t bump_frame_edge(Frame *frame, frame_edge_t edge, int32_t amount)
         if (frame == NULL) {
             return 0;
         }
-        amount = -bump_frame_edge(frame, FRAME_EDGE_RIGHT, -amount);
-        break;
+        return -bump_frame_edge(frame, FRAME_EDGE_RIGHT, -amount);
 
     /* delegate top movement to bottom movement */
     case FRAME_EDGE_TOP:
@@ -153,8 +188,7 @@ int32_t bump_frame_edge(Frame *frame, frame_edge_t edge, int32_t amount)
         if (frame == NULL) {
             return 0;
         }
-        amount = -bump_frame_edge(frame, FRAME_EDGE_BOTTOM, -amount);
-        break;
+        return -bump_frame_edge(frame, FRAME_EDGE_BOTTOM, -amount);
 
     /* move the frame's right edge */
     case FRAME_EDGE_RIGHT:
@@ -163,25 +197,39 @@ int32_t bump_frame_edge(Frame *frame, frame_edge_t edge, int32_t amount)
             return 0;
         }
         frame = get_left_frame(right);
+
         if (amount < 0) {
             get_minimum_frame_size(frame, &size);
             space = size.width - frame->width;
-            if (space >= 0) {
-                return 0;
+            space = MIN(space, 0);
+            self_amount = MAX(amount, space);
+            if (space > amount) {
+                /* try to get more space by pushing the left edge */
+                space -= bump_frame_edge(frame, FRAME_EDGE_LEFT,
+                        -amount + space);
+                amount = MAX(amount, space);
+            } else {
+                amount = self_amount;
             }
-            amount = MAX(amount, space);
         } else {
             get_minimum_frame_size(right, &size);
             space = right->width - size.width;
-            if (space <= 0) {
-                return 0;
+            space = MAX(space, 0);
+            self_amount = MIN(amount, space);
+            if (space < amount) {
+                /* try to get more space by pushing the right edge */
+                space += bump_frame_edge(right, FRAME_EDGE_RIGHT,
+                        amount - space);
+                amount = MIN(amount, space);
+            } else {
+                amount = self_amount;
             }
-            amount = MIN(amount, space);
         }
-        resize_frame(frame, frame->x, frame->y, frame->width + amount,
-                frame->height);
-        resize_frame(right, right->x + amount, right->y, right->width - amount,
-                right->height);
+
+        resize_frame_and_ignore_ratio(frame, frame->x, frame->y,
+                frame->width + self_amount, frame->height);
+        resize_frame_and_ignore_ratio(right, right->x + self_amount, right->y,
+                right->width - self_amount, right->height);
         break;
 
     /* move the frame's bottom edge */
@@ -191,36 +239,48 @@ int32_t bump_frame_edge(Frame *frame, frame_edge_t edge, int32_t amount)
             return 0;
         }
         frame = get_above_frame(right);
+
         if (amount < 0) {
             get_minimum_frame_size(frame, &size);
             space = size.height - frame->height;
-            if (space >= 0) {
-                return 0;
+            space = MIN(space, 0);
+            self_amount = MAX(amount, space);
+            if (space > amount) {
+                /* try to get more space by pushing the top edge */
+                space -= bump_frame_edge(frame, FRAME_EDGE_TOP,
+                        -amount + space);
+                amount = MAX(amount, space);
+            } else {
+                amount = self_amount;
             }
-            amount = MAX(amount, space);
         } else {
             get_minimum_frame_size(right, &size);
             space = right->height - size.height;
-            if (space <= 0) {
-                return 0;
+            space = MAX(space, 0);
+            self_amount = MIN(amount, space);
+            if (space < amount) {
+                /* try to get more space by pushing the bottom edge */
+                space += bump_frame_edge(right, FRAME_EDGE_BOTTOM,
+                        amount - space);
+                amount = MIN(amount, space);
+            } else {
+                amount = self_amount;
             }
-            amount = MIN(amount, space);
         }
-        resize_frame(frame, frame->x, frame->y, frame->width,
-                frame->height + amount);
-        resize_frame(right, right->x, right->y + amount, right->width,
-                right->height - amount);
+
+        resize_frame_and_ignore_ratio(frame, frame->x, frame->y,
+                frame->width, frame->height + self_amount);
+        resize_frame_and_ignore_ratio(right, right->x, right->y + self_amount,
+                right->width, right->height - self_amount);
         break;
     }
 
-    /* adjust the ratio */
-    if (parent->split_direction == FRAME_SPLIT_HORIZONTALLY) {
-        parent->ratio.numerator = parent->left->width;
-        parent->ratio.denominator = parent->left->width + parent->right->width;
-    } else {
-        parent->ratio.numerator = parent->left->height;
-        parent->ratio.denominator = parent->left->height + parent->right->height;
-    }
+    /* make the size change known to all parents */
+    const frame_split_direction_t direction = edge == FRAME_EDGE_RIGHT ?
+            FRAME_SPLIT_HORIZONTALLY : FRAME_SPLIT_VERTICALLY;
+    propagate_size(frame, direction);
+    propagate_size(right, direction);
+
     return amount;
 }
 
@@ -287,7 +347,7 @@ void equalize_frame(Frame *frame, frame_split_direction_t direction)
         case FRAME_SPLIT_HORIZONTALLY:
             left_count = count_horizontal_frames(frame->left);
             right_count = count_horizontal_frames(frame->right);
-            frame->left->width = frame->width * left_count /
+            frame->left->width = (uint64_t) frame->width * left_count /
                 (left_count + right_count);
             frame->right->x = frame->x + frame->left->width;
             frame->right->width = frame->width - frame->left->width;
@@ -296,7 +356,7 @@ void equalize_frame(Frame *frame, frame_split_direction_t direction)
         case FRAME_SPLIT_VERTICALLY:
             left_count = count_vertical_frames(frame->left);
             right_count = count_vertical_frames(frame->right);
-            frame->left->height = frame->height * left_count /
+            frame->left->height = (uint64_t) frame->height * left_count /
                 (left_count + right_count);
             frame->right->y = frame->y + frame->left->height;
             frame->right->height = frame->height - frame->left->height;

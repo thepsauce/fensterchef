@@ -10,7 +10,9 @@
 
 #include "utility.h"
 
-/* the minimum width or height of a frame */
+/* the minimum width or height of a frame, frames are never clipped to this size
+ * and can even have a size of 0, it is used when resizing frames
+ */
 #define FRAME_MINIMUM_SIZE 12
 
 /* an edge of the frame */

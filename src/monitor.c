@@ -202,6 +202,7 @@ void reconfigure_monitor_frames(void)
         resize_frame_and_ignore_ratio(monitor->frame,
                 monitor->x + strut_x,
                 monitor->y + strut_y,
+                /* the root frame must be at least 1x1 large */
                 strut_sum_x >= monitor->width ? 1 :
                     monitor->width - strut_sum_x,
                 strut_sum_y >= monitor->height ? 1 :
@@ -254,6 +255,24 @@ Monitor *get_monitor_from_rectangle(int32_t x, int32_t y,
     uint64_t best_area = 0, area;
     Size overlap;
 
+    /* first check if the center of the rectangle is within any monitor; this
+     * might not get the monitor the rectangle overlaps most but this is
+     * preferred
+     */
+    const int32_t center_x = x + width / 2;
+    const int32_t center_y = y + height / 2;
+    for (Monitor *monitor = Monitor_first; monitor != NULL;
+            monitor = monitor->next) {
+        const int32_t relative_x = center_x - monitor->x;
+        const int32_t relative_y = center_y - monitor->y;
+        if (relative_x >= 0 && relative_y >= 0 &&
+                relative_x < (int32_t) monitor->width &&
+                relative_y < (int32_t) monitor->height) {
+            return monitor;
+        }
+    }
+
+    /* second get the monitor the rectangle overlaps most with */
     for (Monitor *monitor = Monitor_first; monitor != NULL;
             monitor = monitor->next) {
         if (!get_overlap(x, y, width, height, monitor->x, monitor->y,
@@ -323,6 +342,9 @@ Window *get_window_covering_monitor(Monitor *monitor)
             continue;
         }
         area = (uint64_t) overlap.width * overlap.height;
+        /* check if the window covers at least the configured overlap percentage
+         * of the monitors area
+         */
         if (area * 100 / monitor_area >=
                 (uint32_t) configuration.general.overlap_percentage &&
                 area >= best_area) {

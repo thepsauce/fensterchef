@@ -7,7 +7,8 @@
  *
  * @split_from is the frame to split a frame off of.
  * @other is put into the the slot created by the split. It may be NULL, then
- *        one is allocated by this function and filled using the stash.
+ *        one is allocated by this function and filled using the stash if
+ *        auto-fill-void is configured.
  * @is_left_split controls where @other goes, either on the top/left or
  *                bottom/right.
  */

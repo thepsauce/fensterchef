@@ -63,7 +63,7 @@ struct window {
     uint32_t height;
 
     /* if the window should have no border as floating window; to check if a
-     * window *actually* has a border, use `has_window_border()`
+     * window *actually* has no border, use `is_window_borderless()`
      */
     bool is_borderless;
     /* size and color of the border */

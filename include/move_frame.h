@@ -15,19 +15,23 @@
 
 /* Note for all `get_XXX_frame()` functions that the frame returned usually is a
  * parent frame, meaning it has children, for example:
- * +------+----+
- * |      | 2  |
- * |  1   +----+
- * |      | 3  |
- * +------+----+
+ * +---+---+---+
+ * |   | 2 | 4 |
+ * | 1 |   +---+
+ * |   +---+ 5 |
+ * |   | 3 |   |
+ * +---+---+---+
  *
  * (pointers illustrated by above numbers)
+ *
  * `get_left_frame(2)` -> 1
  * `get_left_frame(3)` -> 1
- * `get_right_frame(1)` -> frame surrounding 2 and 3
+ * `get_right_frame(3)` -> 4, 5
+ * `get_right_frame(1)` -> 2, 3
  * `get_above_frame(3)` -> 2
  * `get_above_frame(2)` -> NULL
  * `get_below_frame(1)` -> NULL
+ * `get_left_frame(4)` -> 2, 3
  */
 
 /* Get the frame on the left of @frame. */

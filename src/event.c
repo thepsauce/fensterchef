@@ -153,14 +153,15 @@ void synchronize_with_server(void)
         if (window == Window_focus) {
             window->border_color = configuration.border.focus_color;
         /* deeply set the colors of all windows within the focused frame */
-        } else if (Window_focus == NULL &&
+        } else if ((Window_focus == NULL ||
+                    Window_focus->state.mode == WINDOW_MODE_TILING) &&
                 window->state.mode == WINDOW_MODE_TILING &&
                 is_window_part_of(window, Frame_focus)) {
             window->border_color = configuration.border.focus_color;
         /* if the window is the top window or within the focused frame, give it
          * the active color
          */
-        } else if (window == Frame_focus->window ||
+        } else if (is_window_part_of(window, Frame_focus) ||
                 (window->state.mode == WINDOW_MODE_FLOATING &&
                  window == Window_top)) {
             window->border_color = configuration.border.active_color;
@@ -423,11 +424,9 @@ static void cancel_window_move_resize(void)
     frame = get_frame_of_window(move_resize.window);
     if (frame != NULL) {
         bump_frame_edge(frame, FRAME_EDGE_LEFT,
-                move_resize.window->x -
-                    move_resize.initial_geometry.x);
+                move_resize.window->x - move_resize.initial_geometry.x);
         bump_frame_edge(frame, FRAME_EDGE_TOP,
-                move_resize.window->y -
-                    move_resize.initial_geometry.y);
+                move_resize.window->y - move_resize.initial_geometry.y);
         bump_frame_edge(frame, FRAME_EDGE_RIGHT,
                 (move_resize.initial_geometry.x +
                  move_resize.initial_geometry.width) -

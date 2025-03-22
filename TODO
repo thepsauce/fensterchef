@@ -34,13 +34,42 @@
 #51/#8 ! Fix fixed size fonts messing up
     Fixed size fonts like emoji fonts are not scaled and it looks very weird
 
-#52 ! Let more frames tank size
-    When resizing a frame, let it push frames
+#55 Add center-to action
+    This action should center a window to a specific monitor by name (glob
+    pattern)
 
-#54 Handle overlapping monitors
-    When monitors overlap, one should be ignored
+#56 Add resize-to action
+    This action should set the size and position of a window relative to the
+    monitor it is on
 
-#55 ...
+#57 Make higher scripting capabilities
+    Actions already return true or false, I made this for the future. This is an
+    example of an advanced fensterchef configuration:
+    ```
+    [assignment]
+    1000 toggling ; st-256color ; toggle-tiling
+
+    [startup]
+    run st -n toggling
+
+    [keyboard]
+    z (
+        focus-window 1000 && (
+           center-to *
+           resize-to 0 0 ${monitor.width} ${monitor.height}*2/5
+        )
+    ) || minimize-window 1000
+    ```
+    This puts a terminal window in the background whose visibility can be
+    toggled by pressing Z. When showing the window, it is sized to 2/5 of the
+    monitors area.
+    So expressions would need to be added which replaces the action lists.
+
+#58 Add dumping of a frame layout
+    This should dump a layout to a file, maybe it should be a fensterchef
+    configuration file that one can include
+
+#59 ...
 
 #1000 Make a wayland port
     Make an additional repository that hosts fensterchef-wayland
@@ -49,6 +78,9 @@
 #14 Generate documentation
     Make shell scripts to generate the manual page (should the wiki be
     continued?)
+
+#54 Handle overlapping monitors
+    When monitors overlap, one should be ignored
 
 [Recheck]
 #8 ? Improve font rendering once again
@@ -250,3 +282,6 @@
 #49 Make refocus more natural when a window is hidden
     When a non tiling window is hidden, the focus may move to a different
     monitor which is unnatural
+
+#52 ! Let more frames tank size
+    When resizing a frame, let it push frames

@@ -14,18 +14,18 @@
  * This includes visibility and window mode.
  */
 
-/* Check if @window should have a border. */
-bool has_window_border(Window *window)
+/* Check if @window should have no border. */
+bool is_window_borderless(Window *window)
 {
     /* tiling windows always have a border */
     if (window->state.mode == WINDOW_MODE_TILING) {
-        return true;
+        return false;
     }
     /* fullscreen, dock and desktop windows have no border */
     if (window->state.mode != WINDOW_MODE_FLOATING) {
-        return false;
+        return true;
     }
-    return !window->is_borderless;
+    return window->is_borderless;
 }
 
 /* Get the side of a monitor @window would like to attach to. */
@@ -96,10 +96,13 @@ static inline void move_to_next_available(Monitor *monitor, Window *window,
 /* Set the window size and position according to the size hints. */
 static void configure_floating_size(Window *window)
 {
-    Monitor *monitor, *original_monitor;
+    Monitor *monitor, *original_monitor = NULL;
     int32_t x, y;
     uint32_t width, height;
 
+    /* put the window on the monitor that is either on the same monitor as the
+     * focused window or the focused frame
+     */
     if (Window_focus != NULL) {
         monitor = get_monitor_from_rectangle_or_primary(Window_focus->x,
                 Window_focus->y, Window_focus->width, Window_focus->height);
@@ -107,13 +110,16 @@ static void configure_floating_size(Window *window)
         monitor = get_monitor_containing_frame(Frame_focus);
     }
 
-    /* the monitor the window was on before */
-    original_monitor = get_monitor_from_rectangle(window->floating.x,
-            window->floating.y, window->floating.width,
-            window->floating.height);
+    if (window->floating.width > 0) {
+        /* the monitor the window was on before */
+        original_monitor = get_monitor_from_rectangle(window->floating.x,
+                window->floating.y, window->floating.width,
+                window->floating.height);
+    }
 
-    /* if the window never had a floating size, use the size hints to get a size
-     * that the window prefers
+    /* if the window never had a floating size or it would be shown on a monitor
+     * different from the focused monitor, use the size hints to get a size that
+     * the window prefers
      */
     if (monitor != original_monitor) {
         if (window->floating.width > 0) {
@@ -125,9 +131,6 @@ static void configure_floating_size(Window *window)
         } else {
             width = monitor->width * 2 / 3;
             height = monitor->height * 2 / 3;
-            /* this is for people using monitors larger than 1920x1080 */
-            width = MIN(width, 1920 * 2 / 3);
-            height = MIN(height, 1080 * 2 / 3);
         }
 
         if ((window->size_hints.flags & XCB_ICCCM_SIZE_HINT_P_MIN_SIZE)) {
@@ -505,10 +508,10 @@ void set_window_mode(Window *window, window_mode_t mode)
     }
 
     /* update the window border */
-    if (has_window_border(window)) {
-        window->border_size = configuration.border.size;
-    } else {
+    if (is_window_borderless(window)) {
         window->border_size = 0;
+    } else {
+        window->border_size = configuration.border.size;
     }
 
     update_window_layer(window);

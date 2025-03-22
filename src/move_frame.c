@@ -4,73 +4,85 @@
 #include "tiling.h"
 
 /* Get the frame on the left of @frame. */
-Frame *get_left_or_above_frame(Frame *frame,
-        frame_split_direction_t split_direction)
+static Frame *get_left_or_above_frame(Frame *frame,
+        frame_split_direction_t direction)
 {
     Frame *parent;
 
     while (frame != NULL) {
         parent = frame->parent;
         if (parent == NULL) {
-            return NULL;
+            frame = NULL;
+            break;
         }
 
-        if (parent->split_direction == split_direction) {
+        if (parent->split_direction != direction) {
             frame = parent;
         } else if (parent->left == frame) {
             frame = parent;
         } else {
-            return parent->left;
+            frame = parent->left;
+            while (frame->left != NULL &&
+                    frame->split_direction == direction) {
+                frame = frame->right;
+            }
+            break;
         }
     }
-    return NULL;
+    return frame;
 }
 
 /* Get the frame on the left of @frame. */
 Frame *get_left_frame(Frame *frame)
 {
-    return get_left_or_above_frame(frame, FRAME_SPLIT_VERTICALLY);
+    return get_left_or_above_frame(frame, FRAME_SPLIT_HORIZONTALLY);
 }
 
 /* Get the frame above @frame. */
 Frame *get_above_frame(Frame *frame)
 {
-    return get_left_or_above_frame(frame, FRAME_SPLIT_HORIZONTALLY);
+    return get_left_or_above_frame(frame, FRAME_SPLIT_VERTICALLY);
 }
 
 /* Get the frame on the left of @frame. */
-Frame *get_right_or_below_frame(Frame *frame,
-        frame_split_direction_t split_direction)
+static Frame *get_right_or_below_frame(Frame *frame,
+        frame_split_direction_t direction)
 {
     Frame *parent;
 
     while (frame != NULL) {
         parent = frame->parent;
         if (parent == NULL) {
-            return NULL;
+            frame = NULL;
+            break;
         }
 
-        if (parent->split_direction == split_direction) {
+        if (parent->split_direction != direction) {
             frame = parent;
         } else if (parent->right == frame) {
             frame = parent;
         } else {
-            return parent->right;
+            frame = parent->right;
+            while (frame->left != NULL &&
+                    frame->split_direction == direction) {
+                frame = frame->left;
+            }
+            break;
         }
     }
-    return NULL;
+    return frame;
 }
 
 /* Get the frame on the right of @frame. */
 Frame *get_right_frame(Frame *frame)
 {
-    return get_right_or_below_frame(frame, FRAME_SPLIT_VERTICALLY);
+    return get_right_or_below_frame(frame, FRAME_SPLIT_HORIZONTALLY);
 }
 
 /* Get the frame below @frame. */
 Frame *get_below_frame(Frame *frame)
 {
-    return get_right_or_below_frame(frame, FRAME_SPLIT_HORIZONTALLY);
+    return get_right_or_below_frame(frame, FRAME_SPLIT_VERTICALLY);
 }
 
 /* Get the most left within @frame. */
@@ -145,7 +157,7 @@ Frame *get_bottom_leaf_frame(Frame *frame, int32_t x)
 static void do_resplit(Frame *frame, Frame *original, bool is_left_split,
         frame_split_direction_t direction)
 {
-    /* if they have the same parent, then `remove_void()` would
+    /* if they have the same parent, then `remove_frame()` would
      * invalidate the `frame` pointer, we would need to split off
      * the parent
      */
@@ -235,10 +247,6 @@ static bool move_frame_up_or_left(Frame *frame,
                 frame = monitor->frame;
             }
         } else {
-            while (frame->left != NULL && frame->split_direction == direction) {
-                frame = frame->right;
-            }
-
             if (frame->left != NULL) {
                 /* case 2, 5 */
                 if (direction == FRAME_SPLIT_HORIZONTALLY) {
@@ -329,10 +337,6 @@ static bool move_frame_down_or_right(Frame *frame,
                 frame = monitor->frame;
             }
         } else {
-            while (frame->left != NULL && frame->split_direction == direction) {
-                frame = frame->right;
-            }
-
             if (frame->left != NULL) {
                 /* case 2, 5 */
                 if (direction == FRAME_SPLIT_HORIZONTALLY) {

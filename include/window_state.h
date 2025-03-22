@@ -46,8 +46,8 @@ typedef struct window_state {
  */
 window_mode_t predict_window_mode(Window *window);
 
-/* Check if @window has a visible border currently. */
-bool has_window_border(Window *window);
+/* Check if @window should have a border. */
+bool is_window_borderless(Window *window);
 
 /* Get the side of a monitor @window would like to attach to.
  *

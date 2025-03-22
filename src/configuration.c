@@ -345,7 +345,7 @@ void set_configuration(struct configuration *new_configuration)
         } else {
             window->border_color = configuration.border.color;
         }
-        if (has_window_border(window)) {
+        if (!is_window_borderless(window)) {
             window->border_size = configuration.border.size;
         }
     }
@@ -411,7 +411,7 @@ int load_configuration(const char *string,
         bool load_from_file)
 {
     Parser parser;
-    parser_error_t error;
+    parser_error_t error = PARSER_SUCCESS;
 
     memset(&parser, 0, sizeof(parser));
 
