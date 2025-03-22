@@ -71,10 +71,6 @@
     Make shell scripts to generate the manual page (should the wiki be
     continued?)
 
-#56 Add resize-to action
-    This action should set the size and position of a window relative to the
-    monitor it is on
-
 [Recheck]
 #8 ? Improve font rendering once again
     Is there any way to make colored emojis work? Is artifical scaling needed?
@@ -285,3 +281,7 @@
 #55 Add center-to action
     This action should center a window to a specific monitor by name (glob
     pattern)
+
+#56 Add resize-to action
+    This action should set the size and position of a window relative to the
+    monitor it is on
