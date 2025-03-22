@@ -58,7 +58,7 @@ void split_frame(Frame *split_from, Frame *other, bool is_left_split,
     resize_frame(split_from, split_from->x, split_from->y,
             split_from->width, split_from->height);
     if (configuration.tiling.auto_equalize) {
-        apply_auto_equalize(split_from);
+        apply_auto_equalize(split_from, direction);
     }
 
     LOG("split %F(%F, %F)\n", split_from, new, other);
@@ -68,6 +68,7 @@ void split_frame(Frame *split_from, Frame *other, bool is_left_split,
 void remove_frame(Frame *frame)
 {
     Frame *parent, *other;
+    frame_split_direction_t direction;
 
     if (frame->parent == NULL) {
         /* this case should always be handled by the caller */
@@ -76,6 +77,7 @@ void remove_frame(Frame *frame)
     }
 
     parent = frame->parent;
+    direction = parent->split_direction;
     /* disconnect the frame */
     frame->parent = NULL;
 
@@ -139,7 +141,7 @@ void remove_frame(Frame *frame)
     }
 
     if (configuration.tiling.auto_equalize) {
-        apply_auto_equalize(parent);
+        apply_auto_equalize(parent, direction);
     }
 
     destroy_frame(other);

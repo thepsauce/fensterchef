@@ -63,12 +63,10 @@ static bool is_valid_for_display(Window *window)
 /* Get character indicating the window state. */
 static inline char get_indicator_character(Window *window)
 {
-    return !window->state.is_visible ? '-' :
-            window->state.mode == WINDOW_MODE_FLOATING ?
-                (window == Window_focus ? '#' : '=') :
-            window->state.mode == WINDOW_MODE_FULLSCREEN ?
-                (window == Window_focus ? '@' : 'F') :
-            window == Window_focus ? '*' : '+';
+    return window == Window_focus ? '*' :
+            !window->state.is_visible ? '-' :
+            window->state.mode == WINDOW_MODE_FLOATING ? '=' :
+            window->state.mode == WINDOW_MODE_FULLSCREEN ? 'F' : '+';
 }
 
 static inline void get_window_string(Window *window, utf8_t *buffer,
@@ -133,8 +131,8 @@ static void render_window_list(void)
     }
 
     /* the number of items that can fit on screen */
-    maximum_item = (monitor->height -
-            configuration.notification.border_size) / height_per_item;
+    maximum_item = (monitor->height - configuration.notification.border_size) /
+        height_per_item;
     maximum_item = MIN(maximum_item, window_count);
 
     /* adjust the scrolling so the selected item is visible */
@@ -191,8 +189,8 @@ static void render_window_list(void)
 
         /* draw the text centered within the item */
         get_window_string(window, buffer, sizeof(buffer));
-        draw_text(window_list.client.id, buffer,
-                strlen((char*) buffer), background_color, &rectangle,
+        draw_text(window_list.client.id, buffer, strlen((char*) buffer),
+                background_color, &rectangle,
                 pen, configuration.notification.padding / 2,
                 rectangle.y + measure.ascent +
                     configuration.notification.padding / 2);
@@ -234,7 +232,7 @@ static Window *get_valid_window_after(Window *last_valid, Window *start)
 /* Show @window and focus it.
  *
  * @shift controls how the window appears. Either it is put directly into the
- * current frame or simply shown which allows auto splitting to occur.
+ *        current frame or simply shown which allows auto splitting to occur.
  */
 static inline void focus_and_let_window_appear(Window *window, bool shift)
 {

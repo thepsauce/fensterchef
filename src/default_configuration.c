@@ -25,7 +25,7 @@ const struct configuration default_configuration = {
 
     .tiling = {
         .auto_split = false,
-        .auto_equalize = false,
+        .auto_equalize = true,
         .auto_fill_void = true,
         .auto_remove = false,
         .auto_remove_void = false,
@@ -36,7 +36,7 @@ const struct configuration default_configuration = {
     },
 
     .border = {
-        .size = 0,
+        .size = 1,
         .color = 0x36454f,
         .active_color = 0x71797e,
         .focus_color = 0xc7bb28,
@@ -128,6 +128,7 @@ void merge_with_default_button_bindings(struct configuration *configuration)
         if (button != NULL) {
             continue;
         }
+        /* bake a button binding from the bindings array */
         next_button->flags = default_bindings[i].flags;
         next_button->modifiers = modifiers;
         next_button->index = default_bindings[i].button_index;
@@ -212,6 +213,12 @@ void merge_with_default_key_bindings(struct configuration *configuration)
         { XCB_MOD_MASK_SHIFT, 0, XK_l, { .code = ACTION_EXCHANGE_RIGHT } },
         { XCB_MOD_MASK_SHIFT, 0, XK_j, { .code = ACTION_EXCHANGE_DOWN } },
 
+        /* move a window */
+        { 0, 0, XK_Left, { ACTION_RESIZE_BY, { .quad = { 20, 0, -20, 0 } } } },
+        { 0, 0, XK_Up, { ACTION_RESIZE_BY, { .quad = { 0, 20, 0, -20 } } } },
+        { 0, 0, XK_Right, { ACTION_RESIZE_BY, { .quad = { -20, 0, 20, 0 } } } },
+        { 0, 0, XK_Down, { ACTION_RESIZE_BY, { .quad = { 0, -20, 0, 20 } } } },
+
         /* resizing the top/left edges of a window */
         { XCB_MOD_MASK_CONTROL, 0, XK_Left, { ACTION_RESIZE_BY, {
                 .quad = { 20, 0, 0, 0 } } } },
@@ -232,23 +239,11 @@ void merge_with_default_key_bindings(struct configuration *configuration)
         { XCB_MOD_MASK_SHIFT, 0, XK_Down, { ACTION_RESIZE_BY, {
                 .quad = { 0, 0, 0, 20 } } } },
 
-        /* move a window */
-        { 0, 0, XK_Left, { ACTION_RESIZE_BY, {
-                .quad = { 20, 0, -20, 0 } } } },
-        { 0, 0, XK_Up, { ACTION_RESIZE_BY, {
-                .quad = { 0, 20, 0, -20 } } } },
-        { 0, 0, XK_Right, { ACTION_RESIZE_BY, {
-                .quad = { -20, 0, 20, 0 } } } },
-        { 0, 0, XK_Down, { ACTION_RESIZE_BY, {
-                .quad = { 0, -20, 0, 20 } } } },
-
         /* inflate/deflate a window */
-        { XCB_MOD_MASK_CONTROL, 0, XK_plus, { ACTION_RESIZE_BY, {
-                .quad = { 10, 10, 10, 10 } } } },
-        { XCB_MOD_MASK_CONTROL, 0, XK_minus, { ACTION_RESIZE_BY, {
-                .quad = { -10, -10, -10, -10 } } } },
-        { XCB_MOD_MASK_CONTROL, 0, XK_equal, { ACTION_RESIZE_BY, {
-                .quad = { 10, 10, 10, 10 } } } },
+        { XCB_MOD_MASK_CONTROL, 0, XK_equal, {
+                ACTION_RESIZE_BY, { .quad = { 10, 10, 10, 10 } } } },
+        { XCB_MOD_MASK_CONTROL, 0, XK_minus, {
+                ACTION_RESIZE_BY, { .quad = { -10, -10, -10, -10 } } } },
 
         /* show the interactive window list */
         { 0, 0, XK_w, { .code = ACTION_SHOW_WINDOW_LIST } },
@@ -298,6 +293,7 @@ void merge_with_default_key_bindings(struct configuration *configuration)
         if (key != NULL) {
             continue;
         }
+        /* bake a key binding from the bindings array */
         next_key->flags = default_bindings[i].flags;
         next_key->modifiers = modifiers;
         next_key->key_symbol = default_bindings[i].key_symbol;

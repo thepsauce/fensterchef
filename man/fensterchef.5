@@ -230,7 +230,7 @@ auto-split
 .PP
 auto-equalize
 .I boolean
-(default: false)
+(default: true)
 .PP
 auto-fill-void
 .I boolean
@@ -254,7 +254,7 @@ Change the style of the window bordes.
 .PP
 size
 .I integer
-(default: 0)
+(default: 1)
 .PP
 color
 .I color
@@ -306,7 +306,7 @@ background
 .SS [mouse]
 Add mouse bindings. Mouse bindings have the format:
 .I modifiers
-+
+.I +
 .I button index actions
 .PP
 resize-tolerance
@@ -323,10 +323,13 @@ ignore-modifiers
 .SS [keyboard]
 Add keyboard bindings. Keyboard bindings have the format:
 .I modifiers
-+
-.I key symbol
+.I +
+.RI ( key
+.I symbol
 or
-.I key code actions
+.I key
+.IR code )
+.I actions
 .PP
 modifiers
 .I modifiers
@@ -499,7 +502,7 @@ ignore-modifiers
     Quit fensterchef.
 .
 .SH EXAMPLE
-.SS Default configuration
+.SS Parts of the default configuration
 .EX
 .B [general]
 overlap-percentage 80
@@ -599,6 +602,12 @@ auto-remove true
 .B [keyboard]
 v hint-split-horizontally
 s hint-split-vertically
+
+shift+h move-left
+shift+l move-right
+shift+k move-up
+shift+j move-down
+
 .EE
 .SS Start ALL windows as floating besides terminal windows
 .EX

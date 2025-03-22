@@ -737,11 +737,17 @@ bool do_action(const Action *action, Window *window)
     /* split the current frame horizontally */
     case ACTION_HINT_SPLIT_HORIZONTALLY:
         Frame_focus->split_direction = FRAME_SPLIT_HORIZONTALLY;
+        /* reload the children if any */
+        resize_frame(Frame_focus, Frame_focus->x, Frame_focus->y,
+                Frame_focus->width, Frame_focus->height);
         break;
 
     /* split the current frame vertically */
     case ACTION_HINT_SPLIT_VERTICALLY:
         Frame_focus->split_direction = FRAME_SPLIT_VERTICALLY;
+        /* reload the children if any */
+        resize_frame(Frame_focus, Frame_focus->x, Frame_focus->y,
+                Frame_focus->width, Frame_focus->height);
         break;
 
     /* move the focus to the frame above */

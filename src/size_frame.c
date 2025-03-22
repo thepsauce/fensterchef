@@ -4,12 +4,10 @@
 #include "log.h"
 
 /* Apply the auto equalizationg to given frame. */
-void apply_auto_equalize(Frame *to)
+void apply_auto_equalize(Frame *to, frame_split_direction_t direction)
 {
-    frame_split_direction_t direction;
     Frame *start_from;
 
-    direction = to->split_direction;
     start_from = to;
     while (to->parent != NULL) {
         if (to->parent->split_direction == direction) {

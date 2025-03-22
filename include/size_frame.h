@@ -9,9 +9,9 @@
 
 /* Apply the auto equalizationg to given frame.
  *
- * This moves up while the split direction matches the split direction of @to.
+ * This moves up while the split direction matches @direction.
  */
-void apply_auto_equalize(Frame *to);
+void apply_auto_equalize(Frame *to, frame_split_direction_t direction);
 
 /* Get the minimum size the given frame should have. */
 void get_minimum_frame_size(Frame *frame, Size *size);
@@ -33,7 +33,7 @@ void resize_frame_and_ignore_ratio(Frame *frame, int32_t x, int32_t y,
 /* Increases the @edge of @frame by @amount. */
 int32_t bump_frame_edge(Frame *frame, frame_edge_t edge, int32_t amount);
 
-/* Set the size of all children of @frame to be equal within a certain
+/* Set the size of all children within @frame to be equal within a certain
  * direction.
  */
 void equalize_frame(Frame *frame, frame_split_direction_t direction);

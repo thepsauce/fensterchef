@@ -134,6 +134,9 @@ Window *create_window(xcb_window_t xcb_window,
             LOG("window %#" PRIx32 " has command: %s\n", xcb_window, command);
 
             if (load_configuration(command, &configuration, false) == OK) {
+                LOG("doing its actions: %A\n",
+                        configuration.startup.number_of_actions,
+                        configuration.startup.actions);
                 for (uint32_t i = 0;
                         i < configuration.startup.number_of_actions;
                         i++) {

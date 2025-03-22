@@ -19,7 +19,8 @@ fensterchef - tiling done the right way
 .PP
 .B -d
 .IR all | info | error | nothing
-.B (default: info)
+.BR ( default:
+.IB info )
     Set the output logging verbosity.
 .PP
 .B --verbose
@@ -27,7 +28,8 @@ fensterchef - tiling done the right way
 .PP
 .B --config
 .I FILE
-.B (default: ~/.config/fensterchef/fensterchef.config)
+.BR ( default:
+.B ~/.config/fensterchef/fensterchef.config)
     Load
 .I FILE
 as configuration file.
@@ -57,7 +59,69 @@ users will also have a
 smooth transition as floating windows behave essentially the same way, but there
 might be some initial confusing about the tiling.
 
-We took the best out of window managers we like to give a new and unique way to manage windows.
+We took the best out of window managers we like to give a new and unique way to
+manage windows.
+.
+.SH TERMINOLOGY
+.SS Monitor
+A monitor is a sub region of the screen, this would be your output devices.
+.SS Window
+A window is what you would expect: A rectangular region on the screen displaying
+a bar, desktop icons, your browser, a terminal and so on.
+
+The "current window" refers to the window that is currently in focus.
+.SS Frame
+A frame is also a rectangular region on the screen.
+It is the core of the tiling.
+Each monitor has a root frame that can be split into as many frames as you like.
+A frame may be empty or hold onto a window.
+
+The "current frame" refers to the frame that is selected.
+This may also be a group of frames in case you moved to a parent frame.
+.SS Stash
+The stash is a stack that holds onto frames in the background.
+Whenever you remove a frame from the screen, the frame is put into the stash.
+When splitting a frame (and having
+.B auto-fill-void
+configure set to true) frames are popped from the stash.
+.SS Window list
+The window list can be opened with
+.BR Super + W
+by default and is
+.I the
+way to show hidden windows.
+There are other ways to show hidden windows through assignments, see
+.BR fensterchef (5).
+
+When the window list is open, use the arrow keys or home row keys to navigate
+through the windows, then press
+.B Return
+to show the selected window.
+Use
+.B Escape
+or
+.B q
+to quit the window list.
+.PP
+Specific ascii characters are shown to indicate what the window is up to.
+It can be a one of these:
+.PP
+.B *
+the window is focused
+.PP
+.B +
+the window is a visible tiling window
+.PP
+.B -
+the window is hidden
+.PP
+.B =
+the window is a visible floating window
+.PP
+.B F
+the window is a visible fullscreen window
+.PP
+Only windows that can receive focus are shown in the window list.
 .
 .SH BINDINGS
 .PP
@@ -65,154 +129,175 @@ Use the the modifier key (default is
 .B Mod4
 which is usually
 .BR Super_L )
-before any binding.
+together with any binding.
 .PP
 .B LeftButton
-    Start moving/resizing a window, this figures out dynamically which edge to move
+    Start moving/resizing the pressed window, this figures out dynamically which
+    edge to move.
 .PP
 .B MiddleButton
-    Hide a window                 
+    Minimize (hide) the pressed window.        
 .PP
 .B RightButton
-    Start moving a window         
+    Start moving the pressed window.
 .PP
 .B Shift
 +
 .B R
-    Reload the configuration file
+    Reload the configuration file and parts of fensterchef.
 .PP
 .B A
-    Focus the parent frame
+    Focus the parent frame.
 .PP
 .B B
-    Focus the child frame
+    Focus the child frame.
 .PP
 .B Shift
 +
 .B A
-    Focus the root frame
+    Focus the root frame.
 .PP
 .B Q
-    Close the active window
+    Close the current window.
 .PP
-.B -
-    Minimize the active window
+.B - (minus)
+    Minimize (hide) the current window.
 .PP
 .B N
-    Put the next window into the current frame
+    Put the next window into the current frame.
 .PP
 .B P
-    Put the previous window into the current frame
+    Put the previous window into the current frame.
 .PP
 .B R
-    Remove the current frame
+    Remove the current frame.
+.PP
+.B O
+    Replace the current frame with the last stashed frame.
 .PP
 .B Space
-    Move the focus from tiling to floating and vise versa
+    Move the focus from tiling to floating and vise versa.
 .PP
 .B Shift
 +
 .B Space
-    Make a tiling window floating and vise versa
+    Make a tiling window floating and vise versa.
 .PP
 .B F
-    Put a window into fullscreen or put it out of fullscreen
+    Put the current window into fullscreen or put it out of fullscreen.
 .PP
 .B V
-    Split a frame horizontally
+    Split the current frame horizontally.
 .PP
 .B S
-    Split a frame vertically
+    Split the current frame vertically.
 .PP
 .B K
-    Move the focus to the frame above
+    Move the focus to the frame above the current frame.
 .PP
 .B H
-    Move the focus to the frame on the left
+    Move the focus to the frame on the left of the current frame.
 .PP
 .B L
-    Move the focus to the frame on the right
+    Move the focus to the frame on the right of the current frame.
 .PP
 .B J
-    Move the focus to the frame below
+    Move the focus to the frame below the current frame.
 .PP
 .B Shift
 +
 .B K
-    Swap the focus frame with the frame above
+    Swap the current frame with the frame above it.
 .PP
 .B Shift
 +
 .B H
-    Swap the focus frame with the frame on the left
+    Swap the current frame with the frame on the left of it.
 .PP
 .B Shift
 +
 .B L
-    Swap the focus frame with the frame on the right
+    Swap the current frame with the frame on the right of it.
 .PP
 .B Shift
 +
 .B J
-    Swap the focus frame with the frame below
+    Swap the current frame with the frame below it.
 .PP
 .B Left
-    Move a window to the left
+    Move the current window to the left.
 .PP
 .B Up
-    Move a window up
+    Move the current window up.
 .PP
 .B Right
-    Move a window to the right
+    Move the current window to the right.
 .PP
 .B Down
-    Move a window down
+    Move the current window down.
 .PP
 .B Shift
 +
 .B Left
-    Decrease the size of a window's left edge
+    Decrease the size of the current window's left edge.
 .PP
 .B Shift
 +
 .B Up
-    Decrease the size of a window's top edge
+    Decrease the size of the current window's top edge.
 .PP
 .B Shift
 +
 .B Right
-    Increase the size of a window's left edge
+    Increase the size of the current window's left edge.
 .PP
 .B Shift
 +
 .B Down
-    Increase the size of a window's top edge
+    Increase the size of the current window's top edge.
 .PP
 .B Control
 +
 .B Left
-    Decrease the size of a window's right edge
+    Decrease the size of the current window's right edge.
 .PP
 .B Control
 +
 .B Up
-    Decrease the size of a window's bottom edge
+    Decrease the size of the current window's bottom edge.
 .PP
 .B Control
 +
 .B Right
-    Increase the size of a window's right edge
+    Increase the size of the current window's right edge.
 .PP
 .B Control
 +
 .B Down
-    Increase the size of a window's bottom edge
+    Increase the size of the current window's bottom edge.
+.PP
+.B Control
++
+.B + (plus)
+    Inflate the current window.
+.PP
+.B Control
++
+.B = (equal)
+    Deflate the current window.
 .PP
 .B W
-    Show the interactive window list
+    Show the interactive window list.
 .PP
 .B Return
-    Open a terminal window
+    Open a terminal window.
+.PP
+.B Control
++
+.B Shift
++
+.B E
+    Quit fensterchef.
 .
 .SH EXIT STATUS
 If the user quits, the exit status is

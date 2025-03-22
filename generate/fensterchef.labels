@@ -58,7 +58,7 @@ first-window-number integer 1
 [tiling]
 auto-split boolean false
    whether to automatically create a split when a window is shown
-auto-equalize boolean false
+auto-equalize boolean true
    whether to automatically equalize all frames within the root
 auto-fill-void boolean true
    whether to fill in empty frames automatically
@@ -73,7 +73,7 @@ name string Mono
    name of the font in fontconfig format
 
 [border]
-size integer 0
+size integer 1
    width of the border around the windows
 color color #36454f
    color of the border of an unfocused window
