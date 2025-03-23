@@ -121,6 +121,8 @@ struct configuration_tiling {
 
 /* font settings */
 struct configuration_font {
+    /* whether to use the core font instead of the better font rendering */
+    bool use_core_font;
     /* name of the font in fontconfig format */
     utf8_t *name;
 };

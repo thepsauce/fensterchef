@@ -26,6 +26,11 @@
  * linked list and has a unique id (number).
  */
 struct window {
+    /* reference counter to keep the pointer around for longer after the window
+     * has been destroyed
+     */
+    uint32_t reference_count;
+
     /* the server's view of the window */
     XClient client;
 
@@ -115,10 +120,13 @@ extern Window *Window_first;
 /* the currently focused window */
 extern Window *Window_focus;
 
-/* the focus that existed before entering an event cycle, this shall only be
- * used for pointer comparison and NOTHING else
+/* Increment the reference count of the window. */
+void reference_window(Window *window);
+
+/* Decrement the reference count of the window and free @window when it reaches
+ * 0.
  */
-extern Window *Window_old_focus;
+void dereference_window(Window *window);
 
 /* Create a window object and add it to all window lists.
  *
@@ -133,7 +141,7 @@ Window *create_window(xcb_window_t xcb,
 void destroy_window(Window *window);
 
 /* time in seconds to wait for a second close */
-#define REQUEST_CLOSE_MAX_DURATION 3
+#define REQUEST_CLOSE_MAX_DURATION 2
 
 /* Attempt to close a window. If it is the first time, use a friendly method by
  * sending a close request to the window. Call this function again within

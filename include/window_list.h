@@ -8,7 +8,7 @@ extern struct window_list {
     /* the X correspondence */
     XClient client;
     /* the currently selected window */
-    Window *selected;
+    uint32_t selected;
     /* the currently scrolled amount */
     uint32_t vertical_scrolling;
     /* if the focus should return when the window list gets unmapped */

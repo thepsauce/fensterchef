@@ -110,7 +110,8 @@ static int handle_option(option_t option, char *value)
 
     /* set the configuration */
     case OPTION_CONFIG:
-        Fensterchef_configuration = value;
+        free(Fensterchef_configuration);
+        Fensterchef_configuration = xstrdup(value);
         return OK;
 
     /* run a command */

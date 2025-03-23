@@ -80,6 +80,8 @@ typedef struct x_client {
     int32_t y;
     uint32_t width;
     uint32_t height;
+    /* the background colorr */
+    uint32_t background_color;
     /* the size of the border */
     uint32_t border_width;
     /* the color of the border */
@@ -140,8 +142,9 @@ void unmap_client(XClient *client);
 void configure_client(XClient *client, int32_t x, int32_t y, uint32_t width,
         uint32_t height, uint32_t border_width);
 
-/* Set the border color of @client. */
-void change_client_attributes(XClient *client, uint32_t border_color);
+/* Set the background and border color of @client. */
+void change_client_attributes(XClient *client, uint32_t background_color,
+        uint32_t border_color);
 
 /* Translate a string to a key symbol.
  *

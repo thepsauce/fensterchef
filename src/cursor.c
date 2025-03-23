@@ -56,14 +56,14 @@ bool xcursor_string_to_boolean(const char *string)
 void set_default_xcursor_settings(void)
 {
     /* versions older than 0.8 do not support animated cursors */
-    if (render_version.major == 0 && render_version.minor < 8) {
+    if (Render_version.major == 0 && Render_version.minor < 8) {
         xcursor_settings.animated = false;
     } else {
         xcursor_settings.animated = true;
     }
 
     /* versions older than 0.5 do not support the CreateCursor requests */
-    if (render_version.major == 0 && render_version.minor < 5) {
+    if (Render_version.major == 0 && Render_version.minor < 5) {
         xcursor_settings.has_create_cursor = false;
     } else {
         xcursor_settings.has_create_cursor = true;
@@ -173,7 +173,6 @@ xcursor_error_t load_cursor_image(FILE *file, struct xcursor_image *image)
     /* check the image bounds */
     if (image->header.width >= XCURSOR_MAX_IMAGE_SIZE ||
             image->header.height >= XCURSOR_MAX_IMAGE_SIZE) {
-        LOG("%u, %u\n", image->header.width, image->header.height);
         return XCURSOR_ERROR_IMAGE_TOO_LARGE;
     }
 
@@ -528,33 +527,40 @@ static xcb_cursor_t create_cursor_from_image(const struct xcursor_image *image)
     xcb_gcontext_t gc;
     xcb_render_picture_t picture;
 
+    /* generate ids */
     cursor_id = xcb_generate_id(connection);
 
+    /* utility objects, they will all be freed */
     pixmap = xcb_generate_id(connection);
     gc = xcb_generate_id(connection);
     picture = xcb_generate_id(connection);
 
+    /* create an image from the pixel data */
     xcb_image = xcb_image_create_native(connection,
             image->header.width, image->header.height,
             XCB_IMAGE_FORMAT_Z_PIXMAP, 32,
             NULL, image->header.width * image->header.height *
                 sizeof(*image->pixels), (uint8_t*) image->pixels);
 
+    /* create a pixmap and use a temporary gc to draw the image onto the pixmap
+     */
     xcb_create_pixmap(connection, 32, pixmap, screen->root,
             image->header.width, image->header.height);
     xcb_create_gc(connection, gc, pixmap, 0, NULL);
     xcb_image_put(connection, pixmap, gc, xcb_image, 0, 0, 0);
     xcb_free_gc(connection, gc);
+    xcb_image_destroy(xcb_image);
 
+    /* create a picture from the pixmap */
     xcb_render_create_picture(connection, picture, pixmap,
             get_picture_format(32), 0, NULL);
     xcb_free_pixmap(connection, pixmap);
 
+    /* create the actual cursor */
     xcb_render_create_cursor(connection, cursor_id,
             picture, image->header.xhot, image->header.yhot);
 
     xcb_render_free_picture(connection, picture);
-    xcb_image_destroy(xcb_image);
 
     return cursor_id;
 }
@@ -624,7 +630,7 @@ xcb_cursor_t load_cursor(core_cursor_t cursor)
     error = load_cursor_file(file, &xcursor);
     if (error != XCURSOR_SUCCESS) {
         const long file_position = ftell(file);
-        LOG_ERROR("error reading cursor file %s: %s"
+        LOG_ERROR("error reading cursor file %s: %s "
                     "(approximately at: %ld (%#lx))\n",
                 path, xcursor_error_strings[error],
                 file_position, file_position);

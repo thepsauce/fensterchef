@@ -32,6 +32,7 @@ const struct configuration default_configuration = {
     },
 
     .font = {
+        .use_core_font = false,
         .name = (utf8_t*) "Mono",
     },
 

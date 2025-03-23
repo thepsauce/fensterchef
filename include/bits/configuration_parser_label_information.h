@@ -71,6 +71,8 @@ static const struct configuration_parser_label_name {
 
     [PARSER_LABEL_FONT] = {
         "font", NULL, {
+        { "use-core-font", DATA_TYPE_BOOLEAN,
+            offsetof(struct configuration, font.use_core_font) },
         { "name", DATA_TYPE_STRING,
             offsetof(struct configuration, font.name) },
         /* null terminate the end */
