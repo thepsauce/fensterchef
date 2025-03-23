@@ -80,7 +80,10 @@ to reproduce the issue and add the relevant excerpts from the log.
 
 If it is a feature request, you can freely write anything.
 
-## IRC
+## Contact
 
 If you want to hang out with fensterchef users and developers you can join
 `irc.libera.chat:6697` and find us in the channel named `#fensterchef`.
+
+Alternatively, for forum-like discussion, I created a subreddit on Reddit:
+https://reddit.com/r/fensterchef
