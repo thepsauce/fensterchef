@@ -10,13 +10,13 @@
 
 #define FENSTERCHEF_VERSION "1.3"
 
-#define FENSTERCHEF_CONFIGURATION "~/.config/fensterchef/fensterchef.config"
+#define FENSTERCHEF_CONFIGURATION "fensterchef/fensterchef.config"
 
 /* the home directory */
 extern const char *Fensterchef_home;
 
 /* the path of the configuration file */
-extern const char *Fensterchef_configuration;
+extern char *Fensterchef_configuration;
 
 /* true while the window manager is running */
 extern bool Fensterchef_is_running;

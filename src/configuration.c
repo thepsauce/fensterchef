@@ -117,22 +117,12 @@ void clear_configuration(struct configuration *configuration)
 /* Load the user configuration and merge it into the current configuration. */
 void reload_user_configuration(void)
 {
-    char *path;
     struct configuration configuration;
 
-    if (Fensterchef_configuration[0] == '~' &&
-            Fensterchef_configuration[1] == '/') {
-        path = xasprintf("%s/%s", Fensterchef_home,
-                &Fensterchef_configuration[2]);
-    } else {
-        path = xstrdup(Fensterchef_configuration);
-    }
-
-    if (load_configuration(path, &configuration, true) == OK) {
+    if (load_configuration(Fensterchef_configuration, &configuration,
+                true) == OK) {
         set_configuration(&configuration);
     }
-
-    free(path);
 }
 
 /* Get a key from button modifiers and a button index. */
@@ -317,8 +307,6 @@ void grab_configured_keys(void)
 /* Compare the current configuration with the new configuration and set it. */
 void set_configuration(struct configuration *new_configuration)
 {
-    xcb_render_color_t color;
-
     /* replace the configuration */
     clear_configuration(&configuration);
     configuration = *new_configuration;
@@ -333,7 +321,7 @@ void set_configuration(struct configuration *new_configuration)
 
     /* reload the font */
     if (configuration.font.name != NULL) {
-        set_font(configuration.font.name);
+        set_modern_font(configuration.font.name);
     }
 
     /* refresh the border size and color of all windows */
@@ -358,6 +346,7 @@ void set_configuration(struct configuration *new_configuration)
 
     /* change border color and size of the notification window */
     change_client_attributes(&notification,
+            configuration.notification.background,
             configuration.notification.border_color);
     configure_client(&notification, notification.x, notification.y,
             notification.width, notification.height,
@@ -365,36 +354,11 @@ void set_configuration(struct configuration *new_configuration)
 
     /* change border color and size of the window list window */
     change_client_attributes(&window_list.client,
+            configuration.notification.background,
             configuration.notification.border_color);
     configure_client(&window_list.client, window_list.client.x,
             window_list.client.y, window_list.client.width,
             window_list.client.height, configuration.notification.border_size);
-
-    /* change the text colors */
-    if (stock_objects[STOCK_WHITE_PEN] != XCB_NONE) {
-        convert_color_to_xcb_color(&color,
-                configuration.notification.background);
-        set_pen_color(stock_objects[STOCK_WHITE_PEN], color);
-    }
-    if (stock_objects[STOCK_BLACK_PEN] != XCB_NONE) {
-        convert_color_to_xcb_color(&color,
-                configuration.notification.foreground);
-        set_pen_color(stock_objects[STOCK_BLACK_PEN], color);
-    }
-
-    /* change the background colors */
-    if (stock_objects[STOCK_GC] != XCB_NONE &&
-            stock_objects[STOCK_INVERTED_GC] != XCB_NONE) {
-        general_values[0] = configuration.notification.background;
-        general_values[1] = configuration.notification.foreground;
-        xcb_change_gc(connection, stock_objects[STOCK_GC],
-                XCB_GC_FOREGROUND | XCB_GC_BACKGROUND, general_values);
-
-        general_values[0] = configuration.notification.foreground;
-        general_values[1] = configuration.notification.background;
-        xcb_change_gc(connection, stock_objects[STOCK_INVERTED_GC],
-                XCB_GC_FOREGROUND | XCB_GC_BACKGROUND, general_values);
-    }
 
     /* re-grab all bindings */
     for (Window *window = Window_first; window != NULL; window = window->next) {

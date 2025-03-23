@@ -180,6 +180,7 @@ Window *create_window(xcb_window_t xcb_window,
     window->client.y = geometry->x;
     window->client.width = geometry->width;
     window->client.height = geometry->height;
+    window->client.background_color = attributes->backing_pixel;
     window->client.border_color = configuration.border.color;
     /* check if the window is already mapped on the X server */
     if (attributes->map_state != XCB_MAP_STATE_UNMAPPED) {

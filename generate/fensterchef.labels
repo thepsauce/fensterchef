@@ -69,6 +69,8 @@ auto-remove-void boolean false
    whether to remove frames automatically when they become empty
 
 [font]
+use-core-font boolean false
+   whether to use the core font instead of the better font rendering
 name string Mono
    name of the font in fontconfig format
 

@@ -177,7 +177,8 @@ void synchronize_with_server(void)
         }
         configure_client(&window->client, window->x, window->y,
                 window->width, window->height, window->border_size);
-        change_client_attributes(&window->client, window->border_color);
+        change_client_attributes(&window->client,
+                window->client.background_color, window->border_color);
         state_atom = ATOM(_NET_WM_STATE_HIDDEN);
         remove_window_states(window, &state_atom, 1);
         map_client(&window->client);
@@ -955,7 +956,7 @@ void handle_event(xcb_generic_event_t *event)
     /* remove the most significant bit, this gets the actual event type */
     type = (event->response_type & ~0x80);
 
-    /* log these events as verbose because they are not helpful mostly */
+    /* log these events as verbose because they are not helpful */
     if (type == XCB_MOTION_NOTIFY ||
             (type == XCB_CLIENT_MESSAGE &&
              ((xcb_client_message_event_t*) event)->type ==

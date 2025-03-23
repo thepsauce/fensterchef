@@ -17,10 +17,22 @@
 /* FENSTERCHEF main entry point. */
 int main(int argc, char **argv)
 {
+    const char *xdg_config_home;
+
     Fensterchef_home = getenv("HOME");
     if (Fensterchef_home == NULL) {
         fprintf(stderr, "to run fensterchef, you must set HOME\n");
         exit(EXIT_FAILURE);
+    }
+
+    xdg_config_home = getenv("XDG_CONFIG_HOME");
+    if (xdg_config_home == NULL) {
+        Fensterchef_configuration = xasprintf("%s/.config/"
+                    FENSTERCHEF_CONFIGURATION,
+                Fensterchef_home);
+    } else {
+        Fensterchef_configuration = xasprintf("%s/" FENSTERCHEF_CONFIGURATION,
+                xdg_config_home);
     }
 
     /* parse the program arguments */

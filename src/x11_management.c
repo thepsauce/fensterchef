@@ -117,7 +117,7 @@ static int create_utility_windows(void)
     }
     /* set the check window name to the name of fensterchef */
     xcb_icccm_set_wm_name(connection, wm_check_window,
-            ATOM(UTF8_STRING), 8, strlen(FENSTERCHEF_NAME), FENSTERCHEF_NAME);
+            XCB_ATOM_STRING, 8, strlen(FENSTERCHEF_NAME), FENSTERCHEF_NAME);
     /* the check window has itself as supporting wm check window */
     xcb_change_property(connection, XCB_PROP_MODE_REPLACE, wm_check_window,
             ATOM(_NET_SUPPORTING_WM_CHECK), XCB_ATOM_WINDOW,
@@ -128,11 +128,16 @@ static int create_utility_windows(void)
 
     /* create a notification window for showing the user messages */
     notification.id = xcb_generate_id(connection);
+    notification.x = -1;
+    notification.y = -1;
+    notification.width = 1;
+    notification.height = 1;
     /* indicate to not manage the window */
     general_values[0] = true;
     error = xcb_request_check(connection, xcb_create_window_checked(connection,
                 XCB_COPY_FROM_PARENT, notification.id,
-                screen->root, -1, -1, 1, 1, 0,
+                screen->root, notification.x, notification.y,
+                notification.width, notification.height, 0,
                 XCB_WINDOW_CLASS_COPY_FROM_PARENT, XCB_COPY_FROM_PARENT,
                 XCB_CW_OVERRIDE_REDIRECT, general_values));
     if (error != NULL) {
@@ -140,12 +145,8 @@ static int create_utility_windows(void)
         free(error);
         return ERROR;
     }
-    notification.x = -1;
-    notification.y = -1;
-    notification.width = 1;
-    notification.height = 1;
     xcb_icccm_set_wm_name(connection, notification.id,
-            ATOM(UTF8_STRING), 8, strlen(notification_name), notification_name);
+            XCB_ATOM_STRING, 8, strlen(notification_name), notification_name);
 
     /* create the window list */
     if (initialize_window_list() != OK) {
@@ -299,43 +300,78 @@ void unmap_client(XClient *client)
 void configure_client(XClient *client, int32_t x, int32_t y, uint32_t width,
         uint32_t height, uint32_t border_width)
 {
-    if (client->x == x && client->y == y && client->width == width &&
-            client->height == height && client->border_width == border_width) {
-        return;
+    uint16_t mask = 0;
+    uint16_t index = 0;
+
+    if (client->x != x) {
+        client->x = x;
+        general_values[index] = x;
+        index++;
+        mask |= XCB_CONFIG_WINDOW_X;
     }
 
-    LOG("configuring client %w to %R %" PRIu32 "\n", client->id,
-            x, y, width, height, border_width);
+    if (client->y != y) {
+        client->y = y;
+        general_values[index] = y;
+        index++;
+        mask |= XCB_CONFIG_WINDOW_Y;
+    }
 
-    client->x = x;
-    client->y = y;
-    client->width = width;
-    client->height = height;
-    client->border_width = border_width;
+    if (client->width != width) {
+        client->width = width;
+        general_values[index] = width;
+        index++;
+        mask |= XCB_CONFIG_WINDOW_WIDTH;
+    }
 
-    general_values[0] = x;
-    general_values[1] = y;
-    general_values[2] = width;
-    general_values[3] = height;
-    general_values[4] = border_width;
-    xcb_configure_window(connection, client->id,
-            XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y |
-            XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT |
-            XCB_CONFIG_WINDOW_BORDER_WIDTH, general_values);
+    if (client->height != height) {
+        client->height = height;
+        general_values[index] = height;
+        index++;
+        mask |= XCB_CONFIG_WINDOW_HEIGHT;
+    }
+
+    if (client->border_width != border_width) {
+        client->border_width = border_width;
+        general_values[index] = border_width;
+        index++;
+        mask |= XCB_CONFIG_WINDOW_BORDER_WIDTH;
+    }
+
+    if (mask != 0) {
+        LOG("configuring client %w to %R %" PRIu32 "\n", client->id,
+                x, y, width, height, border_width);
+        xcb_configure_window(connection, client->id, mask, general_values);
+    }
 }
 
 /* Set the client border color. */
-void change_client_attributes(XClient *client, uint32_t border_color)
+void change_client_attributes(XClient *client, uint32_t background_color,
+        uint32_t border_color)
 {
-    if (client->border_color == border_color) {
-        return;
+    uint16_t mask = 0;
+    uint16_t index = 0;
+
+    if (client->background_color != background_color) {
+        client->background_color = border_color;
+        general_values[index] = background_color;
+        index++;
+        mask |= XCB_CW_BACK_PIXEL;
     }
-    client->border_color = border_color;
 
-    LOG("changing attributes of client %w to %#" PRIx32 "\n",
-            client->id, border_color);
+    if (client->border_color != border_color) {
+        client->border_color = border_color;
+        general_values[index] = border_color;
+        index++;
+        mask |= XCB_CW_BORDER_PIXEL;
+    }
 
-    general_values[0] = border_color;
-    xcb_change_window_attributes(connection, client->id,
-            XCB_CW_BORDER_PIXEL, general_values);
+    if (mask > 0) {
+        LOG("changing attributes of client %w to " COLOR(GREEN) "#%06" PRIx32
+                    ", " COLOR(GREEN) "#%06" PRIx32 "\n",
+                client->id, background_color, border_color);
+
+        xcb_change_window_attributes(connection, client->id,
+                mask, general_values);
+    }
 }

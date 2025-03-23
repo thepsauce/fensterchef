@@ -13,7 +13,7 @@ const char *Fensterchef_home;
 bool Fensterchef_is_running;
 
 /* the path of the configuration file */
-const char *Fensterchef_configuration = FENSTERCHEF_CONFIGURATION;
+char *Fensterchef_configuration;
 
 /* Spawn a window that has the `FENSTERCHEF_COMMAND` property. */
 void run_external_command(const char *command)
@@ -127,7 +127,6 @@ void set_notification(const utf8_t *message, int32_t x, int32_t y)
     size_t              message_length;
     struct text_measure measure;
     xcb_rectangle_t     rectangle;
-    xcb_render_color_t  color;
 
     if (configuration.notification.duration == 0) {
         return;
@@ -164,9 +163,9 @@ void set_notification(const utf8_t *message, int32_t x, int32_t y)
     rectangle.width = measure.total_width;
     rectangle.height = measure.ascent - measure.descent +
         configuration.notification.padding;
-    convert_color_to_xcb_color(&color, configuration.notification.background);
-    draw_text(notification.id, message, message_length, color,
-            &rectangle, stock_objects[STOCK_BLACK_PEN],
+    draw_text(notification.id, message, message_length,
+            configuration.notification.background,
+            &rectangle, configuration.notification.foreground,
             configuration.notification.padding / 2,
             measure.ascent + configuration.notification.padding / 2);
 
