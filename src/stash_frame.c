@@ -2,49 +2,32 @@
 #include "window.h"
 
 /* Hide all windows in @frame and child frames. */
-static void hide_inner_windows(Frame *frame)
+static void hide_and_reference_inner_windows(Frame *frame)
 {
     if (frame->left != NULL) {
-        hide_inner_windows(frame->left);
-        hide_inner_windows(frame->right);
+        hide_and_reference_inner_windows(frame->left);
+        hide_and_reference_inner_windows(frame->right);
     } else if (frame->window != NULL) {
         hide_window_abruptly(frame->window);
+        /* make sure the pointer sticks around */
+        reference_window(frame->window);
     }
 }
 
 /* Show all windows in @frame and child frames. */
-static void show_inner_windows(Frame *frame)
+static void show_and_dereference_inner_windows(Frame *frame)
 {
     if (frame->left != NULL) {
-        show_inner_windows(frame->left);
-        show_inner_windows(frame->right);
+        show_and_dereference_inner_windows(frame->left);
+        show_and_dereference_inner_windows(frame->right);
     } else if (frame->window != NULL) {
+        dereference_window(frame->window);
         reload_frame(frame);
         frame->window->state.is_visible = true;
     }
 }
 
-/* Check if @window still exists as hidden tiling window.
- *
- * @window may be NULL or a completely random memory address and this function
- *         can still handle that.
- */
-static bool is_window_valid(Window *window)
-{
-    for (Window *other = Window_first; other != NULL; other = other->next) {
-        if (other == window) {
-            return window->state.mode == WINDOW_MODE_TILING &&
-                !window->state.is_visible;
-        }
-    }
-    return false;
-}
-
-/* Make sure all window pointers are still valid.
- *
- * In theory theory it could happen that a pointer is associated to a different
- * object even when it has the same address. But even if that happened, it would
- * not make this function any worse. The user would not even notice.
+/* Make sure all window pointers are still pointing to an existing window.
  *
  * @return the number of valid windows.
  */
@@ -54,7 +37,8 @@ static uint32_t validate_inner_windows(Frame *frame)
         return validate_inner_windows(frame->left) +
             validate_inner_windows(frame->right);
     } else if (frame->window != NULL) {
-        if (!is_window_valid(frame->window)) {
+        if (frame->window->client.id == XCB_NONE) {
+            dereference_window(frame->window);
             frame->window = NULL;
             return 0;
         }
@@ -71,9 +55,9 @@ Frame *stash_frame_later(Frame *frame)
         return NULL;
     }
 
-    Frame *const stash = xcalloc(1, sizeof(*stash));
+    Frame *const stash = create_frame();
     replace_frame(stash, frame);
-    hide_inner_windows(stash);
+    hide_and_reference_inner_windows(stash);
     return stash;
 }
 
@@ -111,7 +95,7 @@ void unlink_frame_from_stash(Frame *frame)
     }
 
     (void) validate_inner_windows(frame);
-    show_inner_windows(frame);
+    show_and_dereference_inner_windows(frame);
 }
 
 /* Frees @frame and all child frames. */
@@ -150,7 +134,7 @@ Frame *pop_stashed_frame(void)
     if (Frame_last_stashed != NULL) {
         pop = Frame_last_stashed;
         Frame_last_stashed = Frame_last_stashed->previous_stashed;
-        show_inner_windows(pop);
+        show_and_dereference_inner_windows(pop);
     }
 
     return pop;

@@ -199,6 +199,8 @@ void synchronize_with_server(void)
 int next_cycle(void)
 {
     int connection_error;
+    Window *old_focus_window;
+    Frame *old_focus_frame;
     xcb_generic_event_t *event;
     fd_set set;
 
@@ -211,8 +213,15 @@ int next_cycle(void)
     }
 
     /* save the old focus for comparison (checking if the focus changed) */
-    Window_old_focus = Window_focus;
-    Frame_old_focus = Frame_focus;
+    old_focus_window = Window_focus;
+    old_focus_frame = Frame_focus;
+    /* make sure the pointers do not get freed */
+    if (old_focus_window != NULL) {
+        reference_window(old_focus_window);
+    }
+    if (old_focus_frame != NULL) {
+        reference_frame(old_focus_frame);
+    }
 
     /* prepare `set` for `select()` */
     FD_ZERO(&set);
@@ -244,13 +253,13 @@ int next_cycle(void)
             has_client_list_changed = false;
         }
 
-        if (Window_old_focus != Window_focus) {
+        if (old_focus_window != Window_focus) {
             set_input_focus(Window_focus);
         }
 
-        if (Frame_old_focus != Frame_focus ||
+        if (old_focus_frame != Frame_focus ||
                 (Frame_focus->window == Window_focus &&
-                 Window_old_focus != Window_focus)) {
+                 old_focus_window != Window_focus)) {
             /* indicate the focused frame if there is no window inside or there
              * is no border to indicate that the frame is focused
              */
@@ -273,6 +282,14 @@ int next_cycle(void)
     if (has_timer_expired) {
         unmap_client(&notification);
         has_timer_expired = false;
+    }
+
+    /* no longer need them */
+    if (old_focus_frame != NULL) {
+        dereference_frame(old_focus_frame);
+    }
+    if (old_focus_window != NULL) {
+        dereference_window(old_focus_window);
     }
 
     /* flush after every series of events so all changes are reflected */

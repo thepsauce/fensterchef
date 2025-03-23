@@ -65,9 +65,6 @@
     Right now using -e, only actions can be sent. Make it so entire
     configurations can be sent. This is helpful when setting a specific layout
 
-#61 Add reference counts to window and frame
-    This will allow to clean up a lot of code
-
 #62 ...
 
 #1000 Make a wayland port
@@ -295,3 +292,6 @@
 
 #60 Add core fonts
     Use core fonts as a fallback font
+
+#61 Add reference counts to window and frame
+    This will allow to clean up a lot of code

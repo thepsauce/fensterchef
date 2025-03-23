@@ -45,6 +45,11 @@ typedef enum {
  * `parent` is NULL when the frame is a root frame or stashed frame.
  */
 struct frame {
+    /* reference counter to keep the pointer around for longer after the frame
+     * has been destroyed
+     */
+    uint32_t reference_count;
+
     /* the window inside the frame, may be NULL; it can also happen that this
      * becomes a completely invalid memory address but only if the frame is
      * stashed, these invalid windows are resolved once the frame becomes
@@ -88,10 +93,12 @@ extern Frame *Frame_last_stashed;
 /* the currently selected/focused frame */
 extern Frame *Frame_focus;
 
-/* the focus that existed before entering an event cycle, this shall only be
- * used for pointer comparison and NOTHING else
+/* Increment the reference count of the frame. */
+void reference_frame(Frame *frame);
+
+/* Decrement the reference count of the frame and free @frame when it reaches 0.
  */
-extern Frame *Frame_old_focus;
+void dereference_frame(Frame *frame);
 
 /* Create a frame object. */
 Frame *create_frame(void);

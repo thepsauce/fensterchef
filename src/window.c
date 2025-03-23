@@ -30,8 +30,22 @@ Window *Window_first;
 /* the currently focused window */
 Window *Window_focus;
 
-/* the focus that existed before entering the event loop */
-Window *Window_old_focus;
+/* Increment the reference count of the window. */
+inline void reference_window(Window *window)
+{
+    window->reference_count++;
+}
+
+/* Decrement the reference count of the window and free @window when it reaches
+ * 0.
+ */
+inline void dereference_window(Window *window)
+{
+    window->reference_count--;
+    if (window->reference_count == 0) {
+        free(window);
+    }
+}
 
 /* Find where in the number linked list a gap is.
  *
@@ -175,6 +189,7 @@ Window *create_window(xcb_window_t xcb_window,
 
     window = xcalloc(1, sizeof(*window));
 
+    window->reference_count = 1;
     window->client.id = xcb_window;
     window->client.x = geometry->x;
     window->client.y = geometry->x;
@@ -294,9 +309,6 @@ static void unlink_window_from_z_list(Window *window)
 /* Destroys given window and removes it from the window linked list. */
 void destroy_window(Window *window)
 {
-    /* special marker used as pointer, see below */
-    static Window i_am_used_as_marker;
-
     Frame *frame;
     Window *previous;
 
@@ -350,18 +362,13 @@ void destroy_window(Window *window)
 
     has_client_list_changed = true;
 
-    /* mark to the event loop that the focus changed, we do not want the frame
-     * pointer to be re-used for a different frame and then end up not
-     * registering the focus change
-     */
-    if (window == Window_old_focus) {
-        Window_old_focus = &i_am_used_as_marker;
-    }
-
+    /* setting the id to None marks the window as destroyed */
+    window->client.id = XCB_NONE;
     free(window->name);
     free(window->protocols);
     free(window->states);
-    free(window);
+
+    dereference_window(window);
 }
 
 /* Attempt to close a window. If it is the first time, use a friendly method by

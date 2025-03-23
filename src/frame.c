@@ -17,21 +17,33 @@ Frame *Frame_last_stashed;
 /* the currently selected/focused frame */
 Frame *Frame_focus;
 
-/* the focus that existed before entering the event loop */
-Frame *Frame_old_focus;
+/* Increment the reference count of the frame. */
+inline void reference_frame(Frame *frame)
+{
+    frame->reference_count++;
+}
+
+/* Decrement the reference count of the frame and free @frame when it reaches 0.
+ */
+inline void dereference_frame(Frame *frame)
+{
+    frame->reference_count--;
+    if (frame->reference_count == 0) {
+        free(frame);
+    }
+}
 
 /* Create a frame object. */
 inline Frame *create_frame(void)
 {
-    return xcalloc(1, sizeof(*Frame_focus));
+    Frame *const frame = xcalloc(1, sizeof(*Frame_focus));
+    frame->reference_count = 1;
+    return frame;
 }
 
 /* Free the frame object. */
 void destroy_frame(Frame *frame)
 {
-    /* special marker used as pointer, see below */
-    static Frame i_am_used_as_marker;
-
     Frame *previous;
 
     if (frame->parent != NULL) {
@@ -44,7 +56,7 @@ void destroy_frame(Frame *frame)
     }
 
     if (frame->left != NULL) {
-        LOG_ERROR("the frame being destroyed still has children,"
+        LOG_ERROR("the frame being destroyed still has children, "
                 "this might leak memory\n");
     }
 
@@ -61,14 +73,6 @@ void destroy_frame(Frame *frame)
          */
     }
 
-    /* mark to the event loop that the focus changed, we do not want the frame
-     * pointer to be re-used for a different frame and then end up not
-     * registering the focus change
-     */
-    if (Frame_old_focus == frame) {
-        Frame_old_focus = &i_am_used_as_marker;
-    }
-
     /* remove from the stash linked list if it is contained in it */
     if (Frame_last_stashed == frame) {
         Frame_last_stashed = Frame_last_stashed->previous_stashed;
@@ -82,7 +86,7 @@ void destroy_frame(Frame *frame)
         }
     }
 
-    free(frame);
+    dereference_frame(frame);
 }
 
 /* Check if @frame has given number and if not, try to find a child frame with
