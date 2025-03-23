@@ -476,6 +476,19 @@ static FT_Face cache_glyph(uint32_t glyph)
     return face;
 }
 
+/* Helper function to convert an RRGGBB color into an xcb color. */
+static inline void convert_color_to_xcb_color(uint32_t color,
+        xcb_render_color_t *xcb_color)
+{
+    /* color values go from 0x0000 (lowest intensity) to
+     * 0xff00 (maximum intensity)
+     */
+    xcb_color->alpha = 0xffff;
+    xcb_color->red = (color & 0xff0000) >> 8;
+    xcb_color->green = (color & 0xff00);
+    xcb_color->blue = (color & 0xff) << 8;
+}
+
 /* Draw text using the modern client side rendering. */
 void draw_text_modern(xcb_drawable_t drawable, const utf8_t *utf8,
         uint32_t length, uint32_t background_color,
@@ -505,12 +518,12 @@ void draw_text_modern(xcb_drawable_t drawable, const utf8_t *utf8,
     /* get a picture to draw on */
     picture = cache_drawable_picture(drawable);
 
-    convert_color_to_xcb_color(&color, foreground_color);
+    convert_color_to_xcb_color(foreground_color, &color);
     set_pen_color(font.pen, color);
 
     /* fill the background */
     if (rectangle != NULL) {
-        convert_color_to_xcb_color(&color, background_color);
+        convert_color_to_xcb_color(background_color, &color);
         xcb_render_fill_rectangles(connection, XCB_RENDER_PICT_OP_OVER,
                 picture, color, 1, rectangle);
     }

@@ -47,19 +47,6 @@ xcb_render_pictformat_t find_visual_format(xcb_visualid_t visual);
 /* Get a good picture format for given depth. */
 xcb_render_pictformat_t get_picture_format(uint8_t depth);
 
-/* Helper function to convert an RRGGBB color into an xcb color. */
-static inline void convert_color_to_xcb_color(xcb_render_color_t *xcb_color,
-        uint32_t color)
-{
-    /* color values go from 0x0000 (lowest intensity) to
-     * 0xff00 (maximum intensity)
-     */
-    xcb_color->alpha = 0xffff;
-    xcb_color->red = (color & 0xff0000) >> 8;
-    xcb_color->green = (color & 0xff00);
-    xcb_color->blue = (color & 0xff) << 8;
-}
-
 /* Set the globally used font for rendering.
  *
  * @return OK on success or ERROR when the font was not found.
