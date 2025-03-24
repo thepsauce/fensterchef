@@ -19,9 +19,11 @@ int initialize_keymap(void)
 /* Refresh the keymap if a mapping notify event arrives. */
 void refresh_keymap(xcb_mapping_notify_event_t *event)
 {
-    (void) xcb_refresh_keyboard_mapping(key_symbols, event);
-    /* regrab all keys */
-    grab_configured_keys();
+    if (event->request == XCB_MAPPING_KEYBOARD) {
+        (void) xcb_refresh_keyboard_mapping(key_symbols, event);
+        /* regrab all keys */
+        grab_configured_keys();
+    }
 }
 
 /* Get a keysym from a keycode. */

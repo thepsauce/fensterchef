@@ -483,12 +483,6 @@ static void handle_key_press(xcb_key_press_event_t *event)
         for (uint32_t i = 0; i < key->number_of_actions; i++) {
             do_action(&key->actions[i], Window_focus);
         }
-
-        /* make the event pass through to the focused client */
-        if ((key->flags & BINDING_FLAG_TRANSPARENT)) {
-            xcb_allow_events(connection, XCB_ALLOW_REPLAY_KEYBOARD,
-                    event->time);
-        }
     }
 }
 
@@ -504,12 +498,6 @@ static void handle_key_release(xcb_key_release_event_t *event)
                 key->actions);
         for (uint32_t i = 0; i < key->number_of_actions; i++) {
             do_action(&key->actions[i], Window_focus);
-        }
-
-        /* make the event pass through to the focused client */
-        if ((key->flags & BINDING_FLAG_TRANSPARENT)) {
-            xcb_allow_events(connection, XCB_ALLOW_REPLAY_KEYBOARD,
-                    event->time);
         }
     }
 }
@@ -993,27 +981,21 @@ void handle_event(xcb_generic_event_t *event)
     /* a key was pressed */
     case XCB_KEY_PRESS:
         handle_key_press((xcb_key_press_event_t*) event);
-        /* continue processing keyboard events normally, we need to do this
-         * because we use SYNC when grabbing keys/buttons so that we can handle
-         * the events ourself but may also decide to replay it to the client it
-         * was actually meant for, the replaying is done within the handlers
-         */
-        xcb_allow_events(connection, XCB_ALLOW_ASYNC_KEYBOARD,
-                ((xcb_key_press_event_t*) event)->time);
         break;
 
     /* a key was released */
     case XCB_KEY_RELEASE:
         handle_key_release((xcb_key_release_event_t*) event);
-        /* continue processing keyboard events normally */
-        xcb_allow_events(connection, XCB_ALLOW_ASYNC_KEYBOARD,
-                ((xcb_key_release_event_t*) event)->time);
         break;
 
     /* a mouse button was pressed */
     case XCB_BUTTON_PRESS:
         handle_button_press((xcb_button_press_event_t*) event);
-        /* continue processing pointer events normally */
+        /* continue processing pointer events normally, we need to do this
+         * because we use SYNC when grabbing buttons so that we can handle
+         * the events ourself but may also decide to replay it to the client it
+         * was actually meant for, the replaying is done within the handlers
+         */
         xcb_allow_events(connection, XCB_ALLOW_ASYNC_POINTER,
                 ((xcb_button_press_event_t*) event)->time);
         break;

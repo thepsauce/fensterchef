@@ -90,7 +90,7 @@ void merge_with_default_button_bindings(struct configuration *configuration)
         /* start moving or resizing a window (depends on the mouse position) */
         { 0, 0, 1, { .code = ACTION_INITIATE_RESIZE } },
         /* minimize (hide) a window */
-        { 0, 0, 2, { .code = ACTION_MINIMIZE_WINDOW } },
+        { 0, BINDING_FLAG_RELEASE, 2, { .code = ACTION_MINIMIZE_WINDOW } },
         /* start moving a window */
         { 0, 0, 3, { .code = ACTION_INITIATE_MOVE } },
     };

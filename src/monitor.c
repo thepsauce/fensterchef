@@ -382,7 +382,8 @@ Monitor *get_left_monitor(Monitor *monitor)
         const bool is_y_axis_overlapping =
             other->y < bottom && monitor->y < other_bottom;
 
-        /* ignore any non overlapping monitors we alread have an overlapping on
+        /* ignore any monitors that do not overlap the axis when we already have
+         * one that overlaps it
          */
         if (!is_y_axis_overlapping && best_is_y_axis_overlapping) {
             continue;
@@ -443,7 +444,8 @@ Monitor *get_above_monitor(Monitor *monitor)
         const bool is_x_axis_overlapping =
             other->x < right && monitor->x < other_right;
 
-        /* ignore any non overlapping monitors we alread have an overlapping on
+        /* ignore any monitors that do not overlap the axis when we already have
+         * one that overlaps it
          */
         if (!is_x_axis_overlapping && best_is_x_axis_overlapping) {
             continue;
@@ -501,7 +503,8 @@ Monitor *get_right_monitor(Monitor *monitor)
         const bool is_y_axis_overlapping =
             other->y < bottom && monitor->y < other_bottom;
 
-        /* ignore any non overlapping monitors we alread have an overlapping on
+        /* ignore any monitors that do not overlap the axis when we already have
+         * one that overlaps it
          */
         if (!is_y_axis_overlapping && best_is_y_axis_overlapping) {
             continue;
@@ -558,7 +561,8 @@ Monitor *get_below_monitor(Monitor *monitor)
         const bool is_x_axis_overlapping =
             other->x < right && monitor->x < other_right;
 
-        /* ignore any non overlapping monitors we alread have an overlapping on
+        /* ignore any monitors that do not overlap the axis when we already have
+         * one that overlaps it
          */
         if (!is_x_axis_overlapping && best_is_x_axis_overlapping) {
             continue;

@@ -160,6 +160,7 @@ struct configuration_button *find_configured_button(
 void grab_configured_buttons(xcb_window_t window)
 {
     struct configuration_button *button;
+    uint16_t modifiers;
 
     /* ungrab all previous buttons so we can overwrite them */
     xcb_ungrab_button(connection, XCB_BUTTON_INDEX_ANY, window,
@@ -170,26 +171,26 @@ void grab_configured_buttons(xcb_window_t window)
         /* use every possible combination of modifiers we do not care about
          * so that when the user has CAPS LOCK for example, it does not mess
          * with mouse bindings
-         *
-         * TODO: is this worth just to avoid getting a few additional events
-         * from the server?
          */
-        for (uint32_t j = 0; j < (uint32_t) (1 << 8); j++) {
+        for (uint16_t j = 0; j <= configuration.mouse.ignore_modifiers; j++) {
             /* check if @j has any outside modifiers */
             if ((j | configuration.mouse.ignore_modifiers) !=
                     configuration.mouse.ignore_modifiers) {
                 continue;
             }
 
+            modifiers = (j | button->modifiers) & 0xff;
+
             xcb_grab_button(connection,
-                    false, /* report all events with respect to `window` */
+                    true, /* report all events with respect to `window` */
                     window, /* this is the window we grab the button for */
                     /* TODO: specifying the ButtonPressMask makes no
                      * difference, figure out why and who is responsible for
                      * that
                      */
                     (button->flags & BINDING_FLAG_RELEASE) ?
-                    XCB_EVENT_MASK_BUTTON_RELEASE : XCB_EVENT_MASK_BUTTON_PRESS,
+                        XCB_EVENT_MASK_BUTTON_RELEASE :
+                        XCB_EVENT_MASK_BUTTON_PRESS,
                     /* SYNC means that pointer (mouse) events will be frozen
                      * until we issue a AllowEvents request; this allows us to
                      * make the decision to either drop the event or send it on
@@ -200,7 +201,7 @@ void grab_configured_buttons(xcb_window_t window)
                     XCB_GRAB_MODE_ASYNC,
                     XCB_NONE, /* no confinement of the pointer */
                     XCB_NONE, /* no change of cursor */
-                    button->index, (j | button->modifiers));
+                    button->index, modifiers);
         }
     }
 }
@@ -279,7 +280,9 @@ void grab_configured_keys(void)
              * so that when the user has CAPS LOCK for example, it does not mess
              * with keybindings.
              */
-            for (uint32_t k = 0; k < (uint32_t) (1 << 8); k++) {
+            for (uint16_t k = 0;
+                    k <= configuration.mouse.ignore_modifiers;
+                    k++) {
                 /* check if @k has any outside modifiers */
                 if ((k | configuration.keyboard.ignore_modifiers) !=
                         configuration.keyboard.ignore_modifiers) {
@@ -289,15 +292,13 @@ void grab_configured_keys(void)
                 modifiers = (k | configuration.keyboard.keys[i].modifiers);
 
                 xcb_grab_key(connection,
-                        1, /* 1 means we specify a window for grabbing */
-                        root, /* this is the window we grab the key for */
+                        true, /* report the event relative to the root */
+                        root, /* the window to grab the keys for */
                         modifiers, keycodes[j],
                         /* do not freeze pointer (mouse) events */
                         XCB_GRAB_MODE_ASYNC,
-                        /* SYNC means that keyboard events will be frozen until
-                         * we issue a AllowEvents request
-                         */
-                        XCB_GRAB_MODE_SYNC);
+                        /* do not freeze keyboard events */
+                        XCB_GRAB_MODE_ASYNC);
             }
         }
         free(keycodes);

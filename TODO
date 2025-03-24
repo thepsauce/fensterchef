@@ -28,9 +28,6 @@
     xrandr --output $MON2 --dpi 96
     ```
 
-#50 ! The default of pressing MiddleButton to close a window
-    When doing this, the below window gets the event as well
-
 #51/#8 ! Fix fixed size fonts messing up
     Fixed size fonts like emoji fonts are not scaled and it looks very weird
 
@@ -295,3 +292,6 @@
 
 #61 Add reference counts to window and frame
     This will allow to clean up a lot of code
+
+#50 ! The default of pressing MiddleButton to close a window
+    When doing this, the below window gets the event as well
