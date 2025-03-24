@@ -768,6 +768,7 @@ static void handle_map_request(xcb_map_request_event_t *event)
         }
 
         show_window(window);
+        update_window_layer(window);
         if (is_window_focusable(window)) {
             set_focus_window_with_frame(window);
         }

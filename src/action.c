@@ -593,7 +593,7 @@ bool do_action(const Action *action, Window *window)
             }
         }
 
-        if (window == NULL) {
+        if (window == NULL || window == Window_focus) {
             return false;
         }
 
@@ -603,11 +603,7 @@ bool do_action(const Action *action, Window *window)
 
     /* focus a window */
     case ACTION_FOCUS_WINDOW:
-        if (action->data.integer == 0) {
-            if (window == Window_focus) {
-                window = NULL;
-            }
-        } else {
+        if (action->data.integer != 0) {
             for (window = Window_first; window != NULL; window = window->next) {
                 if (window->number == (uint32_t) action->data.integer) {
                     break;
@@ -615,7 +611,7 @@ bool do_action(const Action *action, Window *window)
             }
         }
 
-        if (window == NULL) {
+        if (window == NULL || window == Window_focus) {
             return false;
         }
 
