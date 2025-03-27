@@ -30,6 +30,11 @@ Window *Window_first;
 /* the currently focused window */
 Window *Window_focus;
 
+/* the last pressed window, this only gets set when a window is pressed by a
+ * grabbed button
+ */
+Window *Window_pressed;
+
 /* Increment the reference count of the window. */
 inline void reference_window(Window *window)
 {
@@ -149,13 +154,8 @@ Window *create_window(xcb_window_t xcb_window,
 
             if (load_configuration(command, &configuration, false) == OK) {
                 LOG("doing its actions: %A\n",
-                        configuration.startup.number_of_actions,
-                        configuration.startup.actions);
-                for (uint32_t i = 0;
-                        i < configuration.startup.number_of_actions;
-                        i++) {
-                    do_action(&configuration.startup.actions[i], Window_focus);
-                }
+                        &configuration.startup.expression);
+                evaluate_expression(&configuration.startup.expression);
                 clear_configuration(&configuration);
             }
 
@@ -323,6 +323,10 @@ void destroy_window(Window *window)
         LOG_ERROR("destroying window with focus\n");
     }
 
+    if (window == Window_pressed) {
+        Window_pressed = NULL;
+    }
+
     /* this should also never happen but we check just in case */
     frame = get_frame_of_window(window);
     if (frame != NULL) {
@@ -369,6 +373,19 @@ void destroy_window(Window *window)
     free(window->states);
 
     dereference_window(window);
+}
+
+/* Get a window with given @id or NULL if no window has that id. */
+Window *get_window_by_id(uint32_t id)
+{
+    Window *window;
+
+    for (window = Window_first; window != NULL; window = window->next) {
+        if (window->number == id) {
+            break;
+        }
+    }
+    return window;
 }
 
 /* Attempt to close a window. If it is the first time, use a friendly method by

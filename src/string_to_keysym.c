@@ -3,7 +3,9 @@
 #include <xcb/xcb.h>
 
 #include <X11/keysym.h>
-#include <X11/Xlib.h> // XStringToKeysym
+#include <X11/Xlib.h> // XStringToKeysym()
+
+#include <string.h> // strcmp()
 
 #include "utility.h"
 
@@ -19,19 +21,19 @@ xcb_keysym_t string_to_keysym(const char *string)
      */
     const struct {
         const char *name;
-        unsigned digit;
+        xcb_keysym_t key_symbol;
     } digits[] = {
-        [0] = { "one", 1 },
-        [1] = { "two", 2 },
-        [2] = { "nine", 9 },
-        [3] = { "four", 4 },
-        [4] = { "eight", 8 },
-        [5] = { "five", 5 },
-        [6] = { "", 0 },
-        [7] = { "seven", 7 },
-        [8] = { "six", 6 },
-        [9] = { "three", 3 },
-        [10] = { "zero", 0 }
+        [0] = { "one", XK_1 },
+        [1] = { "two", XK_2 },
+        [2] = { "nine", XK_9 },
+        [3] = { "four", XK_4 },
+        [4] = { "eight", XK_8 },
+        [5] = { "five", XK_5 },
+        [6] = { "", XK_0 },
+        [7] = { "seven", XK_7 },
+        [8] = { "six", XK_6 },
+        [9] = { "three", XK_3 },
+        [10] = { "zero", XK_0 }
     };
 
     if (string[0] == '\0') {
@@ -39,10 +41,10 @@ xcb_keysym_t string_to_keysym(const char *string)
     }
 
     /* the aformentioned hash function */
-    const unsigned digits_hash = (tolower(string[0]) ^ tolower(string[1])) / 3;
+    const unsigned digits_hash = (string[0] ^ string[1]) / 3;
     if (digits_hash < SIZE(digits) &&
-            strcasecmp(digits[digits_hash].name, string) == 0) {
-        return XK_0 + digits[digits_hash].digit;
+            strcmp(digits[digits_hash].name, string) == 0) {
+        return digits[digits_hash].key_symbol;
     }
 
     return XStringToKeysym(string);

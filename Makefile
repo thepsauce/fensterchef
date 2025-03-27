@@ -65,6 +65,12 @@ generate/default_configuration.c.sh: generate/fensterchef.labels \
 generate/fensterchef.5.sh: include/action.h
 	touch $@
 
+generate/data_type.h.sh: generate/fensterchef.data_types
+	touch $@
+
+generate/data_type.c.sh: generate/fensterchef.data_types
+	touch $@
+
 src/%: generate/%.sh
 	./generate/generate.sh $<
 
@@ -123,7 +129,7 @@ sandbox: build
 	$(SANDBOX) &
 	# wait for x server to start
 	sleep 1
-	DISPLAY=:$(SANDBOX_DISPLAY) gdb -ex run ./build/fensterchef
+	DISPLAY=:$(SANDBOX_DISPLAY) gdb -ex run --args ./build/fensterchef --verbose
 	pkill Xephyr
 
 release:

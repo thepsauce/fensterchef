@@ -1187,70 +1187,21 @@ static void log_frame(const Frame *frame)
     }
 }
 
-/* Log a data type to standard error output. */
-static void log_data_type(data_type_t type, const GenericData *data)
+/* Log an expression to standard error output. */
+static void log_expression(const Expression *expression)
 {
-    switch (type) {
-    case DATA_TYPE_VOID:
-        /* nothing */
-        break;
+    uint32_t *instructions, *end;
 
-    case DATA_TYPE_BOOLEAN:
-        fputc(' ', stderr);
-        log_boolean(data->boolean);
-        break;
+    instructions = expression->instructions;
+    end = &expression->instructions[expression->instruction_size];
 
-    case DATA_TYPE_STRING:
-        fputc(' ', stderr);
-        fprintf(stderr, COLOR(GREEN) "%s" CLEAR_COLOR,
-                (char*) data->string);
-        break;
-
-    case DATA_TYPE_INTEGER:
-        fputc(' ', stderr);
-        log_integer(data->integer);
-        break;
-
-    case DATA_TYPE_QUAD:
-        fprintf(stderr, COLOR(GREEN)
-                    " %" PRId32 " %" PRId32 " %" PRId32 " %" PRId32
-                    CLEAR_COLOR,
-                data->quad[0], data->quad[1],
-                data->quad[2], data->quad[3]);
-        break;
-
-    case DATA_TYPE_COLOR:
-        fprintf(stderr, COLOR(YELLOW) " #%06" PRIx32 CLEAR_COLOR,
-            data->color);
-        break;
-
-    case DATA_TYPE_MODIFIERS:
-        fputc(' ', stderr);
-        log_modifiers(data->modifiers);
-        break;
-
-    case DATA_TYPE_CURSOR:
-        fprintf(stderr, " " COLOR(GREEN) "%s" CLEAR_COLOR,
-                xcursor_core_strings[data->cursor]);
-        break;
-
-    /* not a real data type */
-    case DATA_TYPE_MAX:
-        break;
+    fputs(COLOR(GREEN), stderr);
+    while (instructions < end) {
+        const uint32_t type = instructions[0];
+        instructions++;
+        fprintf(stderr, "%08" PRIx32 " ", type);
     }
-}
-
-/* Log an action to standard error output. */
-static void log_actions(const Action *actions, uint32_t number_of_actions)
-{
-    for (uint32_t i = 0; i < number_of_actions; i++) {
-        if (i > 0) {
-            fputs(" ; ", stderr);
-        }
-        fprintf(stderr, COLOR(CYAN) "%s" CLEAR_COLOR,
-                action_to_string(actions[i].code));
-        log_data_type(get_action_data_type(actions[i].code), &actions[i].data);
-    }
+    fputs(CLEAR_COLOR, stderr);
 }
 
 /* Log the screen information to standard error output. */
@@ -1356,8 +1307,7 @@ void log_formatted(log_severity_t severity, const char *file, int line,
 
             /* print a list of actions */
             case 'A': {
-                const uint32_t number_of_actions = va_arg(list, uint32_t);
-                log_actions(va_arg(list, Action*), number_of_actions);
+                log_expression(va_arg(list, Expression*));
                 break;
             }
 

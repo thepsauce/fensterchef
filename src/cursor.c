@@ -35,7 +35,7 @@ const char *xcursor_error_strings[XCURSOR_ERROR_MAX] = {
 core_cursor_t string_to_cursor(const char *string)
 {
     for (core_cursor_t i = 0; i < XCURSOR_MAX; i++) {
-        if (strcasecmp(xcursor_core_strings[i], string) == 0) {
+        if (strcmp(xcursor_core_strings[i], string) == 0) {
             return i;
         }
     }

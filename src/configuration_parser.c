@@ -23,26 +23,23 @@ static const struct modifier_string {
     /* the modifier bit */
     uint16_t modifier;
 } modifier_strings[] = {
-    { "None", 0 },
+    { "none", 0 },
 
-    { "Shift", XCB_MOD_MASK_SHIFT },
-    { "Lock", XCB_MOD_MASK_LOCK },
-    { "CapsLock", XCB_MOD_MASK_LOCK },
-    { "Ctrl", XCB_MOD_MASK_CONTROL },
-    { "Control", XCB_MOD_MASK_CONTROL },
+    { "shift", XCB_MOD_MASK_SHIFT },
+    { "lock", XCB_MOD_MASK_LOCK },
+    { "capslock", XCB_MOD_MASK_LOCK },
+    { "ctrl", XCB_MOD_MASK_CONTROL },
+    { "control", XCB_MOD_MASK_CONTROL },
 
     /* common synonyms for some modifiers */
-    { "Alt", XCB_MOD_MASK_1 },
-    { "Super", XCB_MOD_MASK_4 },
+    { "alt", XCB_MOD_MASK_1 },
+    { "super", XCB_MOD_MASK_4 },
 
-    { "Mod1", XCB_MOD_MASK_1 },
-    { "Mod2", XCB_MOD_MASK_2 },
-    { "Mod3", XCB_MOD_MASK_3 },
-    { "Mod4", XCB_MOD_MASK_4 },
-    { "Mod5", XCB_MOD_MASK_5 }
-
-    /* since two bits are toggled this can not be a modifier */
-#define INVALID_MODIFIER 3
+    { "mod1", XCB_MOD_MASK_1 },
+    { "mod2", XCB_MOD_MASK_2 },
+    { "mod3", XCB_MOD_MASK_3 },
+    { "mod4", XCB_MOD_MASK_4 },
+    { "mod5", XCB_MOD_MASK_5 }
 };
 
 /* conversion from string to button index */
@@ -53,26 +50,26 @@ static const struct button_string {
     xcb_button_t button_index;
 } button_strings[] = {
     /* buttons can also be Button<integer> to directly address the index */
-    { "LButton", 1 },
-    { "LeftButton", 1 },
+    { "lbutton", 1 },
+    { "leftbutton", 1 },
 
-    { "MButton", 2 },
-    { "MiddleButton", 2 },
+    { "mbutton", 2 },
+    { "middlebutton", 2 },
 
-    { "RButton", 3 },
-    { "RightButton", 3 },
+    { "rbutton", 3 },
+    { "rightbutton", 3 },
 
-    { "ScrollUp", 4 },
-    { "WheelUp", 4 },
+    { "scrollup", 4 },
+    { "wheelup", 4 },
 
-    { "ScrollDown", 5 },
-    { "WheelDown", 5 },
+    { "scrolldown", 5 },
+    { "wheeldown", 5 },
 
-    { "ScrollLeft", 6 },
-    { "WheelLeft", 6 },
+    { "scrollleft", 6 },
+    { "wheelleft", 6 },
 
-    { "ScrollRight", 7 },
-    { "WheelRight", 7 },
+    { "scrollright", 7 },
+    { "wheelright", 7 },
 
 #define FIRST_X_BUTTON 8
 #define NUMBER_OF_X_BUTTONS 247
@@ -81,56 +78,51 @@ static const struct button_string {
      */
 };
 
+typedef parser_error_t (*parse_data_type_function_t)(Parser *parser,
+        GenericData *output);
+
 /* The void data type is just a placeholder, it expects nothing. */
-static parser_error_t parse_void(Parser *parser)
+static parser_error_t parse_void(Parser *parser, void *output)
 {
     (void) parser;
+    (void) output;
     return PARSER_SUCCESS;
 }
 
 /* Parse a boolean with some tolerance on the wording. */
-static parser_error_t parse_boolean(Parser *parser);
-
-/* Parse any text without leading or trailing space.
- *
- * This stops at a semicolon!
- */
-static parser_error_t parse_string(Parser *parser);
-
-/* Parse an integer in simple decimal notation. */
-static parser_error_t parse_integer(Parser *parser);
+static parser_error_t parse_boolean(Parser *parser, bool *output);
 
 /* Parse a set of 4 integers. */
-static parser_error_t parse_quad(Parser *parser);
+static parser_error_t parse_quad(Parser *parser, int32_t *output);
 
 /* Parse a color in the format (X: hexadecimal digit): #XXXXXX. */
-static parser_error_t parse_color(Parser *parser);
+static parser_error_t parse_color(Parser *parser, uint32_t *output);
 
 /* Parse key modifiers, e.g.: Control+Shift. */
-static parser_error_t parse_modifiers(Parser *parser);
+static parser_error_t parse_modifiers(Parser *parser, uint16_t *output);
 
 /* Parse a cursor constant, e.g.: left-ptr. */
-static parser_error_t parse_cursor(Parser *parser);
+static parser_error_t parse_cursor(Parser *parser, core_cursor_t *output);
 
 /* parser methods of all data types */
-parser_error_t (*data_type_parsers[])(Parser *parser) = {
-    [DATA_TYPE_VOID] = parse_void,
-    [DATA_TYPE_BOOLEAN] = parse_boolean,
-    [DATA_TYPE_STRING] = parse_string,
-    [DATA_TYPE_INTEGER] = parse_integer,
-    [DATA_TYPE_QUAD] = parse_quad,
-    [DATA_TYPE_COLOR] = parse_color,
-    [DATA_TYPE_MODIFIERS] = parse_modifiers,
-    [DATA_TYPE_CURSOR] = parse_cursor,
+parse_data_type_function_t data_type_parsers[] = {
+    [DATA_TYPE_VOID] = (parse_data_type_function_t) parse_void,
+    [DATA_TYPE_BOOLEAN] = (parse_data_type_function_t) parse_boolean,
+    [DATA_TYPE_STRING] = (parse_data_type_function_t) parse_string,
+    [DATA_TYPE_INTEGER] = (parse_data_type_function_t) parse_integer,
+    [DATA_TYPE_QUAD] = (parse_data_type_function_t) parse_quad,
+    [DATA_TYPE_COLOR] = (parse_data_type_function_t) parse_color,
+    [DATA_TYPE_MODIFIERS] = (parse_data_type_function_t) parse_modifiers,
+    [DATA_TYPE_CURSOR] = (parse_data_type_function_t) parse_cursor,
 };
 
 #include "bits/configuration_parser_label_information.h"
 
-/* Translate a string like "Button1" to a button index. */
-static xcb_button_t translate_string_to_button(const char *string)
+/* Translate a string like "button1" to a button index. */
+static xcb_button_t string_to_button(const char *string)
 {
-    /* parse indexes starting with "X" */
-    if (tolower(string[0]) == 'x') {
+    /* parse indexes starting with "x" */
+    if (string[0] == 'x') {
         uint32_t x_index = 0;
 
         string++;
@@ -149,12 +141,12 @@ static xcb_button_t translate_string_to_button(const char *string)
 
         return FIRST_X_BUTTON + x_index - 1;
     /* parse indexes starting with "button" */
-    } else if (tolower(string[0]) == 'b' &&
-            tolower(string[1]) == 'u' &&
-            tolower(string[2]) == 't' &&
-            tolower(string[3]) == 't' &&
-            tolower(string[4]) == 'o' &&
-            tolower(string[5]) == 'n') {
+    } else if (string[0] == 'b' &&
+            string[1] == 'u' &&
+            string[2] == 't' &&
+            string[3] == 't' &&
+            string[4] == 'o' &&
+            string[5] == 'n') {
         uint32_t index = 0;
 
         string += strlen("button");
@@ -170,22 +162,49 @@ static xcb_button_t translate_string_to_button(const char *string)
     }
 
     for (uint32_t i = 0; i < SIZE(button_strings); i++) {
-        if (strcasecmp(string, button_strings[i].name) == 0) {
+        if (strcmp(button_strings[i].name, string) == 0) {
             return button_strings[i].button_index;
         }
     }
     return 0;
 }
 
-/* Translate a string like "Shift" to a modifier bit. */
-static uint16_t translate_string_to_modifier(const char *string)
+/* Translate a string like "shift" to a modifier bit. */
+int string_to_modifier(const char *string, uint16_t *output)
 {
     for (uint32_t i = 0; i < SIZE(modifier_strings); i++) {
-        if (strcasecmp(modifier_strings[i].name, string) == 0) {
-            return modifier_strings[i].modifier;
+        if (strcmp(modifier_strings[i].name, string) == 0) {
+            *output = modifier_strings[i].modifier;
+            return OK;
         }
     }
-    return INVALID_MODIFIER;
+    return ERROR;
+}
+
+/* Translate a string like "false" to a boolean value. */
+int string_to_boolean(const char *string, bool *output)
+{
+    static const char *truth_values[] = {
+        "on", "true", "yes", "1"
+    };
+    static const char *false_values[] = {
+        "off", "false", "no", "0"
+    };
+
+    for (uint32_t i = 0; i < SIZE(truth_values); i++) {
+        if (strcmp(truth_values[i], string) == 0) {
+            *output = true;
+            return OK;
+        }
+    }
+
+    for (uint32_t i = 0; i < SIZE(false_values); i++) {
+        if (strcmp(false_values[i], string) == 0) {
+            *output = false;
+            return OK;
+        }
+    }
+    return ERROR;
 }
 
 /* Converts @error to a string. */
@@ -248,19 +267,19 @@ bool read_next_line(Parser *parser)
 }
 
 /* Skip over empty characters (space). */
-static void skip_space(Parser *parser)
+void skip_space(Parser *parser)
 {
     while (isspace(parser->line[parser->column])) {
         parser->column++;
     }
+    parser->item_start_column = parser->column;
 }
 
 /* Skip leading space and put the next character into @parser->character. */
-static parser_error_t parse_character(Parser *parser)
+parser_error_t parse_character(Parser *parser)
 {
     skip_space(parser);
 
-    parser->item_start_column = parser->column;
     if (parser->line[parser->column] == '\0') {
         return PARSER_ERROR_UNEXPECTED;
     }
@@ -270,13 +289,11 @@ static parser_error_t parse_character(Parser *parser)
 }
 
 /* Skip leading space and load the next identifier into @parser->indentifier. */
-static parser_error_t parse_identifier(Parser *parser)
+parser_error_t parse_identifier(Parser *parser)
 {
     size_t length;
 
     skip_space(parser);
-
-    parser->item_start_column = parser->column;
 
     length = 0;
     /* identifiers are quite flexible, they may even start with a number, any
@@ -284,6 +301,9 @@ static parser_error_t parse_identifier(Parser *parser)
      */
     while (isalnum(parser->line[parser->column]) ||
             parser->line[parser->column] == '-') {
+        parser->identifier[length] = parser->line[parser->column];
+        parser->identifier_lower[length] =
+            tolower(parser->line[parser->column]);
         length++;
         if (length == sizeof(parser->identifier)) {
             return PARSER_ERROR_TOO_LONG;
@@ -295,21 +315,14 @@ static parser_error_t parse_identifier(Parser *parser)
         return PARSER_UNEXPECTED;
     }
 
-    memcpy(parser->identifier, &parser->line[parser->item_start_column], length);
     parser->identifier[length] = '\0';
+    parser->identifier_lower[length] = '\0';
     return PARSER_SUCCESS;
 }
 
 /* Parse a boolean with some tolerance on the wording. */
-static parser_error_t parse_boolean(Parser *parser)
+static parser_error_t parse_boolean(Parser *parser, bool *output)
 {
-    static const char *truth_values[] = {
-        "on", "true", "yes", "1"
-    };
-    static const char *false_values[] = {
-        "off", "false", "no", "0"
-    };
-
     parser_error_t error;
 
     skip_space(parser);
@@ -319,28 +332,14 @@ static parser_error_t parse_boolean(Parser *parser)
         return error;
     }
 
-    for (uint32_t i = 0; i < SIZE(truth_values); i++) {
-        if (strcasecmp(truth_values[i], parser->identifier) == 0) {
-            parser->data.boolean = true;
-            return PARSER_SUCCESS;
-        }
+    if (string_to_boolean(parser->identifier_lower, output) != OK) {
+        return PARSER_ERROR_INVALID_BOOLEAN;
     }
-
-    for (uint32_t i = 0; i < SIZE(false_values); i++) {
-        if (strcasecmp(false_values[i], parser->identifier) == 0) {
-            parser->data.boolean = false;
-            return PARSER_SUCCESS;
-        }
-    }
-
-    return PARSER_ERROR_INVALID_BOOLEAN;
+    return PARSER_SUCCESS;
 }
 
-/* Parse any text that may include escaped characters.
- *
- * Note that this stops at a semicolon.
- */
-static parser_error_t parse_string(Parser *parser)
+/* Parse any text that may include escaped characters. */
+parser_error_t parse_string(Parser *parser, utf8_t **output)
 {
     size_t end;
     char byte;
@@ -350,40 +349,23 @@ static parser_error_t parse_string(Parser *parser)
 
     skip_space(parser);
 
-    parser->item_start_column = parser->column;
-
-    end = parser->column;
-    /* read until the end of line or the first semicolon that is not escaped */
-    for (; byte = parser->line[end], byte != '\0' && byte != ';'; end++) {
-        /* check if the backslash it not at the end of the line */
-        if (byte == '\\') {
-            end++;
-            if (parser->line[end] == '\0') {
-                /* indicate the point of failure */
-                parser->item_start_column = end - 1;
-                parser->column = end - 1;
-                return PARSER_ERROR_TRAILING_BACKSLASH;
-            }
-        }
-    }
-
-    if (parser->column == end) {
-        /* there was absolutely nothing there */
-        return PARSER_UNEXPECTED;
-    }
-
     /* allocate enough bytes to hold on to all characters and the null
-     * terminator, in reality (if characters are escaped) this may be less but
-     * never more
+     * terminator, in reality this may be less but never more
      */
-    string = xmalloc(end - parser->column + 1);
+    string = xmalloc(strlen(parser->line) + 1);
 
     end = parser->column;
-    /* a second pass to handle escaped characters */
-    for (; byte = parser->line[end], byte != '\0' && byte != ';'; end++) {
+    for (; byte = parser->line[end], byte != '\0' && byte != ';' &&
+            byte != '&' && byte != '|' && byte != ')'; end++) {
         if (byte == '\\') {
             end++;
             switch (parser->line[end]) {
+            /* handle a trailing backslash */
+            case '\0':
+                byte = '\\';
+                end--;
+                break;
+
             /* handle some standard escape sequences */
             case 'a': byte = '\a'; break;
             case 'b': byte = '\b'; break;
@@ -393,7 +375,18 @@ static parser_error_t parse_string(Parser *parser)
             case 'r': byte = '\r'; break;
             case 't': byte = '\t'; break;
             case 'v': byte = '\v'; break;
+            case '\\': byte = '\\'; break;
+
+            /* handle the escaping of special characters */
+            case ';': byte = ';'; break;
+            case '&': byte = '&'; break;
+            case '|': byte = '|'; break;
+            case ')': byte = ')'; break;
+
+            /* simply ignore that there was a \ in the first place */
             default:
+                string[index] = '\\';
+                index++;
                 byte = parser->line[end];
             }
             last_index = index;
@@ -410,21 +403,19 @@ static parser_error_t parse_string(Parser *parser)
     /* trim anything we allocated too much */
     RESIZE(string, last_index + 2);
 
-    parser->data.string = string;
+    *output = string;
 
     parser->column = end;
     return PARSER_SUCCESS;
 }
 
 /* Parse an integer in simple decimal notation. */
-static parser_error_t parse_integer(Parser *parser)
+parser_error_t parse_integer(Parser *parser, int32_t *output)
 {
     int32_t sign = 1;
     int32_t integer;
 
     skip_space(parser);
-
-    parser->item_start_column = parser->column;
 
     /* get a preceding sign if any */
     if (parser->line[parser->column] == '+') {
@@ -450,29 +441,28 @@ static parser_error_t parse_integer(Parser *parser)
         }
     }
 
-    parser->data.integer = sign * integer;
+    *output = sign * integer;
 
     return PARSER_SUCCESS;
 }
 
 /* Parse a set of up to 4 integers. */
-static parser_error_t parse_quad(Parser *parser)
+static parser_error_t parse_quad(Parser *parser, int32_t *output)
 {
     int32_t quad[4];
     parser_error_t error;
     uint32_t i = 0;
 
-    for (i = 0; i < SIZE(parser->data.quad); i++) {
+    for (i = 0; i < SIZE(quad); i++) {
         skip_space(parser);
         /* allow a premature end: not enough integers */
         if (parser->line[parser->column] == '\0') {
             break;
         }
-        error = parse_integer(parser);
+        error = parse_integer(parser, &quad[i]);
         if (error != PARSER_SUCCESS) {
             return error;
         }
-        quad[i] = parser->data.integer;
     }
 
     switch (i) {
@@ -498,12 +488,12 @@ static parser_error_t parse_quad(Parser *parser)
         return PARSER_ERROR_INVALID_QUAD;
     }
 
-    memcpy(parser->data.quad, quad, sizeof(quad));
+    memcpy(output, quad, sizeof(quad));
     return PARSER_SUCCESS;
 }
 
 /* Parse a color in the format (X: hexadecimal digit): #XXXXXX. */
-static parser_error_t parse_color(Parser *parser)
+static parser_error_t parse_color(Parser *parser, uint32_t *output)
 {
     uint32_t color;
     uint32_t count;
@@ -524,26 +514,24 @@ static parser_error_t parse_color(Parser *parser)
         return PARSER_ERROR_BAD_COLOR_FORMAT;
     }
 
-    parser->data.color = color;
+    *output = color;
 
     return PARSER_SUCCESS;
 }
 
-/* Parse key modifiers, e.g.: `Control+Shift`. */
-static parser_error_t parse_modifiers(Parser *parser)
+/* Parse key modifiers, e.g.: `control+shift`. */
+static parser_error_t parse_modifiers(Parser *parser, uint16_t *output)
 {
     parser_error_t error;
-    uint16_t modifier;
+    uint16_t modifier, modifiers = 0;
 
-    parser->data.modifiers = 0;
     while (error = parse_identifier(parser), error == PARSER_SUCCESS) {
-        modifier = translate_string_to_modifier(parser->identifier);
-        if (modifier == INVALID_MODIFIER) {
+        if (string_to_modifier(parser->identifier_lower, &modifier) != OK) {
             error = PARSER_ERROR_INVALID_MODIFIERS;
             break;
         }
 
-        parser->data.modifiers |= modifier;
+        modifiers |= modifier;
 
         /* go to the next '+' */
         if (parse_character(parser) != PARSER_SUCCESS) {
@@ -554,11 +542,13 @@ static parser_error_t parse_modifiers(Parser *parser)
             break;
         }
     }
+
+    *output = modifiers;
     return error;
 }
 
 /* Parse a cursor constant, e.g.: left-ptr. */
-static parser_error_t parse_cursor(Parser *parser)
+static parser_error_t parse_cursor(Parser *parser, core_cursor_t *output)
 {
     parser_error_t error;
     core_cursor_t cursor;
@@ -580,13 +570,13 @@ static parser_error_t parse_cursor(Parser *parser)
         return PARSER_ERROR_INVALID_CURSOR;
     }
 
-    parser->data.cursor = cursor;
+    *output = cursor;
 
     return PARSER_SUCCESS;
 }
 
 /* Reads modifiers in the from modifier1+modifier2+... but stops at the last
- * identifier in the list, this be accessible in `parser->identifier`.
+ * identifier in the list, this be accessible in `parser->identifier_lower`.
  */
 static parser_error_t parse_button_or_key_modifiers(Parser *parser,
         uint16_t *modifiers)
@@ -599,15 +589,14 @@ static parser_error_t parse_button_or_key_modifiers(Parser *parser,
     /* first, read the modifiers and key symbol */
     while (error = parse_identifier(parser), error == PARSER_SUCCESS) {
         /* try to find a next '+', if not found, then that must be a none
-         * modifier
+         * modifier (the button index or key symbol)
          */
         skip_space(parser);
         if (parser->line[parser->column] != '+') {
             break;
         }
 
-        modifier = translate_string_to_modifier(parser->identifier);
-        if (modifier == INVALID_MODIFIER) {
+        if (string_to_modifier(parser->identifier_lower, &modifier) != OK) {
             error = PARSER_ERROR_INVALID_MODIFIERS;
             break;
         }
@@ -631,9 +620,9 @@ static parser_error_t parse_binding_flags(Parser *parser, uint16_t *flags)
         if (error != PARSER_SUCCESS) {
             break;
         }
-        if (strcasecmp(parser->identifier, "--release") == 0) {
+        if (strcmp(parser->identifier_lower, "--release") == 0) {
             *flags |= BINDING_FLAG_RELEASE;
-        } else if (strcasecmp(parser->identifier, "--transparent") == 0) {
+        } else if (strcmp(parser->identifier_lower, "--transparent") == 0) {
             *flags |= BINDING_FLAG_TRANSPARENT;
         } else {
             error = PARSER_ERROR_INVALID_BUTTON_FLAG;
@@ -643,94 +632,29 @@ static parser_error_t parse_binding_flags(Parser *parser, uint16_t *flags)
     return error;
 }
 
-/* Parse a semicolon separated list of actions. */
-static parser_error_t parse_actions(Parser *parser,
-        Action **destination_actions,
-        uint32_t *destination_number_of_actions)
+/* Parse a mouse button binding, e.g.: `button2 close-window`. */
+static parser_error_t parse_button(Parser *parser,
+        struct configuration_button *button)
 {
     parser_error_t error;
 
-    Action *actions = NULL, *action;
-    uint32_t number_of_actions = 0;
-
-    while (error = parse_identifier(parser), error != PARSER_ERROR_TOO_LONG) {
-        if (error != PARSER_SUCCESS) {
-            error = PARSER_ERROR_MISSING_ACTION;
-            break;
-        }
-
-        RESIZE(actions, number_of_actions + 1);
-        action = &actions[number_of_actions];
-
-        /* get the action name */
-        action->code = string_to_action(parser->identifier);
-        if (action->code == ACTION_NULL) {
-            error = PARSER_ERROR_INVALID_ACTION;
-            break;
-        }
-        memset(&action->data, 0, sizeof(action->data));
-
-        /* get the action value */
-        const data_type_t data_type = get_action_data_type(action->code);
-        if (data_type != DATA_TYPE_VOID) {
-            error = data_type_parsers[data_type](parser);
-            /* if the argument is optional, it is fine when an unexpected token
-             * appears
-             */
-            if (error == PARSER_UNEXPECTED &&
-                    has_action_optional_argument(action->code)) {
-                error = PARSER_SUCCESS;
-            } else {
-                if (error != PARSER_SUCCESS) {
-                    break;
-                }
-                action->data = parser->data;
-            }
-        }
-
-        number_of_actions++;
-
-        skip_space(parser);
-
-        if (parser->line[parser->column] != ';') {
-            break;
-        }
-        parser->column++;
-    }
-
-    if (error != PARSER_SUCCESS) {
-        free_actions(actions, number_of_actions);
-        return error;
-    }
-
-    *destination_actions = actions;
-    *destination_number_of_actions = number_of_actions;
-    return PARSER_SUCCESS;
-}
-
-/* Parse a mousebinding, e.g.: `Button2 close-window`. */
-static parser_error_t parse_button(Parser *parser)
-{
-    parser_error_t error;
-
-    error = parse_button_or_key_modifiers(parser, &parser->button.modifiers);
+    error = parse_button_or_key_modifiers(parser, &button->modifiers);
     if (error != PARSER_SUCCESS) {
         return error;
     }
-    parser->button.modifiers |= parser->configuration.mouse.modifiers;
+    button->modifiers |= parser->configuration.mouse.modifiers;
 
-    parser->button.index = translate_string_to_button(parser->identifier);
-    if (parser->button.index == 0) {
+    button->index = string_to_button(parser->identifier_lower);
+    if (button->index == 0) {
         return PARSER_ERROR_INVALID_BUTTON;
     }
 
-    error = parse_binding_flags(parser, &parser->button.flags);
+    error = parse_binding_flags(parser, &button->flags);
     if (error != PARSER_SUCCESS) {
         return error;
     }
 
-    error = parse_actions(parser, &parser->button.actions,
-            &parser->button.number_of_actions);
+    error = parse_expression(parser, &button->expression);
     if (error != PARSER_SUCCESS) {
         return error;
     }
@@ -738,49 +662,48 @@ static parser_error_t parse_button(Parser *parser)
     return PARSER_SUCCESS;
 }
 
-/* Parse a keybinding, e.g.: `Shift+v split-horizontally ; move-right`. */
-static parser_error_t parse_key(Parser *parser)
+/* Parse a key binding, e.g.: `shift+v split-horizontally ; move-right`. */
+static parser_error_t parse_key(Parser *parser, struct configuration_key *key)
 {
     parser_error_t error;
 
-    error = parse_button_or_key_modifiers(parser, &parser->key.modifiers);
+    error = parse_button_or_key_modifiers(parser, &key->modifiers);
     if (error != PARSER_SUCCESS) {
         return error;
     }
 
-    parser->key.modifiers |= parser->configuration.keyboard.modifiers;
+    key->modifiers |= parser->configuration.keyboard.modifiers;
 
     /* intepret starting with a digit as keycode */
-    if (isdigit(parser->identifier[0])) {
-        parser->key.key_symbol = XCB_NONE;
-        parser->key.key_code = 0;
-        for (uint32_t i = 0; parser->identifier[i] != '\0'; i++) {
-            if (!isdigit(parser->identifier[i])) {
+    if (isdigit(parser->identifier_lower[0])) {
+        key->key_symbol = XCB_NONE;
+        key->key_code = 0;
+        for (uint32_t i = 0; parser->identifier_lower[i] != '\0'; i++) {
+            if (!isdigit(parser->identifier_lower[i])) {
                 error = PARSER_ERROR_INVALID_KEY_SYMBOL;
                 break;
             }
-            parser->key.key_code *= 10;
-            parser->key.key_code += parser->identifier[i] - '0';
+            key->key_code *= 10;
+            key->key_code += parser->identifier_lower[i] - '0';
         }
     } else {
-        parser->key.key_symbol = string_to_keysym(parser->identifier);
-        if (parser->key.key_symbol == XCB_NONE) {
+        key->key_symbol = string_to_keysym(parser->identifier);
+        if (key->key_symbol == XCB_NONE) {
             error = PARSER_ERROR_INVALID_KEY_SYMBOL;
         }
-        parser->key.key_code = 0;
+        key->key_code = 0;
     }
 
     if (error != PARSER_SUCCESS) {
         return error;
     }
 
-    error = parse_binding_flags(parser, &parser->key.flags);
+    error = parse_binding_flags(parser, &key->flags);
     if (error != PARSER_SUCCESS) {
         return error;
     }
 
-    error = parse_actions(parser, &parser->key.actions,
-            &parser->key.number_of_actions);
+    error = parse_expression(parser, &key->expression);
     if (error != PARSER_SUCCESS) {
         return error;
     }
@@ -806,24 +729,24 @@ static parser_error_t merge_default_keyboard(Parser *parser)
 static parser_error_t parse_startup_actions(Parser *parser)
 {
     parser_error_t error;
-    Action *actions;
-    uint32_t number_of_actions;
+    Expression expression;
 
-    error = parse_actions(parser, &actions, &number_of_actions);
+    error = parse_expression(parser, &expression);
     if (error != PARSER_SUCCESS) {
         return error;
     }
 
-    /* append the parsed actions to the startup actions */
-    RESIZE(parser->configuration.startup.actions,
-            parser->configuration.startup.number_of_actions +
-                number_of_actions);
-    memcpy(&parser->configuration.startup.actions[
-                parser->configuration.startup.number_of_actions],
-            actions,
-            sizeof(*actions) * number_of_actions);
-    parser->configuration.startup.number_of_actions += number_of_actions;
-    free(actions);
+    /* append the parsed expression to the startup expression */
+    RESIZE(parser->configuration.startup.expression.instructions,
+            parser->configuration.startup.expression.instruction_size +
+                expression.instruction_size);
+    memcpy(&parser->configuration.startup.expression.instructions[
+                parser->configuration.startup.expression.instruction_size],
+            expression.instructions,
+            sizeof(*expression.instructions) * expression.instruction_size);
+    parser->configuration.startup.expression.instruction_size +=
+        expression.instruction_size;
+    free(expression.instructions);
     return PARSER_SUCCESS;
 }
 
@@ -831,27 +754,28 @@ static parser_error_t parse_startup_actions(Parser *parser)
 static parser_error_t parse_mouse_binding(Parser *parser)
 {
     parser_error_t error;
-    struct configuration_button *button;
+    struct configuration_button button, *button_pointer;
 
-    error = parse_button(parser);
+    error = parse_button(parser, &button);
     if (error != PARSER_SUCCESS) {
         return error;
     }
 
-    button = find_configured_button(&parser->configuration,
-            parser->button.modifiers, parser->button.index,
-            parser->button.flags);
+    button_pointer = find_configured_button(&parser->configuration,
+            button.modifiers, button.index, button.flags);
 
-    if (button != NULL) {
-        free_actions(button->actions, button->number_of_actions);
+    if (button_pointer != NULL) {
+        /* free the old button instructions */
+        free(button_pointer->expression.instructions);
     } else {
+        /* add the button to the end */
         RESIZE(parser->configuration.mouse.buttons,
                 parser->configuration.mouse.number_of_buttons + 1);
-        button = &parser->configuration.mouse.buttons[
+        button_pointer = &parser->configuration.mouse.buttons[
             parser->configuration.mouse.number_of_buttons];
         parser->configuration.mouse.number_of_buttons++;
     }
-    *button = parser->button;
+    *button_pointer = button;
     return PARSER_SUCCESS;
 }
 
@@ -859,56 +783,68 @@ static parser_error_t parse_mouse_binding(Parser *parser)
 static parser_error_t parse_keyboard_binding(Parser *parser)
 {
     parser_error_t error;
-    struct configuration_key *key;
+    struct configuration_key key, *key_pointer;
 
-    error = parse_key(parser);
+    error = parse_key(parser, &key);
     if (error != PARSER_SUCCESS) {
         return error;
     }
 
-    if (parser->key.key_symbol == XCB_NONE) {
-        key = find_configured_key_by_code(&parser->configuration,
-                parser->key.modifiers, parser->key.key_code,
-                parser->key.flags);
+    if (key.key_symbol == XCB_NONE) {
+        key_pointer = find_configured_key_by_code(&parser->configuration,
+                key.modifiers, key.key_code, key.flags);
     } else {
-        key = find_configured_key_by_symbol(&parser->configuration,
-                parser->key.modifiers, parser->key.key_symbol,
-                parser->key.flags);
+        key_pointer = find_configured_key_by_symbol(&parser->configuration,
+                key.modifiers, key.key_symbol, key.flags);
     }
 
-    if (key != NULL) {
-        free_actions(key->actions, key->number_of_actions);
+    if (key_pointer != NULL) {
+        /* free the old now unused instructions */
+        free(key_pointer->expression.instructions);
     } else {
+        /* the key does not exist already, add a new one */
         RESIZE(parser->configuration.keyboard.keys,
                 parser->configuration.keyboard.number_of_keys + 1);
-        key = &parser->configuration.keyboard.keys[
+        key_pointer = &parser->configuration.keyboard.keys[
             parser->configuration.keyboard.number_of_keys];
         parser->configuration.keyboard.number_of_keys++;
     }
-    *key = parser->key;
+    *key_pointer = key;
     return PARSER_SUCCESS;
 }
 
-/* Parse an association. */
+/* Parse an association.
+ *
+ * Generally:
+ * <number> <instance string> ; <class string> (; <expression>)?
+ * 
+ * Examples:
+ * 12 * ; XTerm
+ * 0 * ; firefox ; none
+ */
 static parser_error_t parse_assignment_association(Parser *parser)
 {
     parser_error_t error;
-    struct configuration_association association;
+    int32_t number;
+    struct configuration_association association = {
+        .expression.instruction_size = 0
+    };
 
-    error = parse_integer(parser);
+    /* read the leading number */
+    error = parse_integer(parser, &number);
     if (error != PARSER_SUCCESS) {
         return error;
     }
-    if (parser->data.integer < 0) {
+    if (number < 0) {
         return PARSER_ERROR_EXPECTED_UNSIGNED_INTEGER;
     }
-    association.number = parser->data.integer;
+    association.number = number;
 
-    error = parse_string(parser);
+    /* get the instance pattern */
+    error = parse_string(parser, &association.instance_pattern);
     if (error != PARSER_SUCCESS) {
         return error;
     }
-    association.instance_pattern = parser->data.string;
 
     if (parser->line[parser->column] != ';') {
         free(association.instance_pattern);
@@ -918,21 +854,17 @@ static parser_error_t parse_assignment_association(Parser *parser)
     /* skip over ';' */
     parser->column++;
 
-    error = parse_string(parser);
+    /* get the class pattern */
+    error = parse_string(parser, &association.class_pattern);
     if (error != PARSER_SUCCESS) {
         free(association.instance_pattern);
         return error;
     }
-    association.class_pattern = parser->data.string;
 
-    /* an optional list of actions may be supplied */
+    /* an optional expression may be supplied */
     if (parser->line[parser->column] == ';') {
         parser->column++;
-        error = parse_actions(parser, &association.actions,
-                &association.number_of_actions);
-    } else {
-        association.actions = NULL;
-        association.number_of_actions = 0;
+        error = parse_expression(parser, &association.expression);
     }
 
     if (error != PARSER_SUCCESS) {
@@ -941,6 +873,7 @@ static parser_error_t parse_assignment_association(Parser *parser)
         return error;
     }
 
+    /* add the association to the end of the association list */
     RESIZE(parser->configuration.assignment.associations,
             parser->configuration.assignment.number_of_associations + 1);
     parser->configuration.assignment.associations[
@@ -950,7 +883,7 @@ static parser_error_t parse_assignment_association(Parser *parser)
     return PARSER_SUCCESS;
 }
 
-/* Parses and handles given textual line. */
+/* Parse the line within @parser. */
 parser_error_t parse_line(Parser *parser)
 {
     parser_error_t error;
@@ -974,7 +907,7 @@ parser_error_t parse_line(Parser *parser)
 
         /* check if the label exists */
         for (parser_label_t i = 0; i < PARSER_LABEL_MAX; i++) {
-            if (strcasecmp(labels[i].name, parser->identifier) == 0) {
+            if (strcmp(labels[i].name, parser->identifier_lower) == 0) {
                 parser->label = i;
                 /* check for an ending ']' */
                 error = parse_character(parser);
@@ -995,13 +928,18 @@ parser_error_t parse_line(Parser *parser)
 
     /* get the variable/command name */
     error = parse_identifier(parser);
+    if (error == PARSER_UNEXPECTED) {
+        /* jump to the bottom of the function to skip all the identifier checks
+         */
+        goto special_handling;
+    }
     if (error != PARSER_SUCCESS) {
         return error;
     }
 
     /* check for a general parser command */
-    if (strcasecmp(parser->identifier, "include") == 0) {
-        char *path;
+    if (strcmp(parser->identifier_lower, "include") == 0) {
+        utf8_t *path;
 
         /* check for a stack overflow */
         if (parser->number_of_pushed_files == SIZE(parser->file_stack)) {
@@ -1015,22 +953,20 @@ parser_error_t parse_line(Parser *parser)
         parser->number_of_pushed_files++;
 
         /* get the file name */
-        error = parse_string(parser);
+        error = parse_string(parser, &path);
         if (error != PARSER_SUCCESS) {
             return error;
         }
 
         /* expand the file path */
-        if (parser->data.string[0] == '~' && parser->data.string[1] == '/') {
-            path = xasprintf("%s/%s", Fensterchef_home,
-                    &parser->data.string[2]);
-            free(parser->data.string);
-        } else {
-            path = (char*) parser->data.string;
+        if (path[0] == '~' && path[1] == '/') {
+            void *const free_me = path;
+            path = (utf8_t*) xasprintf("%s/%s", Fensterchef_home, &path[2]);
+            free(free_me);
         }
 
         /* open the file */
-        parser->file = fopen(path, "r");
+        parser->file = fopen((char*) path, "r");
         free(path);
         if (parser->file == NULL) {
             return PARSER_ERROR_INVALID_INCLUDE;
@@ -1047,17 +983,21 @@ parser_error_t parse_line(Parser *parser)
         const struct configuration_parser_label_variable *const variable =
             &labels[parser->label].variables[i];
 
-        if (strcasecmp(variable->name, parser->identifier) == 0) {
-            error = data_type_parsers[variable->data_type](parser);
-            if (error != PARSER_SUCCESS) {
-                return error;
-            }
-
+        if (strcmp(variable->name, parser->identifier_lower) == 0) {
             /* set the struct member at given offset */
             GenericData *const value = (GenericData*)
                 ((uint8_t*) &parser->configuration + variable->offset);
+            /* clear the old value */
             clear_data_value(variable->data_type, value);
-            memcpy(value, &parser->data, data_type_sizes[variable->data_type]);
+            /* parse and move in the new value */
+            error = data_type_parsers[variable->data_type](parser, value);
+            if (error != PARSER_SUCCESS) {
+                /* make sure no invalid pointers hang around because everything
+                 * gets freed after failing to parse
+                 */
+                memset(value, 0, data_type_sizes[variable->data_type]);
+                return error;
+            }
             return PARSER_SUCCESS;
         }
     }
@@ -1070,7 +1010,7 @@ parser_error_t parse_line(Parser *parser)
             break;
         }
 
-        if (strcmp(command->name, parser->identifier) == 0) {
+        if (strcmp(command->name, parser->identifier_lower) == 0) {
             return command->procedure(parser);
         }
     }
@@ -1078,6 +1018,7 @@ parser_error_t parse_line(Parser *parser)
     /* rewind before the identifier */
     parser->column = parser->item_start_column;
 
+special_handling:
     /* check if the label has a special parser */
     if (labels[parser->label].special_parser == NULL) {
         return PARSER_ERROR_INVALID_VARIABLE_NAME;

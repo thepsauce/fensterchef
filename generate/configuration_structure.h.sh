@@ -4,13 +4,6 @@ set -e
 
 source generate/data_types.sh
 
-IFS=
-
-START_MARKER='/*< START OF CONFIGURATION >*/'
-END_MARKER='/*< END OF CONFIGURATION >*/'
-
-found_marker=false
-
 labels=( )
 
 # $1 -> label declaration
@@ -36,7 +29,7 @@ write_struct() {
             line="$next_line"
         fi
 
-        # an EMPTY line signals stop
+        # an empty line signals stop
         if [ "$line" = "" ] ; then
             break
         fi
@@ -63,20 +56,20 @@ write_struct() {
             variable_type="${line#* }"
             variable_type="${variable_type%% *}"
 
-            data_type="${data_types[$variable_type]}"
-            if [ -z "$data_type" ] ; then
+            c_type="${data_type_c[$variable_type]}"
+            if [ -z "$c_type" ] ; then
                 echo "WHAT IS $variable_type - $0" >&2
                 exit 1
             fi
             
-            data_type_length="${data_type%% *}"
+            c_type_length="${c_type%% *}"
             variable_name="${variable_name//-/_}"
 
-            line="${data_type#* } "
-            case "$data_type_length" in
+            line="${c_type#* } "
+            case "$c_type_length" in
             1) line+="$variable_name" ;;
             "*") line+="*$variable_name" ;;
-            *) line+="$variable_name[$data_type_length]" ;;
+            *) line+="$variable_name[$c_type_length]" ;;
             esac
             ;;
         esac
@@ -95,39 +88,30 @@ write_struct() {
     echo "};"
 }
 
+replace_lines() {
+    while read -r line ; do
+        if [ "${line:0:1}" != "[" ] ; then
+            continue
+        fi
+        write_struct "$line"
+    done <generate/fensterchef.labels
+
+    echo
+    echo "/* configuration settings */"
+    echo "struct configuration {"
+    for l in "${labels[@]}" ; do
+        echo "    /* $l settings */"
+        echo "    struct configuration_$l $l;"
+    done
+    echo "};"
+
+    echo
+}
+
+start_marker='/*< START OF CONFIGURATION >*/'
+end_marker='/*< END OF CONFIGURATION >*/'
+source generate/replace_markers.sh
+
 while read -r line ; do
     echo "$line"
-    if [ "$line" = "$START_MARKER" ] ; then
-        found_marker=true
-
-        while read -r line ; do
-            if [ "$line" = "$END_MARKER" ] ; then
-                break
-            fi
-        done
-
-        while read -r line ; do
-            if [ "${line:0:1}" != "[" ] ; then
-                continue
-            fi
-            write_struct "$line"
-        done <generate/fensterchef.labels
-
-        echo
-        echo "/* configuration settings */"
-        echo "struct configuration {"
-        for l in "${labels[@]}" ; do
-            echo "    /* $l settings */"
-            echo "    struct configuration_$l $l;"
-        done
-        echo "};"
-
-        echo
-        echo "$END_MARKER"
-    fi
 done
-
-if ! $found_marker ; then
-    echo "MARKER NOT FOUND - $0" >&2
-    exit 1
-fi

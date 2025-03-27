@@ -93,13 +93,9 @@ int main(int argc, char **argv)
     /* configure the monitor frames before running the startup actions */
     reconfigure_monitor_frames();
 
-    /* run all startup actions */
-    LOG("running startup actions: %A\n",
-            configuration.startup.number_of_actions,
-            configuration.startup.actions);
-    for (uint32_t i = 0; i < configuration.startup.number_of_actions; i++) {
-        do_action(&configuration.startup.actions[i], Window_focus);
-    }
+    /* run the startup expression */
+    LOG("running startup expression: %A\n", &configuration.startup.expression);
+    evaluate_expression(&configuration.startup.expression);
 
     /* do an inital synchronization */
     synchronize_with_server();

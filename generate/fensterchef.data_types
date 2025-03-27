@@ -5,7 +5,6 @@ They are in the format:
 <name> <count of elements> <c data type>
    <comment>
 Note the 3 space indentation.
-The set data type is not included because it is not really a data type.
 
 boolean 1 bool 
    true or false value, one of: on yes true off no false
@@ -14,7 +13,7 @@ string * utf8_t
 integer 1 int32_t
    an integer in simple decimal notation
 quad 4 int32_t
-   a set of 4 integers
+   a set of 1, 2 or 4 integers
 color 1 uint32_t
    color in the format (X: hexadecimal digit): #XXXXXX
 modifiers 1 uint16_t

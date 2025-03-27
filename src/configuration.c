@@ -35,8 +35,10 @@ static void duplicate_configuration_associations(
             xstrdup((char*) association->instance_pattern);
         association->class_pattern = (utf8_t*)
             xstrdup((char*) association->class_pattern);
-        association->actions = duplicate_actions(association->actions,
-                association->number_of_actions);
+        association->expression.instructions = xmemdup(
+                association->expression.instructions,
+                sizeof(*association->expression.instructions) *
+                    association->expression.instruction_size);
     }
 }
 
@@ -50,8 +52,10 @@ static void duplicate_configuration_button_bindings(
     for (uint32_t i = 0; i < duplicate->mouse.number_of_buttons; i++) {
         struct configuration_button *const button =
             &duplicate->mouse.buttons[i];
-        button->actions = duplicate_actions(button->actions,
-                button->number_of_actions);
+        button->expression.instructions = xmemdup(
+                button->expression.instructions,
+                sizeof(*button->expression.instructions) *
+                    button->expression.instruction_size);
     }
 }
 
@@ -64,7 +68,10 @@ static void duplicate_configuration_key_bindings(
                 duplicate->keyboard.number_of_keys);
     for (uint32_t i = 0; i < duplicate->keyboard.number_of_keys; i++) {
         struct configuration_key *const key = &duplicate->keyboard.keys[i];
-        key->actions = duplicate_actions(key->actions, key->number_of_actions);
+        key->expression.instructions = xmemdup(
+                key->expression.instructions,
+                sizeof(*key->expression.instructions) *
+                    key->expression.instruction_size);
     }
 }
 
@@ -72,8 +79,10 @@ static void duplicate_configuration_key_bindings(
 void duplicate_configuration(struct configuration *duplicate)
 {
     duplicate->font.name = (utf8_t*) xstrdup((char*) duplicate->font.name);
-    duplicate->startup.actions = duplicate_actions(duplicate->startup.actions,
-            duplicate->startup.number_of_actions);
+    duplicate->startup.expression.instructions = xmemdup(
+            duplicate->startup.expression.instructions,
+            sizeof(*duplicate->startup.expression.instructions) *
+                duplicate->startup.expression.instruction_size);
     duplicate_configuration_associations(duplicate);
     duplicate_configuration_button_bindings(duplicate);
     duplicate_configuration_key_bindings(duplicate);
@@ -84,8 +93,7 @@ void clear_configuration(struct configuration *configuration)
 {
     free(configuration->font.name);
 
-    free_actions(configuration->startup.actions,
-            configuration->startup.number_of_actions);
+    free(configuration->startup.expression.instructions);
 
     /* free associations */
     for (uint32_t i = 0;
@@ -95,21 +103,19 @@ void clear_configuration(struct configuration *configuration)
             &configuration->assignment.associations[i];
         free(association->instance_pattern);
         free(association->class_pattern);
-        free_actions(association->actions, association->number_of_actions);
+        free(association->expression.instructions);
     }
     free(configuration->assignment.associations);
 
     /* free button bindings */
     for (uint32_t i = 0; i < configuration->mouse.number_of_buttons; i++) {
-        free_actions(configuration->mouse.buttons[i].actions,
-                configuration->mouse.buttons[i].number_of_actions);
+        free(configuration->mouse.buttons[i].expression.instructions);
     }
     free(configuration->mouse.buttons);
 
     /* free key bindings */
     for (uint32_t i = 0; i < configuration->keyboard.number_of_keys; i++) {
-        free_actions(configuration->keyboard.keys[i].actions,
-                configuration->keyboard.keys[i].number_of_actions);
+        free(configuration->keyboard.keys[i].expression.instructions);
     }
     free(configuration->keyboard.keys);
 }
@@ -132,10 +138,8 @@ struct configuration_button *find_configured_button(
 {
     struct configuration_button *button;
 
-    /* remove the ignored modifiers but also ~0xff which is all the mouse button
-     * masks
-     */
-    modifiers &= ~(configuration->mouse.ignore_modifiers | ~0xff);
+    /* remove the ignored modifiers */
+    modifiers &= ~configuration->mouse.ignore_modifiers;
     flags &= ~BINDING_FLAG_TRANSPARENT;
 
     /* find a matching button (the button AND modifiers must match up) */

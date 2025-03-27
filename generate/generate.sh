@@ -16,6 +16,9 @@ case "$file_name" in
     ;;
 *.h)
     file="include/bits/$file_name"
+    if ! [ -f "$file" ] ; then
+        file="include/$file_name"
+    fi
     ;;
 *)
     file="man/$file_name"

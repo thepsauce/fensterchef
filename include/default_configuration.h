@@ -6,9 +6,6 @@
 /* the default configuration */
 extern const struct configuration default_configuration;
 
-/* Load the default values into the configuration. */
-void load_default_configuration(void);
-
 /* Puts the mousebindings of the default configuration into @configuration
  * without overwriting any mousebindings.
  */
@@ -18,5 +15,8 @@ void merge_with_default_button_bindings(struct configuration *configuration);
  * overwriting any keybindings.
  */
 void merge_with_default_key_bindings(struct configuration *configuration);
+
+/* Load the default values into the configuration. */
+void load_default_configuration(void);
 
 #endif

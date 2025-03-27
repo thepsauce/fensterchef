@@ -4,6 +4,9 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "bits/frame_typedef.h"
+#include "bits/window_typedef.h"
+
 #include "cursor.h"
 #include "utf8.h"
 
@@ -18,13 +21,13 @@
 typedef enum data_type {
     /* no data type at all */
     DATA_TYPE_VOID,
-    /* true or false, in text one of: on yes true off no false */
+    /* true or false value, one of: on yes true off no false */
     DATA_TYPE_BOOLEAN,
-    /* any text without leading or trailing space */
+    /* any utf8 text without any leading or trailing spaces */
     DATA_TYPE_STRING,
     /* an integer in simple decimal notation */
     DATA_TYPE_INTEGER,
-    /* a set of 4 integers */
+    /* a set of 1, 2 or 4 integers */
     DATA_TYPE_QUAD,
     /* color in the format (X: hexadecimal digit): #XXXXXX */
     DATA_TYPE_COLOR,
@@ -39,10 +42,10 @@ typedef enum data_type {
 
 /* generic value of a data type */
 typedef union data_type_value {
-    /* true or false, in text one of: on yes true off no false */
+    /* true or false value, one of: on yes true off no false */
     bool boolean;
-    /* any utf8 text without leading or trailing space */
-    uint8_t *string;
+    /* any utf8 text without any leading or trailing spaces */
+    utf8_t *string;
     /* an integer in simple decimal notation */
     int32_t integer;
     /* a set of 1, 2 or 4 integers */
@@ -51,7 +54,7 @@ typedef union data_type_value {
     uint32_t color;
     /* key modifiers, e.g.: Control+Shift */
     uint16_t modifiers;
-    /* cursor constant, e.g. left-ptr */
+    /* Xcursor constant, e.g. left-ptr */
     core_cursor_t cursor;
 } GenericData;
 

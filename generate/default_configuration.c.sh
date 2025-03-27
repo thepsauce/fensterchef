@@ -4,12 +4,7 @@ set -e
 
 source generate/data_types.sh
 
-marker='const struct configuration default_configuration = {'
-marker_end='};'
-
-found_marker=false
-
-IFS=
+is_first_struct_item=true
 
 # $1 -> data type
 # $2 -> data value
@@ -17,10 +12,6 @@ data_type_to_string() {
     case "$1" in
     boolean|integer|quad)
         echo "$2"
-        ;;
-    string)
-        echo "someone forgot to change this - $0" >&2
-        return 1
         ;;
     color)
         echo "0x${2:1}"
@@ -60,15 +51,12 @@ write_default_label_options() {
     local label
     local variable_count
     local count
-    local line
+    local next_line
 
     label="${1:1}"
     label="${label%]*}"
 
-    echo "    .$label = {"
-
     variable_count=0
-    unset next_line
     while : ; do
         if [ -z "${next_line+x}" ] ; then
             read -r line || break
@@ -94,20 +82,25 @@ write_default_label_options() {
             ;;
         esac
 
-        let variable_count++ || true
+        if ! let variable_count++ ; then
+            if ! $is_first_struct_item ; then
+                echo
+            fi
+            echo "    .$label = {"
+        fi
 
         variable_name="${line%% *}"
 
         variable_type="${line#* }"
         variable_type="${variable_type%% *}"
 
-        data_type="${data_types[$variable_type]}"
-        if [ -z "$data_type" ] ; then
+        c_type="${data_type_c[$variable_type]}"
+        if [ -z "$c_type" ] ; then
             echo "WHAT IS $variable_type - $0" >&2
             return 1
         fi
         
-        data_type_length="${data_type%% *}"
+        data_type_length="${c_type%% *}"
         variable_name="${variable_name//-/_}"
 
         variable_value="${line#* }"
@@ -119,7 +112,7 @@ write_default_label_options() {
             line+="$(data_type_to_string "$variable_type" "$variable_value")"
             ;;
         "*")
-            line+="(${data_type##* }*) \"$variable_value\""
+            line+="(${c_type##* }*) \"$variable_value\""
             ;;
         *)
             line+="{ "
@@ -147,44 +140,26 @@ write_default_label_options() {
         echo "        .$line,"
     done
 
-    if [ $variable_count -eq 0 ] ; then
-        echo "        0"
+    if [ $variable_count -gt 0 ] ; then
+        echo "    },"
+        is_first_struct_item=false
     fi
-    echo "    },"
 }
 
-# go through all lines of the sources file and find the right section
+replace_lines() {
+    while read -r line ; do
+        if [ "${line:0:1}" != "[" ] ; then
+            continue
+        fi
+
+        write_default_label_options "$line"
+    done <generate/fensterchef.labels
+}
+
+start_marker='const struct configuration default_configuration = {'
+end_marker='};'
+source generate/replace_markers.sh
+
 while read -r line ; do
     echo "$line"
-    if [ "$line" = "$marker" ] ; then
-        found_marker=true
-
-        # consume the lines
-        while read -r line ; do
-            if [ "$line" = "$marker_end" ] ; then
-                break
-            fi
-        done
-
-        first_time=true
-        while read -r line ; do
-            if [ "${line:0:1}" != "[" ] ; then
-                continue
-            fi
-
-            if ! $first_time ; then
-                echo
-            fi
-            first_time=false
-
-            write_default_label_options "$line"
-        done <generate/fensterchef.labels
-
-        echo "$marker_end"
-    fi
 done
-
-if ! $found_marker ; then
-    echo "MARKER NOT FOUND - $0"
-    exit 1
-fi

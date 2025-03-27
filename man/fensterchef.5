@@ -5,8 +5,11 @@ fensterchef - format of fensterchef configuration files
 .SH DESCRIPTION
 The fensterchef configuration file format is very simple and easy to understand.
 
-The language is case insensitive (strings however can have mixed case) and it
-supports no dynamic features like setting variables.
+However, using the shell like scripting capabilities can make for quite complex
+programs.
+
+The language is mostly case insensitive. But strings are not case converted as
+well as X11 key symbols.
 
 There are sections indicated by
 .BI [ section-name ]
@@ -174,7 +177,7 @@ This is a complete list of the possible cursors:
 .SH SECTION
 .SS [startup]
 This section is equipped by default.
-It holds a list of actions, either separated by a new line or a semicolon.
+It may hold an expression.
 Nothing else can be put into this section.
 .SS [general]
 This section contains a few miscallaneous options.
@@ -209,13 +212,13 @@ Here assignments can be written in the format
 .I ;
 .I string
 .I ;
-.IR actions .
+.IR expression .
 The actions are executed when the window gets assigned its number.
 If you supply actions, this will overwrite the default behaviour of showing and
 focusing the window.
 The
 .I ;
-.I actions
+.I expression
 may be omitted.
 .PP
 first-window-number
@@ -307,7 +310,7 @@ background
 Add mouse bindings. Mouse bindings have the format:
 .I modifiers
 .I +
-.I button index actions
+.I button index expression
 .PP
 resize-tolerance
 .I integer
@@ -329,7 +332,7 @@ Add keyboard bindings. Keyboard bindings have the format:
 or
 .I key
 .IR code )
-.I actions
+.I expression
 .PP
 modifiers
 .I modifiers
@@ -373,7 +376,9 @@ ignore-modifiers
     Closes the currently active window.
 .PP
 .B minimize-window
-    Hides the currently active window.
+.I integer
+.B ?
+    Hides the window with given number of the clicked window.
 .PP
 .B show-window
 .I integer
@@ -501,6 +506,32 @@ ignore-modifiers
 .B quit
     Quit fensterchef.
 .
+.SH EXPRESSION
+Expressions are very shell-like making heavy use of
+.I &&
+and
+.IR || .
+But you can directly use mathematical operators including
+.I +
+,
+.I -
+,
+.I *
+,
+.I /
+,
+.IR % .
+Boolean expression like
+.I true
+or
+.I false
+are directly translated to an integer.
+The same goes for key modifiers and cursor constants.
+Examples:
+    1 + 2
+    (2 + 3) * 4
+    show-window 1000 || hide-window 1000 (toggle window visibility)
+    run $TERMINAL
 .SH EXAMPLE
 .SS Parts of the default configuration
 .EX
@@ -615,3 +646,4 @@ shift+j move-down
 0 * ; st-256color
 0 * ; * ; toggle-tiling ; focus-window
 .EE
+.

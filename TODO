@@ -63,7 +63,7 @@
     z (
         focus-window 1000 && (
            center-to *
-           resize-to 0 0 ${monitor.width} ${monitor.height}*2/5
+           resize-to 0 0 monitor.width monitor.height*2/5
         )
     ) || minimize-window 1000
     ```

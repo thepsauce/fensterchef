@@ -1,15 +1,13 @@
 #include <X11/keysym.h>
 
+#include <string.h>
+
 #include "default_configuration.h"
 #include "utility.h"
 #include "utf8.h"
 
 /* the default configuration */
 const struct configuration default_configuration = {
-    .startup = {
-        0
-    },
-
     .general = {
         .overlap_percentage = 80,
         .root_cursor = XCURSOR_LEFT_PTR,
@@ -69,6 +67,59 @@ const struct configuration default_configuration = {
     },
 };
 
+/* Helper function to make an expression for running a simple action. */
+static inline void make_action_instruction(Expression *expression,
+        action_type_t type, GenericData *data)
+{
+    const data_type_t data_type = get_action_data_type(type);
+    switch (data_type) {
+    case DATA_TYPE_VOID:
+        expression->instruction_size = 1;
+        expression->instructions = xmalloc(sizeof(*expression->instructions) *
+            expression->instruction_size);
+        expression->instructions[0] = MAKE_VOID_ACTION(type);
+        break;
+
+    case DATA_TYPE_INTEGER:
+        expression->instruction_size = 2;
+        expression->instructions = xmalloc(sizeof(*expression->instructions) *
+                expression->instruction_size);
+        expression->instructions[0] = MAKE_ACTION(type);
+        expression->instructions[1] = MAKE_INTEGER(data->integer);
+        break;
+
+    case DATA_TYPE_QUAD:
+        expression->instruction_size = 6;
+        expression->instructions = xmalloc(sizeof(*expression->instructions) *
+                expression->instruction_size);
+        expression->instructions[0] = MAKE_ACTION(type);
+        expression->instructions[1] = MAKE_QUAD(4);
+        for (int i = 0; i < 4; i++) {
+            expression->instructions[i + 2] = MAKE_INTEGER(data->quad[i]);
+        }
+        break;
+
+    case DATA_TYPE_STRING: {
+        uint32_t length;
+        uint32_t length_in_4bytes;
+
+        length = strlen((char*) data->string);
+        length_in_4bytes = length / sizeof(*expression->instructions) + 1;
+        expression->instruction_size = 2 + length_in_4bytes;
+        expression->instructions = xmalloc(sizeof(*expression->instructions) *
+                expression->instruction_size);
+        expression->instructions[0] = MAKE_ACTION(type);
+        expression->instructions[1] = MAKE_STRING(length_in_4bytes);
+        memcpy(&expression->instructions[2], data->string, length + 1);
+        break;
+    }
+
+    default:
+        /* TODO: implement more if more is needed */
+        break;
+    }
+}
+
 /* Puts the mousebindings of the default configuration into @configuration
  * without overwriting any mousebindings.
  */
@@ -85,14 +136,14 @@ void merge_with_default_button_bindings(struct configuration *configuration)
         /* the button to press */
         xcb_button_t button_index;
         /* the singular action to execute */
-        Action action;
+        action_type_t type;
     } default_bindings[] = {
         /* start moving or resizing a window (depends on the mouse position) */
-        { 0, 0, 1, { .code = ACTION_INITIATE_RESIZE } },
+        { 0, 0, 1, ACTION_INITIATE_RESIZE },
         /* minimize (hide) a window */
-        { 0, BINDING_FLAG_RELEASE, 2, { .code = ACTION_MINIMIZE_WINDOW } },
+        { 0, BINDING_FLAG_RELEASE, 2, ACTION_MINIMIZE_WINDOW },
         /* start moving a window */
-        { 0, 0, 3, { .code = ACTION_INITIATE_MOVE } },
+        { 0, 0, 3, ACTION_INITIATE_MOVE },
     };
 
     struct configuration_button *button;
@@ -133,11 +184,8 @@ void merge_with_default_button_bindings(struct configuration *configuration)
         next_button->flags = default_bindings[i].flags;
         next_button->modifiers = modifiers;
         next_button->index = default_bindings[i].button_index;
-        next_button->actions = xmemdup(&default_bindings[i].action,
-                sizeof(default_bindings[i].action));
-        next_button->number_of_actions = 1;
-        duplicate_data_value(get_action_data_type(next_button->actions[0].code),
-                    &next_button->actions[0].data);
+        make_action_instruction(&next_button->expression,
+                default_bindings[i].type, NULL);
         next_button++;
     }
     configuration->mouse.number_of_buttons = new_count;
@@ -159,10 +207,15 @@ void merge_with_default_key_bindings(struct configuration *configuration)
         /* the key symbol */
         xcb_keysym_t key_symbol;
         /* the singular action to execute */
-        Action action;
+        struct {
+            /* the type of the action */
+            action_type_t type;
+            /* the action data */
+            GenericData data;
+        } action;
     } default_bindings[] = {
         /* reload the configuration */
-        { XCB_MOD_MASK_SHIFT, 0, XK_r, { .code = ACTION_RELOAD_CONFIGURATION } },
+        { XCB_MOD_MASK_SHIFT, 0, XK_r, { .type = ACTION_RELOAD_CONFIGURATION } },
 
         /* move the focus to a child or parent frame */
         { 0, 0, XK_a, { ACTION_FOCUS_PARENT, { .integer = 1 } } },
@@ -171,48 +224,48 @@ void merge_with_default_key_bindings(struct configuration *configuration)
                                        .integer = UINT32_MAX } } },
 
         /* make the size of frames equal */
-        { 0, 0, XK_equal, { .code = ACTION_EQUALIZE_FRAME } },
+        { 0, 0, XK_equal, { .type = ACTION_EQUALIZE_FRAME } },
 
         /* close the active window */
-        { 0, 0, XK_q, { .code = ACTION_CLOSE_WINDOW } },
+        { 0, 0, XK_q, { .type = ACTION_CLOSE_WINDOW } },
 
         /* minimize the active window */
-        { 0, 0, XK_minus, { .code = ACTION_MINIMIZE_WINDOW } },
+        { 0, 0, XK_minus, { .type = ACTION_MINIMIZE_WINDOW } },
 
         /* go to the next window in the tiling */
-        { 0, 0, XK_n, { .code = ACTION_NEXT_WINDOW } },
-        { 0, 0, XK_p, { .code = ACTION_PREVIOUS_WINDOW } },
+        { 0, 0, XK_n, { .type = ACTION_NEXT_WINDOW } },
+        { 0, 0, XK_p, { .type = ACTION_PREVIOUS_WINDOW } },
 
         /* remove the current tiling frame */
-        { 0, 0, XK_r, { .code = ACTION_REMOVE_FRAME } },
+        { 0, 0, XK_r, { .type = ACTION_REMOVE_FRAME } },
 
         /* put the stashed frame into the current one */
-        { 0, 0, XK_o, { .code = ACTION_OTHER_FRAME } },
+        { 0, 0, XK_o, { .type = ACTION_OTHER_FRAME } },
 
         /* toggle between tiling and the previous mode */
-        { XCB_MOD_MASK_SHIFT, 0, XK_space, { .code = ACTION_TOGGLE_TILING } },
+        { XCB_MOD_MASK_SHIFT, 0, XK_space, { .type = ACTION_TOGGLE_TILING } },
 
         /* toggle between fullscreen and the previous mode */
-        { 0, 0, XK_f, { .code = ACTION_TOGGLE_FULLSCREEN } },
+        { 0, 0, XK_f, { .type = ACTION_TOGGLE_FULLSCREEN } },
 
         /* focus from tiling to non tiling and vise versa */
-        { 0, 0, XK_space, { .code = ACTION_TOGGLE_FOCUS } },
+        { 0, 0, XK_space, { .type = ACTION_TOGGLE_FOCUS } },
 
         /* split a frame */
-        { 0, 0, XK_v, { .code = ACTION_SPLIT_HORIZONTALLY } },
-        { 0, 0, XK_s, { .code = ACTION_SPLIT_VERTICALLY } },
+        { 0, 0, XK_v, { .type = ACTION_SPLIT_HORIZONTALLY } },
+        { 0, 0, XK_s, { .type = ACTION_SPLIT_VERTICALLY } },
 
         /* move between frames */
-        { 0, 0, XK_k, { .code = ACTION_FOCUS_UP } },
-        { 0, 0, XK_h, { .code = ACTION_FOCUS_LEFT } },
-        { 0, 0, XK_l, { .code = ACTION_FOCUS_RIGHT } },
-        { 0, 0, XK_j, { .code = ACTION_FOCUS_DOWN } },
+        { 0, 0, XK_k, { .type = ACTION_FOCUS_UP } },
+        { 0, 0, XK_h, { .type = ACTION_FOCUS_LEFT } },
+        { 0, 0, XK_l, { .type = ACTION_FOCUS_RIGHT } },
+        { 0, 0, XK_j, { .type = ACTION_FOCUS_DOWN } },
 
         /* exchange frames */
-        { XCB_MOD_MASK_SHIFT, 0, XK_k, { .code = ACTION_EXCHANGE_UP } },
-        { XCB_MOD_MASK_SHIFT, 0, XK_h, { .code = ACTION_EXCHANGE_LEFT } },
-        { XCB_MOD_MASK_SHIFT, 0, XK_l, { .code = ACTION_EXCHANGE_RIGHT } },
-        { XCB_MOD_MASK_SHIFT, 0, XK_j, { .code = ACTION_EXCHANGE_DOWN } },
+        { XCB_MOD_MASK_SHIFT, 0, XK_k, { .type = ACTION_EXCHANGE_UP } },
+        { XCB_MOD_MASK_SHIFT, 0, XK_h, { .type = ACTION_EXCHANGE_LEFT } },
+        { XCB_MOD_MASK_SHIFT, 0, XK_l, { .type = ACTION_EXCHANGE_RIGHT } },
+        { XCB_MOD_MASK_SHIFT, 0, XK_j, { .type = ACTION_EXCHANGE_DOWN } },
 
         /* move a window */
         { 0, 0, XK_Left, { ACTION_RESIZE_BY, { .quad = { 20, 0, -20, 0 } } } },
@@ -247,17 +300,17 @@ void merge_with_default_key_bindings(struct configuration *configuration)
                 ACTION_RESIZE_BY, { .quad = { -10, -10, -10, -10 } } } },
 
         /* show the interactive window list */
-        { 0, 0, XK_w, { .code = ACTION_SHOW_WINDOW_LIST } },
+        { 0, 0, XK_w, { .type = ACTION_SHOW_WINDOW_LIST } },
 
         /* run the terminal or xterm as fall back */
         { 0, 0, XK_Return, { ACTION_RUN, {
-                .string = (uint8_t*)
+                .string = (utf8_t*)
                     "[ -n \"$TERMINAL\" ] && exec \"$TERMINAL\" || exec xterm"
             } } },
 
         /* quit fensterchef */
         { XCB_MOD_MASK_CONTROL | XCB_MOD_MASK_SHIFT, 0, XK_e,
-            { .code = ACTION_QUIT } }
+            { .type = ACTION_QUIT } }
     };
 
     struct configuration_key *key;
@@ -299,11 +352,9 @@ void merge_with_default_key_bindings(struct configuration *configuration)
         next_key->modifiers = modifiers;
         next_key->key_symbol = default_bindings[i].key_symbol;
         next_key->key_code = 0;
-        next_key->actions = xmemdup(&default_bindings[i].action,
-                sizeof(default_bindings[i].action));
-        next_key->number_of_actions = 1;
-        duplicate_data_value(get_action_data_type(next_key->actions[0].code),
-                    &next_key->actions[0].data);
+        make_action_instruction(&next_key->expression,
+                default_bindings[i].action.type,
+                &default_bindings[i].action.data);
         next_key++;
     }
     configuration->keyboard.number_of_keys = new_count;

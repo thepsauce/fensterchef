@@ -19,44 +19,21 @@
 
 /* all actions and their string representation and data type */
 const struct action_information action_information[ACTION_MAX] = {
-#define X(code, is_optional, string, data_type) [code] = \
-    { string, is_optional, data_type },
+#define X(identifier, is_optional, string, data_type) \
+    [identifier] = { string, is_optional, data_type },
     DECLARE_ALL_ACTIONS
 #undef X
 };
 
 /* Get an action from a string. */
-action_t string_to_action(const char *string)
+action_type_t string_to_action_type(const char *string)
 {
-    for (action_t i = ACTION_FIRST_ACTION; i < ACTION_MAX; i++) {
-        if (strcasecmp(action_information[i].name, string) == 0) {
+    for (action_type_t i = ACTION_FIRST_ACTION; i < ACTION_MAX; i++) {
+        if (strcmp(action_information[i].name, string) == 0) {
             return i;
         }
     }
     return ACTION_NULL;
-}
-
-/* Create a deep copy of given action array. */
-Action *duplicate_actions(Action *actions, uint32_t number_of_actions)
-{
-    Action *duplicate;
-
-    duplicate = xmemdup(actions, sizeof(*actions) * number_of_actions);
-    for (uint32_t i = 0; i < number_of_actions; i++) {
-        duplicate_data_value(get_action_data_type(duplicate[i].code),
-                &duplicate[i].data);
-    }
-    return duplicate;
-}
-
-/* Frees all given actions and the action array itself. */
-void free_actions(Action *actions, uint32_t number_of_actions)
-{
-    for (uint32_t i = 0; i < number_of_actions; i++) {
-        clear_data_value(get_action_data_type(actions[i].code),
-                &actions[i].data);
-    }
-    free(actions);
 }
 
 /* Run given shell program. */
@@ -419,14 +396,20 @@ static bool move_to_below_frame(Frame *relative, bool do_exchange)
 }
 
 /* Do the given action. */
-bool do_action(const Action *action, Window *window)
+bool do_action(action_type_t type, GenericData *data)
 {
+    Window *window;
     char *shell;
     int32_t count;
     Frame *frame;
     bool is_previous = true;
 
-    switch (action->code) {
+    window = Window_pressed;
+    if (window == NULL) {
+        window = Window_focus;
+    }
+
+    switch (type) {
     /* invalid action value */
     case ACTION_NULL:
         LOG_ERROR("tried to do NULL action");
@@ -448,12 +431,12 @@ bool do_action(const Action *action, Window *window)
     /* assign a number to a frame */
     case ACTION_ASSIGN:
         /* remove the number from the old frame if there is any */
-        frame = get_frame_by_number((uint32_t) action->data.integer);
+        frame = get_frame_by_number((uint32_t) data->integer);
         /* also try to find it in the stash */
         if (frame == NULL) {
             frame = Frame_last_stashed;
             for (; frame != NULL; frame = frame->previous_stashed) {
-                if (frame->number == (uint32_t) action->data.integer) {
+                if (frame->number == (uint32_t) data->integer) {
                     break;
                 }
             }
@@ -462,7 +445,7 @@ bool do_action(const Action *action, Window *window)
             frame->number = 0;
         }
 
-        Frame_focus->number = action->data.integer;
+        Frame_focus->number = data->integer;
         if (Frame_focus->number == 0) {
             set_notification((utf8_t*) "Number removed",
                     Frame_focus->x + Frame_focus->width / 2,
@@ -479,7 +462,7 @@ bool do_action(const Action *action, Window *window)
 
     /* focus a frame with given number */
     case ACTION_FOCUS_FRAME:
-        frame = get_frame_by_number((uint32_t) action->data.integer);
+        frame = get_frame_by_number((uint32_t) data->integer);
         /* check if the frame is already shown */
         if (frame != NULL) {
             set_focus_frame(frame);
@@ -489,7 +472,7 @@ bool do_action(const Action *action, Window *window)
         frame = Frame_last_stashed;
         /* also try to find it in the stash */
         for (; frame != NULL; frame = frame->previous_stashed) {
-            if (frame->number == (uint32_t) action->data.integer) {
+            if (frame->number == (uint32_t) data->integer) {
                 break;
             }
         }
@@ -512,10 +495,7 @@ bool do_action(const Action *action, Window *window)
 
     /* move the focus to the parent frame */
     case ACTION_FOCUS_PARENT:
-        count = action->data.integer;
-        if (count == 0) {
-            count = 1;
-        }
+        count = data == NULL ? 1 : data->integer;
         if (count < 0) {
             count = INT32_MAX;
         }
@@ -538,10 +518,7 @@ bool do_action(const Action *action, Window *window)
 
     /* move the focus to the child frame */
     case ACTION_FOCUS_CHILD:
-        count = action->data.integer;
-        if (count == 0) {
-            count = 1;
-        }
+        count = data == NULL ? 1 : data->integer;
         if (count < 0) {
             count = INT32_MAX;
         }
@@ -577,7 +554,11 @@ bool do_action(const Action *action, Window *window)
 
     /* hide the currently active window */
     case ACTION_MINIMIZE_WINDOW:
-        if (window == NULL) {
+        if (data != NULL) {
+            window = get_window_by_id(data->integer);
+        }
+
+        if (window == NULL || !window->state.is_visible) {
             return false;
         }
         hide_window(window);
@@ -585,15 +566,11 @@ bool do_action(const Action *action, Window *window)
 
     /* show a window */
     case ACTION_SHOW_WINDOW:
-        if (action->data.integer != 0) {
-            for (window = Window_first; window != NULL; window = window->next) {
-                if (window->number == (uint32_t) action->data.integer) {
-                    break;
-                }
-            }
+        if (data != NULL) {
+            window = get_window_by_id(data->integer);
         }
 
-        if (window == NULL || window == Window_focus) {
+        if (window == NULL || window->state.is_visible) {
             return false;
         }
 
@@ -603,12 +580,8 @@ bool do_action(const Action *action, Window *window)
 
     /* focus a window */
     case ACTION_FOCUS_WINDOW:
-        if (action->data.integer != 0) {
-            for (window = Window_first; window != NULL; window = window->next) {
-                if (window->number == (uint32_t) action->data.integer) {
-                    break;
-                }
-            }
+        if (data != NULL) {
+            window = get_window_by_id(data->integer);
         }
 
         if (window == NULL || window == Window_focus) {
@@ -642,10 +615,7 @@ bool do_action(const Action *action, Window *window)
         /* fall through */
     /* go to the previous window in the window list */
     case ACTION_PREVIOUS_WINDOW:
-        count = action->data.integer;
-        if (count == 0) {
-            count = 1;
-        }
+        count = data == NULL ? 1 : data->integer;
         if (count < 0) {
             count *= -1;
             is_previous = !is_previous;
@@ -804,19 +774,19 @@ bool do_action(const Action *action, Window *window)
 
     /* run a shell program */
     case ACTION_RUN:
-        run_shell((char*) action->data.string);
+        run_shell((char*) data->string);
         break;
 
     /* show the user a message */
     case ACTION_SHOW_MESSAGE:
-        set_notification((utf8_t*) action->data.string,
+        set_notification((utf8_t*) data->string,
                 Frame_focus->x + Frame_focus->width / 2,
                 Frame_focus->y + Frame_focus->height / 2);
         break;
 
     /* show a message by getting output from a shell script */
     case ACTION_SHOW_MESSAGE_RUN:
-        shell = run_shell_and_get_output((char*) action->data.string);
+        shell = run_shell_and_get_output((char*) data->string);
         if (shell == NULL) {
             return false;
         }
@@ -829,10 +799,10 @@ bool do_action(const Action *action, Window *window)
     /* resize the edges of the current window */
     case ACTION_RESIZE_BY:
         return resize_frame_or_window_by(window,
-                action->data.quad[0],
-                action->data.quad[1],
-                action->data.quad[2],
-                action->data.quad[3]);
+                data->quad[0],
+                data->quad[1],
+                data->quad[2],
+                data->quad[3]);
 
     /* resize the edges of the current window */
     case ACTION_RESIZE_TO: {
@@ -841,10 +811,10 @@ bool do_action(const Action *action, Window *window)
         monitor = get_monitor_from_rectangle_or_primary(window->x,
                 window->y, window->width, window->height);
         return resize_frame_or_window_by(window,
-                window->x - (monitor->x + action->data.quad[0]),
-                window->y - (monitor->y + action->data.quad[1]),
-                monitor->x + action->data.quad[2] - window->x - window->width,
-                monitor->y + action->data.quad[3] - window->y - window->height);
+                window->x - (monitor->x + data->quad[0]),
+                window->y - (monitor->y + data->quad[1]),
+                monitor->x + data->quad[2] - window->x - window->width,
+                monitor->y + data->quad[3] - window->y - window->height);
     }
 
     /* center a window to given monitor (glob pattern) */
@@ -855,11 +825,11 @@ bool do_action(const Action *action, Window *window)
             return false;
         }
 
-        if (action->data.string == NULL) {
+        if (data == NULL) {
             monitor = get_monitor_from_rectangle(window->x,
                     window->y, window->width, window->height);
         } else {
-            monitor = get_monitor_by_pattern((char*) action->data.string);
+            monitor = get_monitor_by_pattern((char*) data->string);
         }
 
         if (monitor == NULL) {

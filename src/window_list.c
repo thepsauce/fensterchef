@@ -374,14 +374,16 @@ int show_window_list(void)
 
     /* get the initially selected window */
     if (Window_focus != NULL) {
-        selected = Window_focus;
+        for (selected = Window_first; selected != Window_focus;
+                selected = selected->next) {
+            index++;
+        }
     } else {
         for (selected = Window_first; selected != NULL;
                 selected = selected->next) {
             if (is_window_in_window_list(selected)) {
                 break;
             }
-            index++;
         }
     }
 

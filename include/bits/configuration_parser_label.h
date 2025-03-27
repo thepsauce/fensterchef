@@ -17,7 +17,8 @@ typedef enum configuration_parser_label {
     PARSER_LABEL_MOUSE,
     PARSER_LABEL_KEYBOARD,
 
-    PARSER_LABEL_MAX
+    /* not a real label */
+    PARSER_LABEL_MAX,
 } parser_label_t;
 
 #endif

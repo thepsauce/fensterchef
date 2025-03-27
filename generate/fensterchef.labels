@@ -28,10 +28,8 @@ columns should be 78 here.
 
 ---> Start of code relevant to generation:
 [startup]*actions
-*Action *actions
-   the actions to run on startup
-*uint32_t number_of_actions
-   the number of actions to run on startup
+*Expression expression
+   the expression to evaluate on startup
 
 [general]
 overlap-percentage integer 80

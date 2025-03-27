@@ -478,11 +478,8 @@ static void handle_key_press(xcb_key_press_event_t *event)
         alarm(0);
         unmap_client(&notification);
 
-        LOG("performing action(s): %A\n", key->number_of_actions,
-                key->actions);
-        for (uint32_t i = 0; i < key->number_of_actions; i++) {
-            do_action(&key->actions[i], Window_focus);
-        }
+        LOG("evaluating expression: %A\n", &key->expression);
+        evaluate_expression(&key->expression);
     }
 }
 
@@ -494,18 +491,14 @@ static void handle_key_release(xcb_key_release_event_t *event)
     key = find_configured_key_by_code(&configuration, event->state,
             event->detail, BINDING_FLAG_RELEASE);
     if (key != NULL) {
-        LOG("performing action(s): %A\n", key->number_of_actions,
-                key->actions);
-        for (uint32_t i = 0; i < key->number_of_actions; i++) {
-            do_action(&key->actions[i], Window_focus);
-        }
+        LOG("evaluating expression: %A\n", &key->expression);
+        evaluate_expression(&key->expression);
     }
 }
 
 /* Button press events are sent when a grabbed button is pressed. */
 static void handle_button_press(xcb_button_press_event_t *event)
 {
-    Window *window;
     struct configuration_button *button;
 
     if (move_resize.window != NULL) {
@@ -514,29 +507,26 @@ static void handle_button_press(xcb_button_press_event_t *event)
         return;
     }
 
-    window = get_window_of_xcb_window(event->event);
-    /* allow window to be NULL */
+    Window_pressed = get_window_of_xcb_window(event->event);
 
     button = find_configured_button(&configuration, event->state,
             event->detail, 0);
     if (button != NULL) {
-        LOG("performing action(s): %A\n", button->number_of_actions,
-                button->actions);
-        for (uint32_t i = 0; i < button->number_of_actions; i++) {
-            do_action(&button->actions[i], window);
-        }
+        LOG("evaluating expression: %A\n", &button->expression);
+        evaluate_expression(&button->expression);
 
         /* make the event pass through to the underlying window */
         if ((button->flags & BINDING_FLAG_TRANSPARENT)) {
             xcb_allow_events(connection, XCB_ALLOW_REPLAY_POINTER, event->time);
         }
     }
+
+    Window_pressed = NULL;
 }
 
 /* Button releases are sent when a grabbed button is released. */
 static void handle_button_release(xcb_button_release_event_t *event)
 {
-    Window *window;
     struct configuration_button *button;
 
     if (move_resize.window != NULL) {
@@ -547,23 +537,21 @@ static void handle_button_release(xcb_button_release_event_t *event)
         return;
     }
 
-    window = get_window_of_xcb_window(event->event);
-    /* allow window to be NULL */
+    Window_pressed = get_window_of_xcb_window(event->event);
 
     button = find_configured_button(&configuration, event->state,
             event->detail, BINDING_FLAG_RELEASE);
     if (button != NULL) {
-        LOG("performing action(s): %A\n", button->number_of_actions,
-                button->actions);
-        for (uint32_t i = 0; i < button->number_of_actions; i++) {
-            do_action(&button->actions[i], window);
-        }
+        LOG("evaluating expression: %A\n", &button->expression);
+        evaluate_expression(&button->expression);
 
         /* make the event pass through to the underlying window */
         if ((button->flags & BINDING_FLAG_TRANSPARENT)) {
             xcb_allow_events(connection, XCB_ALLOW_REPLAY_POINTER, event->time);
         }
     }
+
+    Window_pressed = NULL;
 }
 
 /* Motion notifications (mouse move events) are only sent when we grabbed them.
@@ -738,7 +726,9 @@ static void handle_map_request(xcb_map_request_event_t *event)
 {
     Window *window;
     bool is_first_time = false;
-    struct configuration_association association = { .number_of_actions = 0 };
+    struct configuration_association association = {
+        .expression.instruction_size = 0
+    };
 
     window = get_window_of_xcb_window(event->window);
     if (window == NULL) {
@@ -753,12 +743,9 @@ static void handle_map_request(xcb_map_request_event_t *event)
     /* check if the user defined actions to run when this window receives its
      * number
      */
-    if (association.number_of_actions > 0) {
-        LOG("running associated actions: %A\n", association.number_of_actions,
-                association.actions);
-        for (uint32_t j = 0; j < association.number_of_actions; j++) {
-            do_action(&association.actions[j], window);
-        }
+    if (association.expression.instruction_size > 0) {
+        LOG("running associated actions: %A\n", &association.expression);
+        evaluate_expression(&association.expression);
     } else {
         /* if a window does not start in normal state, do not map it */
         if (is_first_time && (window->hints.flags & XCB_ICCCM_WM_HINT_STATE) &&

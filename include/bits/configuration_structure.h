@@ -5,6 +5,7 @@
 #include <stdint.h>
 
 #include "action.h"
+#include "expression.h"
 #include "keymap.h"
 #include "utf8.h"
 #include "utility.h"
@@ -28,9 +29,8 @@ struct configuration_button {
     uint16_t flags;
     /* the actual mouse button index */
     xcb_button_t index;
-    /* the actions to execute */
-    Action *actions;
-    uint32_t number_of_actions;
+    /* the expression to evaluate */
+    Expression expression;
 };
 
 /* key binding */
@@ -43,9 +43,8 @@ struct configuration_key {
     xcb_keysym_t key_symbol;
     /* the code of the key, used when `key_symbol` is NoSymbol */
     xcb_keycode_t key_code;
-    /* the actions to execute */
-    Action *actions;
-    uint32_t number_of_actions;
+    /* the expression to evaluate */
+    Expression expression;
 };
 
 /* association between class/instance and window number */
@@ -56,10 +55,8 @@ struct configuration_association {
     utf8_t *instance_pattern;
     /* the pattern the class should match */
     utf8_t *class_pattern;
-    /* the actions to run when a window gets assigned a number */
-    Action *actions;
-    /* the number of actions in `actions` */
-    uint32_t number_of_actions;
+    /* the expression to evaluate */
+    Expression expression;
 };
 
 /**
@@ -71,10 +68,8 @@ struct configuration_association {
 
 /* startup settings */
 struct configuration_startup {
-    /* the actions to run on startup */
-    Action *actions;
-    /* the number of actions to run on startup */
-    uint32_t number_of_actions;
+    /* the expression to evaluate on startup */
+    Expression expression;
 };
 
 /* general settings */

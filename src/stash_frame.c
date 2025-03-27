@@ -27,7 +27,8 @@ static void show_and_dereference_inner_windows(Frame *frame)
     }
 }
 
-/* Make sure all window pointers are still pointing to an existing window.
+/* Make sure all window pointers are still pointing to an existing invisible
+ * window.
  *
  * @return the number of valid windows.
  */
@@ -37,7 +38,8 @@ static uint32_t validate_inner_windows(Frame *frame)
         return validate_inner_windows(frame->left) +
             validate_inner_windows(frame->right);
     } else if (frame->window != NULL) {
-        if (frame->window->client.id == XCB_NONE) {
+        if (frame->window->client.id == XCB_NONE ||
+                frame->window->state.is_visible) {
             dereference_window(frame->window);
             frame->window = NULL;
             return 0;

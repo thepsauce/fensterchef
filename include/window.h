@@ -120,6 +120,11 @@ extern Window *Window_first;
 /* the currently focused window */
 extern Window *Window_focus;
 
+/* the last pressed window, this only gets set when a window is pressed by a
+ * grabbed button
+ */
+extern Window *Window_pressed;
+
 /* Increment the reference count of the window. */
 void reference_window(Window *window);
 
@@ -139,6 +144,9 @@ Window *create_window(xcb_window_t xcb,
  * This does NOT destroy the underlying X window.
  */
 void destroy_window(Window *window);
+
+/* Get a window with given @id or NULL if no window has that id. */
+Window *get_window_by_id(uint32_t id);
 
 /* time in seconds to wait for a second close */
 #define REQUEST_CLOSE_MAX_DURATION 2
