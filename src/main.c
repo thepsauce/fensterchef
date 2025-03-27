@@ -93,9 +93,16 @@ int main(int argc, char **argv)
     /* configure the monitor frames before running the startup actions */
     reconfigure_monitor_frames();
 
+    Fensterchef_is_running = true;
+
     /* run the startup expression */
     LOG("running startup expression: %A\n", &configuration.startup.expression);
-    evaluate_expression(&configuration.startup.expression);
+    evaluate_expression(&configuration.startup.expression, NULL);
+
+    if (!Fensterchef_is_running) {
+        LOG("startup interrupted by user configuration\n");
+        quit_fensterchef(EXIT_SUCCESS);
+    }
 
     /* do an inital synchronization */
     synchronize_with_server();
@@ -104,7 +111,6 @@ int main(int argc, char **argv)
     /* before entering the loop, flush all the initialization calls */
     xcb_flush(connection);
 
-    Fensterchef_is_running = true;
     /* run the main event loop */
     while (next_cycle() == OK) {
         /* nothing to do */

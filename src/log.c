@@ -1238,12 +1238,27 @@ static const uint32_t *log_instruction(const uint32_t *instructions)
         instructions += instruction >> 8;
         break;
 
+#define WRAP_INSTRUCTION do { \
+    const enum precedence_class precedence = \
+        get_instruction_precedence((instructions[0] & 0xff)); \
+    if (precedence < get_instruction_precedence(type)) { \
+        fputs("(", stderr); \
+    } \
+    instructions = log_instruction(instructions); \
+    if (precedence < get_instruction_precedence(type)) { \
+        fputs(")", stderr); \
+    } \
+} while (false)
+
+#define SINGLE_OPERATION(operator) do { \
+    fputs(COLOR(MAGENTA) STRINGIFY(operator) CLEAR_COLOR, stderr); \
+    WRAP_INSTRUCTION; \
+} while (false)
+
 #define DUAL_OPERATION(operator) do { \
-    fputs("(", stderr); \
-    instructions = log_instruction(instructions); \
+    WRAP_INSTRUCTION; \
     fputs(COLOR(MAGENTA) " " STRINGIFY(operator) " " CLEAR_COLOR, stderr); \
-    instructions = log_instruction(instructions); \
-    fputs(")", stderr); \
+    WRAP_INSTRUCTION; \
 } while (false)
 
     /* execute the two next instructions */
@@ -1260,10 +1275,11 @@ static const uint32_t *log_instruction(const uint32_t *instructions)
         break;
 
     /* integer operations */
+    case INSTRUCTION_NOT:
+        SINGLE_OPERATION(!);
+        break;
     case INSTRUCTION_NEGATE:
-        fprintf(stderr, "-(");
-        instructions = log_instruction(instructions);
-        fprintf(stderr, ")");
+        SINGLE_OPERATION(-);
         break;
     case INSTRUCTION_ADD:
         DUAL_OPERATION(+);
@@ -1416,11 +1432,10 @@ void log_formatted(log_severity_t severity, const char *file, int line,
                 log_event(va_arg(list, xcb_generic_event_t*));
                 break;
 
-            /* print a list of actions */
-            case 'A': {
+            /* print an expression */
+            case 'A':
                 log_expression(va_arg(list, Expression*));
                 break;
-            }
 
             /* print an xcb atom */
             case 'a':

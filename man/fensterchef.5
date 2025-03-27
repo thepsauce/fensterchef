@@ -28,26 +28,18 @@ being at the first line.
 .
 .SH DATA TYPE
 A handful of data types are supported.
-.SS boolean
-A value that is either true or false.
-Examples:
-    true
-    0
-    on
-.PP
-Possible values are:
-.BR on ,
-.BR yes ,
-.B true
-.BR off ,
-.BR no ,
-.BR false .
 .SS string
 A utf8 encoded sequence of bytes. Characters can be escaped using
 .BR \[rs] .
 Examples:
     I am not quoted and can not be quoted
     \[rs] I have a leading and trailing space\[rs] 
+
+These are all characters with special intepretation:
+    \\a, \\b, \\e, \\f, \\n, \\r, \\t, \\v
+
+And all these must be escaped when using them literally:
+    ;, &, |, )
 .SS integer
 An integer in base 10 notation with an optional sign.
 Integers are limited to 1000000.
@@ -56,26 +48,21 @@ Examples:
     384
     123454678910
 .RI ( 1000000 )
-.SS quad
-A set of 1, 2 or 4 integers.
-Examples:
-    1 2 3 4
-    -4 4 (expands to -4 4 -4 4)
-    2 (expands to 2 2 2 2)
-.SS color
-A color in RRGGBB format.
-Examples:
+    true
+    on
+    false
     #ff00ff
     #edceef
     #000000
-.SS modifiers
-A series of keyboard modifiers.
+.SS modifiers (interpreted as integer)
+Keyboard modifiers.
 Examples:
     Shift
-    Control + Shift
-    Mod1+Mod4
+    Control
+    Mod1
 .PP
 The possible modifiers are:
+.BR None ,
 .BR Shift ,
 .BR Lock ,
 .BR CapsLock ,
@@ -88,7 +75,7 @@ The possible modifiers are:
 .BR Mod3 ,
 .BR Mod4 ,
 .BR Mod5 .
-.SS cursor
+.SS cursor (interpreted as integer)
 A cursor constant.
 Examples:
     left-ptr
@@ -173,6 +160,12 @@ This is a complete list of the possible cursors:
     ur-angle
     watch
     xterm
+.SS quad
+A set of 1, 2 or 4 integers.
+Examples:
+    1 2 3 4
+    -4 4 (expands to -4 4 -4 4)
+    2 (expands to 2 2 2 2)
 .
 .SH SECTION
 .SS [startup]
@@ -310,7 +303,7 @@ background
 Add mouse bindings. Mouse bindings have the format:
 .I modifiers
 .I +
-.I button index expression
+.I button_index expression
 .PP
 resize-tolerance
 .I integer
@@ -596,7 +589,7 @@ Shift+h exchange-left
 Shift+l exchange-right
 Shift+j exchange-down
 w show-window-list
-Return run [ -n "$TERMINAL" ] && "$TERMINAL" || xterm
+Return run [ -n "$TERMINAL" ] \\&\\& "$TERMINAL" \\|\\| xterm
 .EE
 .SS Initial layout
 .EX

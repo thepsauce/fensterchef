@@ -4,8 +4,8 @@
 
 #include "cursor.h"
 #include "fensterchef.h"
-#include "configuration_parser.h"
 #include "log.h"
+#include "parser.h"
 #include "utility.h"
 #include "x11_management.h"
 
@@ -78,43 +78,48 @@ static const struct button_string {
      */
 };
 
-typedef parser_error_t (*parse_data_type_function_t)(Parser *parser,
-        GenericData *output);
-
-/* The void data type is just a placeholder, it expects nothing. */
-static parser_error_t parse_void(Parser *parser, void *output)
+/* Prepare a parser for parsing. */
+int initialize_parser(Parser *parser, const char *string, bool is_string_file)
 {
-    (void) parser;
-    (void) output;
-    return PARSER_SUCCESS;
+    memset(parser, 0, sizeof(*parser));
+
+    /* either load from a file or a string source */
+    if (is_string_file) {
+        parser->file = fopen(string, "r");
+        if (parser->file == NULL) {
+            return ERROR;
+        }
+    } else {
+        parser->string_source = string;
+    }
+
+    parser->line_capacity = 128;
+    parser->line = xmalloc(parser->line_capacity);
+
+    parser->instruction_capacity = 4;
+    RESIZE(parser->instructions, parser->instruction_capacity);
+    return OK;
 }
 
-/* Parse a boolean with some tolerance on the wording. */
-static parser_error_t parse_boolean(Parser *parser, bool *output);
+/* Free the resources the parser occupies.  */
+void deinitialize_parser(Parser *parser)
+{
+    struct parser_file_stack_entry *entry;
 
-/* Parse a set of 4 integers. */
-static parser_error_t parse_quad(Parser *parser, int32_t *output);
+    if (parser->file != NULL) {
+        fclose(parser->file);
+    }
 
-/* Parse a color in the format (X: hexadecimal digit): #XXXXXX. */
-static parser_error_t parse_color(Parser *parser, uint32_t *output);
+    free(parser->line);
 
-/* Parse key modifiers, e.g.: Control+Shift. */
-static parser_error_t parse_modifiers(Parser *parser, uint16_t *output);
+    for (uint32_t i = 0; i < parser->number_of_pushed_files; i++) {
+        entry = &parser->file_stack[i];
+        free(entry->name);
+        fclose(entry->file);
+    }
 
-/* Parse a cursor constant, e.g.: left-ptr. */
-static parser_error_t parse_cursor(Parser *parser, core_cursor_t *output);
-
-/* parser methods of all data types */
-parse_data_type_function_t data_type_parsers[] = {
-    [DATA_TYPE_VOID] = (parse_data_type_function_t) parse_void,
-    [DATA_TYPE_BOOLEAN] = (parse_data_type_function_t) parse_boolean,
-    [DATA_TYPE_STRING] = (parse_data_type_function_t) parse_string,
-    [DATA_TYPE_INTEGER] = (parse_data_type_function_t) parse_integer,
-    [DATA_TYPE_QUAD] = (parse_data_type_function_t) parse_quad,
-    [DATA_TYPE_COLOR] = (parse_data_type_function_t) parse_color,
-    [DATA_TYPE_MODIFIERS] = (parse_data_type_function_t) parse_modifiers,
-    [DATA_TYPE_CURSOR] = (parse_data_type_function_t) parse_cursor,
-};
+    free(parser->instructions);
+}
 
 #include "bits/configuration_parser_label_information.h"
 
@@ -213,14 +218,17 @@ inline const char *parser_error_to_string(parser_error_t error)
     return parser_error_strings[error];
 }
 
-/* Read the next line from @parser->file into @parser->line. */
+/* Read the next line from the parsed files or string source into @parser->line.
+ */
 bool read_next_line(Parser *parser)
 {
     size_t length;
+    bool is_comment = false;
+    struct parser_file_stack_entry *entry;
 
-    parser->line_number++;
     length = 0;
     for (int c;; ) {
+        /* read the next character from the string source or file */
         if (parser->file == NULL) {
             c = parser->string_source[parser->string_source_index];
             if (c == '\0') {
@@ -232,36 +240,62 @@ bool read_next_line(Parser *parser)
             c = fgetc(parser->file);
         }
 
+        /* if there was nothing left in the current file, try to pop it */
+        if (c == EOF && length == 0) {
+            /* make sure to end all comments if there were any */
+            is_comment = false;
+
+            if (parser->number_of_pushed_files == 0) {
+                /* no more lines */
+                break;
+            }
+            parser->number_of_pushed_files--;
+            entry = &parser->file_stack[parser->number_of_pushed_files];
+            free(entry->name);
+            parser->file = entry->file;
+            parser->label = entry->label;
+            parser->line_number = entry->line_number;
+            continue;
+        }
+
         if (length == parser->line_capacity) {
             parser->line_capacity *= 2;
             parser->line = xrealloc(parser->line, parser->line_capacity);
         }
 
-        switch (c) {
-        /* terminate line at \n or EOF */
-        case EOF:
-            if (length == 0) {
-                if (parser->number_of_pushed_files == 0) {
-                    return false;
-                }
-                /* pop the file */
-                fclose(parser->file);
-                parser->number_of_pushed_files--;
-                parser->label =
-                    parser->file_stack[parser->number_of_pushed_files].label;
-                parser->file =
-                    parser->file_stack[parser->number_of_pushed_files].file;
-                break;
+        /* either an EOF or '\n' terminates a line */
+        if (c == EOF || c == '\n') {
+            parser->line_number++;
+            if (is_comment) {
+                /* ignore commented lines */
+                length = 0;
+                is_comment = false;
+                continue;
             }
-        /* fall through */
-        case '\n':
             parser->column = 0;
             parser->line[length] = '\0';
             return true;
-
-        default:
-            parser->line[length++] = c;
         }
+
+        if (c == '#') {
+            uint32_t i;
+
+            /* check if all read thus far is space */
+            for (i = 0; i < length; i++) {
+                if (!isspace(parser->line[i])) {
+                    break;
+                }
+            }
+            if (i == length) {
+                is_comment = true;
+            }
+        }
+
+        if (is_comment) {
+            continue;
+        }
+        
+        parser->line[length++] = c;
     }
     return false;
 }
@@ -317,24 +351,6 @@ parser_error_t parse_identifier(Parser *parser)
 
     parser->identifier[length] = '\0';
     parser->identifier_lower[length] = '\0';
-    return PARSER_SUCCESS;
-}
-
-/* Parse a boolean with some tolerance on the wording. */
-static parser_error_t parse_boolean(Parser *parser, bool *output)
-{
-    parser_error_t error;
-
-    skip_space(parser);
-
-    error = parse_identifier(parser);
-    if (error != PARSER_SUCCESS) {
-        return error;
-    }
-
-    if (string_to_boolean(parser->identifier_lower, output) != OK) {
-        return PARSER_ERROR_INVALID_BOOLEAN;
-    }
     return PARSER_SUCCESS;
 }
 
@@ -397,6 +413,10 @@ parser_error_t parse_string(Parser *parser, utf8_t **output)
         index++;
     }
 
+    if (end == parser->column) {
+        return PARSER_UNEXPECTED;
+    }
+
     /* null terminate the string */
     string[last_index + 1] = '\0';
 
@@ -406,172 +426,6 @@ parser_error_t parse_string(Parser *parser, utf8_t **output)
     *output = string;
 
     parser->column = end;
-    return PARSER_SUCCESS;
-}
-
-/* Parse an integer in simple decimal notation. */
-parser_error_t parse_integer(Parser *parser, int32_t *output)
-{
-    int32_t sign = 1;
-    int32_t integer;
-
-    skip_space(parser);
-
-    /* get a preceding sign if any */
-    if (parser->line[parser->column] == '+') {
-        parser->column++;
-    } else if (parser->line[parser->column] == '-') {
-        sign = -1;
-        parser->column++;
-    } else if (!isdigit(parser->line[parser->column])) {
-        return PARSER_UNEXPECTED;
-    }
-
-    /* need digits now */
-    if (!isdigit(parser->line[parser->column])) {
-        return PARSER_ERROR_UNEXPECTED;
-    }
-
-    /* read all digits while not overflowing */
-    for (integer = 0; isdigit(parser->line[parser->column]); parser->column++) {
-        integer *= 10;
-        integer += parser->line[parser->column] - '0';
-        if (integer >= PARSER_INTEGER_LIMIT) {
-            integer = PARSER_INTEGER_LIMIT;
-        }
-    }
-
-    *output = sign * integer;
-
-    return PARSER_SUCCESS;
-}
-
-/* Parse a set of up to 4 integers. */
-static parser_error_t parse_quad(Parser *parser, int32_t *output)
-{
-    int32_t quad[4];
-    parser_error_t error;
-    uint32_t i = 0;
-
-    for (i = 0; i < SIZE(quad); i++) {
-        skip_space(parser);
-        /* allow a premature end: not enough integers */
-        if (parser->line[parser->column] == '\0') {
-            break;
-        }
-        error = parse_integer(parser, &quad[i]);
-        if (error != PARSER_SUCCESS) {
-            return error;
-        }
-    }
-
-    switch (i) {
-    /* if one value is specified, duplicate it to all other values */
-    case 1:
-        quad[1] = quad[0];
-        quad[2] = quad[0];
-        quad[3] = quad[0];
-        break;
-
-    /* if two values are specified, duplicate it to the other two values */
-    case 2:
-        quad[2] = quad[0];
-        quad[3] = quad[1];
-        break;
-
-    /* if four values are specified, nothing needs to be done */
-    case 4:
-        break;
-
-    /* no meaningful interpretations for other cases */
-    default:
-        return PARSER_ERROR_INVALID_QUAD;
-    }
-
-    memcpy(output, quad, sizeof(quad));
-    return PARSER_SUCCESS;
-}
-
-/* Parse a color in the format (X: hexadecimal digit): #XXXXXX. */
-static parser_error_t parse_color(Parser *parser, uint32_t *output)
-{
-    uint32_t color;
-    uint32_t count;
-
-    if (parse_character(parser) != PARSER_SUCCESS || parser->character != '#') {
-        return PARSER_UNEXPECTED;
-    }
-
-    for (color = 0, count = 0; isxdigit(parser->line[parser->column]);
-            count++, parser->column++) {
-        color <<= 4;
-        color += isdigit(parser->line[parser->column]) ?
-            parser->line[parser->column] - '0' :
-            tolower(parser->line[parser->column]) + 0xa - 'a';
-    }
-
-    if (count != 6) {
-        return PARSER_ERROR_BAD_COLOR_FORMAT;
-    }
-
-    *output = color;
-
-    return PARSER_SUCCESS;
-}
-
-/* Parse key modifiers, e.g.: `control+shift`. */
-static parser_error_t parse_modifiers(Parser *parser, uint16_t *output)
-{
-    parser_error_t error;
-    uint16_t modifier, modifiers = 0;
-
-    while (error = parse_identifier(parser), error == PARSER_SUCCESS) {
-        if (string_to_modifier(parser->identifier_lower, &modifier) != OK) {
-            error = PARSER_ERROR_INVALID_MODIFIERS;
-            break;
-        }
-
-        modifiers |= modifier;
-
-        /* go to the next '+' */
-        if (parse_character(parser) != PARSER_SUCCESS) {
-            break;
-        }
-        if (parser->character != '+') {
-            error = PARSER_ERROR_UNEXPECTED;
-            break;
-        }
-    }
-
-    *output = modifiers;
-    return error;
-}
-
-/* Parse a cursor constant, e.g.: left-ptr. */
-static parser_error_t parse_cursor(Parser *parser, core_cursor_t *output)
-{
-    parser_error_t error;
-    core_cursor_t cursor;
-
-    error = parse_identifier(parser);
-    if (error != PARSER_SUCCESS) {
-        return error;
-    }
-
-    /* translate - to _ */
-    for (uint32_t i = 0; parser->identifier[i] != '\0'; i++) {
-        if (parser->identifier[i] == '-') {
-            parser->identifier[i] = '_';
-        }
-    }
-
-    cursor = string_to_cursor(parser->identifier);
-    if (cursor == XCURSOR_MAX) {
-        return PARSER_ERROR_INVALID_CURSOR;
-    }
-
-    *output = cursor;
-
     return PARSER_SUCCESS;
 }
 
@@ -625,7 +479,7 @@ static parser_error_t parse_binding_flags(Parser *parser, uint16_t *flags)
         } else if (strcmp(parser->identifier_lower, "--transparent") == 0) {
             *flags |= BINDING_FLAG_TRANSPARENT;
         } else {
-            error = PARSER_ERROR_INVALID_BUTTON_FLAG;
+            error = PARSER_ERROR_INVALID_BINDING_FLAG;
             break;
         }
     }
@@ -654,10 +508,11 @@ static parser_error_t parse_button(Parser *parser,
         return error;
     }
 
-    error = parse_expression(parser, &button->expression);
+    error = parse_expression(parser);
     if (error != PARSER_SUCCESS) {
         return error;
     }
+    extract_expression(parser, &button->expression);
 
     return PARSER_SUCCESS;
 }
@@ -703,10 +558,11 @@ static parser_error_t parse_key(Parser *parser, struct configuration_key *key)
         return error;
     }
 
-    error = parse_expression(parser, &key->expression);
+    error = parse_expression(parser);
     if (error != PARSER_SUCCESS) {
         return error;
     }
+    extract_expression(parser, &key->expression);
 
     return PARSER_SUCCESS;
 }
@@ -731,10 +587,11 @@ static parser_error_t parse_startup_actions(Parser *parser)
     parser_error_t error;
     Expression expression;
 
-    error = parse_expression(parser, &expression);
+    error = parse_expression(parser);
     if (error != PARSER_SUCCESS) {
         return error;
     }
+    extract_expression(parser, &expression);
 
     /* append the parsed expression to the startup expression */
     RESIZE(parser->configuration.startup.expression.instructions,
@@ -824,19 +681,26 @@ static parser_error_t parse_keyboard_binding(Parser *parser)
  */
 static parser_error_t parse_assignment_association(Parser *parser)
 {
-    parser_error_t error;
+    parser_error_t error = PARSER_SUCCESS;
     int32_t number;
     struct configuration_association association = {
         .expression.instruction_size = 0
     };
 
     /* read the leading number */
-    error = parse_integer(parser, &number);
+    skip_space(parser);
+    for (number = 0;
+            isdigit(parser->line[parser->column]);
+            parser->column++) {
+        number *= 10;
+        number += parser->line[parser->column] - '0';
+        if (number > PARSER_INTEGER_LIMIT) {
+            error = PARSER_ERROR_INTEGER_TOO_LARGE;
+            break;
+        }
+    }
     if (error != PARSER_SUCCESS) {
         return error;
-    }
-    if (number < 0) {
-        return PARSER_ERROR_EXPECTED_UNSIGNED_INTEGER;
     }
     association.number = number;
 
@@ -864,7 +728,10 @@ static parser_error_t parse_assignment_association(Parser *parser)
     /* an optional expression may be supplied */
     if (parser->line[parser->column] == ';') {
         parser->column++;
-        error = parse_expression(parser, &association.expression);
+        error = parse_expression(parser);
+        if (error == PARSER_SUCCESS) {
+            extract_expression(parser, &association.expression);
+        }
     }
 
     if (error != PARSER_SUCCESS) {
@@ -887,13 +754,13 @@ static parser_error_t parse_assignment_association(Parser *parser)
 parser_error_t parse_line(Parser *parser)
 {
     parser_error_t error;
+    struct parser_file_stack_entry *entry;
 
     /* remove leading whitespace */
     skip_space(parser);
 
-    /* ignore empty lines and comments */
-    if (parser->line[parser->column] == '\0' || parser->line[parser->column] == '#') {
-        parser->column += strlen(&parser->line[parser->column]);
+    /* ignore empty lines */
+    if (parser->line[parser->column] == '\0') {
         return PARSER_SUCCESS;
     }
 
@@ -946,11 +813,11 @@ parser_error_t parse_line(Parser *parser)
             return PARSER_ERROR_INCLUDE_OVERFLOW;
         }
 
-        /* push the current label and file onto the file stack */
-        parser->file_stack[parser->number_of_pushed_files].label =
-            parser->label;
-        parser->file_stack[parser->number_of_pushed_files].file = parser->file;
-        parser->number_of_pushed_files++;
+        /* push the current file state onto the file stack */
+        entry = &parser->file_stack[parser->number_of_pushed_files];
+        entry->file = parser->file;
+        entry->line_number = parser->line_number;
+        entry->label = parser->label;
 
         /* get the file name */
         error = parse_string(parser, &path);
@@ -967,14 +834,15 @@ parser_error_t parse_line(Parser *parser)
 
         /* open the file */
         parser->file = fopen((char*) path, "r");
-        free(path);
         if (parser->file == NULL) {
+            free(path);
             return PARSER_ERROR_INVALID_INCLUDE;
         }
 
+        entry->name = path;
+        parser->number_of_pushed_files++;
         /* reset the label */
         parser->label = 0;
-
         return PARSER_SUCCESS;
     }
 
@@ -987,18 +855,48 @@ parser_error_t parse_line(Parser *parser)
             /* set the struct member at given offset */
             GenericData *const value = (GenericData*)
                 ((uint8_t*) &parser->configuration + variable->offset);
+
             /* clear the old value */
             clear_data_value(variable->data_type, value);
+
             /* parse and move in the new value */
-            error = data_type_parsers[variable->data_type](parser, value);
-            if (error != PARSER_SUCCESS) {
-                /* make sure no invalid pointers hang around because everything
-                 * gets freed after failing to parse
-                 */
-                memset(value, 0, data_type_sizes[variable->data_type]);
-                return error;
+            switch (variable->data_type) {
+            case DATA_TYPE_VOID:
+                parser->instruction_size = 0;
+                break;
+
+            case DATA_TYPE_INTEGER: {
+                error = parse_expression(parser);
+                if (error == PARSER_SUCCESS) {
+                    const Expression expression = {
+                        parser->instructions,
+                        parser->instruction_size
+                    };
+                    evaluate_expression(&expression, value);
+                }
+                break;
             }
-            return PARSER_SUCCESS;
+
+            case DATA_TYPE_QUAD:
+                error = parse_quad_expression(parser);
+                if (error == PARSER_SUCCESS) {
+                    const Expression expression = {
+                        parser->instructions,
+                        parser->instruction_size
+                    };
+                    evaluate_expression(&expression, value);
+                }
+                break;
+
+            case DATA_TYPE_STRING:
+                error = parse_string(parser, &value->string);
+                break;
+
+            /* not a real data type */
+            case DATA_TYPE_MAX:
+                break;
+            }
+            return error;
         }
     }
 

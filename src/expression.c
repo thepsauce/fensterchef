@@ -101,6 +101,10 @@ const uint32_t *run_instruction(const uint32_t *instructions, GenericData *data)
 } while (false)
 
     /* integer operations */
+    case INSTRUCTION_NOT:
+        instructions = run_instruction(instructions, data);
+        data->integer = !data->integer;
+        break;
     case INSTRUCTION_NEGATE:
         instructions = run_instruction(instructions, data);
         data->integer *= -1;
@@ -138,16 +142,19 @@ const uint32_t *run_instruction(const uint32_t *instructions, GenericData *data)
 }
 
 /* Evaluate given expression. */
-int evaluate_expression(const Expression *expression)
+void evaluate_expression(const Expression *expression, GenericData *result)
 {
     const uint32_t *instructions, *end;
-    GenericData data;
+    GenericData alternative_result;
+
+    if (result == NULL) {
+        result = &alternative_result;
+    }
 
     instructions = expression->instructions;
     end = &expression->instructions[expression->instruction_size];
 
     while (instructions < end) {
-        instructions = run_instruction(instructions, &data);
+        instructions = run_instruction(instructions, result);
     }
-    return OK;
 }

@@ -31,15 +31,15 @@ static const struct configuration_parser_label_name {
         "general", NULL, {
         { "overlap-percentage", DATA_TYPE_INTEGER,
             offsetof(struct configuration, general.overlap_percentage) },
-        { "root-cursor", DATA_TYPE_CURSOR,
+        { "root-cursor", DATA_TYPE_INTEGER,
             offsetof(struct configuration, general.root_cursor) },
-        { "moving-cursor", DATA_TYPE_CURSOR,
+        { "moving-cursor", DATA_TYPE_INTEGER,
             offsetof(struct configuration, general.moving_cursor) },
-        { "horizontal-cursor", DATA_TYPE_CURSOR,
+        { "horizontal-cursor", DATA_TYPE_INTEGER,
             offsetof(struct configuration, general.horizontal_cursor) },
-        { "vertical-cursor", DATA_TYPE_CURSOR,
+        { "vertical-cursor", DATA_TYPE_INTEGER,
             offsetof(struct configuration, general.vertical_cursor) },
-        { "sizing-cursor", DATA_TYPE_CURSOR,
+        { "sizing-cursor", DATA_TYPE_INTEGER,
             offsetof(struct configuration, general.sizing_cursor) },
         /* null terminate the end */
         { NULL, 0, 0 } }
@@ -55,15 +55,15 @@ static const struct configuration_parser_label_name {
 
     [PARSER_LABEL_TILING] = {
         "tiling", NULL, {
-        { "auto-split", DATA_TYPE_BOOLEAN,
+        { "auto-split", DATA_TYPE_INTEGER,
             offsetof(struct configuration, tiling.auto_split) },
-        { "auto-equalize", DATA_TYPE_BOOLEAN,
+        { "auto-equalize", DATA_TYPE_INTEGER,
             offsetof(struct configuration, tiling.auto_equalize) },
-        { "auto-fill-void", DATA_TYPE_BOOLEAN,
+        { "auto-fill-void", DATA_TYPE_INTEGER,
             offsetof(struct configuration, tiling.auto_fill_void) },
-        { "auto-remove", DATA_TYPE_BOOLEAN,
+        { "auto-remove", DATA_TYPE_INTEGER,
             offsetof(struct configuration, tiling.auto_remove) },
-        { "auto-remove-void", DATA_TYPE_BOOLEAN,
+        { "auto-remove-void", DATA_TYPE_INTEGER,
             offsetof(struct configuration, tiling.auto_remove_void) },
         /* null terminate the end */
         { NULL, 0, 0 } }
@@ -71,7 +71,7 @@ static const struct configuration_parser_label_name {
 
     [PARSER_LABEL_FONT] = {
         "font", NULL, {
-        { "use-core-font", DATA_TYPE_BOOLEAN,
+        { "use-core-font", DATA_TYPE_INTEGER,
             offsetof(struct configuration, font.use_core_font) },
         { "name", DATA_TYPE_STRING,
             offsetof(struct configuration, font.name) },
@@ -83,11 +83,11 @@ static const struct configuration_parser_label_name {
         "border", NULL, {
         { "size", DATA_TYPE_INTEGER,
             offsetof(struct configuration, border.size) },
-        { "color", DATA_TYPE_COLOR,
+        { "color", DATA_TYPE_INTEGER,
             offsetof(struct configuration, border.color) },
-        { "active-color", DATA_TYPE_COLOR,
+        { "active-color", DATA_TYPE_INTEGER,
             offsetof(struct configuration, border.active_color) },
-        { "focus-color", DATA_TYPE_COLOR,
+        { "focus-color", DATA_TYPE_INTEGER,
             offsetof(struct configuration, border.focus_color) },
         /* null terminate the end */
         { NULL, 0, 0 } }
@@ -111,11 +111,11 @@ static const struct configuration_parser_label_name {
             offsetof(struct configuration, notification.padding) },
         { "border-size", DATA_TYPE_INTEGER,
             offsetof(struct configuration, notification.border_size) },
-        { "border-color", DATA_TYPE_COLOR,
+        { "border-color", DATA_TYPE_INTEGER,
             offsetof(struct configuration, notification.border_color) },
-        { "foreground", DATA_TYPE_COLOR,
+        { "foreground", DATA_TYPE_INTEGER,
             offsetof(struct configuration, notification.foreground) },
-        { "background", DATA_TYPE_COLOR,
+        { "background", DATA_TYPE_INTEGER,
             offsetof(struct configuration, notification.background) },
         /* null terminate the end */
         { NULL, 0, 0 } }
@@ -125,9 +125,9 @@ static const struct configuration_parser_label_name {
         "mouse", parse_mouse_binding, {
         { "resize-tolerance", DATA_TYPE_INTEGER,
             offsetof(struct configuration, mouse.resize_tolerance) },
-        { "modifiers", DATA_TYPE_MODIFIERS,
+        { "modifiers", DATA_TYPE_INTEGER,
             offsetof(struct configuration, mouse.modifiers) },
-        { "ignore-modifiers", DATA_TYPE_MODIFIERS,
+        { "ignore-modifiers", DATA_TYPE_INTEGER,
             offsetof(struct configuration, mouse.ignore_modifiers) },
         /* null terminate the end */
         { NULL, 0, 0 } }
@@ -135,9 +135,9 @@ static const struct configuration_parser_label_name {
 
     [PARSER_LABEL_KEYBOARD] = {
         "keyboard", parse_keyboard_binding, {
-        { "modifiers", DATA_TYPE_MODIFIERS,
+        { "modifiers", DATA_TYPE_INTEGER,
             offsetof(struct configuration, keyboard.modifiers) },
-        { "ignore-modifiers", DATA_TYPE_MODIFIERS,
+        { "ignore-modifiers", DATA_TYPE_INTEGER,
             offsetof(struct configuration, keyboard.ignore_modifiers) },
         /* null terminate the end */
         { NULL, 0, 0 } }

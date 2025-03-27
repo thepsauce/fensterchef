@@ -86,6 +86,9 @@
  */
 #define RESIZE(p, a) ((p) = xreallocarray(p, (a), sizeof(*(p))))
 
+/* Duplicate a memory block. */
+#define DUPLICATE(p, n) (xmemdup((p), sizeof(*(p)) * (n)))
+
 /* Get the maximum of two numbers. */
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 

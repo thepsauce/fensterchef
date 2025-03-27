@@ -60,11 +60,9 @@
     run st -n toggling
 
     [keyboard]
-    z (
-        focus-window 1000 && (
-           center-to *
-           resize-to 0 0 monitor.width monitor.height*2/5
-        )
+    z focus-window 1000 && (
+       center-to *
+       resize-to 0 0 800 600
     ) || minimize-window 1000
     ```
     This puts a terminal window in the background whose visibility can be

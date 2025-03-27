@@ -3,11 +3,11 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "configuration_parser.h"
 #include "fensterchef.h"
 #include "frame.h"
 #include "log.h"
 #include "monitor.h"
+#include "parser.h"
 #include "render.h"
 #include "resources.h"
 #include "size_frame.h"
@@ -22,10 +22,9 @@ struct configuration configuration;
 static void duplicate_configuration_associations(
         struct configuration *duplicate)
 {
-    duplicate->assignment.associations = xmemdup(
+    duplicate->assignment.associations = DUPLICATE(
             duplicate->assignment.associations,
-            sizeof(*duplicate->assignment.associations) *
-                duplicate->assignment.number_of_associations);
+            duplicate->assignment.number_of_associations);
     for (uint32_t i = 0;
             i < duplicate->assignment.number_of_associations;
             i++) {
@@ -35,10 +34,9 @@ static void duplicate_configuration_associations(
             xstrdup((char*) association->instance_pattern);
         association->class_pattern = (utf8_t*)
             xstrdup((char*) association->class_pattern);
-        association->expression.instructions = xmemdup(
+        association->expression.instructions = DUPLICATE(
                 association->expression.instructions,
-                sizeof(*association->expression.instructions) *
-                    association->expression.instruction_size);
+                association->expression.instruction_size);
     }
 }
 
@@ -46,16 +44,15 @@ static void duplicate_configuration_associations(
 static void duplicate_configuration_button_bindings(
         struct configuration *duplicate)
 {
-    duplicate->mouse.buttons = xmemdup(duplicate->mouse.buttons,
-            sizeof(*duplicate->mouse.buttons) *
-                duplicate->mouse.number_of_buttons);
+    duplicate->mouse.buttons = DUPLICATE(
+            duplicate->mouse.buttons,
+            duplicate->mouse.number_of_buttons);
     for (uint32_t i = 0; i < duplicate->mouse.number_of_buttons; i++) {
         struct configuration_button *const button =
             &duplicate->mouse.buttons[i];
-        button->expression.instructions = xmemdup(
+        button->expression.instructions = DUPLICATE(
                 button->expression.instructions,
-                sizeof(*button->expression.instructions) *
-                    button->expression.instruction_size);
+                button->expression.instruction_size);
     }
 }
 
@@ -63,15 +60,14 @@ static void duplicate_configuration_button_bindings(
 static void duplicate_configuration_key_bindings(
         struct configuration *duplicate)
 {
-    duplicate->keyboard.keys = xmemdup(duplicate->keyboard.keys,
-            sizeof(*duplicate->keyboard.keys) *
-                duplicate->keyboard.number_of_keys);
+    duplicate->keyboard.keys = DUPLICATE(
+            duplicate->keyboard.keys,
+            duplicate->keyboard.number_of_keys);
     for (uint32_t i = 0; i < duplicate->keyboard.number_of_keys; i++) {
         struct configuration_key *const key = &duplicate->keyboard.keys[i];
-        key->expression.instructions = xmemdup(
+        key->expression.instructions = DUPLICATE(
                 key->expression.instructions,
-                sizeof(*key->expression.instructions) *
-                    key->expression.instruction_size);
+                key->expression.instruction_size);
     }
 }
 
@@ -79,10 +75,9 @@ static void duplicate_configuration_key_bindings(
 void duplicate_configuration(struct configuration *duplicate)
 {
     duplicate->font.name = (utf8_t*) xstrdup((char*) duplicate->font.name);
-    duplicate->startup.expression.instructions = xmemdup(
+    duplicate->startup.expression.instructions = DUPLICATE(
             duplicate->startup.expression.instructions,
-            sizeof(*duplicate->startup.expression.instructions) *
-                duplicate->startup.expression.instruction_size);
+            duplicate->startup.expression.instruction_size);
     duplicate_configuration_associations(duplicate);
     duplicate_configuration_button_bindings(duplicate);
     duplicate_configuration_key_bindings(duplicate);
@@ -258,7 +253,7 @@ struct configuration_key *find_configured_key_by_symbol(
     return NULL;
 }
 
-/* Grab the keybindings so we receive the KeyPress/KeyRelease events for them.
+/* Grab the key bindings so we receive the KeyPress/KeyRelease events for them.
  */
 void grab_configured_keys(void)
 {
@@ -380,22 +375,11 @@ int load_configuration(const char *string,
     Parser parser;
     parser_error_t error = PARSER_SUCCESS;
 
-    memset(&parser, 0, sizeof(parser));
-
-    /* either load from a file or a string source */
-    if (load_from_file) {
-        parser.file = fopen(string, "r");
-        if (parser.file == NULL) {
-            LOG_ERROR("could not open configuration file %s: %s\n",
-                    string, strerror(errno));
-            return ERROR;
-        }
-    } else {
-        parser.string_source = string;
+    if (initialize_parser(&parser, string, load_from_file) != OK) {
+        LOG_ERROR("could not open configuration file %s: %s\n",
+                string, strerror(errno));
+        return ERROR;
     }
-
-    parser.line_capacity = 128;
-    parser.line = xmalloc(parser.line_capacity);
 
     parser.configuration = default_configuration;
     duplicate_configuration(&parser.configuration);
@@ -409,17 +393,25 @@ int load_configuration(const char *string,
         }
 
         if (error != PARSER_SUCCESS) {
-            if (load_from_file) {
-                LOG_ERROR("%s:%zu: %s\n", string, parser.line_number,
+            if (parser.number_of_pushed_files > 0) {
+                LOG_ERROR("%s:%zu: %s\n", parser.file_stack[
+                            parser.number_of_pushed_files - 1].name,
+                        parser.line_number,
+                        parser_error_to_string(error));
+            } else if (load_from_file) {
+                LOG_ERROR("%s:%zu: %s\n", string,
+                        parser.line_number,
                         parser_error_to_string(error));
             } else {
-                LOG_ERROR("%zu: %s\n", parser.line_number,
+                LOG_ERROR("%zu: %s\n",
+                        parser.line_number,
                         parser_error_to_string(error));
             }
             fprintf(stderr, "%5zu %s\n", parser.line_number, parser.line);
             for (int i = 0; i <= 5; i++) {
                 fprintf(stderr, " ");
             }
+
             if (error == PARSER_ERROR_TRAILING) {
                 /* indicate all trailing characters using "  ^~~~" */
                 for (size_t i = 0; i < parser.column; i++) {
@@ -449,11 +441,7 @@ int load_configuration(const char *string,
         }
     }
 
-    free(parser.line);
-
-    if (parser.file != NULL) {
-        fclose(parser.file);
-    }
+    deinitialize_parser(&parser);
 
     if (error != PARSER_SUCCESS) {
         clear_configuration(&parser.configuration);

@@ -34,15 +34,15 @@ columns should be 78 here.
 [general]
 overlap-percentage integer 80
    at which percentage to consider a window to be overlapped with a monitor
-root-cursor cursor left-ptr
+root-cursor integer left-ptr
    the name of the cursor used on the root window
-moving-cursor cursor fleur
+moving-cursor integer fleur
    the name of the cursor used for moving a window
-horizontal-cursor cursor sb-h-double-arrow
+horizontal-cursor integer sb-h-double-arrow
    the name of the cursor used for sizing a window horizontally
-vertical-cursor cursor sb-v-double-arrow
+vertical-cursor integer sb-v-double-arrow
    the name of the cursor used for sizing a window vertically
-sizing-cursor cursor sizing
+sizing-cursor integer sizing
    the name of the cursor used for sizing a window
 
 [assignment]*association
@@ -54,20 +54,20 @@ first-window-number integer 1
    the number of associations
 
 [tiling]
-auto-split boolean false
+auto-split integer false
    whether to automatically create a split when a window is shown
-auto-equalize boolean true
+auto-equalize integer true
    whether to automatically equalize all frames within the root
-auto-fill-void boolean true
+auto-fill-void integer true
    whether to fill in empty frames automatically
-auto-remove boolean false
+auto-remove integer false
    whether to remove frames automatically when their inner windows is
    hidden
-auto-remove-void boolean false
+auto-remove-void integer false
    whether to remove frames automatically when they become empty
 
 [font]
-use-core-font boolean false
+use-core-font integer false
    whether to use the core font instead of the better font rendering
 name string Mono
    name of the font in fontconfig format
@@ -75,11 +75,11 @@ name string Mono
 [border]
 size integer 1
    width of the border around the windows
-color color #36454f
+color integer #36454f
    color of the border of an unfocused window
-active-color color #71797e
+active-color integer #71797e
    color of the border of an unfocused tiling window
-focus-color color #c7bb28
+focus-color integer #c7bb28
    color of the border of a focused window
 
 [gaps]
@@ -95,19 +95,19 @@ padding integer 6
    padding of text within the notification window
 border-size integer 1
    width of the border
-border-color color #000000
+border-color integer #000000
    color of the border around the window
-foreground color #000000
+foreground integer #000000
    color of the text
-background color #ffffff
+background integer #ffffff
    color of the background
 
 [mouse]*binding
 resize-tolerance integer 8
    how many pixels off the edges of windows should be used for resizing
-modifiers modifiers Mod4
+modifiers integer Mod4
    the modifier key for all buttons (applied at the parsing step)
-ignore-modifiers modifiers Lock+Mod2+Mod3+Mod5
+ignore-modifiers integer Lock+Mod2+Mod3+Mod5
    the modifiers to ignore
 *struct configuration_button *buttons
    the configured buttons
@@ -117,9 +117,9 @@ ignore-modifiers modifiers Lock+Mod2+Mod3+Mod5
    Merge with the default mouse bindings
 
 [keyboard]*binding
-modifiers modifiers Mod4
+modifiers integer Mod4
    the modifier key for all keys (applied at the parsing step)
-ignore-modifiers modifiers Lock+Mod2+Mod3+Mod5
+ignore-modifiers integer Lock+Mod2+Mod3+Mod5
    the modifiers to ignore
 *struct configuration_key *keys
    the configured keys

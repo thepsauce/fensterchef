@@ -21,20 +21,12 @@
 typedef enum data_type {
     /* no data type at all */
     DATA_TYPE_VOID,
-    /* true or false value, one of: on yes true off no false */
-    DATA_TYPE_BOOLEAN,
     /* any utf8 text without any leading or trailing spaces */
     DATA_TYPE_STRING,
     /* an integer in simple decimal notation */
     DATA_TYPE_INTEGER,
     /* a set of 1, 2 or 4 integers */
     DATA_TYPE_QUAD,
-    /* color in the format (X: hexadecimal digit): #XXXXXX */
-    DATA_TYPE_COLOR,
-    /* key modifiers, e.g.: Control+Shift */
-    DATA_TYPE_MODIFIERS,
-    /* Xcursor constant, e.g. left-ptr */
-    DATA_TYPE_CURSOR,
 
     /* the maximum value of a data type */
     DATA_TYPE_MAX
@@ -42,20 +34,12 @@ typedef enum data_type {
 
 /* generic value of a data type */
 typedef union data_type_value {
-    /* true or false value, one of: on yes true off no false */
-    bool boolean;
     /* any utf8 text without any leading or trailing spaces */
     utf8_t *string;
     /* an integer in simple decimal notation */
     int32_t integer;
     /* a set of 1, 2 or 4 integers */
     int32_t quad[4];
-    /* color in the format (X: hexadecimal digit): #XXXXXX */
-    uint32_t color;
-    /* key modifiers, e.g.: Control+Shift */
-    uint16_t modifiers;
-    /* Xcursor constant, e.g. left-ptr */
-    core_cursor_t cursor;
 } GenericData;
 
 /* the size in bytes of each data type */

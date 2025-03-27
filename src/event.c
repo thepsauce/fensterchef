@@ -479,7 +479,7 @@ static void handle_key_press(xcb_key_press_event_t *event)
         unmap_client(&notification);
 
         LOG("evaluating expression: %A\n", &key->expression);
-        evaluate_expression(&key->expression);
+        evaluate_expression(&key->expression, NULL);
     }
 }
 
@@ -492,7 +492,7 @@ static void handle_key_release(xcb_key_release_event_t *event)
             event->detail, BINDING_FLAG_RELEASE);
     if (key != NULL) {
         LOG("evaluating expression: %A\n", &key->expression);
-        evaluate_expression(&key->expression);
+        evaluate_expression(&key->expression, NULL);
     }
 }
 
@@ -513,7 +513,7 @@ static void handle_button_press(xcb_button_press_event_t *event)
             event->detail, 0);
     if (button != NULL) {
         LOG("evaluating expression: %A\n", &button->expression);
-        evaluate_expression(&button->expression);
+        evaluate_expression(&button->expression, NULL);
 
         /* make the event pass through to the underlying window */
         if ((button->flags & BINDING_FLAG_TRANSPARENT)) {
@@ -543,7 +543,7 @@ static void handle_button_release(xcb_button_release_event_t *event)
             event->detail, BINDING_FLAG_RELEASE);
     if (button != NULL) {
         LOG("evaluating expression: %A\n", &button->expression);
-        evaluate_expression(&button->expression);
+        evaluate_expression(&button->expression, NULL);
 
         /* make the event pass through to the underlying window */
         if ((button->flags & BINDING_FLAG_TRANSPARENT)) {
@@ -746,7 +746,7 @@ static void handle_map_request(xcb_map_request_event_t *event)
     if (association.expression.instruction_size > 0) {
         LOG("running associated expression: %A\n", &association.expression);
         Window_pressed = window;
-        evaluate_expression(&association.expression);
+        evaluate_expression(&association.expression, NULL);
         Window_pressed = NULL;
     } else {
         /* if a window does not start in normal state, do not map it */

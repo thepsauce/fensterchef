@@ -1,62 +1,57 @@
 #include <string.h>
 
-#include "configuration_parser.h"
+#include "parser.h"
+#include "log.h"
 
-/* precedence classes */
-enum precedence_class {
-    /* the base precedence */
-    ORIGIN,
-    /* ( */
-    OPEN_BRACKET,
-    /* ; */
-    SEMICOLON,
-    /* && || */
-    LOGICAL_AND,
-    /* ACTION_* */
-    ACTION,
-    /* + - */
-    PLUS,
-    /* * / % */
-    MULTIPLY,
-    /* . */
-    DOT,
-    /* literal type */
-    LITERAL,
-    /* placeholder precedence */
-    PLACEHOLDER,
+/* information about instructions */
+struct instruction_information {
+    /* name of the instructions */
+    const char *name;
+    /* precedence of the instruction */
+    enum precedence_class precedence;
+} instruction_information[] = {
+#define X(string, identifier, precedence) \
+    [identifier] = { string, precedence },
+    DEFINE_ALL_INSTRUCTIONS
+#undef X
 };
 
-/* helper struct */
-struct helper {
-    /* the last error that happened */
-    parser_error_t error;
-    /* the instructions being parsed to */
-    uint32_t *instructions;
-    /* number of instructions */
-    uint32_t size;
-    /* number of allocated instructions */
-    uint32_t capacity;
-};
+/* Get the name of an instruction. */
+inline const char *instruction_type_to_string(instruction_type_t type)
+{
+    return instruction_information[type].name;
+}
+
+/* Get the precedence of an instruction. */
+inline enum precedence_class get_instruction_precedence(instruction_type_t type)
+{
+    return instruction_information[type].precedence;
+}
+
+/* Parse an expression recursively. */
+static parser_error_t parse_expression_recursively(Parser *parser,
+        enum precedence_class precedence);
 
 /* Insert an instruction to the instruction list. */
-static inline void insert_instruction(struct helper *helper, uint32_t position,
-        uint32_t instruction)
+static inline void insert_instruction(Parser *parser,
+        uint32_t position, uint32_t instruction)
 {
-    if (helper->size >= helper->capacity) {
-        helper->capacity *= 2;
-        RESIZE(helper->instructions, helper->capacity);
+    if (parser->instruction_size >= parser->instruction_capacity) {
+        parser->instruction_capacity *= 2;
+        RESIZE(parser->instructions, parser->instruction_capacity);
     }
-    memmove(&helper->instructions[position + 1],
-            &helper->instructions[position],
-            sizeof(*helper->instructions) * (helper->size - position));
-    helper->size++;
-    helper->instructions[position] = instruction;
+    memmove(&parser->instructions[position + 1],
+            &parser->instructions[position],
+            sizeof(*parser->instructions) *
+                (parser->instruction_size - position));
+    parser->instruction_size++;
+    parser->instructions[position] = instruction;
 }
 
 /* Append an instruction to the instruction list. */
-static inline void push_instruction(struct helper *helper, uint32_t instruction)
+static inline void push_instruction(Parser *parser, uint32_t instruction)
 {
-    insert_instruction(helper, helper->size, instruction);
+    insert_instruction(parser, parser->instruction_size, instruction);
 }
 
 /* Skip space and any new lines.
@@ -78,14 +73,31 @@ static inline bool skip_space_and_new_lines(Parser *parser)
 
 /* Parse the next value within @parser.
  *
- * @return false if there is none or if there was an error.
+ * The integer may be of many forms:
+ * #... (hexadecimal digits)
+ * [0-9]+
+ * boolean constant
+ * modifier constant
+ * cursor constant
  */
-static inline bool parse_integer_value(Parser *parser, struct helper *helper)
+static inline parser_error_t parse_integer_value(Parser *parser)
 {
     parser_error_t error;
     int32_t integer;
 
-    if (isdigit(parser->line[parser->column])) {
+    if (parser->line[parser->column] == '#') {
+        parser->column++;
+        /* interpret the digits as hexadecimal */
+        for (integer = 0;
+                isxdigit(parser->line[parser->column]);
+                parser->column++) {
+            integer <<= 4;
+            integer |= isdigit(parser->line[parser->column]) ?
+                parser->line[parser->column] - '0' :
+                tolower(parser->line[parser->column]) - 'a' + 0xa;
+            /* allow overflow */
+        }
+    } else if (isdigit(parser->line[parser->column])) {
         /* read all digits while not overflowing */
         for (integer = 0;
                 isdigit(parser->line[parser->column]);
@@ -99,8 +111,7 @@ static inline bool parse_integer_value(Parser *parser, struct helper *helper)
     } else {
         error = parse_identifier(parser);
         if (error != PARSER_SUCCESS) {
-            helper->error = error;
-            return false;
+            return error;
         }
         /* try to resolve the identifier constant using various methos */
         do {
@@ -130,22 +141,21 @@ static inline bool parse_integer_value(Parser *parser, struct helper *helper)
             /* we do not translate back because only `identifier_lower` will be
              * used next when parsing an action
              */
-            return false;
+            return PARSER_UNEXPECTED;
         } while (false);
     }
 
-    push_instruction(helper, MAKE_INTEGER(integer));
-    return true;
+    push_instruction(parser, MAKE_INTEGER(integer));
+    return PARSER_SUCCESS;
 }
 
-/* Parse an expression. */
-static parser_error_t parse_expression_recursively(Parser *parser,
-        struct helper *helper, enum precedence_class precedence);
-
-/* Parse an action identifier and its parameter. */
-static inline parser_error_t parse_action(Parser *parser, struct helper *helper)
+/* Parse an action identifier and its parameter.
+ *
+ * An identifier must have been loaded into @parser.
+ */
+static inline parser_error_t parse_action(Parser *parser)
 {
-    parser_error_t error;
+    parser_error_t error = PARSER_SUCCESS;
     action_type_t type;
     uint32_t position;
 
@@ -154,15 +164,15 @@ static inline parser_error_t parse_action(Parser *parser, struct helper *helper)
         return PARSER_ERROR_INVALID_ACTION;
     }
 
-    position = helper->size;
+    position = parser->instruction_size;
 
-    push_instruction(helper, MAKE_ACTION(type));
+    push_instruction(parser, MAKE_ACTION(type));
 
     const data_type_t data_type = get_action_data_type(type);
     switch (data_type) {
     /* no data type expected */
     case DATA_TYPE_VOID:
-        helper->instructions[position] = MAKE_VOID_ACTION(type);
+        parser->instructions[position] = MAKE_VOID_ACTION(type);
         break;
 
     /* utf8 byte sequence */
@@ -174,90 +184,68 @@ static inline parser_error_t parse_action(Parser *parser, struct helper *helper)
 
         error = parse_string(parser, &string);
         if (error == PARSER_UNEXPECTED && has_action_optional_argument(type)) {
-            helper->instructions[position] = MAKE_VOID_ACTION(type);
+            error = PARSER_SUCCESS;
+            parser->instructions[position] = MAKE_VOID_ACTION(type);
             break;
         }
         if (error != PARSER_SUCCESS) {
-            return error;
+            break;
         }
 
-        push_instruction(helper, 0);
+        push_instruction(parser, 0);
 
         length = strlen((char*) string);
-        length_in_4bytes = length / sizeof(*helper->instructions) + 1;
-        new_size = helper->size + length_in_4bytes;
-        if (new_size > helper->capacity) {
-            helper->capacity += new_size;
-            RESIZE(helper->instructions, helper->capacity);
+        length_in_4bytes = length / sizeof(*parser->instructions) + 1;
+        new_size = parser->instruction_size + length_in_4bytes;
+        if (new_size > parser->instruction_capacity) {
+            parser->instruction_capacity += new_size;
+            RESIZE(parser->instructions, parser->instruction_capacity);
         }
-        memcpy(&helper->instructions[helper->size], string, length + 1);
+        memcpy(&parser->instructions[parser->instruction_size],
+                string, length + 1);
 
         free(string);
 
-        helper->size = new_size;
+        parser->instruction_size = new_size;
 
-        helper->instructions[position + 1] = MAKE_STRING(length_in_4bytes);
+        parser->instructions[position + 1] = MAKE_STRING(length_in_4bytes);
         break;
     }
 
     /* 1, 2 or 4 integer expressions */
-    case DATA_TYPE_QUAD: {
-        uint32_t count = 0;
-
-        push_instruction(helper, 0);
-
-        /* get the quad arguments up to 4 */
-        while (count < 4) {
-            count++;
-            error = parse_expression_recursively(parser, helper, ACTION);
-            /* if the end was reached, prematurely end */
-            if (error == PARSER_SUCCESS) {
-                break;
-            }
-            /* if an actual error happened, break */
-            if (error != PARSER_UNEXPECTED) {
-                break;
-            }
-            /* PARSER_UNEXPECTED is fine */
+    case DATA_TYPE_QUAD:
+        error = parse_quad_expression(parser);
+        if (error == PARSER_UNEXPECTED && has_action_optional_argument(type)) {
             error = PARSER_SUCCESS;
-        }
-
-        if (error == PARSER_UNEXPECTED && count == 0 &&
-                has_action_optional_argument(type)) {
-            helper->instructions[position] = MAKE_VOID_ACTION(type);
+            parser->instructions[position] = MAKE_VOID_ACTION(type);
             break;
         }
-
         if (error != PARSER_SUCCESS) {
-            return error;
+            break;
         }
-
-        if (count == 3 || count == 0) {
-            return PARSER_ERROR_INVALID_QUAD;
-        }
-        helper->instructions[position + 1] = MAKE_QUAD(count);
         break;
-    }
 
     /* integer expression */
     case DATA_TYPE_INTEGER:
-        error = parse_expression_recursively(parser, helper, ACTION);
+        error = parse_expression_recursively(parser, PRECEDENCE_ACTION);
         if (error == PARSER_UNEXPECTED && has_action_optional_argument(type)) {
-            helper->instructions[position] = MAKE_VOID_ACTION(type);
+            error = PARSER_SUCCESS;
+            parser->instructions[position] = MAKE_VOID_ACTION(type);
             break;
         }
-        return error;
+        break;
 
     default:
-        return PARSER_ERROR_UNEXPECTED;
+        error = PARSER_ERROR_UNEXPECTED;
+        break;
     }
 
-    return PARSER_SUCCESS;
+    return error;
 }
 
 /* Parse an expression. */
 static parser_error_t parse_expression_recursively(Parser *parser,
-        struct helper *helper, enum precedence_class precedence)
+        enum precedence_class precedence)
 {
     parser_error_t error;
     uint32_t instruction = 0;
@@ -271,46 +259,57 @@ static parser_error_t parse_expression_recursively(Parser *parser,
         return PARSER_UNEXPECTED;
 
     /* prefix operators */
+    case '!':
+        parser->column++;
+        instruction = INSTRUCTION_NOT;
+        other_precedence = PRECEDENCE_NOT;
+        break;
     case '+':
         parser->column++;
-        other_precedence = PLUS + 1;
+        other_precedence = PRECEDENCE_NEGATE;
         break;
     case '-':
         parser->column++;
         instruction = INSTRUCTION_NEGATE;
-        /* `+1` so that for "-1 - 2", the "-" does not wrap around "1 - 2" */
-        other_precedence = PLUS + 1;
+        other_precedence = PRECEDENCE_NEGATE;
         break;
 
     /* opening bracket that allows to group instructions and operations together
      */
     case '(':
         parser->column++;
-        other_precedence = OPEN_BRACKET;
+        other_precedence = PRECEDENCE_OPEN_BRACKET;
         break;
     }
 
-    position = helper->size;
+    position = parser->instruction_size;
 
     if (instruction > 0) {
-        push_instruction(helper, instruction);
+        push_instruction(parser, instruction);
     }
 
     if (other_precedence > 0) {
         (void) skip_space_and_new_lines(parser);
-        error = parse_expression_recursively(parser, helper, other_precedence);
+        error = parse_expression_recursively(parser, other_precedence);
         if (error != PARSER_SUCCESS) {
             return error;
         }
     } else {
-        if (!parse_integer_value(parser, helper)) {
-            if (helper->error != PARSER_SUCCESS) {
-                return helper->error;
-            }
-            error = parse_action(parser, helper);
+        error = parse_integer_value(parser);
+        switch (error) {
+        case PARSER_SUCCESS:
+            /* do nothing */
+            break;
+
+        case PARSER_UNEXPECTED:
+            error = parse_action(parser);
             if (error != PARSER_SUCCESS) {
                 return error;
             }
+            break;
+
+        default:
+            return error;
         }
     }
 
@@ -321,7 +320,7 @@ static parser_error_t parse_expression_recursively(Parser *parser,
 
         switch (parser->line[parser->column]) {
         case '\0':
-            if (precedence == OPEN_BRACKET) {
+            if (precedence == PRECEDENCE_OPEN_BRACKET) {
                 /* if a bracket is open, we look on the following lines for a
                  * closing bracket
                  */
@@ -331,9 +330,9 @@ static parser_error_t parse_expression_recursively(Parser *parser,
                         continue;
                     }
                     /* implicit ; */
-                    insert_instruction(helper, position, INSTRUCTION_NEXT);
-                    error = parse_expression_recursively(parser, helper,
-                            SEMICOLON);
+                    insert_instruction(parser, position, INSTRUCTION_NEXT);
+                    error = parse_expression_recursively(parser,
+                            PRECEDENCE_SEMICOLON);
                     if (error != PARSER_SUCCESS) {
                         return error;
                     }
@@ -347,10 +346,13 @@ static parser_error_t parse_expression_recursively(Parser *parser,
         /* handle || and && */
         case '|':
         case '&': {
-            const char operator = parser->line[parser->column];
             uint32_t jump_offset;
 
-            if (precedence > LOGICAL_AND) {
+            const char operator = parser->line[parser->column];
+            other_precedence = operator == '&' ?  PRECEDENCE_LOGICAL_AND :
+                PRECEDENCE_LOGICAL_OR;
+
+            if (precedence > other_precedence) {
                 return PARSER_SUCCESS;
             }
             parser->column++;
@@ -358,62 +360,60 @@ static parser_error_t parse_expression_recursively(Parser *parser,
                 return PARSER_ERROR_UNEXPECTED;
             }
             parser->column++;
-            jump_offset = helper->size;
-            insert_instruction(helper, position, operator == '&' ?
+            jump_offset = parser->instruction_size;
+            insert_instruction(parser, position, operator == '&' ?
                     INSTRUCTION_LOGICAL_AND : INSTRUCTION_LOGICAL_OR);
             (void) skip_space_and_new_lines(parser);
-            error = parse_expression_recursively(parser, helper, LOGICAL_AND);
+            error = parse_expression_recursively(parser, other_precedence);
             if (error != PARSER_SUCCESS) {
                 return error;
             }
-            jump_offset = helper->size - jump_offset - 1;
-            helper->instructions[position] |= jump_offset << 8;
+            jump_offset = parser->instruction_size - jump_offset - 1;
+            parser->instructions[position] |= jump_offset << 8;
             break;
         }
 
         /* separator operator */
         case ';':
-            other_precedence = SEMICOLON;
+            other_precedence = PRECEDENCE_SEMICOLON;
             instruction = INSTRUCTION_NEXT;
             break;
 
-        /* operators with PLUS precedence */
+        /* operators with PRECEDENCE_PLUS precedence */
         case '+':
-            other_precedence = PLUS;
+            other_precedence = PRECEDENCE_PLUS;
             instruction = INSTRUCTION_ADD;
             break;
         case '-':
-            other_precedence = PLUS;
+            other_precedence = PRECEDENCE_PLUS;
             instruction = INSTRUCTION_SUBTRACT;
             break;
 
-        /* operators with MULTIPLY precedence */
+        /* operators with PRECEDENCE_MULTIPLY precedence */
         case '*':
-            other_precedence = MULTIPLY;
+            other_precedence = PRECEDENCE_MULTIPLY;
             instruction = INSTRUCTION_MULTIPLY;
             break;
         case '/':
-            other_precedence = MULTIPLY;
+            other_precedence = PRECEDENCE_MULTIPLY;
             instruction = INSTRUCTION_DIVIDE;
             break;
         case '%':
-            other_precedence = MULTIPLY;
+            other_precedence = PRECEDENCE_MULTIPLY;
             instruction = INSTRUCTION_MODULO;
             break;
 
         /* a closing bracket */
         case ')':
-            if (precedence < OPEN_BRACKET) {
+            if (precedence < PRECEDENCE_OPEN_BRACKET) {
                 return PARSER_ERROR_MISSING_OPENING_BRACKET;
             }
             /* let the higher function take care of the closing bracket */
-            if (precedence > OPEN_BRACKET) {
+            if (precedence > PRECEDENCE_OPEN_BRACKET) {
                 return PARSER_SUCCESS;
             }
             parser->column++;
-            /* continue with a higher precedence */
-            precedence++;
-            break;
+            return PARSER_SUCCESS;
 
         default:
             return PARSER_UNEXPECTED;
@@ -427,10 +427,9 @@ static parser_error_t parse_expression_recursively(Parser *parser,
                 return PARSER_SUCCESS;
             }
             parser->column++;
-            insert_instruction(helper, position, instruction);
+            insert_instruction(parser, position, instruction);
             (void) skip_space_and_new_lines(parser);
-            error = parse_expression_recursively(parser, helper,
-                    other_precedence);
+            error = parse_expression_recursively(parser, other_precedence);
             if (error != PARSER_SUCCESS) {
                 return error;
             }
@@ -439,24 +438,61 @@ static parser_error_t parse_expression_recursively(Parser *parser,
 }
 
 /* Parse an expression. */
-parser_error_t parse_expression(Parser *parser, Expression *expression)
+parser_error_t parse_expression(Parser *parser)
+{
+    parser->instruction_size = 0;
+    return parse_expression_recursively(parser, PRECEDENCE_ORIGIN);
+}
+
+/* Parse 1, 2 or 4 four expressions in series. */
+parser_error_t parse_quad_expression(Parser *parser)
 {
     parser_error_t error;
-    struct helper helper;
+    uint32_t position;
+    uint32_t count = 0;
 
-    helper.error = PARSER_SUCCESS;
-    helper.instructions = NULL;
-    helper.size = 0;
-    helper.capacity = 4;
-    RESIZE(helper.instructions, helper.capacity);
+    position = parser->instruction_size;
 
-    error = parse_expression_recursively(parser, &helper, ORIGIN);
-    if (error == PARSER_SUCCESS) {
-        RESIZE(helper.instructions, helper.size);
-        expression->instructions = helper.instructions;
-        expression->instruction_size = helper.size;
-    } else {
-        free(helper.instructions);
+    push_instruction(parser, 0);
+
+    /* get the quad arguments up to 4 */
+    while (count < 4) {
+        count++;
+        error = parse_expression_recursively(parser, PRECEDENCE_ACTION);
+        /* if the end was reached, prematurely end */
+        if (error == PARSER_SUCCESS) {
+            break;
+        }
+        /* if an actual error happened, break */
+        if (error != PARSER_UNEXPECTED) {
+            break;
+        }
+        /* PARSER_UNEXPECTED is fine */
+        error = PARSER_SUCCESS;
     }
-    return error;
+
+    if (error == PARSER_UNEXPECTED && count != 0) {
+        error = PARSER_SUCCESS;
+    }
+
+    if (error != PARSER_SUCCESS) {
+        return error;
+    }
+
+    if (count == 3 || count == 0) {
+        return PARSER_ERROR_INVALID_QUAD;
+    }
+
+    parser->instructions[position] = MAKE_QUAD(count);
+
+    return PARSER_SUCCESS;
+}
+
+/* Allocate an expression from previously parsed expressions. */
+void extract_expression(Parser *parser, Expression *expression)
+{
+    expression->instructions = DUPLICATE(
+            parser->instructions,
+            parser->instruction_size);
+    expression->instruction_size = parser->instruction_size;
 }

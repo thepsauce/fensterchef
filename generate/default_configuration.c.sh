@@ -10,35 +10,43 @@ is_first_struct_item=true
 # $2 -> data value
 data_type_to_string() {
     case "$1" in
-    boolean|integer|quad)
+    quad)
         echo "$2"
         ;;
-    color)
-        echo "0x${2:1}"
-        ;;
-    modifiers)
-        IFS='+'
-        local first_time=true
-        for m in $2 ; do
-            if ! $first_time ; then
-                echo -n " | "
-            fi
-            first_time=false
+    integer)
+        result=""
+        case "$2" in
+        [0-9]*|true|false)
+            result="$2"
+            ;;
+        '#'*)
+            result="0x${2:1}"
+            ;;
+        Shift*|Lock*|Control*|Mod*)
+            IFS='+'
+            local first_time=true
+            for m in $2 ; do
+                if ! $first_time ; then
+                    result+=" | "
+                fi
+                first_time=false
 
-            case "$m" in
-            Mod*)
-                m="${m:3}"
-                ;;
-            esac
-            echo -n "XCB_MOD_MASK_${m^^}"
-        done
-        echo
-        IFS=
-        ;;
-    cursor)
-        cursor="${2^^}"
-        cursor="${cursor//-/_}"
-        echo XCURSOR_$cursor
+                case "$m" in
+                Mod*)
+                    m="${m:3}"
+                    ;;
+                esac
+                result+="XCB_MOD_MASK_${m^^}"
+            done
+            IFS=
+            ;;
+        *)
+            cursor="${2^^}"
+            cursor="${cursor//-/_}"
+            result="XCURSOR_$cursor"
+            ;;
+        esac
+        echo "$result"
         ;;
     *)
         echo "WHAT IS $1 - $0" >&2

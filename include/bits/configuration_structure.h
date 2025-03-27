@@ -77,15 +77,15 @@ struct configuration_general {
     /* at which percentage to consider a window to be overlapped with a monitor */
     int32_t overlap_percentage;
     /* the name of the cursor used on the root window */
-    core_cursor_t root_cursor;
+    int32_t root_cursor;
     /* the name of the cursor used for moving a window */
-    core_cursor_t moving_cursor;
+    int32_t moving_cursor;
     /* the name of the cursor used for sizing a window horizontally */
-    core_cursor_t horizontal_cursor;
+    int32_t horizontal_cursor;
     /* the name of the cursor used for sizing a window vertically */
-    core_cursor_t vertical_cursor;
+    int32_t vertical_cursor;
     /* the name of the cursor used for sizing a window */
-    core_cursor_t sizing_cursor;
+    int32_t sizing_cursor;
 };
 
 /* assignment settings */
@@ -101,23 +101,23 @@ struct configuration_assignment {
 /* tiling settings */
 struct configuration_tiling {
     /* whether to automatically create a split when a window is shown */
-    bool auto_split;
+    int32_t auto_split;
     /* whether to automatically equalize all frames within the root */
-    bool auto_equalize;
+    int32_t auto_equalize;
     /* whether to fill in empty frames automatically */
-    bool auto_fill_void;
+    int32_t auto_fill_void;
     /* whether to remove frames automatically when their inner windows is
      * hidden
      */
-    bool auto_remove;
+    int32_t auto_remove;
     /* whether to remove frames automatically when they become empty */
-    bool auto_remove_void;
+    int32_t auto_remove_void;
 };
 
 /* font settings */
 struct configuration_font {
     /* whether to use the core font instead of the better font rendering */
-    bool use_core_font;
+    int32_t use_core_font;
     /* name of the font in fontconfig format */
     utf8_t *name;
 };
@@ -127,11 +127,11 @@ struct configuration_border {
     /* width of the border around the windows */
     int32_t size;
     /* color of the border of an unfocused window */
-    uint32_t color;
+    int32_t color;
     /* color of the border of an unfocused tiling window */
-    uint32_t active_color;
+    int32_t active_color;
     /* color of the border of a focused window */
-    uint32_t focus_color;
+    int32_t focus_color;
 };
 
 /* gaps settings */
@@ -151,11 +151,11 @@ struct configuration_notification {
     /* width of the border */
     int32_t border_size;
     /* color of the border around the window */
-    uint32_t border_color;
+    int32_t border_color;
     /* color of the text */
-    uint32_t foreground;
+    int32_t foreground;
     /* color of the background */
-    uint32_t background;
+    int32_t background;
 };
 
 /* mouse settings */
@@ -163,9 +163,9 @@ struct configuration_mouse {
     /* how many pixels off the edges of windows should be used for resizing */
     int32_t resize_tolerance;
     /* the modifier key for all buttons (applied at the parsing step) */
-    uint16_t modifiers;
+    int32_t modifiers;
     /* the modifiers to ignore */
-    uint16_t ignore_modifiers;
+    int32_t ignore_modifiers;
     /* the configured buttons */
     struct configuration_button *buttons;
     /* the number of configured buttons */
@@ -175,9 +175,9 @@ struct configuration_mouse {
 /* keyboard settings */
 struct configuration_keyboard {
     /* the modifier key for all keys (applied at the parsing step) */
-    uint16_t modifiers;
+    int32_t modifiers;
     /* the modifiers to ignore */
-    uint16_t ignore_modifiers;
+    int32_t ignore_modifiers;
     /* the configured keys */
     struct configuration_key *keys;
     /* the number of configured keys */

@@ -65,8 +65,8 @@ extern log_severity_t log_severity;
  * %W   Window*                 ID<NUMBER or NAME>
  * %m   window_state_t          WINDOW_STATE
  * %F   Frame*                  (X+Y+WIDTHxHEIGHT)
- * %A   uint32_t, Action*       List of actions
- * %X   int                     CONNECTION ERROR
+ * %A   Expression*             EXPRESSION
+ * %X   int                     XCB CONNECTION ERROR
  * %a   xcb_atom_t              ATOM
  * %V   xcb_generic_event_t*    EVENT
  * %E   xcb_generic_error_t*    ERROR

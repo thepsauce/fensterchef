@@ -1,5 +1,5 @@
-#ifndef CONFIGURATION_PARSER_H
-#define CONFIGURATION_PARSER_H
+#ifndef PARSER_H
+#define PARSER_H
 
 #include <stdbool.h>
 #include <stdio.h>
@@ -50,30 +50,24 @@
     X(PARSER_ERROR_INVALID_BOOLEAN, "invalid boolean value") \
     /* a label does not define given variable name */ \
     X(PARSER_ERROR_INVALID_VARIABLE_NAME, "the label does not have that variable name") \
-    /* color is not in the right format */ \
-    X(PARSER_ERROR_BAD_COLOR_FORMAT, "bad color format (expect #XXXXXX)") \
     /* a line is terminated but tokens were expected first */ \
     X(PARSER_ERROR_PREMATURE_LINE_END, "premature line end") \
     /* invalid number of integers for a quad */ \
-    X(PARSER_ERROR_INVALID_QUAD, "invalid quad (either 1, 2 or 4 integers)") \
+    X(PARSER_ERROR_INVALID_QUAD, "invalid quad (need either 1, 2 or 4 integer expressions)") \
     /* invalid syntax for modifiers */ \
     X(PARSER_ERROR_INVALID_MODIFIERS, "invalid modifiers") \
-    /* invalid cursor name */ \
-    X(PARSER_ERROR_INVALID_CURSOR, "invalid cursor name") \
     /* invalid button name */ \
     X(PARSER_ERROR_INVALID_BUTTON, "invalid button name") \
     /* invalid button flag */ \
-    X(PARSER_ERROR_INVALID_BUTTON_FLAG, "invalid button flag") \
+    X(PARSER_ERROR_INVALID_BINDING_FLAG, "invalid binding flag") \
     /* invalid key symbol name */ \
     X(PARSER_ERROR_INVALID_KEY_SYMBOL, "invalid key symbol name") \
-    /* invalid value for an action */ \
-    X(PARSER_ERROR_MISSING_ACTION, "action value is missing") \
     /* an action value is missing */ \
     X(PARSER_ERROR_INVALID_ACTION, "invalid action type") \
     /* a separator (';') was expected */ \
     X(PARSER_ERROR_EXPECTED_SEPARATOR, "expected separator ';'") \
     /* an unsigned integer was expected */ \
-    X(PARSER_ERROR_EXPECTED_UNSIGNED_INTEGER, "expected an unsigned integer") \
+    X(PARSER_ERROR_INTEGER_TOO_LARGE, "the integer is too big") \
     /* a data type does not support an operation */ \
     X(PARSER_ERROR_INVALID_OPERATOR, "operator not defined for this data type") \
     /* there is a ) but no opening bracket */ \
@@ -96,10 +90,14 @@ typedef struct parser {
     FILE *file;
     /* stack of include files */
     struct parser_file_stack_entry {
+        /* the name of the previous file */
+        utf8_t *name;
+        /* the pushed file */
+        FILE *file;
+        /* the current line number within `file` */
+        size_t line_number;
         /* the label before opening `file` */
         parser_label_t label;
-        /* the deeper file */
-        FILE *file;
     } file_stack[32];
     /* the number of files on the file stack */
     uint32_t number_of_pushed_files;
@@ -129,7 +127,25 @@ typedef struct parser {
     char identifier_lower[PARSER_IDENTIFIER_LIMIT];
     /* a single identifying character like '[' or ']' */
     char character;
+
+    /** utility for expression parsing **/
+    /* the instructions being filled */
+    uint32_t *instructions;
+    /* number of instructions */
+    uint32_t instruction_size;
+    /* number of allocated instructions */
+    uint32_t instruction_capacity;
 } Parser;
+
+/* Prepare a parser for parsing. */
+int initialize_parser(Parser *parser, const char *string, bool is_string_file);
+
+/* Free the resources the parser occupies.
+ *
+ * This omits freeing @parser->configuration which needs to be handled
+ * externally.
+ */
+void deinitialize_parser(Parser *parser);
 
 /* Converts @error to a string. */
 const char *parser_error_to_string(parser_error_t error);
@@ -140,7 +156,9 @@ int string_to_modifier(const char *string, uint16_t *output);
 /* Translate a string like "false" to a boolean value. */
 int string_to_boolean(const char *string, bool *output);
 
-/* Read the next line from the file.
+/* Read the next line from the parsed files or string source into @parser->line.
+ *
+ * This also skips over all lines starting with any amount of space and a '#'.
  *
  * @return true if there is any line more lines, otherwise false.
  */
@@ -158,17 +176,30 @@ parser_error_t parse_character(Parser *parser);
  */
 parser_error_t parse_identifier(Parser *parser);
 
-/* Parse an integer in simple decimal notation. */
-parser_error_t parse_integer(Parser *parser, int32_t *output);
-
 /* Parse any text that may include escaped characters.
  *
- * Note that this stops at a semicolon.
+ * This stops at the separator characters ;, &, | and ).
+ *
+ * @return PARSER_UNEXPECTED when there was nothing there (just space or an
+ *         immediate separator).
  */
 parser_error_t parse_string(Parser *parser, utf8_t **output);
 
-/* Parse an expression. */
-parser_error_t parse_expression(Parser *parser, Expression *expression);
+/* Parse an expression.
+ *
+ * The expression is stored within the parser struct and resolves to an integer
+ * when evaluated.
+ */
+parser_error_t parse_expression(Parser *parser);
+
+/* Parse 1, 2 or 4 four expression in series.
+ *
+ * The expression is prefixed with the QUAD literal instruction.
+ */
+parser_error_t parse_quad_expression(Parser *parser);
+
+/* Allocate an expression from previously parsed expressions. */
+void extract_expression(Parser *parser, Expression *expression);
 
 /* Parse and evaluate the next line within the parser.
  *

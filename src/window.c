@@ -155,7 +155,7 @@ Window *create_window(xcb_window_t xcb_window,
             if (load_configuration(command, &configuration, false) == OK) {
                 LOG("doing its actions: %A\n",
                         &configuration.startup.expression);
-                evaluate_expression(&configuration.startup.expression);
+                evaluate_expression(&configuration.startup.expression, NULL);
                 clear_configuration(&configuration);
             }
 
