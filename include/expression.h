@@ -77,9 +77,6 @@ typedef struct expression {
     uint32_t instruction_size;
 } Expression;
 
-/* Get the data type of an instruction. */
-data_type_t get_instruction_data_type(uint32_t type);
-
 /* Evaluate given expression. */
 int evaluate_expression(const Expression *expression);
 

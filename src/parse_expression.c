@@ -348,7 +348,7 @@ static parser_error_t parse_expression_recursively(Parser *parser,
         case '|':
         case '&': {
             const char operator = parser->line[parser->column];
-            uint32_t jump_offest;
+            uint32_t jump_offset;
 
             if (precedence > LOGICAL_AND) {
                 return PARSER_SUCCESS;
@@ -358,7 +358,7 @@ static parser_error_t parse_expression_recursively(Parser *parser,
                 return PARSER_ERROR_UNEXPECTED;
             }
             parser->column++;
-            jump_offest = helper->size;
+            jump_offset = helper->size;
             insert_instruction(helper, position, operator == '&' ?
                     INSTRUCTION_LOGICAL_AND : INSTRUCTION_LOGICAL_OR);
             (void) skip_space_and_new_lines(parser);
@@ -366,8 +366,8 @@ static parser_error_t parse_expression_recursively(Parser *parser,
             if (error != PARSER_SUCCESS) {
                 return error;
             }
-            jump_offest = helper->size - jump_offest;
-            helper->instructions[position] |= jump_offest << 8;
+            jump_offset = helper->size - jump_offset - 1;
+            helper->instructions[position] |= jump_offset << 8;
             break;
         }
 

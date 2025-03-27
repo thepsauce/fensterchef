@@ -744,8 +744,10 @@ static void handle_map_request(xcb_map_request_event_t *event)
      * number
      */
     if (association.expression.instruction_size > 0) {
-        LOG("running associated actions: %A\n", &association.expression);
+        LOG("running associated expression: %A\n", &association.expression);
+        Window_pressed = window;
         evaluate_expression(&association.expression);
+        Window_pressed = NULL;
     } else {
         /* if a window does not start in normal state, do not map it */
         if (is_first_time && (window->hints.flags & XCB_ICCCM_WM_HINT_STATE) &&

@@ -71,6 +71,14 @@ const struct configuration default_configuration = {
 static inline void make_action_instruction(Expression *expression,
         action_type_t type, GenericData *data)
 {
+    if (data == NULL) {
+        expression->instruction_size = 1;
+        expression->instructions = xmalloc(sizeof(*expression->instructions) *
+            expression->instruction_size);
+        expression->instructions[0] = MAKE_VOID_ACTION(type);
+        return;
+    }
+
     const data_type_t data_type = get_action_data_type(type);
     switch (data_type) {
     case DATA_TYPE_VOID:
@@ -202,114 +210,118 @@ void merge_with_default_key_bindings(struct configuration *configuration)
     struct {
         /* the modifiers of the key */
         uint16_t modifiers;
-        /* the binding flags */
-        uint16_t flags;
         /* the key symbol */
         xcb_keysym_t key_symbol;
         /* the singular action to execute */
         struct {
             /* the type of the action */
             action_type_t type;
+            /* if the action has data */
+            bool has_data;
             /* the action data */
             GenericData data;
         } action;
     } default_bindings[] = {
         /* reload the configuration */
-        { XCB_MOD_MASK_SHIFT, 0, XK_r, { .type = ACTION_RELOAD_CONFIGURATION } },
+        { XCB_MOD_MASK_SHIFT, XK_r, { .type = ACTION_RELOAD_CONFIGURATION } },
 
         /* move the focus to a child or parent frame */
-        { 0, 0, XK_a, { ACTION_FOCUS_PARENT, { .integer = 1 } } },
-        { 0, 0, XK_b, { ACTION_FOCUS_CHILD, { .integer = 1 } } },
-        { XCB_MOD_MASK_SHIFT, 0, XK_a, { ACTION_FOCUS_PARENT, {
+        { 0, XK_a, { ACTION_FOCUS_PARENT, true, { .integer = 1 } } },
+        { 0, XK_b, { ACTION_FOCUS_CHILD, true, { .integer = 1 } } },
+        { XCB_MOD_MASK_SHIFT, XK_a, { ACTION_FOCUS_PARENT, true, {
                                        .integer = UINT32_MAX } } },
 
         /* make the size of frames equal */
-        { 0, 0, XK_equal, { .type = ACTION_EQUALIZE_FRAME } },
+        { 0, XK_equal, { .type = ACTION_EQUALIZE_FRAME } },
 
         /* close the active window */
-        { 0, 0, XK_q, { .type = ACTION_CLOSE_WINDOW } },
+        { 0, XK_q, { .type = ACTION_CLOSE_WINDOW } },
 
         /* minimize the active window */
-        { 0, 0, XK_minus, { .type = ACTION_MINIMIZE_WINDOW } },
+        { 0, XK_minus, { .type = ACTION_MINIMIZE_WINDOW } },
 
         /* go to the next window in the tiling */
-        { 0, 0, XK_n, { .type = ACTION_NEXT_WINDOW } },
-        { 0, 0, XK_p, { .type = ACTION_PREVIOUS_WINDOW } },
+        { 0, XK_n, { .type = ACTION_NEXT_WINDOW } },
+        { 0, XK_p, { .type = ACTION_PREVIOUS_WINDOW } },
 
         /* remove the current tiling frame */
-        { 0, 0, XK_r, { .type = ACTION_REMOVE_FRAME } },
+        { 0, XK_r, { .type = ACTION_REMOVE_FRAME } },
 
         /* put the stashed frame into the current one */
-        { 0, 0, XK_o, { .type = ACTION_OTHER_FRAME } },
+        { 0, XK_o, { .type = ACTION_OTHER_FRAME } },
 
         /* toggle between tiling and the previous mode */
-        { XCB_MOD_MASK_SHIFT, 0, XK_space, { .type = ACTION_TOGGLE_TILING } },
+        { XCB_MOD_MASK_SHIFT, XK_space, { .type = ACTION_TOGGLE_TILING } },
 
         /* toggle between fullscreen and the previous mode */
-        { 0, 0, XK_f, { .type = ACTION_TOGGLE_FULLSCREEN } },
+        { 0, XK_f, { .type = ACTION_TOGGLE_FULLSCREEN } },
 
         /* focus from tiling to non tiling and vise versa */
-        { 0, 0, XK_space, { .type = ACTION_TOGGLE_FOCUS } },
+        { 0, XK_space, { .type = ACTION_TOGGLE_FOCUS } },
 
         /* split a frame */
-        { 0, 0, XK_v, { .type = ACTION_SPLIT_HORIZONTALLY } },
-        { 0, 0, XK_s, { .type = ACTION_SPLIT_VERTICALLY } },
+        { 0, XK_v, { .type = ACTION_SPLIT_HORIZONTALLY } },
+        { 0, XK_s, { .type = ACTION_SPLIT_VERTICALLY } },
 
         /* move between frames */
-        { 0, 0, XK_k, { .type = ACTION_FOCUS_UP } },
-        { 0, 0, XK_h, { .type = ACTION_FOCUS_LEFT } },
-        { 0, 0, XK_l, { .type = ACTION_FOCUS_RIGHT } },
-        { 0, 0, XK_j, { .type = ACTION_FOCUS_DOWN } },
+        { 0, XK_k, { .type = ACTION_FOCUS_UP } },
+        { 0, XK_h, { .type = ACTION_FOCUS_LEFT } },
+        { 0, XK_l, { .type = ACTION_FOCUS_RIGHT } },
+        { 0, XK_j, { .type = ACTION_FOCUS_DOWN } },
 
         /* exchange frames */
-        { XCB_MOD_MASK_SHIFT, 0, XK_k, { .type = ACTION_EXCHANGE_UP } },
-        { XCB_MOD_MASK_SHIFT, 0, XK_h, { .type = ACTION_EXCHANGE_LEFT } },
-        { XCB_MOD_MASK_SHIFT, 0, XK_l, { .type = ACTION_EXCHANGE_RIGHT } },
-        { XCB_MOD_MASK_SHIFT, 0, XK_j, { .type = ACTION_EXCHANGE_DOWN } },
+        { XCB_MOD_MASK_SHIFT, XK_k, { .type = ACTION_EXCHANGE_UP } },
+        { XCB_MOD_MASK_SHIFT, XK_h, { .type = ACTION_EXCHANGE_LEFT } },
+        { XCB_MOD_MASK_SHIFT, XK_l, { .type = ACTION_EXCHANGE_RIGHT } },
+        { XCB_MOD_MASK_SHIFT, XK_j, { .type = ACTION_EXCHANGE_DOWN } },
 
         /* move a window */
-        { 0, 0, XK_Left, { ACTION_RESIZE_BY, { .quad = { 20, 0, -20, 0 } } } },
-        { 0, 0, XK_Up, { ACTION_RESIZE_BY, { .quad = { 0, 20, 0, -20 } } } },
-        { 0, 0, XK_Right, { ACTION_RESIZE_BY, { .quad = { -20, 0, 20, 0 } } } },
-        { 0, 0, XK_Down, { ACTION_RESIZE_BY, { .quad = { 0, -20, 0, 20 } } } },
+        { 0, XK_Left, { ACTION_RESIZE_BY, true, {
+                .quad = { 20, 0, -20, 0 } } } },
+        { 0, XK_Up, { ACTION_RESIZE_BY, true, {
+                .quad = { 0, 20, 0, -20 } } } },
+        { 0, XK_Right, { ACTION_RESIZE_BY, true, {
+                .quad = { -20, 0, 20, 0 } } } },
+        { 0, XK_Down, { ACTION_RESIZE_BY, true, {
+                .quad = { 0, -20, 0, 20 } } } },
 
         /* resizing the top/left edges of a window */
-        { XCB_MOD_MASK_CONTROL, 0, XK_Left, { ACTION_RESIZE_BY, {
+        { XCB_MOD_MASK_CONTROL, XK_Left, { ACTION_RESIZE_BY, true, {
                 .quad = { 20, 0, 0, 0 } } } },
-        { XCB_MOD_MASK_CONTROL, 0, XK_Up, { ACTION_RESIZE_BY, {
+        { XCB_MOD_MASK_CONTROL, XK_Up, { ACTION_RESIZE_BY, true, {
                 .quad = { 0, 20, 0, 0 } } } },
-        { XCB_MOD_MASK_CONTROL, 0, XK_Right, { ACTION_RESIZE_BY, {
+        { XCB_MOD_MASK_CONTROL, XK_Right, { ACTION_RESIZE_BY, true, {
                 .quad = { -20, 0, 0, 0 } } } },
-        { XCB_MOD_MASK_CONTROL, 0, XK_Down, { ACTION_RESIZE_BY, {
+        { XCB_MOD_MASK_CONTROL, XK_Down, { ACTION_RESIZE_BY, true, {
                 .quad = { 0, -20, 0, 0 } } } },
 
         /* resizing the bottom/right edges of a window */
-        { XCB_MOD_MASK_SHIFT, 0, XK_Left, { ACTION_RESIZE_BY, {
+        { XCB_MOD_MASK_SHIFT, XK_Left, { ACTION_RESIZE_BY, true, {
                 .quad = { 0, 0, -20, 0 } } } },
-        { XCB_MOD_MASK_SHIFT, 0, XK_Up, { ACTION_RESIZE_BY, {
+        { XCB_MOD_MASK_SHIFT, XK_Up, { ACTION_RESIZE_BY, true, {
                 .quad = { 0, 0, 0, -20 } } } },
-        { XCB_MOD_MASK_SHIFT, 0, XK_Right, { ACTION_RESIZE_BY, {
+        { XCB_MOD_MASK_SHIFT, XK_Right, { ACTION_RESIZE_BY, true, {
                 .quad = { 0, 0, 20, 0 } } } },
-        { XCB_MOD_MASK_SHIFT, 0, XK_Down, { ACTION_RESIZE_BY, {
+        { XCB_MOD_MASK_SHIFT, XK_Down, { ACTION_RESIZE_BY, true, {
                 .quad = { 0, 0, 0, 20 } } } },
 
         /* inflate/deflate a window */
-        { XCB_MOD_MASK_CONTROL, 0, XK_equal, {
-                ACTION_RESIZE_BY, { .quad = { 10, 10, 10, 10 } } } },
-        { XCB_MOD_MASK_CONTROL, 0, XK_minus, {
-                ACTION_RESIZE_BY, { .quad = { -10, -10, -10, -10 } } } },
+        { XCB_MOD_MASK_CONTROL, XK_equal, {
+                ACTION_RESIZE_BY, true, { .quad = { 10, 10, 10, 10 } } } },
+        { XCB_MOD_MASK_CONTROL, XK_minus, {
+                ACTION_RESIZE_BY, true, { .quad = { -10, -10, -10, -10 } } } },
 
         /* show the interactive window list */
-        { 0, 0, XK_w, { .type = ACTION_SHOW_WINDOW_LIST } },
+        { 0, XK_w, { .type = ACTION_SHOW_WINDOW_LIST } },
 
         /* run the terminal or xterm as fall back */
-        { 0, 0, XK_Return, { ACTION_RUN, {
+        { 0, XK_Return, { ACTION_RUN, true, {
                 .string = (utf8_t*)
                     "[ -n \"$TERMINAL\" ] && exec \"$TERMINAL\" || exec xterm"
             } } },
 
         /* quit fensterchef */
-        { XCB_MOD_MASK_CONTROL | XCB_MOD_MASK_SHIFT, 0, XK_e,
+        { XCB_MOD_MASK_CONTROL | XCB_MOD_MASK_SHIFT, XK_e,
             { .type = ACTION_QUIT } }
     };
 
@@ -323,7 +335,7 @@ void merge_with_default_key_bindings(struct configuration *configuration)
         const uint16_t modifiers = default_bindings[i].modifiers |
             configuration->keyboard.modifiers;
         key = find_configured_key_by_symbol(configuration, modifiers,
-                default_bindings[i].key_symbol, default_bindings[i].flags);
+                default_bindings[i].key_symbol, 0);
         if (key != NULL) {
             continue;
         }
@@ -343,18 +355,19 @@ void merge_with_default_key_bindings(struct configuration *configuration)
         const uint16_t modifiers = default_bindings[i].modifiers |
             configuration->keyboard.modifiers;
         key = find_configured_key_by_symbol(configuration, modifiers,
-                default_bindings[i].key_symbol, default_bindings[i].flags);
+                default_bindings[i].key_symbol, 0);
         if (key != NULL) {
             continue;
         }
         /* bake a key binding from the bindings array */
-        next_key->flags = default_bindings[i].flags;
+        next_key->flags = 0;
         next_key->modifiers = modifiers;
         next_key->key_symbol = default_bindings[i].key_symbol;
         next_key->key_code = 0;
         make_action_instruction(&next_key->expression,
                 default_bindings[i].action.type,
-                &default_bindings[i].action.data);
+                !default_bindings[i].action.has_data ? NULL :
+                    &default_bindings[i].action.data);
         next_key++;
     }
     configuration->keyboard.number_of_keys = new_count;

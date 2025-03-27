@@ -1187,21 +1187,132 @@ static void log_frame(const Frame *frame)
     }
 }
 
+static const uint32_t *log_instruction(const uint32_t *instructions)
+{
+    const uint32_t instruction = instructions[0];
+    instructions++;
+    const instruction_type_t type = (instruction & 0xff);
+    switch (type) {
+    /* get a 24 bit signed integer */
+    case LITERAL_INTEGER: {
+        const struct {
+            int32_t x : 24;
+        } sign_extend = { instruction >> 8 };
+        log_integer(sign_extend.x);
+        break;
+    }
+
+    /* a quad value */
+    case LITERAL_QUAD: {
+        switch (instruction >> 8) {
+        /* copy the single value into the other */
+        case 1:
+            instructions = log_instruction(instructions);
+            break;
+
+        /* copy the two values into the other */
+        case 2:
+            instructions = log_instruction(instructions);
+            fputc(' ', stderr);
+            instructions = log_instruction(instructions);
+            break;
+
+        /* simply get all four values */
+        case 4:
+            instructions = log_instruction(instructions);
+            fputc(' ', stderr);
+            instructions = log_instruction(instructions);
+            fputc(' ', stderr);
+            instructions = log_instruction(instructions);
+            fputc(' ', stderr);
+            instructions = log_instruction(instructions);
+            break;
+        }
+        break;
+    }
+
+    /* get a string */
+    case LITERAL_STRING:
+        fprintf(stderr, COLOR(GREEN) "%s" CLEAR_COLOR,
+                (char*) &instructions[0]);
+        instructions += instruction >> 8;
+        break;
+
+#define DUAL_OPERATION(operator) do { \
+    fputs("(", stderr); \
+    instructions = log_instruction(instructions); \
+    fputs(COLOR(MAGENTA) " " STRINGIFY(operator) " " CLEAR_COLOR, stderr); \
+    instructions = log_instruction(instructions); \
+    fputs(")", stderr); \
+} while (false)
+
+    /* execute the two next instructions */
+    case INSTRUCTION_NEXT:
+        DUAL_OPERATION(;);
+        break;
+
+    /* jump operations */
+    case INSTRUCTION_LOGICAL_AND:
+        DUAL_OPERATION(&&);
+        break;
+    case INSTRUCTION_LOGICAL_OR:
+        DUAL_OPERATION(||);
+        break;
+
+    /* integer operations */
+    case INSTRUCTION_NEGATE:
+        fprintf(stderr, "-(");
+        instructions = log_instruction(instructions);
+        fprintf(stderr, ")");
+        break;
+    case INSTRUCTION_ADD:
+        DUAL_OPERATION(+);
+        break;
+    case INSTRUCTION_SUBTRACT:
+        DUAL_OPERATION(-);
+        break;
+    case INSTRUCTION_MULTIPLY:
+        DUAL_OPERATION(*);
+        break;
+    case INSTRUCTION_DIVIDE:
+        DUAL_OPERATION(/);
+        break;
+    case INSTRUCTION_MODULO:
+        DUAL_OPERATION(%);
+        break;
+
+#undef DUAL_OPERATION
+
+    /* run an action */
+    case INSTRUCTION_RUN_ACTION:
+        fprintf(stderr, COLOR(CYAN) "%s " CLEAR_COLOR,
+                action_type_to_string(instruction >> 8));
+        instructions = log_instruction(instructions);
+        break;
+
+    /* run an action without parameter */
+    case INSTRUCTION_RUN_VOID_ACTION:
+        fprintf(stderr, COLOR(CYAN) "%s" CLEAR_COLOR,
+                action_type_to_string(instruction >> 8));
+        break;
+    }
+    return instructions;
+}
+
 /* Log an expression to standard error output. */
 static void log_expression(const Expression *expression)
 {
-    uint32_t *instructions, *end;
+    const uint32_t *instructions, *end;
 
     instructions = expression->instructions;
     end = &expression->instructions[expression->instruction_size];
 
-    fputs(COLOR(GREEN), stderr);
     while (instructions < end) {
-        const uint32_t type = instructions[0];
-        instructions++;
-        fprintf(stderr, "%08" PRIx32 " ", type);
+        instructions = log_instruction(instructions);
+        if (instructions < end) {
+            fputs(COLOR(MAGENTA) " ; " CLEAR_COLOR, stderr);
+        }
     }
-    fputs(CLEAR_COLOR, stderr);
 }
 
 /* Log the screen information to standard error output. */

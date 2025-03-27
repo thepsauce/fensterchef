@@ -6,18 +6,6 @@
 
 #include "log.h"
 
-/* Get the data type of an instruction. */
-data_type_t get_instruction_data_type(uint32_t type)
-{
-    switch (type) {
-    case LITERAL_STRING:
-        return DATA_TYPE_STRING;
-
-    default:
-        return DATA_TYPE_INTEGER;
-    }
-}
-
 /* Run given instruction.
  *
  * @data is used to store any results.
@@ -29,16 +17,13 @@ const uint32_t *run_instruction(const uint32_t *instructions, GenericData *data)
     const uint32_t instruction = instructions[0];
     instructions++;
     const instruction_type_t type = (instruction & 0xff);
-    LOG_VERBOSE("executing instruction: %u (%06x)\n", type, instruction >> 8);
     switch (type) {
     /* get a 24 bit signed integer */
     case LITERAL_INTEGER: {
-        struct {
+        const struct {
             int32_t x : 24;
-        } sign_extend;
-        sign_extend.x = instruction >> 8;
+        } sign_extend = { instruction >> 8 };
         data->integer = sign_extend.x;
-        LOG_VERBOSE("have literal integer: %d\n", data->integer);
         break;
     }
 
@@ -80,7 +65,6 @@ const uint32_t *run_instruction(const uint32_t *instructions, GenericData *data)
     case LITERAL_STRING:
         data->string = (utf8_t*) &instructions[0];
         instructions += instruction >> 8;
-        LOG_VERBOSE("have literal string: %s\n", data->string);
         break;
 
     /* execute the two next instructions */
@@ -114,14 +98,12 @@ const uint32_t *run_instruction(const uint32_t *instructions, GenericData *data)
     instructions = run_instruction(instructions, data); \
     instructions = run_instruction(instructions, (GenericData*) &second); \
     data->integer operator##= second; \
-    LOG_VERBOSE("result of operation: %d\n", data->integer); \
 } while (false)
 
     /* integer operations */
     case INSTRUCTION_NEGATE:
         instructions = run_instruction(instructions, data);
         data->integer *= -1;
-        LOG_VERBOSE("result of negation: %d\n", data->integer);
         break;
     case INSTRUCTION_ADD:
         INTEGER_OPERATION(+);
@@ -144,12 +126,12 @@ const uint32_t *run_instruction(const uint32_t *instructions, GenericData *data)
     /* run an action */
     case INSTRUCTION_RUN_ACTION:
         instructions = run_instruction(instructions, data);
-        data->integer = !do_action(instruction >> 8, data);
+        data->integer = do_action(instruction >> 8, data);
         break;
 
     /* run an action without parameter */
     case INSTRUCTION_RUN_VOID_ACTION:
-        data->integer = !do_action(instruction >> 8, NULL);
+        data->integer = do_action(instruction >> 8, NULL);
         break;
     }
     return instructions;
@@ -166,9 +148,6 @@ int evaluate_expression(const Expression *expression)
 
     while (instructions < end) {
         instructions = run_instruction(instructions, &data);
-        if (instructions == NULL) {
-            return ERROR;
-        }
     }
     return OK;
 }
