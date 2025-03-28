@@ -6,7 +6,7 @@
 #51/#8 ! Fix fixed size fonts messing up
     Fixed size fonts like emoji fonts are not scaled and it looks very weird
 
-#63 ...
+#64 ...
 
 #1000 Make a wayland port
     Make an additional repository that hosts fensterchef-wayland
@@ -84,6 +84,10 @@
     ```
     No window gets in a bugged state it seems anymore. This is just a poor
     script to reconfigure the monitors.
+
+#63 ? Replace deletion of atom with setting of another
+    When a command is sent via the FENSTERCHEF_COMMAND atom, it is currently
+    deleted. Instead, set FENSTERCHEF_RETURN on the window.
 
 [Done]
 #9 Add maintainability macros

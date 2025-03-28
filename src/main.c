@@ -17,22 +17,26 @@
 /* FENSTERCHEF main entry point. */
 int main(int argc, char **argv)
 {
-    const char *xdg_config_home;
-
     Fensterchef_home = getenv("HOME");
     if (Fensterchef_home == NULL) {
         fprintf(stderr, "to run fensterchef, you must set HOME\n");
         exit(EXIT_FAILURE);
     }
 
-    xdg_config_home = getenv("XDG_CONFIG_HOME");
-    if (xdg_config_home == NULL) {
-        Fensterchef_configuration = xasprintf("%s/.config/"
-                    FENSTERCHEF_CONFIGURATION,
-                Fensterchef_home);
-    } else {
-        Fensterchef_configuration = xasprintf("%s/" FENSTERCHEF_CONFIGURATION,
-                xdg_config_home);
+    /* either use XDG_CONFIG_HOME as the configuration directory or ~/.config */
+    {
+        const char *xdg_config_home;
+
+        xdg_config_home = getenv("XDG_CONFIG_HOME");
+        if (xdg_config_home == NULL) {
+            Fensterchef_configuration = xasprintf("%s/.config/"
+                        FENSTERCHEF_CONFIGURATION,
+                    Fensterchef_home);
+        } else {
+            Fensterchef_configuration = xasprintf("%s/"
+                        FENSTERCHEF_CONFIGURATION,
+                    xdg_config_home);
+        }
     }
 
     /* parse the program arguments */
@@ -81,11 +85,19 @@ int main(int argc, char **argv)
     /* set the X properties on the root window */
     initialize_root_properties();
 
-    /* load the default configuration and the user configuration, this also
+    /* load the user configuration or the default configuration; this also
      * initializes the bindings and font
      */
-    load_default_configuration();
-    reload_user_configuration();
+    {
+        struct configuration configuration;
+
+        if (load_configuration(Fensterchef_configuration, &configuration,
+                    true) != OK) {
+            load_default_configuration();
+        } else {
+            set_configuration(&configuration);
+        }
+    }
 
     /* manage the windows that are already there */
     query_existing_windows();

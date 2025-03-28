@@ -115,7 +115,7 @@ void clear_configuration(struct configuration *configuration)
     free(configuration->keyboard.keys);
 }
 
-/* Load the user configuration and merge it into the current configuration. */
+/* Load the user configuration and make it the current configuration. */
 void reload_user_configuration(void)
 {
     struct configuration configuration;
