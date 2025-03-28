@@ -20,7 +20,7 @@ void duplicate_configuration(struct configuration *duplicate);
 /* Clear the resources given configuration occupies. */
 void clear_configuration(struct configuration *configuration);
 
-/* Load the user configuration and merge it into the current configuration.
+/* Load the user configuration and make it the current configuration.
  *
  * Due to a bug, this function can not be called directly. Use
  * `reload_requested = true` instead, this will then call this function in
