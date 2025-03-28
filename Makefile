@@ -15,6 +15,7 @@ RELEASE_FLAGS := -O3
 # Libraries
 C_LIBS := $(shell pkg-config --libs $(PACKAGES))
 
+# Installation paths
 LICENSE := /usr/share/licenses/fensterchef
 BINARY := /usr/bin/fensterchef
 MANUAL_PAGE_1 := /usr/share/man/man1/fensterchef.1.gz
@@ -96,20 +97,6 @@ build/fensterchef: $(OBJECTS)
 	mkdir -p $(dir $@)
 	$(CC) $(DEBUG_FLAGS) $(C_FLAGS) $(OBJECTS) -o $@ $(C_LIBS)
 
-# Manual page
-release/fensterchef.1.gz: man/fensterchef.1
-	mkdir -p release
-	gzip --best -c man/fensterchef.1 >$@
-
-release/fensterchef.5.gz: man/fensterchef.5
-	mkdir -p release
-	gzip --best -c man/fensterchef.5 >$@
-
-# Release executable
-release/fensterchef: $(SOURCES) $(INCLUDES)
-	mkdir -p release
-	gcc $(RELEASE_FLAGS) $(C_FLAGS) $(SOURCES) -o release/fensterchef $(C_LIBS)
-
 # Tests
 .PHONY: tests
 
@@ -125,6 +112,20 @@ build/tests/%: build/tests/%.o $(OBJECTS_WITHOUT_MAIN)
 	$(CC) $(DEBUG_FLAGS) $(C_FLAGS) $(OBJECTS_WITHOUT_MAIN) $< -o $@ $(C_LIBS) $(shell pkg-config --libs $(TEST_PACKAGES))
 
 tests: $(INCLUDES) $(TESTS)
+
+# Manual pages
+release/fensterchef.1.gz: man/fensterchef.1
+	mkdir -p release
+	gzip --best -c man/fensterchef.1 >$@
+
+release/fensterchef.5.gz: man/fensterchef.5
+	mkdir -p release
+	gzip --best -c man/fensterchef.5 >$@
+
+# Release executable
+release/fensterchef: $(SOURCES) $(INCLUDES)
+	mkdir -p release
+	gcc $(RELEASE_FLAGS) $(C_FLAGS) $(SOURCES) -o release/fensterchef $(C_LIBS)
 
 # Functions
 .PHONY: build sandbox release install uninstall clean
