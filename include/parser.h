@@ -60,6 +60,8 @@
     X(PARSER_ERROR_INVALID_BUTTON, "invalid button name") \
     /* invalid button flag */ \
     X(PARSER_ERROR_INVALID_BINDING_FLAG, "invalid binding flag") \
+    /* invalid key code value */ \
+    X(PARSER_ERROR_INVALID_KEY_CODE, "invalid key code value") \
     /* invalid key symbol name */ \
     X(PARSER_ERROR_INVALID_KEY_SYMBOL, "invalid key symbol name") \
     /* an action value is missing */ \

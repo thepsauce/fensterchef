@@ -3,41 +3,8 @@
     This is fixed by resizing the window, try to find out why it happens in the
     first place and when it happens
 
-#7 ! Discord hides itself again on WM_CHANGE_STATE
-    When starting Discord, it sometimes hides itself again
-    Try to check electron source code I guess... I do not know if it was made
-    using electron actually. Is this on purpose??
-
-#24 ! Monitor frames wrong when screen size changes
-    Exactly in what circumstances this bug appears is not known but running
-    randfix.sh gets a window in a bugged state, this might have to do with
-    stashing away frames. randfix.sh looks like:
-    ```
-    #!/bin/bash
-
-    MON1=HDMI-A-0
-    MON2=DVI-D-1
-
-    xrandr --output $MON1 --off
-    xrandr --output $MON2 --off
-    xrandr --output $MON1 --auto
-    xrandr --output $MON2 --auto
-    xrandr --output $MON1 --right-of $MON2
-    xrandr --output $MON1 --primary
-    xrandr --output $MON1 --dpi 96
-    xrandr --output $MON2 --dpi 96
-    ```
-
 #51/#8 ! Fix fixed size fonts messing up
     Fixed size fonts like emoji fonts are not scaled and it looks very weird
-
-#58 Add dumping of a frame layout
-    This should dump a layout to a file, maybe it should be a fensterchef
-    configuration file that one can include
-
-#59 Make it run more than startup actions using external command
-    Right now using -e, only actions can be sent. Make it so entire
-    configurations can be sent. This is helpful when setting a specific layout
 
 #63 ...
 
@@ -49,26 +16,9 @@
     Make shell scripts to generate the manual page (should the wiki be
     continued?)
 
-#57 Make higher scripting capabilities
-    Actions already return true or false, I made this for the future. This is an
-    example of an advanced fensterchef configuration:
-    ```
-    [assignment]
-    1000 toggling ; st-256color ; toggle-tiling
-
-    [startup]
-    run st -n toggling
-
-    [keyboard]
-    z focus-window 1000 && (
-       center-to *
-       resize-to 0 0 800 600
-    ) || minimize-window 1000
-    ```
-    This puts a terminal window in the background whose visibility can be
-    toggled by pressing Z. When showing the window, it is sized to 2/5 of the
-    monitors area.
-    So expressions would need to be added which replaces the action lists.
+#58 Add dumping of a frame layout
+    This should dump a layout to a file, maybe it should be a fensterchef
+    configuration file that one can include
 
 [Recheck]
 #8 ? Improve font rendering once again
@@ -107,6 +57,37 @@
 
 #45 ! Fix weird flicker of Steam window
     Steam flickers back and forth (once) when hovering over a menu item
+
+#59 ? Make it run more than startup actions using external command
+    Right now using -e, only actions can be sent. Make it so entire
+    configurations can be sent. This is helpful when setting a specific layout
+
+#7 ! Discord hides itself again on WM_CHANGE_STATE
+    When starting Discord, it sometimes hides itself again
+    Try to check electron source code I guess... I do not know if it was made
+    using electron actually. Is this on purpose?? I believe it is.
+
+#24 ! Monitor frames wrong when screen size changes
+    Exactly in what circumstances this bug appears is not known but running
+    randfix.sh gets a window in a bugged state, this might have to do with
+    stashing away frames. randfix.sh looks like:
+    ```
+    #!/bin/bash
+
+    MON1=HDMI-A-0
+    MON2=DVI-D-1
+
+    xrandr --output $MON1 --off
+    xrandr --output $MON2 --off
+    xrandr --output $MON2 --auto
+    xrandr --output $MON1 --auto
+    xrandr --output $MON1 --right-of $MON2
+    xrandr --output $MON1 --primary
+    xrandr --output $MON1 --dpi 96
+    xrandr --output $MON2 --dpi 96
+    ```
+    No window gets in a bugged state it seems anymore. This is just a poor
+    script to reconfigure the monitors.
 
 [Done]
 #9 Add maintainability macros
@@ -297,3 +278,24 @@
 #62 ! Window mapping again not raised
     When a window is shown through a map request for the second time and
     focused, it is not raised
+
+#57 Make higher scripting capabilities
+    Actions already return true or false, I made this for the future. This is an
+    example of an advanced fensterchef configuration:
+    ```
+    [assignment]
+    1000 toggling ; st-256color ; toggle-tiling
+
+    [startup]
+    run st -n toggling
+
+    [keyboard]
+    z focus-window 1000 && (
+       center-to *
+       resize-to 0 0 800 600
+    ) || minimize-window 1000
+    ```
+    This puts a terminal window in the background whose visibility can be
+    toggled by pressing Z. When showing the window, it is sized to 2/5 of the
+    monitors area.
+    So expressions would need to be added which replaces the action lists.

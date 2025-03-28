@@ -164,7 +164,7 @@ struct configuration_mouse {
     int32_t resize_tolerance;
     /* the modifier key for all buttons (applied at the parsing step) */
     int32_t modifiers;
-    /* the modifiers to ignore */
+    /* the modifiers to ignore for a mouse binding */
     int32_t ignore_modifiers;
     /* the configured buttons */
     struct configuration_button *buttons;
@@ -176,7 +176,7 @@ struct configuration_mouse {
 struct configuration_keyboard {
     /* the modifier key for all keys (applied at the parsing step) */
     int32_t modifiers;
-    /* the modifiers to ignore */
+    /* the modifiers to ignore for a key binding */
     int32_t ignore_modifiers;
     /* the configured keys */
     struct configuration_key *keys;

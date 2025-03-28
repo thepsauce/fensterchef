@@ -223,79 +223,92 @@ inline const char *parser_error_to_string(parser_error_t error)
 bool read_next_line(Parser *parser)
 {
     size_t length;
-    bool is_comment = false;
     struct parser_file_stack_entry *entry;
+    const char *new_line;
+    const char *start;
 
-    length = 0;
-    for (int c;; ) {
-        /* read the next character from the string source or file */
+    while (true) {
+        parser->line_number++;
+
+        /* if reading from a string source, simply find the line terminator (end
+         * of string or new line)
+         */
         if (parser->file == NULL) {
-            c = parser->string_source[parser->string_source_index];
-            if (c == '\0') {
-                c = EOF;
-            } else {
-                parser->string_source_index++;
-            }
-        } else {
-            c = fgetc(parser->file);
-        }
-
-        /* if there was nothing left in the current file, try to pop it */
-        if (c == EOF && length == 0) {
-            /* make sure to end all comments if there were any */
-            is_comment = false;
-
-            if (parser->number_of_pushed_files == 0) {
-                /* no more lines */
+            start = &parser->string_source[parser->string_source_index];
+            if (start[0] == '\0') {
                 break;
             }
-            parser->number_of_pushed_files--;
-            entry = &parser->file_stack[parser->number_of_pushed_files];
-            free(entry->name);
-            parser->file = entry->file;
-            parser->label = entry->label;
-            parser->line_number = entry->line_number;
-            continue;
-        }
 
-        if (length == parser->line_capacity) {
-            parser->line_capacity *= 2;
-            parser->line = xrealloc(parser->line, parser->line_capacity);
-        }
-
-        /* either an EOF or '\n' terminates a line */
-        if (c == EOF || c == '\n') {
-            parser->line_number++;
-            if (is_comment) {
-                /* ignore commented lines */
-                length = 0;
-                is_comment = false;
-                continue;
+            new_line = strchr(start, '\n');
+            if (new_line == NULL) {
+                length = strlen(start);
+                new_line = start + length;
+            } else {
+                length = new_line - start;
+                parser->string_source_index++;
             }
-            parser->column = 0;
+
+            parser->string_source_index += length;
+
+            if (parser->line_capacity <= length) {
+                parser->line_capacity += length + 1;
+                RESIZE(parser->line, parser->line_capacity);
+            }
+
+            memcpy(parser->line, start, length);
             parser->line[length] = '\0';
-            return true;
-        }
+        } else {
+            /* read an initial line segment, this might be the complete line */
+            if (fgets(parser->line, parser->line_capacity,
+                        parser->file) == NULL) {
+                /* there is no more content in this file */
 
-        if (c == '#') {
-            uint32_t i;
-
-            /* check if all read thus far is space */
-            for (i = 0; i < length; i++) {
-                if (!isspace(parser->line[i])) {
+                if (parser->number_of_pushed_files == 0) {
+                    /* no more lines */
                     break;
                 }
+
+                /* pop the file and equip the previous one */
+                parser->number_of_pushed_files--;
+                entry = &parser->file_stack[parser->number_of_pushed_files];
+                free(entry->name);
+                parser->file = entry->file;
+                parser->label = entry->label;
+                parser->line_number = entry->line_number;
+                continue;
             }
-            if (i == length) {
-                is_comment = true;
-            }
+
+            /* read the rest of the line by allocating more and more space */
+            length = 0;
+            do {
+                length += strlen(&parser->line[length]);
+                if (parser->line[length - 1] == '\n' || feof(parser->file)) {
+                    break;
+                }
+                parser->line_capacity += length + 1;
+                RESIZE(parser->line, parser->line_capacity);
+            } while (fgets(&parser->line[length],
+                        parser->line_capacity - length,
+                        parser->file) != NULL);
         }
 
-        if (is_comment) {
+        /* check for a commented line */
+        start = &parser->line[0];
+        while (isspace(start[0])) {
+            start++;
+        }
+        if (start[0] == '#') {
             continue;
         }
-        
-        parser->line[length++] = c;
+
+        /* remove trailing space */
+        while (length > 0 && isspace(parser->line[length - 1])) {
+            length--;
+        }
+        parser->line[length] = '\0';
+
+        parser->column = 0;
+        return true;
     }
     return false;
 }
@@ -325,13 +338,12 @@ parser_error_t parse_character(Parser *parser)
 /* Skip leading space and load the next identifier into @parser->indentifier. */
 parser_error_t parse_identifier(Parser *parser)
 {
-    size_t length;
+    size_t length = 0;
 
     skip_space(parser);
 
-    length = 0;
     /* identifiers are quite flexible, they may even start with a number, any
-     * chars of [a-zA-Z0-9-] are allowed
+     * chars within the group [a-zA-Z0-9-] are allowed
      */
     while (isalnum(parser->line[parser->column]) ||
             parser->line[parser->column] == '-') {
@@ -414,6 +426,7 @@ parser_error_t parse_string(Parser *parser, utf8_t **output)
     }
 
     if (end == parser->column) {
+        free(string);
         return PARSER_UNEXPECTED;
     }
 
@@ -529,24 +542,30 @@ static parser_error_t parse_key(Parser *parser, struct configuration_key *key)
 
     key->modifiers |= parser->configuration.keyboard.modifiers;
 
+    key->key_code = 0;
     /* intepret starting with a digit as keycode */
-    if (isdigit(parser->identifier_lower[0])) {
+    if (isdigit(parser->identifier[0])) {
+
         key->key_symbol = XCB_NONE;
-        key->key_code = 0;
-        for (uint32_t i = 0; parser->identifier_lower[i] != '\0'; i++) {
-            if (!isdigit(parser->identifier_lower[i])) {
-                error = PARSER_ERROR_INVALID_KEY_SYMBOL;
+        for (uint32_t i = 0; parser->identifier[i] != '\0'; i++) {
+            if (!isdigit(parser->identifier[i])) {
+                error = PARSER_ERROR_INVALID_KEY_CODE;
                 break;
             }
             key->key_code *= 10;
             key->key_code += parser->identifier_lower[i] - '0';
+        }
+
+        const xcb_setup_t *const setup = xcb_get_setup(connection);
+        if (key->key_code < setup->min_keycode ||
+                key->key_code > setup->max_keycode) {
+            error = PARSER_ERROR_INVALID_KEY_CODE;
         }
     } else {
         key->key_symbol = string_to_keysym(parser->identifier);
         if (key->key_symbol == XCB_NONE) {
             error = PARSER_ERROR_INVALID_KEY_SYMBOL;
         }
-        key->key_code = 0;
     }
 
     if (error != PARSER_SUCCESS) {

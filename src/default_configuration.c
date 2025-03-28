@@ -58,12 +58,12 @@ const struct configuration default_configuration = {
     .mouse = {
         .resize_tolerance = 8,
         .modifiers = XCB_MOD_MASK_4,
-        .ignore_modifiers = XCB_MOD_MASK_LOCK | XCB_MOD_MASK_2 | XCB_MOD_MASK_3 | XCB_MOD_MASK_5,
+        .ignore_modifiers = XCB_MOD_MASK_LOCK | XCB_MOD_MASK_2,
     },
 
     .keyboard = {
         .modifiers = XCB_MOD_MASK_4,
-        .ignore_modifiers = XCB_MOD_MASK_LOCK | XCB_MOD_MASK_2 | XCB_MOD_MASK_3 | XCB_MOD_MASK_5,
+        .ignore_modifiers = XCB_MOD_MASK_LOCK | XCB_MOD_MASK_2,
     },
 };
 

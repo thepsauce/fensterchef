@@ -107,8 +107,8 @@ resize-tolerance integer 8
    how many pixels off the edges of windows should be used for resizing
 modifiers integer Mod4
    the modifier key for all buttons (applied at the parsing step)
-ignore-modifiers integer Lock+Mod2+Mod3+Mod5
-   the modifiers to ignore
+ignore-modifiers integer Lock+Mod2
+   the modifiers to ignore for a mouse binding
 *struct configuration_button *buttons
    the configured buttons
 *uint32_t number_of_buttons
@@ -119,8 +119,8 @@ ignore-modifiers integer Lock+Mod2+Mod3+Mod5
 [keyboard]*binding
 modifiers integer Mod4
    the modifier key for all keys (applied at the parsing step)
-ignore-modifiers integer Lock+Mod2+Mod3+Mod5
-   the modifiers to ignore
+ignore-modifiers integer Lock+Mod2
+   the modifiers to ignore for a key binding
 *struct configuration_key *keys
    the configured keys
 *uint32_t number_of_keys

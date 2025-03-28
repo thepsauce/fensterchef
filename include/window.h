@@ -81,6 +81,10 @@ struct window {
     /* the number of this window, multiple windows may have the same number */
     uint32_t number;
 
+    /* The age linked list stores the windows in creation time order. */
+    /* a window newer than this one */
+    Window *newer;
+
     /* All windows are part of the Z ordered linked list even when they are
      * hidden now.
      *
@@ -90,10 +94,6 @@ struct window {
     Window *below;
     /* the window below this window */
     Window *above;
-
-    /* The age linked list stores the windows in creation time order. */
-    /* a window newer than this one */
-    Window *newer;
 
     /* The number linked list stores the windows sorted by their number. */
     /* the next window in the linked list */

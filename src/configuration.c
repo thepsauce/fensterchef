@@ -159,7 +159,6 @@ struct configuration_button *find_configured_button(
 void grab_configured_buttons(xcb_window_t window)
 {
     struct configuration_button *button;
-    uint16_t modifiers;
 
     /* ungrab all previous buttons so we can overwrite them */
     xcb_ungrab_button(connection, XCB_BUTTON_INDEX_ANY, window,
@@ -171,15 +170,9 @@ void grab_configured_buttons(xcb_window_t window)
          * so that when the user has CAPS LOCK for example, it does not mess
          * with mouse bindings
          */
-        for (uint16_t j = 0; j <= configuration.mouse.ignore_modifiers; j++) {
-            /* check if @j has any outside modifiers */
-            if ((j | configuration.mouse.ignore_modifiers) !=
-                    configuration.mouse.ignore_modifiers) {
-                continue;
-            }
-
-            modifiers = (j | button->modifiers) & 0xff;
-
+        for (uint16_t j = configuration.mouse.ignore_modifiers;
+                true;
+                j = ((j - 1) & configuration.mouse.ignore_modifiers)) {
             xcb_grab_button(connection,
                     true, /* report all events with respect to `window` */
                     window, /* this is the window we grab the button for */
@@ -200,7 +193,11 @@ void grab_configured_buttons(xcb_window_t window)
                     XCB_GRAB_MODE_ASYNC,
                     XCB_NONE, /* no confinement of the pointer */
                     XCB_NONE, /* no change of cursor */
-                    button->index, modifiers);
+                    button->index, (j | button->modifiers));
+
+            if (j == 0) {
+                break;
+            }
         }
     }
 }
@@ -253,54 +250,80 @@ struct configuration_key *find_configured_key_by_symbol(
     return NULL;
 }
 
+/* Grab a binding by key code. */
+static inline void grab_key_code(const struct configuration_key *key)
+{
+    /* iterate over all bit combinations */
+    for (uint16_t i = configuration.keyboard.ignore_modifiers;
+            true;
+            i = ((i - 1) & configuration.keyboard.ignore_modifiers)) {
+        xcb_grab_key(connection,
+                true, /* report the event relative to the root */
+                screen->root, /* the window to grab the keys for */
+                (i | key->modifiers), key->key_code,
+                /* do not freeze pointer (mouse) events */
+                XCB_GRAB_MODE_ASYNC,
+                /* do not freeze keyboard events */
+                XCB_GRAB_MODE_ASYNC);
+
+        if (i == 0) {
+            break;
+        }
+    }
+}
+
+/* Grab a binding by key symbol. */
+static inline void grab_key_symbol(const struct configuration_key *key)
+{
+    xcb_keycode_t *keycodes;
+
+    /* go over all keycodes of a specific key symbol and grab them with
+     * needed modifiers
+     */
+    keycodes = get_keycodes(key->key_symbol);
+    if (keycodes == NULL) {
+        return;
+    }
+
+    /* iterate over all key codes associated to the key symbol */
+    for (uint32_t i = 0; keycodes[i] != XCB_NO_SYMBOL; i++) {
+        /* iterate over all bit combinations */
+        for (uint16_t j = configuration.keyboard.ignore_modifiers;
+                true;
+                j = ((j - 1) & configuration.keyboard.ignore_modifiers)) {
+            xcb_grab_key(connection,
+                    true, /* report the event relative to the root */
+                    screen->root, /* the window to grab the keys for */
+                    (j | key->modifiers), keycodes[i],
+                    /* do not freeze pointer (mouse) events */
+                    XCB_GRAB_MODE_ASYNC,
+                    /* do not freeze keyboard events */
+                    XCB_GRAB_MODE_ASYNC);
+
+            if (j == 0) {
+                break;
+            }
+        }
+    }
+    free(keycodes);
+}
+
 /* Grab the key bindings so we receive the KeyPress/KeyRelease events for them.
  */
 void grab_configured_keys(void)
 {
-    xcb_window_t root;
-    xcb_keycode_t *keycodes;
-    uint16_t modifiers;
-
-    root = screen->root;
+    const struct configuration_key *key;
 
     /* remove all previously grabbed keys so that we can overwrite them */
-    xcb_ungrab_key(connection, XCB_GRAB_ANY, root, XCB_MOD_MASK_ANY);
+    xcb_ungrab_key(connection, XCB_GRAB_ANY, screen->root, XCB_MOD_MASK_ANY);
 
     for (uint32_t i = 0; i < configuration.keyboard.number_of_keys; i++) {
-        /* go over all keycodes of a specific key symbol and grab them with
-         * needed modifiers
-         */
-        keycodes = get_keycodes(configuration.keyboard.keys[i].key_symbol);
-        if (keycodes == NULL) {
-            continue;
+        key = &configuration.keyboard.keys[i];
+        if (key->key_symbol == XCB_NONE) {
+            grab_key_code(key);
+        } else {
+            grab_key_symbol(key);
         }
-        for (uint32_t j = 0; keycodes[j] != XCB_NO_SYMBOL; j++) {
-            /* use every possible combination of modifiers we do not care about
-             * so that when the user has CAPS LOCK for example, it does not mess
-             * with keybindings.
-             */
-            for (uint16_t k = 0;
-                    k <= configuration.mouse.ignore_modifiers;
-                    k++) {
-                /* check if @k has any outside modifiers */
-                if ((k | configuration.keyboard.ignore_modifiers) !=
-                        configuration.keyboard.ignore_modifiers) {
-                    continue;
-                }
-
-                modifiers = (k | configuration.keyboard.keys[i].modifiers);
-
-                xcb_grab_key(connection,
-                        true, /* report the event relative to the root */
-                        root, /* the window to grab the keys for */
-                        modifiers, keycodes[j],
-                        /* do not freeze pointer (mouse) events */
-                        XCB_GRAB_MODE_ASYNC,
-                        /* do not freeze keyboard events */
-                        XCB_GRAB_MODE_ASYNC);
-            }
-        }
-        free(keycodes);
     }
 }
 
