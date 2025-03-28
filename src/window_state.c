@@ -60,11 +60,12 @@ static int sort_by_x(const void *a, const void *b)
 
 /* Put windows along a diagonal line, spacing them out a little. */
 static inline void move_to_next_available(Monitor *monitor, Window *window,
-        int *x, int *y)
+        int32_t *x, int32_t *y)
 {
     /* step 1: get all windows on the diagonal line */
     Window *in_line_windows[Window_count];
     uint32_t count = 0;
+    int32_t best_x = 0;
 
     *x = monitor->x + monitor->width / 10;
     *y = monitor->y + monitor->height / 10;
@@ -73,11 +74,38 @@ static inline void move_to_next_available(Monitor *monitor, Window *window,
         if (other == window || !other->state.is_visible) {
             continue;
         }
-        if ((other->x - *x) % 20 != 0 || (other->y - *y) % 20 != 0) {
-            continue;
+        const Point difference = {
+            other->x - *x,
+            other->y - *y,
+        };
+        if (difference.x >= 0 && difference.x == difference.y &&
+                difference.x % 20 == 0) {
+            if (best_x == difference.x) {
+                best_x += 20;
+            }
+            in_line_windows[count] = other;
+            count++;
         }
-        in_line_windows[count] = other;
-        count++;
+    }
+
+    /* intermediary step: if the windows were already sorted advantageously,
+     * immediately find a gap
+     */
+    for (Window *other = Window_first; other != NULL; other = other->next) {
+        const Point difference = {
+            other->x - *x,
+            other->y - *y,
+        };
+        if (difference.x == best_x) {
+            best_x = -1;
+            break;
+        }
+    }
+
+    if (best_x >= 0) {
+        *x += best_x;
+        *y += best_x;
+        return;
     }
 
     /* step 2: sort them according to their x coordinate */
@@ -85,7 +113,8 @@ static inline void move_to_next_available(Monitor *monitor, Window *window,
 
     /* step 3: find a gap */
     for (uint32_t i = 0; i < count; i++) {
-        if (in_line_windows[i]->x != *x || in_line_windows[i]->y != *y) {
+        Window *const other = in_line_windows[i];
+        if (other->x != *x || other->y != *y) {
             break;
         }
         *x += 20;
