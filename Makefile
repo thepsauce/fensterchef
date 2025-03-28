@@ -15,6 +15,8 @@ RELEASE_FLAGS := -O3
 # Libraries
 C_LIBS := $(shell pkg-config --libs $(PACKAGES))
 
+# Installation paths
+LICENSE := /usr/share/licenses/fensterchef
 BINARY := /usr/bin/fensterchef
 MANUAL_PAGE_1 := /usr/share/man/man1/fensterchef.1.gz
 MANUAL_PAGE_5 := /usr/share/man/man5/fensterchef.5.gz
@@ -27,7 +29,7 @@ OBJECTS := $(patsubst src/%.c,build/%.o,$(SOURCES))
 INCLUDES := $(shell find include -name '*.h')
 
 # Find all test sources
-TEST_SOURCES := $(shell find tests -name '*.c')
+TEST_SOURCES := $(shell test -d tests && find tests -name '*.c')
 # Get the corresponding output binaries
 TESTS := $(patsubst tests/%.c,build/tests/%,$(TEST_SOURCES))
 # All objects but the main object
@@ -95,15 +97,6 @@ build/fensterchef: $(OBJECTS)
 	mkdir -p $(dir $@)
 	$(CC) $(DEBUG_FLAGS) $(C_FLAGS) $(OBJECTS) -o $@ $(C_LIBS)
 
-# Manual page
-release/fensterchef.1.gz: man/fensterchef.1
-	mkdir -p release
-	gzip --best -c man/fensterchef.1 >$@
-
-release/fensterchef.5.gz: man/fensterchef.5
-	mkdir -p release
-	gzip --best -c man/fensterchef.5 >$@
-
 # Tests
 .PHONY: tests
 
@@ -120,6 +113,20 @@ build/tests/%: build/tests/%.o $(OBJECTS_WITHOUT_MAIN)
 
 tests: $(INCLUDES) $(TESTS)
 
+# Manual pages
+release/fensterchef.1.gz: man/fensterchef.1
+	mkdir -p release
+	gzip --best -c man/fensterchef.1 >$@
+
+release/fensterchef.5.gz: man/fensterchef.5
+	mkdir -p release
+	gzip --best -c man/fensterchef.5 >$@
+
+# Release executable
+release/fensterchef: $(SOURCES) $(INCLUDES)
+	mkdir -p release
+	gcc $(RELEASE_FLAGS) $(C_FLAGS) $(SOURCES) -o release/fensterchef $(C_LIBS)
+
 # Functions
 .PHONY: build sandbox release install uninstall clean
 
@@ -132,16 +139,16 @@ sandbox: build
 	DISPLAY=:$(SANDBOX_DISPLAY) gdb -ex run --args ./build/fensterchef --verbose
 	pkill Xephyr
 
-release:
-	mkdir -p release
-	gcc $(RELEASE_FLAGS) $(C_FLAGS) $(SOURCES) -o release/fensterchef $(C_LIBS)
+release: release/fensterchef.1.gz release/fensterchef.5.gz release/fensterchef
 
-install: release/fensterchef.1.gz release/fensterchef.5.gz release
-	install release/fensterchef $(BINARY)
-	install release/fensterchef.1.gz $(MANUAL_PAGE_1)
-	install release/fensterchef.5.gz $(MANUAL_PAGE_5)
+install: release
+	install -Dm644 -t "/usr/share/licenses/fensterchef" LICENSE.txt
+	install -Dt "/usr/bin" "release/fensterchef"
+	install -Dm644 -t "/usr/share/man/man1" release/fensterchef.1.gz
+	install -Dm644 -t "/usr/share/man/man5" release/fensterchef.5.gz
 
 uninstall:
+	rm -r $(LICENSE)
 	rm $(BINARY)
 	rm $(MANUAL_PAGE_1)
 	rm $(MANUAL_PAGE_5)
