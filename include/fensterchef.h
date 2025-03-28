@@ -30,6 +30,12 @@ extern bool Fensterchef_is_running;
  */
 void run_external_command(const char *command);
 
+/* Output the frames and windows into a file as textual output.
+ *
+ * @return ERROR if the file could not be opened, OK otherwise.
+ */
+int dump_frames_and_windows(const char *file_path);
+
 /* Close the connection to xcb and exit the program with given exit code. */
 void quit_fensterchef(int exit_code);
 

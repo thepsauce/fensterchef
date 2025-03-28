@@ -843,6 +843,13 @@ bool do_action(action_type_t type, GenericData *data)
         break;
     }
 
+    /* write all frensterchef information to a file */
+    case ACTION_DUMP_LAYOUT:
+        if (dump_frames_and_windows((char*) data->string) == ERROR) {
+            return false;
+        }
+        break;
+
     /* quit fensterchef */
     case ACTION_QUIT:
         Fensterchef_is_running = false;

@@ -1,9 +1,13 @@
+#include <inttypes.h>
 #include <unistd.h> // alarm()
 
 #include "configuration.h"
 #include "fensterchef.h"
+#include "frame.h"
 #include "log.h"
+#include "monitor.h"
 #include "render.h"
+#include "window.h"
 #include "x11_management.h"
 
 /* the home directory */
@@ -54,8 +58,8 @@ void run_external_command(const char *command)
     }
 
     if (screen == NULL) {
-        fprintf(stderr, "fensterchef command: "
-                    "screen %d does not exist\n", screen_number);
+        fprintf(stderr, "fensterchef command: screen %d does not exist\n",
+                screen_number);
         return;
     }
 
@@ -119,6 +123,142 @@ void quit_fensterchef(int exit_code)
     LOG("quitting fensterchef with exit code: %d\n", exit_code);
     xcb_disconnect(connection);
     exit(exit_code);
+}
+
+/* Dump a frame into a file. */
+static void dump_frame(Frame *frame, uint32_t indentation, FILE *file)
+{
+    for (uint32_t i = 0; i < indentation; i++) {
+        fputs("  ", file);
+    }
+    fprintf(file, "%p" " %" PRIu32 " ",
+            (void*) frame, frame->number);
+    fprintf(file, "%" PRId32 " %" PRId32 " %" PRIu32 " %" PRIu32 " ",
+            frame->x, frame->y, frame->width, frame->height);
+    fprintf(file, "%p ",
+            (void*) frame->window);
+    fprintf(file, "%" PRIu32 "/%" PRIu32,
+            frame->ratio.numerator, frame->ratio.denominator);
+    switch (frame->split_direction) {
+    case FRAME_SPLIT_HORIZONTALLY:
+        fputc('H', file);
+        break;
+    case FRAME_SPLIT_VERTICALLY:
+        fputc('V', file);
+        break;
+    }
+    fputc('\n', file);
+    if (frame->left != NULL) {
+        dump_frame(frame->left, indentation + 1, file);
+        dump_frame(frame->right, indentation + 1, file);
+    }
+}
+
+/* Output the frames and windows into a file as textual output. */
+int dump_frames_and_windows(const char *file_path)
+{
+    FILE *file;
+
+    file = fopen(file_path, "w");
+    if (file == NULL) {
+        return ERROR;
+    }
+
+    fputs("[Global]:\n", file);
+    fprintf(file, "%p %p\n",
+            (void*) Frame_focus, (void*) Window_focus);
+
+    fprintf(file, "%p\n",
+            (void*) Window_oldest);
+
+    fprintf(file, "%p %p\n",
+            (void*) Window_bottom, (void*) Window_top);
+
+    fprintf(file, "%p\n",
+            (void*) Window_first);
+
+    fputs("[Frames]:\n", file);
+    for (Monitor *monitor = Monitor_first;
+            monitor != NULL;
+            monitor = monitor->next) {
+        fprintf(file, "%s ",
+                monitor->name);
+        fprintf(file, "%" PRId32 " %" PRId32 " %" PRIu32 " %" PRIu32 "\n",
+                monitor->x, monitor->y, monitor->width, monitor->height);
+        dump_frame(monitor->frame, 0, file);
+    }
+
+    fputs("[Stash]:\n", file);
+    for (Frame *frame = Frame_last_stashed;
+            frame != NULL;
+            frame = frame->previous_stashed) {
+        dump_frame(frame, 0, file);
+    }
+
+    fputs("[Windows]:\n", file);
+    for (Window *window = Window_first; window != NULL; window = window->next) {
+        fprintf(file, "%s\n", (char*) window->name);
+        fprintf(file, "%p" " %#" PRIx32 " %" PRIu32 " ",
+                (void*) window, window->client.id, window->number);
+        fputc(window->state.is_visible ? 'V' : 'I', file);
+
+        switch (window->state.previous_mode) {
+        case WINDOW_MODE_TILING:
+            fputc('T', file);
+            break;
+        case WINDOW_MODE_FLOATING:
+            fputc('O', file);
+            break;
+        case WINDOW_MODE_FULLSCREEN:
+            fputc('F', file);
+            break;
+        case WINDOW_MODE_DOCK:
+            fputc('D', file);
+            break;
+        case WINDOW_MODE_DESKTOP:
+            fputc('P', file);
+            break;
+        case WINDOW_MODE_MAX:
+            fputc('N', file);
+            break;
+        }
+
+        switch (window->state.mode) {
+        case WINDOW_MODE_TILING:
+            fputc('T', file);
+            break;
+        case WINDOW_MODE_FLOATING:
+            fputc('O', file);
+            break;
+        case WINDOW_MODE_FULLSCREEN:
+            fputc('F', file);
+            break;
+        case WINDOW_MODE_DOCK:
+            fputc('D', file);
+            break;
+        case WINDOW_MODE_DESKTOP:
+            fputc('P', file);
+            break;
+        case WINDOW_MODE_MAX:
+            fputc('N', file);
+            break;
+        }
+
+        fprintf(file, " %" PRId32 " %" PRId32 " %" PRIu32 " %" PRIu32 " ",
+                window->x, window->y, window->width, window->height);
+        fprintf(file, "%" PRIu32 " %" PRIu32 " ",
+                window->border_size, window->border_color);
+        fprintf(file, "%" PRId32 " %" PRId32 " %" PRIu32 " %" PRIu32 " ",
+                window->floating.x, window->floating.y,
+                window->floating.width, window->floating.height);
+        fprintf(file, "%p %p %p %p\n",
+                (void*) window->newer,
+                (void*) window->below, (void*) window->above,
+                (void*) window->next);
+    }
+
+    fclose(file);
+    return OK;
 }
 
 /* Show the notification window with given message at given coordinates. */

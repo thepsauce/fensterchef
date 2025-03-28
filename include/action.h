@@ -106,6 +106,8 @@
     X(ACTION_RESIZE_TO, false, "resize-to", DATA_TYPE_QUAD) \
     /* center a window to given monitor (glob pattern) or the monitor the window is currently on */ \
     X(ACTION_CENTER_TO, true, "center-to", DATA_TYPE_STRING) \
+    /* write all fensterchef information to a file */ \
+    X(ACTION_DUMP_LAYOUT, false, "dump-layout", DATA_TYPE_STRING) \
     /* quit fensterchef */ \
     X(ACTION_QUIT, false, "quit", DATA_TYPE_VOID)
 

@@ -16,10 +16,6 @@
     Make shell scripts to generate the manual page (should the wiki be
     continued?)
 
-#58 Add dumping of a frame layout
-    This should dump a layout to a file, maybe it should be a fensterchef
-    configuration file that one can include
-
 [Recheck]
 #8 ? Improve font rendering once again
     Is there any way to make colored emojis work? Is artifical scaling needed?
@@ -299,3 +295,7 @@
     toggled by pressing Z. When showing the window, it is sized to 2/5 of the
     monitors area.
     So expressions would need to be added which replaces the action lists.
+
+#58 Add dumping of a frame layout
+    This should dump a layout to a file, maybe it should be a fensterchef
+    configuration file that one can include
