@@ -135,6 +135,8 @@ struct configuration_button *find_configured_button(
 
     /* remove the ignored modifiers */
     modifiers &= ~configuration->mouse.ignore_modifiers;
+    /* remove all the button modifiers so that release events work properly */
+    modifiers &= 0xff;
     flags &= ~BINDING_FLAG_TRANSPARENT;
 
     /* find a matching button (the button AND modifiers must match up) */
