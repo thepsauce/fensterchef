@@ -3,7 +3,7 @@
 
 #include <xcb/xcb_renderutil.h>
 
-#include "configuration.h"
+#include "configuration/configuration.h"
 #include "event.h" // randr_event_base
 #include "frame.h"
 #include "log.h"

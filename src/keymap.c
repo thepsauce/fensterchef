@@ -1,4 +1,4 @@
-#include "configuration.h"
+#include "configuration/configuration.h"
 #include "keymap.h"
 #include "utility.h"
 #include "x11_management.h"

@@ -3,11 +3,11 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "configuration/parser.h"
 #include "fensterchef.h"
 #include "frame.h"
 #include "log.h"
 #include "monitor.h"
-#include "parser.h"
 #include "render.h"
 #include "resources.h"
 #include "size_frame.h"

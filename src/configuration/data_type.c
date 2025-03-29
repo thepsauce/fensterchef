@@ -1,6 +1,6 @@
 #include <string.h>
 
-#include "data_type.h"
+#include "configuration/data_type.h"
 #include "utility.h"
 
 /* the size in bytes of each data type */

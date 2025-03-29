@@ -7,7 +7,10 @@
 #include <xcb/xcb_event.h>
 #include <xcb/xcb_event.h>
 
-#include "action.h"
+#include "configuration/action.h"
+#include "configuration/expression.h"
+#include "configuration/instructions.h"
+#include "configuration/variables.h"
 #include "event.h"
 #include "frame.h"
 #include "log.h"
@@ -1238,6 +1241,12 @@ static const uint32_t *log_instruction(const uint32_t *instructions)
         instructions += instruction >> 8;
         break;
 
+    /* get the value of a variable */
+    case INSTRUCTION_VARIABLE:
+        fprintf(stderr, COLOR(BLUE) "%s" CLEAR_COLOR,
+                variables[instruction >> 8].name);
+        break;
+
 #define WRAP_INSTRUCTION do { \
     const enum precedence_class precedence = \
         get_instruction_precedence((instructions[0] & 0xff)); \
@@ -1272,6 +1281,43 @@ static const uint32_t *log_instruction(const uint32_t *instructions)
         break;
     case INSTRUCTION_LOGICAL_OR:
         DUAL_OPERATION(||);
+        break;
+
+    /* set a variable */
+    case INSTRUCTION_SET:
+        fprintf(stderr, COLOR(BLUE) "set " COLOR(YELLOW) "%s "
+                    COLOR(MAGENTA) "=" CLEAR_COLOR " ",
+                variables[instruction >> 8].name);
+        WRAP_INSTRUCTION;
+        break;
+
+    /* push an integer */
+    case INSTRUCTION_PUSH_INTEGER:
+        fprintf(stderr, COLOR(BLUE) "pushlocal" COLOR(YELLOW) "<integer>"
+                    CLEAR_COLOR "(");
+        instructions = log_instruction(instructions);
+        fprintf(stderr, ")");
+        break;
+
+    /* load an integer */
+    case INSTRUCTION_LOAD_INTEGER:
+        fprintf(stderr, COLOR(BLUE) "loadlocal" COLOR(YELLOW) "<integer>"
+                    CLEAR_COLOR "(&%" PRIu32 ")",
+                instruction >> 8);
+        break;
+
+    /* load an integer */
+    case INSTRUCTION_SET_INTEGER:
+        fprintf(stderr, COLOR(BLUE) "setlocal" COLOR(YELLOW) "<integer>"
+                    CLEAR_COLOR "(&%" PRIu32 ") = ",
+                instruction >> 8);
+        WRAP_INSTRUCTION;
+        break;
+
+    /* set the stack pointer */
+    case INSTRUCTION_STACK_POINTER:
+        fprintf(stderr, COLOR(BLUE) "droplocals" CLEAR_COLOR "(&%" PRIu32 ")",
+                instruction >> 8);
         break;
 
     /* integer operations */

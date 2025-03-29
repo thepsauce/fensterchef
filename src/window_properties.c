@@ -1,6 +1,6 @@
 #include <string.h>
 
-#include "configuration.h"
+#include "configuration/configuration.h"
 #include "log.h"
 #include "utility.h"
 #include "window.h"

@@ -1,7 +1,7 @@
 #include <inttypes.h>
 #include <unistd.h> // alarm()
 
-#include "configuration.h"
+#include "configuration/configuration.h"
 #include "fensterchef.h"
 #include "frame.h"
 #include "log.h"

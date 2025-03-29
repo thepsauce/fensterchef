@@ -1,5 +1,5 @@
-#ifndef DATA_TYPE_H
-#define DATA_TYPE_H
+#ifndef CONFIGURATION__DATA_TYPE_H
+#define CONFIGURATION__DATA_TYPE_H
 
 #include <stdbool.h>
 #include <stdint.h>

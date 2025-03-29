@@ -1,5 +1,5 @@
-#ifndef DEFAULT_CONFIGURATION_H
-#define DEFAULT_CONFIGURATION_H
+#ifndef CONFIGURATION__DEFAULT_H
+#define CONFIGURATION__DEFAULT_H
 
 #include "configuration.h"
 

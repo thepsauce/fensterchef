@@ -1,17 +1,9 @@
-#include <string.h>
+#include "configuration/action.h"
+#include "configuration/instructions.h"
+#include "configuration/stack.h"
+#include "configuration/variables.h"
 
-#include "action.h"
-#include "expression.h"
-#include "utility.h"
-
-#include "log.h"
-
-/* Run given instruction.
- *
- * @data is used to store any results.
- *
- * @return the pointer to the instruction after @instructions.
- */
+/* Run the next instruction within @instructions. */
 const uint32_t *run_instruction(const uint32_t *instructions, GenericData *data)
 {
     const uint32_t instruction = instructions[0];
@@ -67,10 +59,43 @@ const uint32_t *run_instruction(const uint32_t *instructions, GenericData *data)
         instructions += instruction >> 8;
         break;
 
+    /* get the value of a variable */
+    case INSTRUCTION_VARIABLE:
+        data[0] = variables[instruction >> 8].value;
+        break;
+
     /* execute the two next instructions */
     case INSTRUCTION_NEXT:
         instructions = run_instruction(instructions, data);
         instructions = run_instruction(instructions, data);
+        break;
+
+    /* set a variable */
+    case INSTRUCTION_SET:
+        instructions = run_instruction(instructions, data);
+        variables[instruction >> 8].value = *data;
+        break;
+
+    /* push an integer onto the stack */
+    case INSTRUCTION_PUSH_INTEGER:
+        instructions = run_instruction(instructions, data);
+        push_integer(data->integer);
+        break;
+
+    /* load an integer from the stack */
+    case INSTRUCTION_LOAD_INTEGER:
+        data->integer = stack.values[instruction >> 8];
+        break;
+
+    /* load an integer from the stack */
+    case INSTRUCTION_SET_INTEGER:
+        instructions = run_instruction(instructions, data);
+        stack.values[instruction >> 8] = data->integer;
+        break;
+
+    /* set the stack pointer */
+    case INSTRUCTION_STACK_POINTER:
+        stack.size = instruction >> 8;
         break;
 
 #define JUMP_OPERATION(compare) do { \
@@ -139,22 +164,4 @@ const uint32_t *run_instruction(const uint32_t *instructions, GenericData *data)
         break;
     }
     return instructions;
-}
-
-/* Evaluate given expression. */
-void evaluate_expression(const Expression *expression, GenericData *result)
-{
-    const uint32_t *instructions, *end;
-    GenericData alternative_result;
-
-    if (result == NULL) {
-        result = &alternative_result;
-    }
-
-    instructions = expression->instructions;
-    end = &expression->instructions[expression->instruction_size];
-
-    while (instructions < end) {
-        instructions = run_instruction(instructions, result);
-    }
 }

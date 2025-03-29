@@ -6,7 +6,7 @@
 #include "bits/window_typedef.h"
 #include "bits/frame_typedef.h"
 
-#include "configuration.h"
+#include "configuration/configuration.h"
 #include "monitor.h"
 #include "utility.h"
 #include "window_state.h"

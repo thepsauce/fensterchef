@@ -6,7 +6,7 @@
 
 #include <xcb/randr.h>
 
-#include "configuration.h"
+#include "configuration/configuration.h"
 #include "event.h"
 #include "fensterchef.h"
 #include "frame.h"

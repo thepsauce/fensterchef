@@ -69,16 +69,18 @@ void resize_frame(Frame *frame, int32_t x, int32_t y,
     switch (frame->split_direction) {
     /* left to right split */
     case FRAME_SPLIT_HORIZONTALLY:
-        left_size = (uint64_t) width * frame->ratio.numerator /
-            frame->ratio.denominator;
+        left_size = frame->ratio.denominator == 0 ? width / 2 :
+                (uint64_t) width * frame->ratio.numerator /
+                    frame->ratio.denominator;
         resize_frame(left, x, y, left_size, height);
         resize_frame(right, x + left_size, y, width - left_size, height);
         break;
 
     /* top to bottom split */
     case FRAME_SPLIT_VERTICALLY:
-        left_size = (uint64_t) height * frame->ratio.numerator /
-            frame->ratio.denominator;
+        left_size = frame->ratio.denominator == 0 ? height / 2 :
+                (uint64_t) height * frame->ratio.numerator /
+                    frame->ratio.denominator;
         resize_frame(left, x, y, width, left_size);
         resize_frame(right, x, y + left_size, width, height - left_size);
         break;

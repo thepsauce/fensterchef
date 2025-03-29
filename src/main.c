@@ -1,5 +1,5 @@
+#include "configuration/default.h"
 #include "cursor.h"
-#include "default_configuration.h"
 #include "event.h"
 #include "fensterchef.h"
 #include "frame.h"

@@ -2,10 +2,10 @@
 #include <stddef.h>
 #include <string.h>
 
+#include "configuration/parser.h"
 #include "cursor.h"
 #include "fensterchef.h"
 #include "log.h"
-#include "parser.h"
 #include "utility.h"
 #include "x11_management.h"
 
@@ -119,6 +119,11 @@ void deinitialize_parser(Parser *parser)
     }
 
     free(parser->instructions);
+    free(parser->stack);
+    for (uint32_t i = 0; i < parser->number_of_locals; i++) {
+        free(parser->locals[i].name);
+    }
+    free(parser->locals);
 }
 
 #include "bits/configuration_parser_label_information.h"
@@ -521,7 +526,8 @@ static parser_error_t parse_button(Parser *parser,
         return error;
     }
 
-    error = parse_expression(parser);
+    reset_expression(parser);
+    error = parse_expression_and_append(parser);
     if (error != PARSER_SUCCESS) {
         return error;
     }
@@ -577,7 +583,8 @@ static parser_error_t parse_key(Parser *parser, struct configuration_key *key)
         return error;
     }
 
-    error = parse_expression(parser);
+    reset_expression(parser);
+    error = parse_expression_and_append(parser);
     if (error != PARSER_SUCCESS) {
         return error;
     }
@@ -606,7 +613,8 @@ static parser_error_t parse_startup_actions(Parser *parser)
     parser_error_t error;
     Expression expression;
 
-    error = parse_expression(parser);
+    reset_expression(parser);
+    error = parse_expression_and_append(parser);
     if (error != PARSER_SUCCESS) {
         return error;
     }
@@ -747,7 +755,8 @@ static parser_error_t parse_assignment_association(Parser *parser)
     /* an optional expression may be supplied */
     if (parser->line[parser->column] == ';') {
         parser->column++;
-        error = parse_expression(parser);
+        reset_expression(parser);
+        error = parse_expression_and_append(parser);
         if (error == PARSER_SUCCESS) {
             extract_expression(parser, &association.expression);
         }
@@ -885,11 +894,14 @@ parser_error_t parse_line(Parser *parser)
                 break;
 
             case DATA_TYPE_INTEGER: {
-                error = parse_expression(parser);
+                reset_expression(parser);
+                error = parse_expression_and_append(parser);
                 if (error == PARSER_SUCCESS) {
                     const Expression expression = {
                         parser->instructions,
-                        parser->instruction_size
+                        parser->instruction_size,
+                        parser->stack,
+                        parser->stack_size
                     };
                     evaluate_expression(&expression, value);
                 }
@@ -897,11 +909,14 @@ parser_error_t parse_line(Parser *parser)
             }
 
             case DATA_TYPE_QUAD:
-                error = parse_quad_expression(parser);
+                reset_expression(parser);
+                error = parse_quad_expression_and_append(parser);
                 if (error == PARSER_SUCCESS) {
                     const Expression expression = {
                         parser->instructions,
-                        parser->instruction_size
+                        parser->instruction_size,
+                        parser->stack,
+                        parser->stack_size
                     };
                     evaluate_expression(&expression, value);
                 }
