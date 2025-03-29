@@ -1,13 +1,13 @@
-#ifndef PARSER_H
-#define PARSER_H
+#ifndef CONFIGURATION__PARSER_H
+#define CONFIGURATION__PARSER_H
 
 #include <stdbool.h>
 #include <stdio.h>
 
 #include "bits/configuration_parser_label.h"
 
+#include "configuration/default.h"
 #include "data_type.h"
-#include "default_configuration.h"
 #include "utility.h"
 
 /* maximum length of an identifier */
@@ -78,6 +78,12 @@
     X(PARSER_ERROR_MISSING_CLOSING_BRACKET, "missing closing ')'") \
     /* the wrong type is used */ \
     X(PARSER_ERROR_TYPE_MISMATCH, "the wrong type is used") \
+    /* a variable is used without prior declaration */ \
+    X(PARSER_ERROR_UNSET_VARIABLE, "the variable is not set") \
+    /* there is an attempt to set something not a variable */ \
+    X(PARSER_ERROR_MISAPPLIED_SET, "'=' must be applied to a variable") \
+    /* there are no more variable slots */ \
+    X(PARSER_ERROR_OUT_OF_VARIABLES, "maximum number of variables exceeded")
 
 /* parser error codes */
 typedef enum {
@@ -137,6 +143,27 @@ typedef struct parser {
     uint32_t instruction_size;
     /* number of allocated instructions */
     uint32_t instruction_capacity;
+    /* the stack to hold onto local variables */
+    uint32_t *stack;
+    /* the size of the stack */
+    uint32_t stack_size;
+    /* the allocated values on the stack */
+    uint32_t stack_capacity;
+    /* local variables set; by design, they are sorted ascending with respect to
+     * the address they reside in
+     */
+    struct local {
+        /* type of the local variable */
+        data_type_t type;
+        /* name of the local variable */
+        char *name;
+        /* address within the stack */
+        uint32_t address;
+    } *locals;
+    /* number of current local variables */
+    uint32_t number_of_locals;
+    /* number of allocated local variables */
+    uint32_t locals_capacity;
 } Parser;
 
 /* Prepare a parser for parsing. */
@@ -189,16 +216,19 @@ parser_error_t parse_string(Parser *parser, utf8_t **output);
 
 /* Parse an expression.
  *
- * The expression is stored within the parser struct and resolves to an integer
- * when evaluated.
+ * The parsed expression is appended to @parser->instructions.
  */
-parser_error_t parse_expression(Parser *parser);
+parser_error_t parse_expression_and_append(Parser *parser);
 
 /* Parse 1, 2 or 4 four expression in series.
  *
- * The expression is prefixed with the QUAD literal instruction.
+ * The expression is prefixed with the QUAD literal instruction and put at the
+ * end of @parser->instructions.
  */
-parser_error_t parse_quad_expression(Parser *parser);
+parser_error_t parse_quad_expression_and_append(Parser *parser);
+
+/* Put the internal expression parsing state back to the start. */
+void reset_expression(Parser *parser);
 
 /* Allocate an expression from previously parsed expressions. */
 void extract_expression(Parser *parser, Expression *expression);

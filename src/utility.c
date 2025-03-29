@@ -1,6 +1,78 @@
 #include <ctype.h>
 #include <stdbool.h>
+#include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
+#include <sys/wait.h> // waitpid()
+#include <unistd.h> // fork(), setsid(), _exit(), execl()
+
+#include "utility.h"
+
+/* Run @command within a shell in the background. */
+void run_shell(const char *command)
+{
+    int child_process_id;
+
+    /* using `fork()` twice and `_exit()` will give the child process to the
+     * init system so we do not need to worry about cleaning up dead child
+     * processes; we want to run the shell in a new session
+     * TODO: explain why `setsid()` is needed
+     */
+
+    /* create a child process */
+    child_process_id = fork();
+    if (child_process_id == 0) {
+        /* this code is executed in the child */
+
+        /* create a grandchild process */
+        if (fork() == 0) {
+            /* make a new session */
+            if (setsid() == -1) {
+                /* TODO: when does this happen? */
+                exit(EXIT_FAILURE);
+            }
+            /* this code is executed in the grandchild process */
+            (void) execl("/bin/sh", "sh", "-c", command, (char*) NULL);
+            /* this point is only reached if `execl()` failed */
+            exit(EXIT_FAILURE);
+        } else {
+            /* exit the child process */
+            _exit(0);
+        }
+    } else {
+        /* wait until the child process exits */
+        (void) waitpid(child_process_id, NULL, 0);
+    }
+}
+
+/* Run @command as new process and get the first line from it. */
+char *run_command_and_get_output(const char *command)
+{
+    FILE *process;
+    char *line;
+    size_t length, capacity;
+
+    process = popen(command, "r");
+    if (process == NULL) {
+        return NULL;
+    }
+
+    capacity = 128;
+    line = xmalloc(capacity);
+    length = 0;
+    /* read all output from the process, stopping at the end (EOF) or a new line
+     */
+    for (int c; (c = fgetc(process)) != EOF && c != '\n'; ) {
+        if (length + 1 == capacity) {
+            capacity *= 2;
+            RESIZE(line, capacity);
+        }
+        line[length++] = c;
+    }
+    line[length] = '\0';
+    pclose(process);
+    return line;
+}
 
 /* Get the length of @string up to a maximum of @max_length. */
 size_t strnlen(const char *string, size_t max_length)

@@ -1,5 +1,5 @@
-#ifndef ACTION_H
-#define ACTION_H
+#ifndef CONFIGURATION__ACTION_H
+#define CONFIGURATION__ACTION_H
 
 /**
  * Actions expose internal functionality to the user.
@@ -9,7 +9,7 @@
 
 #include "bits/window_typedef.h"
 
-#include "data_type.h"
+#include "configuration/data_type.h"
 
 /* expands to all actions */
 #define DECLARE_ALL_ACTIONS \

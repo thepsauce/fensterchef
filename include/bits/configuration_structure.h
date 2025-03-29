@@ -4,16 +4,15 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include "action.h"
-#include "expression.h"
+#include "configuration/action.h"
+#include "configuration/expression.h"
 #include "keymap.h"
 #include "utf8.h"
 #include "utility.h"
 
 /**
  * When adding anything to the configuration, make sure to modify the duplicate
- * and clear functions in configuration.c so all recources are managment
- * properly.
+ * and clear functions in configuration.c so all recources are managed properly.
  */
 
 /* if the binding should be for a release event */

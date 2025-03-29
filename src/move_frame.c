@@ -1,4 +1,4 @@
-#include "configuration.h"
+#include "configuration/configuration.h"
 #include "frame.h"
 #include "monitor.h"
 #include "tiling.h"

@@ -2,7 +2,8 @@
 
 #include <string.h>
 
-#include "default_configuration.h"
+#include "configuration/default.h"
+#include "configuration/expression.h"
 #include "utility.h"
 #include "utf8.h"
 
@@ -66,67 +67,6 @@ const struct configuration default_configuration = {
         .ignore_modifiers = XCB_MOD_MASK_LOCK | XCB_MOD_MASK_2,
     },
 };
-
-/* Helper function to make an expression for running a simple action. */
-static inline void make_action_instruction(Expression *expression,
-        action_type_t type, GenericData *data)
-{
-    if (data == NULL) {
-        expression->instruction_size = 1;
-        expression->instructions = xmalloc(sizeof(*expression->instructions) *
-            expression->instruction_size);
-        expression->instructions[0] = MAKE_VOID_ACTION(type);
-        return;
-    }
-
-    const data_type_t data_type = get_action_data_type(type);
-    switch (data_type) {
-    case DATA_TYPE_VOID:
-        expression->instruction_size = 1;
-        expression->instructions = xmalloc(sizeof(*expression->instructions) *
-            expression->instruction_size);
-        expression->instructions[0] = MAKE_VOID_ACTION(type);
-        break;
-
-    case DATA_TYPE_INTEGER:
-        expression->instruction_size = 2;
-        expression->instructions = xmalloc(sizeof(*expression->instructions) *
-                expression->instruction_size);
-        expression->instructions[0] = MAKE_ACTION(type);
-        expression->instructions[1] = MAKE_INTEGER(data->integer);
-        break;
-
-    case DATA_TYPE_QUAD:
-        expression->instruction_size = 6;
-        expression->instructions = xmalloc(sizeof(*expression->instructions) *
-                expression->instruction_size);
-        expression->instructions[0] = MAKE_ACTION(type);
-        expression->instructions[1] = MAKE_QUAD(4);
-        for (int i = 0; i < 4; i++) {
-            expression->instructions[i + 2] = MAKE_INTEGER(data->quad[i]);
-        }
-        break;
-
-    case DATA_TYPE_STRING: {
-        uint32_t length;
-        uint32_t length_in_4bytes;
-
-        length = strlen((char*) data->string);
-        length_in_4bytes = length / sizeof(*expression->instructions) + 1;
-        expression->instruction_size = 2 + length_in_4bytes;
-        expression->instructions = xmalloc(sizeof(*expression->instructions) *
-                expression->instruction_size);
-        expression->instructions[0] = MAKE_ACTION(type);
-        expression->instructions[1] = MAKE_STRING(length_in_4bytes);
-        memcpy(&expression->instructions[2], data->string, length + 1);
-        break;
-    }
-
-    default:
-        /* TODO: implement more if more is needed */
-        break;
-    }
-}
 
 /* Puts the mousebindings of the default configuration into @configuration
  * without overwriting any mousebindings.
@@ -192,7 +132,7 @@ void merge_with_default_button_bindings(struct configuration *configuration)
         next_button->flags = default_bindings[i].flags;
         next_button->modifiers = modifiers;
         next_button->index = default_bindings[i].button_index;
-        make_action_instruction(&next_button->expression,
+        initialize_expression_from_action(&next_button->expression,
                 default_bindings[i].type, NULL);
         next_button++;
     }
@@ -364,7 +304,7 @@ void merge_with_default_key_bindings(struct configuration *configuration)
         next_key->modifiers = modifiers;
         next_key->key_symbol = default_bindings[i].key_symbol;
         next_key->key_code = 0;
-        make_action_instruction(&next_key->expression,
+        initialize_expression_from_action(&next_key->expression,
                 default_bindings[i].action.type,
                 !default_bindings[i].action.has_data ? NULL :
                     &default_bindings[i].action.data);
@@ -388,3 +328,4 @@ void load_default_configuration(void)
 
     set_configuration(&configuration);
 }
+

@@ -1,6 +1,6 @@
 #include <inttypes.h>
 
-#include "configuration.h"
+#include "configuration/configuration.h"
 #include "log.h"
 #include "render.h"
 #include "utility.h"

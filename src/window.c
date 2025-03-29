@@ -1,7 +1,7 @@
 #include <inttypes.h>
 #include <string.h>
 
-#include "configuration.h"
+#include "configuration/configuration.h"
 #include "event.h"
 #include "frame.h"
 #include "log.h"

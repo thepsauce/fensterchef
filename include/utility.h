@@ -165,6 +165,12 @@ typedef struct ratio {
     uint32_t denominator;
 } Ratio;
 
+/* Run @command within a shell in the background. */
+void run_shell(const char *command);
+
+/* Run @command as new process and get the first line from it. */
+char *run_command_and_get_output(const char *command);
+
 /* Get the length of @string up to a maximum of @max_length. */
 size_t strnlen(const char *string, size_t max_length);
 

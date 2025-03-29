@@ -1,10 +1,8 @@
 #include <inttypes.h>
-#include <unistd.h> // fork(), setsid(), _exit(), execl()
-#include <string.h> // strcasecmp()
-#include <sys/wait.h> // waitpid()
+#include <string.h> // strcmp()
 
-#include "action.h"
-#include "configuration.h"
+#include "configuration/action.h"
+#include "configuration/configuration.h"
 #include "event.h"
 #include "fensterchef.h"
 #include "frame.h"
@@ -34,72 +32,6 @@ action_type_t string_to_action_type(const char *string)
         }
     }
     return ACTION_NULL;
-}
-
-/* Run given shell program. */
-static void run_shell(const char *shell)
-{
-    int child_process_id;
-
-    /* using `fork()` twice and `_exit()` will give the child process to the
-     * init system so we do not need to worry about cleaning up dead child
-     * processes; we want to run the shell in a new session
-     * TODO: explain why `setsid()` is needed
-     */
-
-    /* create a child process */
-    child_process_id = fork();
-    if (child_process_id == 0) {
-        /* this code is executed in the child */
-
-        /* create a grandchild process */
-        if (fork() == 0) {
-            /* make a new session */
-            if (setsid() == -1) {
-                /* TODO: when does this happen? */
-                exit(EXIT_FAILURE);
-            }
-            /* this code is executed in the grandchild process */
-            (void) execl("/bin/sh", "sh", "-c", shell, (char*) NULL);
-            /* this point is only reached if `execl()` failed */
-            exit(EXIT_FAILURE);
-        } else {
-            /* exit the child process */
-            _exit(0);
-        }
-    } else {
-        /* wait until the child process exits */
-        (void) waitpid(child_process_id, NULL, 0);
-    }
-}
-
-/* Run a shell and get the output. */
-static char *run_shell_and_get_output(const char *shell)
-{
-    FILE *process;
-    char *line;
-    size_t length, capacity;
-
-    process = popen(shell, "r");
-    if (process == NULL) {
-        return NULL;
-    }
-
-    capacity = 128;
-    line = xmalloc(capacity);
-    length = 0;
-    /* read all output from the process, stopping at the end (EOF) or a new line
-     */
-    for (int c; (c = fgetc(process)) != EOF && c != '\n'; ) {
-        if (length + 1 == capacity) {
-            capacity *= 2;
-            RESIZE(line, capacity);
-        }
-        line[length++] = c;
-    }
-    line[length] = '\0';
-    pclose(process);
-    return line;
 }
 
 /* Resize the current window or current frame if it does not exist. */
@@ -786,7 +718,7 @@ bool do_action(action_type_t type, GenericData *data)
 
     /* show a message by getting output from a shell script */
     case ACTION_SHOW_MESSAGE_RUN:
-        shell = run_shell_and_get_output((char*) data->string);
+        shell = run_command_and_get_output((char*) data->string);
         if (shell == NULL) {
             return false;
         }
@@ -807,6 +739,10 @@ bool do_action(action_type_t type, GenericData *data)
     /* resize the edges of the current window */
     case ACTION_RESIZE_TO: {
         Monitor *monitor;
+
+        if (window == NULL) {
+            return false;
+        }
 
         monitor = get_monitor_from_rectangle_or_primary(window->x,
                 window->y, window->width, window->height);

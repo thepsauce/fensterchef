@@ -15,10 +15,7 @@ case "$file_name" in
     file="src/$file_name"
     ;;
 *.h)
-    file="include/bits/$file_name"
-    if ! [ -f "$file" ] ; then
-        file="include/$file_name"
-    fi
+    file="$(find include -name "$file_name")"
     ;;
 *)
     file="man/$file_name"

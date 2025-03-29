@@ -6,7 +6,7 @@
 #include <X11/keysym.h>
 #include <xcb/xcb_keysyms.h>
 
-#include "configuration.h"
+#include "configuration/configuration.h"
 #include "event.h"
 #include "fensterchef.h"
 #include "frame.h"
