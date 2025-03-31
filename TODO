@@ -6,7 +6,13 @@
 #51/#8 ! Fix fixed size fonts messing up
     Fixed size fonts like emoji fonts are not scaled and it looks very weird
 
-#65 ...
+#66 Always focus window above frames
+    When a frame is focused and there is a window covering the monitor the frame
+    is on, that window should be focused. If none is covering the monitor more
+    than the configured percentage, there is still an attempt to focus the above
+    floating window if the focused frame is empty.
+
+#67 ...
 
 #1000 Make a wayland port
     Make an additional repository that hosts fensterchef-wayland
@@ -92,6 +98,13 @@
     When a command is sent via the FENSTERCHEF_COMMAND atom, it is currently
     deleted. Instead, set FENSTERCHEF_RETURN on the window.
 
+#25 ? Make string arguments more shell like
+    One should be able to specify in quotes: "what is here ".
+    So if a line starts with `"`, then this should be interpreted as string.
+    Also this can be escaped as well as ';' with a backslash.
+
+[Trash]
+
 [Done]
 #9 Add maintainability macros
     Add macros that highly improve the maintainability
@@ -134,11 +147,6 @@
 #26 Add optional arguments
     Let some actions have optional arguments. If they expect an integer and no
     number is given, the number `1` should be implied.
-
-#25 Make string arguments more shell like
-    One should be able to specify in quotes: "what is here ".
-    So if a line starts with `"`, then this should be interpreted as string.
-    Also this can be escaped as well as ';' with a backslash.
 
 #2 Ratio for frames
     Add a ratio to a frame so that the sizes are resistent to when they become
@@ -306,3 +314,7 @@
 #58 Add dumping of a frame layout
     This should dump a layout to a file, maybe it should be a fensterchef
     configuration file that one can include
+
+#65 ! Fix infinite recursion when a modal dialog is raised
+    When I opened a dialog window that is modal to firefox, put it to tiling
+    and then focused firefox, fensterchef stopped working

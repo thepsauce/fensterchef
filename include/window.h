@@ -27,7 +27,8 @@
  */
 struct window {
     /* reference counter to keep the pointer around for longer after the window
-     * has been destroyed
+     * has been destroyed; a destroyed but still referenced window will have
+     * `client.id` set to `XCB_NONE`, all other struct members are invalid
      */
     uint32_t reference_count;
 

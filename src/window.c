@@ -571,6 +571,8 @@ void set_window_size(Window *window, int32_t x, int32_t y, uint32_t width,
 /* Links the window into the z linked list at a specific place and synchronizes
  * this change with the X server.
  *
+ * The window should have been unlinked from the Z linked list first.
+ *
  * The window will be inserted after @below or at the bottom if @below is NULL.
  */
 static void link_window_into_z_list(Window *below, Window *window)
@@ -594,13 +596,12 @@ static void link_window_into_z_list(Window *below, Window *window)
     } else {
         LOG("putting %W above %W\n", window, below);
 
+        window->below = below;
+        window->above = below->above;
         if (below->above != NULL) {
             below->above->below = window;
-            window->above = below->above;
         }
-
         below->above = window;
-        window->below = below;
 
         if (below == Window_top) {
             Window_top = window;
@@ -647,6 +648,7 @@ void update_window_layer(Window *window)
 
     /* put the window at the bottom */
     case WINDOW_MODE_DESKTOP:
+        /* below = NULL */
         break;
 
     /* not a real window mode */
@@ -659,6 +661,7 @@ void update_window_layer(Window *window)
     /* put windows that are transient for this window above it */
     for (below = window->below; below != NULL; below = below->below) {
         if (below->transient_for == window->client.id) {
+            unlink_window_from_z_list(below);
             link_window_into_z_list(window, below);
             below = window;
         }
