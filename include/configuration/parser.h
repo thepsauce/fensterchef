@@ -131,8 +131,6 @@ typedef struct parser {
     parser_label_t label;
     /* the latest parsed identifier */
     char identifier[PARSER_IDENTIFIER_LIMIT];
-    /* the same identifier but in lower case */
-    char identifier_lower[PARSER_IDENTIFIER_LIMIT];
     /* a single identifying character like '[' or ']' */
     char character;
 
@@ -143,12 +141,8 @@ typedef struct parser {
     uint32_t instruction_size;
     /* number of allocated instructions */
     uint32_t instruction_capacity;
-    /* the stack to hold onto local variables */
-    uint32_t *stack;
-    /* the size of the stack */
-    uint32_t stack_size;
-    /* the allocated values on the stack */
-    uint32_t stack_capacity;
+    /* the position on the stack */
+    uint32_t stack_position;
     /* local variables set; by design, they are sorted ascending with respect to
      * the address they reside in
      */
@@ -166,6 +160,9 @@ typedef struct parser {
     uint32_t locals_capacity;
 } Parser;
 
+/* Converts @error to a string. */
+const char *parser_error_to_string(parser_error_t error);
+
 /* Prepare a parser for parsing. */
 int initialize_parser(Parser *parser, const char *string, bool is_string_file);
 
@@ -175,15 +172,6 @@ int initialize_parser(Parser *parser, const char *string, bool is_string_file);
  * externally.
  */
 void deinitialize_parser(Parser *parser);
-
-/* Converts @error to a string. */
-const char *parser_error_to_string(parser_error_t error);
-
-/* Translate a string like "shift" to a modifier bit. */
-int string_to_modifier(const char *string, uint16_t *output);
-
-/* Translate a string like "false" to a boolean value. */
-int string_to_boolean(const char *string, bool *output);
 
 /* Read the next line from the parsed files or string source into @parser->line.
  *
@@ -229,9 +217,6 @@ parser_error_t parse_quad_expression_and_append(Parser *parser);
 
 /* Put the internal expression parsing state back to the start. */
 void reset_expression(Parser *parser);
-
-/* Allocate an expression from previously parsed expressions. */
-void extract_expression(Parser *parser, Expression *expression);
 
 /* Parse and evaluate the next line within the parser.
  *

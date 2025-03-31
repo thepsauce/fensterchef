@@ -5,13 +5,18 @@
 #include "configuration/stack.h"
 #include "utility.h"
 
+/* Copy @instructions and @stack into @expression. */
+void initialize_expression(Expression *expression, const uint32_t *instructions,
+        uint32_t instruction_size)
+{
+    expression->instructions = DUPLICATE(instructions, instruction_size);
+    expression->instruction_size = instruction_size;
+}
+
 /* Helper function to make an expression for running a simple action. */
 void initialize_expression_from_action(Expression *expression,
         action_type_t type, GenericData *data)
 {
-    expression->stack = NULL;
-    expression->stack_size = 0;
-
     if (data == NULL) {
         expression->instruction_size = 1;
         expression->instructions = xmalloc(sizeof(*expression->instructions) *
@@ -87,8 +92,6 @@ void evaluate_expression(const Expression *expression, GenericData *result)
     if (result == NULL) {
         result = &alternative_result;
     }
-
-    set_stack(expression->stack, expression->stack_size);
 
     instructions = expression->instructions;
     end = &expression->instructions[expression->instruction_size];

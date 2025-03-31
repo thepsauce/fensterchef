@@ -18,10 +18,11 @@ struct xcursor xcursor_settings;
 static xcb_cursor_t cached_cursors[XCURSOR_MAX];
 
 /* translation of core cursor to string */
-const char *xcursor_core_strings[XCURSOR_MAX] = {
+const char *xcursor_core_strings[XCURSOR_MAX + 1] = {
 #define X(constant, string) [constant] = string,
     DEFINE_ALL_XCURSORS
 #undef X
+    [XCURSOR_MAX] = ""
 };
 
 /* translation of error to string */
@@ -34,11 +35,55 @@ const char *xcursor_error_strings[XCURSOR_ERROR_MAX] = {
 /* Translate a string to a cursor constant. */
 core_cursor_t string_to_cursor(const char *string)
 {
-    for (core_cursor_t i = 0; i < XCURSOR_MAX; i++) {
-        if (strcmp(xcursor_core_strings[i], string) == 0) {
-            return i;
-        }
+    static const uint8_t reindex[] = {
+        77, 77, 77, 72, 77, 77, 77, 66,
+        77, 55, 54, 77, 77, 12, 65, 74,
+        77, 77, 77, 77, 45, 77, 77, 23,
+        57, 50, 77, 49, 77, 77, 77, 77,
+        53, 77, 77, 32, 77, 77, 77, 77,
+        67, 77, 77, 77, 77, 43, 77, 77,
+        76, 56, 77, 77, 73, 34, 44, 77,
+        77, 77, 24, 77, 77, 71, 40, 77,
+        77, 2, 77, 77, 13, 77, 60, 77,
+        77, 70, 77, 77, 77, 77, 37, 9,
+        68, 47, 77, 77, 41, 77, 77, 77,
+        15, 77, 77, 42, 77, 77, 77, 16,
+        77, 26, 77, 62, 77, 77, 77, 20,
+        77, 77, 6, 36, 39, 75, 77, 46,
+        35, 77, 77, 11, 3, 77, 77, 77,
+        4, 59, 58, 63, 1, 51, 77, 28,
+        77, 77, 77, 48, 77, 17, 77, 64,
+        77, 0, 25, 19, 31, 77, 77, 77,
+        77, 77, 77, 10, 77, 77, 77, 5,
+        52, 33, 61, 77, 77, 77, 21, 77,
+        77, 77, 77, 77, 77, 77, 7, 77,
+        18, 77, 77, 77, 77, 77, 30, 77,
+        77, 77, 77, 69, 77, 27, 77, 77,
+        38, 8, 14, 77, 77, 77, 29, 77,
+        77, 77, 22,
+    };
+
+    const size_t length = strlen(string);
+
+    if (length < 3) {
+        return XCURSOR_MAX;
     }
+
+    /* these magical constants were retrieved using a brute force method, they
+     * just work
+     */
+    const uint32_t h1 = (unsigned char) string[0]          * 61233356;
+    const uint32_t h2 = (unsigned char) string[1]          * 979733696;
+    const uint32_t h3 = (unsigned char) string[3]          * 2790837248;
+    const uint32_t h4 = (unsigned char) string[length - 1] * 1703723008;
+    const uint32_t h5 = (unsigned char) length             * 1489764352;
+    const uint32_t hash = (h1 ^ h2 ^ h3 ^ h4 ^ h5) % 195;
+
+    const uint32_t index = reindex[hash];
+    if (strcmp(xcursor_core_strings[index], string) == 0) {
+        return index;
+    }
+
     return XCURSOR_MAX;
 }
 

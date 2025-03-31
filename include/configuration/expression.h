@@ -16,11 +16,11 @@ typedef struct expression {
     uint32_t *instructions;
     /* the size of the the instruction list in 4 byte units */
     uint32_t instruction_size;
-    /* the stack is used to hold onto temporary values */
-    uint32_t *stack;
-    /* the number of items in `stack` */
-    uint32_t stack_size;
 } Expression;
+
+/* Copy @instructions and @stack into @expression. */
+void initialize_expression(Expression *expression, const uint32_t *instructions,
+        uint32_t instruction_size);
 
 /* Helper function to make an expression for running a simple action. */
 void initialize_expression_from_action(Expression *expression,

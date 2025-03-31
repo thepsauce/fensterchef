@@ -117,8 +117,8 @@ typedef enum {
 #undef X
 } core_cursor_t;
 
-/* translation of core cursor to string */
-extern const char *xcursor_core_strings[XCURSOR_MAX];
+/* translation of core cursor to string, +1 is for technical reasons */
+extern const char *xcursor_core_strings[XCURSOR_MAX + 1];
 
 /* Translate a string to a cursor constant. */
 core_cursor_t string_to_cursor(const char *string);

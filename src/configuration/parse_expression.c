@@ -3,6 +3,7 @@
 
 #include "configuration/instructions.h"
 #include "configuration/parser.h"
+#include "configuration/string_conversion.h"
 #include "configuration/variables.h"
 #include "log.h"
 
@@ -117,7 +118,7 @@ static parser_error_t parse_instruction(Parser *parser)
 {
     parser_error_t error;
 
-    if (strcmp(parser->identifier_lower, "set") == 0) {
+    if (strcmp(parser->identifier, "set") == 0) {
         struct variable *variable;
         char *name = NULL;
 
@@ -126,7 +127,7 @@ static parser_error_t parse_instruction(Parser *parser)
             return error;
         }
 
-        variable = get_variable_slot(parser->identifier_lower);
+        variable = get_variable_slot(parser->identifier);
         if (variable == NULL) {
             return PARSER_ERROR_OUT_OF_VARIABLES;
         }
@@ -137,7 +138,7 @@ static parser_error_t parse_instruction(Parser *parser)
         }
 
         if (variable->name == NULL) {
-            name = xstrdup(parser->identifier_lower);
+            name = xstrdup(parser->identifier);
         }
 
         const ptrdiff_t index = variable - variables;
@@ -152,7 +153,7 @@ static parser_error_t parse_instruction(Parser *parser)
         variable->name = name;
         variable->type = DATA_TYPE_INTEGER;
         return PARSER_SUCCESS;
-    } else if (strcmp(parser->identifier_lower, "local") == 0) {
+    } else if (strcmp(parser->identifier, "local") == 0) {
         error = parse_identifier(parser);
         if (error != PARSER_SUCCESS) {
             return error;
@@ -163,9 +164,9 @@ static parser_error_t parse_instruction(Parser *parser)
             return error;
         }
 
-        push_local(parser, DATA_TYPE_INTEGER, parser->identifier_lower,
-                parser->stack_size);
-        parser->stack_size++;
+        push_local(parser, DATA_TYPE_INTEGER, parser->identifier,
+                parser->stack_position);
+        parser->stack_position++;
 
         push_instruction(parser, INSTRUCTION_PUSH_INTEGER);
 
@@ -188,7 +189,7 @@ static inline parser_error_t parse_action(Parser *parser)
     action_type_t type;
     uint32_t position;
 
-    type = string_to_action_type(parser->identifier_lower);
+    type = string_to_action_type(parser->identifier);
     if (type == ACTION_NULL) {
         return PARSER_UNEXPECTED;
     }
@@ -329,11 +330,9 @@ static parser_error_t parse_value(Parser *parser,
         do {
             struct local *local;
             struct variable *variable;
-            bool boolean;
-            uint16_t modifier;
 
             /* check for a local */
-            local = get_local(parser, parser->identifier_lower);
+            local = get_local(parser, parser->identifier);
             if (local != NULL) {
                 push_instruction(parser, MAKE_INSTRUCTION(local->address,
                             INSTRUCTION_LOAD_INTEGER));
@@ -341,7 +340,7 @@ static parser_error_t parse_value(Parser *parser,
             }
 
             /* check for a variable */
-            variable = get_variable_slot(parser->identifier_lower);
+            variable = get_variable_slot(parser->identifier);
             if (variable != NULL && variable->name != NULL) {
                 const ptrdiff_t index = variable - variables;
                 push_instruction(parser, MAKE_INSTRUCTION(index,
@@ -349,24 +348,7 @@ static parser_error_t parse_value(Parser *parser,
                 return PARSER_SUCCESS;
             }
 
-            if (string_to_boolean(parser->identifier_lower, &boolean) == OK) {
-                integer = boolean;
-                break;
-            }
-
-            if (string_to_modifier(parser->identifier_lower, &modifier) == OK) {
-                integer = modifier;
-                break;
-            }
-
-            /* translate - to _ */
-            for (uint32_t i = 0; parser->identifier[i] != '\0'; i++) {
-                if (parser->identifier[i] == '-') {
-                    parser->identifier[i] = '_';
-                }
-            }
-            integer = string_to_cursor(parser->identifier);
-            if ((core_cursor_t) integer != XCURSOR_MAX) {
+            if (string_to_constant(parser->identifier, &integer) == OK) {
                 break;
             }
 
@@ -402,10 +384,10 @@ static parser_error_t parse_expression_recursively(Parser *parser,
     uint32_t instruction = 0;
     enum precedence_class other_precedence = 0;
     uint32_t position;
-    uint32_t stack_size;
+    uint32_t stack_position;
 
     /* save the old stack position and restore it at the end */
-    stack_size = parser->stack_size;
+    stack_position = parser->stack_position;
 
     skip_space(parser);
 
@@ -606,16 +588,16 @@ static parser_error_t parse_expression_recursively(Parser *parser,
     }
 
 end:
-    if (parser->stack_size != stack_size && precedence > PRECEDENCE_ORIGIN) {
+    if (parser->stack_position != stack_position && precedence > PRECEDENCE_ORIGIN) {
         insert_instruction(parser, position, INSTRUCTION_NEXT);
-        push_instruction(parser, MAKE_INSTRUCTION(stack_size,
+        push_instruction(parser, MAKE_INSTRUCTION(stack_position,
                     INSTRUCTION_STACK_POINTER));
-        parser->stack_size = stack_size;
+        parser->stack_position = stack_position;
         /* pop all local variables */
         for (; parser->number_of_locals > 0; parser->number_of_locals--) {
             struct local *const local =
                 &parser->locals[parser->number_of_locals - 1];
-            if (local->address < stack_size) {
+            if (local->address < stack_position) {
                 break;
             }
             free(local->name);
@@ -678,18 +660,9 @@ parser_error_t parse_quad_expression_and_append(Parser *parser)
 void reset_expression(Parser *parser)
 {
     parser->instruction_size = 0;
-    parser->stack_size = 0;
+    parser->stack_position = 0;
     for (uint32_t i = 0; i < parser->number_of_locals; i++) {
         free(parser->locals[i].name);
     }
     parser->number_of_locals = 0;
-}
-
-/* Allocate an expression from previously parsed expressions. */
-void extract_expression(Parser *parser, Expression *expression)
-{
-    expression->instructions = DUPLICATE(
-            parser->instructions,
-            parser->instruction_size);
-    expression->instruction_size = parser->instruction_size;
 }
