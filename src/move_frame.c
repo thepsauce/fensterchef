@@ -1,7 +1,7 @@
 #include "configuration/configuration.h"
 #include "frame.h"
 #include "monitor.h"
-#include "tiling.h"
+#include "split.h"
 
 /* Get the frame on the left of @frame. */
 static Frame *get_left_or_above_frame(Frame *frame,

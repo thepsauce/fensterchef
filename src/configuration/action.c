@@ -10,8 +10,8 @@
 #include "monitor.h"
 #include "move_frame.h"
 #include "size_frame.h"
+#include "split.h"
 #include "stash_frame.h"
-#include "tiling.h"
 #include "utility.h"
 #include "window_list.h"
 
