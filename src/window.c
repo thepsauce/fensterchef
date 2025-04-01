@@ -410,13 +410,14 @@ void close_window(Window *window)
         return;
     }
 
+    memset(event_data, 0, sizeof(event_data));
+
     /* bake an event for running a protocol on the window */
     event = (xcb_client_message_event_t*) event_data;
     event->response_type = XCB_CLIENT_MESSAGE;
     event->window = window->client.id;
     event->type = ATOM(WM_PROTOCOLS);
     event->format = 32;
-    memset(&event->data, 0, sizeof(event->data));
     event->data.data32[0] = ATOM(WM_DELETE_WINDOW);
     xcb_send_event(connection, false, window->client.id,
             XCB_EVENT_MASK_NO_EVENT, event_data);

@@ -91,6 +91,8 @@
     /* ATOM[] */ X(WM_PROTOCOLS) \
     /* the last time the user interacted with the window */ \
     /* CARDINAL */ X(_NET_WM_USER_TIME) \
+    /* the state of the window */ \
+    /* ATOM ICON */ X(WM_STATE) \
     /* the name of the locale of the window, fox example: "en_US.UTF-8" */ \
     X(WM_LOCALE_NAME) \
     /* take focus window message atom */ \

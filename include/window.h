@@ -59,6 +59,11 @@ struct window {
     /* the window states containing atoms `_NET_WM_STATE_*` */
     xcb_atom_t *states;
 
+    /* the current `WM_STATE` atom set on the window, either
+     * `WM_STATE_NORMAL` or `WM_STATE_WITHDRAWN`
+     */
+    xcb_atom_t wm_state;
+
     /* the window state */
     WindowState state;
 

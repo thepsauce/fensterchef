@@ -136,7 +136,7 @@ static bool is_window_part_of(Window *window, Frame *frame)
 /* Synchronize the local data with the X server. */
 void synchronize_with_server(void)
 {
-    xcb_atom_t state_atom;
+    xcb_atom_t atoms[2];
 
     /* since the strut of a monitor might have changed because a window with
      * strut got hidden or shown, we need to recompute those
@@ -146,8 +146,8 @@ void synchronize_with_server(void)
     /* set the border colors of the windows */
     for (Window *window = Window_first; window != NULL; window = window->next) {
         if (window != Window_focus) {
-            state_atom = ATOM(_NET_WM_STATE_FOCUSED);
-            remove_window_states(window, &state_atom, 1);
+            atoms[0] = ATOM(_NET_WM_STATE_FOCUSED);
+            remove_window_states(window, atoms, 1);
         }
         /* set the color of the focused window */
         if (window == Window_focus) {
@@ -179,19 +179,44 @@ void synchronize_with_server(void)
                 window->width, window->height, window->border_size);
         change_client_attributes(&window->client,
                 window->client.background_color, window->border_color);
-        state_atom = ATOM(_NET_WM_STATE_HIDDEN);
-        remove_window_states(window, &state_atom, 1);
+
+        atoms[0] = ATOM(_NET_WM_STATE_HIDDEN);
+        remove_window_states(window, atoms, 1);
+
+        if (window->wm_state != XCB_ICCCM_WM_STATE_NORMAL) {
+            window->wm_state = XCB_ICCCM_WM_STATE_NORMAL;
+            atoms[0] = XCB_ICCCM_WM_STATE_NORMAL;
+            /* no icon */
+            atoms[1] = XCB_NONE;
+            xcb_change_property(connection, XCB_PROP_MODE_REPLACE,
+                    window->client.id, ATOM(WM_STATE), ATOM(WM_STATE), 32, 2,
+                    atoms);
+        }
+
         map_client(&window->client);
     }
 
     /* unmap all invisible windows */
     for (Window *window = Window_bottom; window != NULL;
             window = window->above) {
-        if (!window->state.is_visible) {
-            state_atom = ATOM(_NET_WM_STATE_HIDDEN);
-            add_window_states(window, &state_atom, 1);
-            unmap_client(&window->client);
+        if (window->state.is_visible) {
+            continue;
         }
+
+        atoms[0] = ATOM(_NET_WM_STATE_HIDDEN);
+        add_window_states(window, atoms, 1);
+
+        if (window->wm_state != XCB_ICCCM_WM_STATE_WITHDRAWN) {
+            window->wm_state = XCB_ICCCM_WM_STATE_WITHDRAWN;
+            atoms[0] = XCB_ICCCM_WM_STATE_WITHDRAWN;
+            /* no icon */
+            atoms[1] = XCB_NONE;
+            xcb_change_property(connection, XCB_PROP_MODE_REPLACE,
+                    window->client.id, ATOM(WM_STATE), ATOM(WM_STATE), 32, 2,
+                    atoms);
+        }
+
+        unmap_client(&window->client);
     }
 }
 
@@ -237,13 +262,12 @@ int next_cycle(void)
             handle_window_list_event(event);
 
             handle_event(event);
+            free(event);
 
             if (is_reload_requested) {
                 reload_user_configuration();
                 is_reload_requested = false;
             }
-
-            free(event);
         }
 
         synchronize_with_server();
@@ -720,7 +744,7 @@ static void handle_unmap_notify(xcb_unmap_notify_event_t *event)
 
 /* Map requests are sent when a new window wants to become on screen, this
  * is also where we register new windows and wrap them into the internal
- * Window struct.
+ * `Window` struct.
  */
 static void handle_map_request(xcb_map_request_event_t *event)
 {
@@ -740,8 +764,8 @@ static void handle_map_request(xcb_map_request_event_t *event)
         return;
     }
 
-    /* check if the user defined actions to run when this window receives its
-     * number
+    /* check if the user defined an expression to run when after the window
+     * is mapped
      */
     if (association.expression.instruction_size > 0) {
         LOG("running associated expression: %A\n", &association.expression);
@@ -807,6 +831,28 @@ static void handle_configure_request(xcb_configure_request_event_t *event)
 
     window = get_window_of_xcb_window(event->window);
     if (window != NULL) {
+        char event_data[32];
+        xcb_configure_notify_event_t *notify_event;
+
+        /* fake a configure notify, this is needed for many windows to work,
+         * otherwise they get in a bugged state which could have various reasons
+         * this all because we are a *tiling* window manager
+         */
+        memset(event_data, 0, sizeof(event_data));
+        notify_event = (xcb_configure_notify_event_t*) event_data;
+        notify_event->response_type = XCB_CONFIGURE_NOTIFY;
+        notify_event->event = window->client.id;
+        notify_event->window = window->client.id;
+        notify_event->x = window->x;
+        notify_event->y = window->y;
+        notify_event->width = window->width;
+        notify_event->height = window->height;
+        notify_event->border_width = is_window_borderless(window) ?
+            0 : window->border_size;
+        LOG("sending fake configure notify event %V to %W\n",
+                event, window);
+        xcb_send_event(connection, false, window->client.id,
+                XCB_EVENT_MASK_STRUCTURE_NOTIFY, event_data);
         return;
     }
 
@@ -832,6 +878,7 @@ static void handle_configure_request(xcb_configure_request_event_t *event)
         general_values[value_index++] = event->stack_mode;
     }
 
+    LOG("configuring unmanaged window %w\n", event->window);
     xcb_configure_window(connection, event->window, event->value_mask,
             general_values);
 }
@@ -892,7 +939,14 @@ static void handle_client_message(xcb_client_message_event_t *event)
         }
     /* a window wants to change a window state */
     } else if (event->type == ATOM(_NET_WM_STATE)) {
-        if (event->data.data32[1] == ATOM(_NET_WM_STATE_FULLSCREEN) ||
+        if (event->data.data32[1] == ATOM(_NET_WM_STATE_ABOVE)) {
+            switch (event->data.data32[0]) {
+            /* only react to adding */
+            case _NET_WM_STATE_ADD:
+                update_window_layer(window);
+                break;
+            }
+        } else if (event->data.data32[1] == ATOM(_NET_WM_STATE_FULLSCREEN) ||
                 event->data.data32[1] == ATOM(_NET_WM_STATE_MAXIMIZED_HORZ) ||
                 event->data.data32[1] == ATOM(_NET_WM_STATE_MAXIMIZED_VERT)) {
             switch (event->data.data32[0]) {
@@ -911,7 +965,8 @@ static void handle_client_message(xcb_client_message_event_t *event)
                 set_window_mode(window,
                         window->state.mode == WINDOW_MODE_FULLSCREEN ?
                         (window->state.previous_mode == WINDOW_MODE_FULLSCREEN ?
-                            WINDOW_MODE_FLOATING : window->state.previous_mode) :
+                            WINDOW_MODE_FLOATING :
+                            window->state.previous_mode) :
                         WINDOW_MODE_FULLSCREEN);
                 break;
             }
@@ -940,7 +995,7 @@ static void handle_screen_change(xcb_randr_screen_change_notify_event_t *event)
     merge_monitors(query_monitors());
 }
 
-/* Handle the given xcb event.
+/* Handle the given X event.
  *
  * Descriptions for each event are above each handler.
  */

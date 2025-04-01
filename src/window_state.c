@@ -283,7 +283,12 @@ static void synchronize_allowed_actions(Window *window)
 {
     const xcb_atom_t atom_lists[WINDOW_MODE_MAX][16] = {
         [WINDOW_MODE_TILING] = {
+            ATOM(_NET_WM_ACTION_MOVE),
+            ATOM(_NET_WM_ACTION_RESIZE),
+            ATOM(_NET_WM_ACTION_MINIMIZE),
             ATOM(_NET_WM_ACTION_FULLSCREEN),
+            ATOM(_NET_WM_ACTION_MAXIMIZE_HORZ),
+            ATOM(_NET_WM_ACTION_MAXIMIZE_VERT),
             ATOM(_NET_WM_ACTION_CLOSE),
             XCB_NONE,
         },
@@ -293,12 +298,17 @@ static void synchronize_allowed_actions(Window *window)
             ATOM(_NET_WM_ACTION_RESIZE),
             ATOM(_NET_WM_ACTION_MINIMIZE),
             ATOM(_NET_WM_ACTION_FULLSCREEN),
+            ATOM(_NET_WM_ACTION_MAXIMIZE_HORZ),
+            ATOM(_NET_WM_ACTION_MAXIMIZE_VERT),
             ATOM(_NET_WM_ACTION_CLOSE),
+            ATOM(_NET_WM_ACTION_ABOVE),
             XCB_NONE,
         },
 
         [WINDOW_MODE_FULLSCREEN] = {
+            ATOM(_NET_WM_ACTION_MINIMIZE),
             ATOM(_NET_WM_ACTION_CLOSE),
+            ATOM(_NET_WM_ACTION_ABOVE),
             XCB_NONE,
         },
 
