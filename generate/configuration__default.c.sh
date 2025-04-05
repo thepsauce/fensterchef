@@ -20,7 +20,7 @@ data_type_to_string() {
             result="$2"
             ;;
         '#'*)
-            result="0x${2:1}"
+            result="0xff${2:1}"
             ;;
         Shift*|Lock*|Control*|Mod*)
             IFS='+'
@@ -33,17 +33,19 @@ data_type_to_string() {
 
                 case "$m" in
                 Mod*)
-                    m="${m:3}"
+                    m="Mod${m:3}Mask"
+                    ;;
+                *)
+                    m="${m}Mask"
                     ;;
                 esac
-                result+="XCB_MOD_MASK_${m^^}"
+                result+="$m"
             done
             IFS=
             ;;
         *)
-            cursor="${2^^}"
-            cursor="${cursor//-/_}"
-            result="XCURSOR_$cursor"
+            echo "HMMM??? $1" >&2
+            return 1
             ;;
         esac
         echo "$result"
@@ -120,7 +122,7 @@ write_default_label_options() {
             line+="$(data_type_to_string "$variable_type" "$variable_value")"
             ;;
         "*")
-            line+="(${c_type##* }*) \"$variable_value\""
+            line+="\"$variable_value\""
             ;;
         *)
             line+="{ "

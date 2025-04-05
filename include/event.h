@@ -5,8 +5,11 @@
 
 #include "x11_management.h"
 
-/* this is the first index of a randr event */
-extern uint8_t randr_event_base;
+/* first index of an xkb event/error */
+extern int xkb_event_base, xkb_error_base;
+
+/* this is the first index of a randr event/error */
+extern int randr_event_base, randr_error_base;
 
 /* if the user requested to reload the configuration */
 extern bool is_reload_requested;
@@ -17,7 +20,7 @@ extern bool is_reload_requested;
 extern bool has_client_list_changed;
 
 /* Create a signal handler for `SIGALRM`. */
-int initialize_signal_handlers(void);
+void initialize_signal_handlers(void);
 
 /* Set the client list root property. */
 void synchronize_client_list(void);
@@ -33,11 +36,11 @@ void synchronize_with_server(void);
 int next_cycle(void);
 
 /* Start resizing a window using the mouse. */
-void initiate_window_move_resize(Window *window,
+void initiate_window_move_resize(FcWindow *window,
         wm_move_resize_direction_t direction,
-        int32_t start_x, int32_t start_y);
+        int start_x, int start_y);
 
 /* Handle the given X event. */
-void handle_event(xcb_generic_event_t *event);
+void handle_event(XEvent *event);
 
 #endif

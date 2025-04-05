@@ -2,9 +2,6 @@
 #define FENSTERCHEF_H
 
 #include <stdbool.h>
-#include <stdio.h>
-
-#include "utf8.h"
 
 #define FENSTERCHEF_NAME "fensterchef"
 
@@ -36,16 +33,7 @@ void run_external_command(const char *command);
  */
 int dump_frames_and_windows(const char *file_path);
 
-/* Close the connection to xcb and exit the program with given exit code. */
+/* Close the display to xcb and exit the program with given exit code. */
 void quit_fensterchef(int exit_code);
-
-/* Show the notification window with given message at given coordinates for
- * a duration in seconds specified in the configuration.
- *
- * @message UTF-8 string.
- * @x Center x position.
- * @y Center y position.
- */
-void set_notification(const utf8_t *message, int32_t x, int32_t y);
 
 #endif

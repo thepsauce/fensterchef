@@ -226,7 +226,7 @@ static inline parser_error_t parse_action(Parser *parser)
 
         push_instruction(parser, 0);
 
-        length = strlen((char*) string);
+        length = strlen(string);
         length_in_4bytes = length / sizeof(*parser->instructions) + 1;
         new_size = parser->instruction_size + length_in_4bytes;
         if (new_size > parser->instruction_capacity) {
@@ -286,7 +286,6 @@ static inline parser_error_t parse_action(Parser *parser)
  * variable name
  * boolean constant
  * modifier constant
- * cursor constant
  * instruction word
  * action type
  *

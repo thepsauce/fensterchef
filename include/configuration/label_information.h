@@ -1,4 +1,4 @@
-/* This file is meant to be included by `configuration_parser.c`. */
+/* This file is meant to be included by `configuration/parser.c`. */
 
 static parser_error_t parse_startup_actions(Parser *parser);
 static parser_error_t parse_assignment_association(Parser *parser);
@@ -31,15 +31,15 @@ static const struct configuration_parser_label_name {
         "general", NULL, {
         { "overlap-percentage", DATA_TYPE_INTEGER,
             offsetof(struct configuration, general.overlap_percentage) },
-        { "root-cursor", DATA_TYPE_INTEGER,
+        { "root-cursor", DATA_TYPE_STRING,
             offsetof(struct configuration, general.root_cursor) },
-        { "moving-cursor", DATA_TYPE_INTEGER,
+        { "moving-cursor", DATA_TYPE_STRING,
             offsetof(struct configuration, general.moving_cursor) },
-        { "horizontal-cursor", DATA_TYPE_INTEGER,
+        { "horizontal-cursor", DATA_TYPE_STRING,
             offsetof(struct configuration, general.horizontal_cursor) },
-        { "vertical-cursor", DATA_TYPE_INTEGER,
+        { "vertical-cursor", DATA_TYPE_STRING,
             offsetof(struct configuration, general.vertical_cursor) },
-        { "sizing-cursor", DATA_TYPE_INTEGER,
+        { "sizing-cursor", DATA_TYPE_STRING,
             offsetof(struct configuration, general.sizing_cursor) },
         /* null terminate the end */
         { NULL, 0, 0 } }
@@ -71,8 +71,6 @@ static const struct configuration_parser_label_name {
 
     [PARSER_LABEL_FONT] = {
         "font", NULL, {
-        { "use-core-font", DATA_TYPE_INTEGER,
-            offsetof(struct configuration, font.use_core_font) },
         { "name", DATA_TYPE_STRING,
             offsetof(struct configuration, font.name) },
         /* null terminate the end */

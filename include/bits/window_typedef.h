@@ -1,7 +1,7 @@
 #ifndef WINDOW_TYPEDEF_H
 #define WINDOW_TYPEDEF_H
 
-struct window;
-typedef struct window Window;
+struct fensterchef_window;
+typedef struct fensterchef_window FcWindow;
 
 #endif

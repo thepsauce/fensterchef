@@ -6,48 +6,33 @@
 #include "window.h"
 #include "window_properties.h"
 
-struct x_atoms x_atoms[] = {
-#define X(atom) { #atom, 0 },
+/* all X atom names */
+const char *x_atom_names[ATOM_MAX] = {
+#define X(atom) \
+    #atom,
     DEFINE_ALL_ATOMS
 #undef X
 };
 
-/* Intern all X atoms we require. */
-int initialize_atoms(void)
-{
-    xcb_intern_atom_cookie_t atom_cookies[ATOM_MAX];
-    xcb_generic_error_t *error;
-    xcb_intern_atom_reply_t *atom;
-    /* intern the atoms into the xcb server */
-    for (uint32_t i = 0; i < ATOM_MAX; i++) {
-        atom_cookies[i] = xcb_intern_atom(connection, false,
-                strlen(x_atoms[i].name), x_atoms[i].name);
-    }
+/* all X atom ids */
+Atom x_atom_ids[ATOM_MAX];
 
-    /* get the reply for all cookies and set the atoms to the values the xcb
-     * server assigned for us
-     */
-    for (uint32_t i = 0; i < ATOM_MAX; i++) {
-        atom = xcb_intern_atom_reply(connection, atom_cookies[i], &error);
-        if (atom == NULL) {
-            LOG_ERROR("could not intern atom %s: %E", x_atoms[i].name, error);
-            free(error);
-            return ERROR;
-        }
-        x_atoms[i].atom = atom->atom;
-        free(atom);
-    }
-    return OK;
+/* Initialize all X atoms. */
+void initialize_atoms(void)
+{
+    XInternAtoms(display, (char**) x_atom_names, ATOM_MAX, False, x_atom_ids);
 }
 
 /* Set the initial root window properties. */
 void initialize_root_properties(void)
 {
+    Window root;
+
     /* set the supported ewmh atoms of our window manager, ewmh support was easy
      * to add with the help of:
      * https://specifications.freedesktop.org/wm-spec/latest/index.html#id-1.2
      */
-    const xcb_atom_t supported_atoms[] = {
+    const Atom supported_atoms[] = {
         ATOM(_NET_SUPPORTED),
 
         ATOM(_NET_CLIENT_LIST),
@@ -101,249 +86,261 @@ void initialize_root_properties(void)
 
         ATOM(_NET_WM_FULLSCREEN_MONITORS),
     };
-    xcb_change_property(connection, XCB_PROP_MODE_REPLACE, screen->root,
-            ATOM(_NET_SUPPORTED), XCB_ATOM_ATOM, 32,
-            SIZE(supported_atoms), supported_atoms);
+    root = DefaultRootWindow(display);
+    XChangeProperty(display, root, ATOM(_NET_SUPPORTED), XA_ATOM, 32,
+            PropModeReplace, (unsigned char*) supported_atoms,
+            SIZE(supported_atoms));
 
     /* the wm check window */
-    xcb_change_property(connection, XCB_PROP_MODE_REPLACE, screen->root,
-            ATOM(_NET_SUPPORTING_WM_CHECK), XCB_ATOM_WINDOW,
-            32, 1, &wm_check_window);
+    XChangeProperty(display, root, ATOM(_NET_SUPPORTING_WM_CHECK), XA_WINDOW,
+            32, PropModeReplace, (unsigned char*) &wm_check_window, 1);
 
 
     /* set the active window */
-    xcb_change_property(connection, XCB_PROP_MODE_REPLACE, screen->root,
-            ATOM(_NET_ACTIVE_WINDOW), XCB_ATOM_WINDOW, 32, 1, &screen->root);
+    XChangeProperty(display, root, ATOM(_NET_ACTIVE_WINDOW), XA_WINDOW, 32,
+            PropModeReplace, (unsigned char*) &root, 1);
 }
 
-
-/* Wrapper around getting a cookie and reply for a GetProperty request. */
-static inline xcb_get_property_reply_t *get_property(
-        xcb_window_t window, xcb_atom_t property, xcb_atom_t type,
-        uint32_t format, uint32_t length)
+static inline long *get_long_property(
+        Window window, Atom property, unsigned long expected_item_count)
 {
-    xcb_get_property_cookie_t cookie;
-    xcb_get_property_reply_t *reply;
+    Atom type;
+    int format;
+    unsigned long item_count;
+    unsigned long bytes_after;
+    unsigned char *property_result;
 
-    cookie = xcb_get_property(connection, false, window, property, type, 0,
-            length);
-    reply = xcb_get_property_reply(connection, cookie, NULL);
-    /* check if the property is in the needed format and if it is long enough */
-    if (reply != NULL && (reply->format != format || (uint32_t)
-            xcb_get_property_value_length(reply) < length * format / 8)) {
-        LOG("window %w has misformatted property %a\n", window, property);
-        free(reply);
-        reply = NULL;
+    XGetWindowProperty(display, window, property, 0, expected_item_count, False,
+            AnyPropertyType, &type, &format, &item_count, &bytes_after,
+            &property_result);
+    if (format != 32 || item_count != expected_item_count) {
+        if (type != None) {
+            LOG("window %w has misformatted property %a\n",
+                    window, property);
+        }
+        XFree(property_result);
+        property_result = NULL;
     }
-    return reply;
+    return (long*) property_result;
 }
 
-/* Wrapper around getting a cookie and reply for a GetProperty request. */
-static inline xcb_get_property_reply_t *get_text_property(xcb_window_t window,
-        xcb_atom_t property)
+static inline char *get_text_property(Window window, Atom property,
+        unsigned long *length)
 {
-    xcb_get_property_cookie_t cookie;
-    xcb_get_property_reply_t *reply;
+    Atom type;
+    int format;
+    unsigned long bytes_after;
+    unsigned char *property_result;
 
-    cookie = xcb_get_property(connection, false, window, property,
-            XCB_GET_PROPERTY_TYPE_ANY, 0, 2048);
-    reply = xcb_get_property_reply(connection, cookie, NULL);
-    if (reply != NULL && reply->format == 0) {
-        free(reply);
-        reply = NULL;
+    XGetWindowProperty(display, window, property, 0, 1024, False,
+            AnyPropertyType, &type, &format, length,
+            &bytes_after, &property_result);
+
+    if (format != 8) {
+        if (type != None) {
+            LOG("window %w has misformatted property %a\n",
+                    window, property_result);
+        }
+        XFree(property_result);
+        property_result = NULL;
     }
-    /* check if the property is in the needed format */
-    if (reply != NULL && reply->format != 8) {
-        LOG("window %w has misformatted property %a\n", window, property);
-        free(reply);
-        reply = NULL;
-    }
-    return reply;
+
+    return (char*) property_result;
 }
 
 /* Gets the `FENSTERCHEF_COMMAND` property from @window. */
-char *get_fensterchef_command_property(xcb_window_t window)
+char *get_fensterchef_command_property(Window window)
 {
-    xcb_get_property_reply_t *command_property;
+    char *command_property;
+    unsigned long length;
     char *command = NULL;
 
-    command_property = get_text_property(window, ATOM(FENSTERCHEF_COMMAND));
+    command_property = get_text_property(window, ATOM(FENSTERCHEF_COMMAND),
+            &length);
     if (command_property != NULL) {
-        command = xstrndup(
-                xcb_get_property_value(command_property),
-                xcb_get_property_value_length(command_property));
-        free(command_property);
+        command = xstrndup(command_property, length);
+        XFree(command_property);
     }
-
     return command;
 }
 
 /* Update the name within @properties. */
-static void update_window_name(Window *window)
+static void update_window_name(FcWindow *window)
 {
-    xcb_get_property_reply_t *name;
+    char *name;
+    unsigned long length;
 
     free(window->name);
     window->name = NULL;
 
-    name = get_text_property(window->client.id, ATOM(_NET_WM_NAME));
+    name = get_text_property(window->client.id, ATOM(_NET_WM_NAME), &length);
     /* try to fall back to `WM_NAME` */
     if (name == NULL) {
-        name = get_text_property(window->client.id, XCB_ATOM_WM_NAME);
+        name = get_text_property(window->client.id, XA_WM_NAME, &length);
     }
 
     if (name != NULL) {
-        window->name = (utf8_t*) xstrndup(
-                xcb_get_property_value(name),
-                xcb_get_property_value_length(name));
-
+        window->name = xstrndup(name, length);
         free(name);
     }
 }
 
 /* Update the size_hints within @properties. */
-static void update_window_size_hints(Window *window)
+static void update_window_normal_hints(FcWindow *window)
 {
-    xcb_get_property_cookie_t size_hints_cookie;
+    long supplied;
 
-    size_hints_cookie = xcb_icccm_get_wm_size_hints(connection,
-            window->client.id, XCB_ATOM_WM_NORMAL_HINTS);
-    if (!xcb_icccm_get_wm_size_hints_reply(connection, size_hints_cookie,
-                &window->size_hints, NULL)) {
-        window->size_hints.flags = 0;
-    }
+    XGetWMNormalHints(display, window->client.id, &window->size_hints,
+            &supplied);
 }
 
 /* Update the hints within @properties. */
-static void update_window_hints(Window *window)
+static void update_window_hints(FcWindow *window)
 {
-    xcb_get_property_cookie_t hints_cookie;
+    XWMHints *wm_hints;
 
-    hints_cookie = xcb_icccm_get_wm_hints(connection, window->client.id);
-    if (!xcb_icccm_get_wm_hints_reply(connection, hints_cookie,
-                &window->hints, NULL)) {
+    wm_hints = XGetWMHints(display, window->client.id);
+    if (wm_hints == NULL) {
         window->hints.flags = 0;
+    } else {
+        window->hints = *wm_hints;
+        XFree(wm_hints);
     }
 }
 
 /* Update the strut partial property within @properties. */
-static void update_window_strut(Window *window)
+static void update_window_strut(FcWindow *window)
 {
-    xcb_get_property_reply_t *strut;
+    long *strut;
 
     memset(&window->strut, 0, sizeof(window->strut));
 
-    strut = get_property(window->client.id,
-            ATOM(_NET_WM_STRUT_PARTIAL), XCB_ATOM_CARDINAL, 32,
-            sizeof(wm_strut_partial_t) / sizeof(uint32_t));
+    strut = get_long_property(window->client.id, ATOM(_NET_WM_STRUT_PARTIAL),
+            sizeof(wm_strut_partial_t) / sizeof(int));
     if (strut == NULL) {
         /* `_NET_WM_STRUT` is older than `_NET_WM_STRUT_PARTIAL`, fall back to
          * it when there is no strut partial
          */
-        strut = get_property(window->client.id,
-                ATOM(_NET_WM_STRUT), XCB_ATOM_CARDINAL, 32,
-                sizeof(Extents) / sizeof(uint32_t));
+        strut = get_long_property(window->client.id, ATOM(_NET_WM_STRUT), 4);
         if (strut != NULL) {
-            window->strut.reserved = *(Extents*) xcb_get_property_value(strut);
+            window->strut.left = strut[0];
+            window->strut.top = strut[1];
+            window->strut.right = strut[2];
+            window->strut.bottom = strut[3];
         }
     } else {
-        window->strut = *(wm_strut_partial_t*) xcb_get_property_value(strut);
+        window->strut.left = strut[0];
+        window->strut.top = strut[1];
+        window->strut.right = strut[2];
+        window->strut.bottom = strut[3];
+        window->strut.left_start_y = strut[4];
+        window->strut.left_end_y = strut[5];
+        window->strut.right_start_y = strut[6];
+        window->strut.right_end_y = strut[7];
+        window->strut.top_start_x = strut[8];
+        window->strut.top_end_x = strut[9];
+        window->strut.bottom_start_x = strut[10];
+        window->strut.bottom_end_x = strut[11];
     }
 
-    free(strut);
+    XFree(strut);
 }
 
 /* Get a window property as list of atoms. */
-static inline xcb_atom_t *get_atom_list(xcb_window_t window, xcb_atom_t atom)
+static inline Atom *get_atom_list_property(Window window, Atom property)
 {
-    xcb_get_property_cookie_t cookie;
-    xcb_get_property_reply_t *reply;
-    xcb_atom_t *atoms;
+    Atom type;
+    int format;
+    unsigned long count;
+    unsigned long bytes_after;
+    unsigned char *raw_property;
+    Atom *raw_atoms;
+    Atom *atoms;
 
     /* get up to 32 atoms from this property */
-    cookie = xcb_get_property(connection, 0, window, atom, XCB_ATOM_ATOM,
-            0, sizeof(atom) * 32);
-    reply = xcb_get_property_reply(connection, cookie, NULL);
-    if (reply == NULL) {
+    XGetWindowProperty(display, window, property, 0, 32, False,
+            XA_ATOM, &type, &format, &count,
+            &bytes_after, &raw_property);
+    if (format != 32 || type != XA_ATOM) {
+        if (type != None) {
+            LOG("window %w has misformatted property %a\n",
+                    window, property);
+        }
+        XFree(raw_property);
         return NULL;
     }
-    atoms = xmalloc(xcb_get_property_value_length(reply) + sizeof(*atoms));
-    memcpy(atoms, xcb_get_property_value(reply),
-            xcb_get_property_value_length(reply));
-    atoms[xcb_get_property_value_length(reply) / sizeof(xcb_atom_t)] = XCB_NONE;
-    free(reply);
+
+    raw_atoms = (Atom*) raw_property;
+    atoms = xmalloc((count + 1) * sizeof(*atoms));
+    memcpy(atoms, raw_atoms, count * sizeof(*atoms));
+    atoms[count] = None;
+    XFree(raw_property);
     return atoms;
 }
 
 /* Update the `transient_for` property within @window. */
-static void update_window_transient_for(Window *window)
+static void update_window_transient_for(FcWindow *window)
 {
-    xcb_get_property_cookie_t transient_for_cookie;
-
-    transient_for_cookie = xcb_icccm_get_wm_transient_for(connection,
-            window->client.id);
-    if (!xcb_icccm_get_wm_transient_for_reply(connection, transient_for_cookie,
-                &window->transient_for, NULL)) {
-        window->transient_for = XCB_NONE;
-    }
+    XGetTransientForHint(display, window->client.id, &window->transient_for);
 }
 
 /* Update the `protocols` property within @window. */
-static void update_window_protocols(Window *window)
+static void update_window_protocols(FcWindow *window)
 {
     free(window->protocols);
-    window->protocols = get_atom_list(window->client.id,
+    window->protocols = get_atom_list_property(window->client.id,
             ATOM(WM_PROTOCOLS));
 }
 
 /* Update the `fullscreen_monitors` property within @window. */
-static void update_window_fullscreen_monitors(Window *window)
+static void update_window_fullscreen_monitors(FcWindow *window)
 {
-    xcb_get_property_reply_t *monitors;
+    long *monitors;
 
-    monitors = get_property(window->client.id,
-            ATOM(_NET_WM_FULLSCREEN_MONITORS), XCB_ATOM_CARDINAL, 32,
-            sizeof(window->fullscreen_monitors) / sizeof(uint32_t));
+    monitors = get_long_property(window->client.id,
+            ATOM(_NET_WM_FULLSCREEN_MONITORS),
+            sizeof(window->fullscreen_monitors) / sizeof(int));
     if (monitors == NULL) {
         memset(&window->fullscreen_monitors, 0,
                 sizeof(window->fullscreen_monitors));
     } else {
-        window->fullscreen_monitors =
-            *(Extents*) xcb_get_property_value(monitors);
-        free(monitors);
+        window->fullscreen_monitors.left = monitors[0];
+        window->fullscreen_monitors.top = monitors[1];
+        window->fullscreen_monitors.right = monitors[2];
+        window->fullscreen_monitors.bottom = monitors[3];
+        XFree(monitors);
     }
 }
 
 /* Update `is_borderless` within @window base on `_MOTIF_WM_HINTS`. */
-static void update_motif_wm_hints(Window *window)
+static void update_motif_wm_hints(FcWindow *window)
 {
-    xcb_get_property_reply_t *motif_wm_hints;
+    long *motif_wm_hints;
     struct motif_wm_hints {
         /* what fields below are available */
-        uint32_t flags;
+        int flags;
         /* IGNORED */
-        uint32_t functions;
+        int functions;
         /* border/frame decoration flags */
-        uint32_t decorations;
+        int decorations;
         /* IGNORED */
-        uint32_t input_mode;
+        int input_mode;
         /* IGNORED */
-        uint32_t status;
+        int status;
     } hints;
 
-    const uint32_t decorations_flag = (1 << 1);
-    const uint32_t decorate_all = (1 << 0);
-    const uint32_t decorate_border = (1 << 2) | (1 << 3);
+    const int decorations_flag = (1 << 1);
+    const int decorate_all = (1 << 0);
+    const int decorate_border = (1 << 2) | (1 << 3);
 
     window->is_borderless = false;
 
-    motif_wm_hints = get_property(window->client.id,
-            ATOM(_MOTIF_WM_HINTS), ATOM(_MOTIF_WM_HINTS), 32,
-            sizeof(hints) / sizeof(uint32_t));
+    motif_wm_hints = get_long_property(window->client.id, ATOM(_MOTIF_WM_HINTS),
+            sizeof(hints) / sizeof(int));
     if (motif_wm_hints != NULL) {
-        hints = *(struct motif_wm_hints*)
-            xcb_get_property_value(motif_wm_hints);
-        free(motif_wm_hints);
+        hints.flags = motif_wm_hints[0];
+        hints.decorations = motif_wm_hints[2];
+        XFree(motif_wm_hints);
 
         if ((hints.flags & decorations_flag)) {
             /* if `decorate_all` is set, the other flags are exclusive */
@@ -359,19 +356,18 @@ static void update_motif_wm_hints(Window *window)
 }
 
 /* Update the property within @window corresponding to given atom. */
-bool cache_window_property(Window *window, xcb_atom_t atom)
+bool cache_window_property(FcWindow *window, Atom atom)
 {
     /* this is spaced out because it was very difficult to read with the eyes */
-    if (atom == XCB_ATOM_WM_NAME || atom == ATOM(_NET_WM_NAME)) {
+    if (atom == XA_WM_NAME || atom == ATOM(_NET_WM_NAME)) {
 
         update_window_name(window);
 
-    } else if (atom == XCB_ATOM_WM_NORMAL_HINTS ||
-            atom == XCB_ATOM_WM_SIZE_HINTS) {
+    } else if (atom == XA_WM_NORMAL_HINTS) {
 
-        update_window_size_hints(window);
+        update_window_normal_hints(window);
 
-    } else if (atom == XCB_ATOM_WM_HINTS) {
+    } else if (atom == XA_WM_HINTS) {
 
         update_window_hints(window);
 
@@ -380,7 +376,7 @@ bool cache_window_property(Window *window, xcb_atom_t atom)
 
         update_window_strut(window);
 
-    } else if (atom == XCB_ATOM_WM_TRANSIENT_FOR) {
+    } else if (atom == XA_WM_TRANSIENT_FOR) {
 
         update_window_transient_for(window);
 
@@ -403,12 +399,12 @@ bool cache_window_property(Window *window, xcb_atom_t atom)
 }
 
 /* Check if an atom is within the given list of atoms. */
-static bool is_atom_included(const xcb_atom_t *atoms, xcb_atom_t atom)
+static bool is_atom_included(const Atom *atoms, Atom atom)
 {
     if (atoms == NULL) {
         return false;
     }
-    for (; atoms[0] != XCB_NONE; atoms++) {
+    for (; atoms[0] != None; atoms++) {
         if (atoms[0] == atom) {
             return true;
         }
@@ -417,56 +413,47 @@ static bool is_atom_included(const xcb_atom_t *atoms, xcb_atom_t atom)
 }
 
 /* Initialize all properties within @properties. */
-window_mode_t initialize_window_properties(Window *window,
+window_mode_t initialize_window_properties(FcWindow *window,
         struct configuration_association *output_association)
 {
-    xcb_list_properties_cookie_t list_properties_cookie;
-    xcb_list_properties_reply_t *list_properties;
-    xcb_get_property_reply_t *wm_class;
-    const char *wm_class_value;
-    int wm_class_length;
-    int instance_length;
+    int atom_count;
+    Atom *atoms;
+    char *wm_class;
+    unsigned long wm_class_length;
+    unsigned long instance_length;
     utf8_t *instance_name = NULL;
     utf8_t *class_name = NULL;
-    xcb_atom_t *atoms;
-    int atom_count;
-    xcb_atom_t *states = NULL;
-    xcb_atom_t *types = NULL;
+    Atom *states = NULL;
+    Atom *types = NULL;
     window_mode_t predicted_mode = WINDOW_MODE_TILING;
 
     memset(output_association, 0, sizeof(*output_association));
 
     /* get a list of properties currently set on the window */
-    list_properties_cookie = xcb_list_properties(connection, window->client.id);
-    list_properties = xcb_list_properties_reply(connection,
-            list_properties_cookie, NULL);
-    if (list_properties == NULL) {
-        return predicted_mode;
-    }
+    atoms = XListProperties(display, window->client.id, &atom_count);
 
     /* cache all properties */
-    atoms = xcb_list_properties_atoms(list_properties);
-    atom_count = xcb_list_properties_atoms_length(list_properties);
     for (int i = 0; i < atom_count; i++) {
-        if (atoms[i] == XCB_ATOM_WM_CLASS) {
-            wm_class = get_text_property(window->client.id, XCB_ATOM_WM_CLASS);
-            wm_class_value = xcb_get_property_value(wm_class);
-            wm_class_length = xcb_get_property_value_length(wm_class);
+        if (atoms[i] == XA_WM_CLASS) {
+            wm_class = get_text_property(window->client.id, XA_WM_CLASS,
+                    &wm_class_length);
 
-            instance_length = strnlen((char*) wm_class_value, wm_class_length);
+            instance_length = strnlen(wm_class, wm_class_length);
             instance_name = xmalloc(instance_length + 1);
-            memcpy(instance_name, wm_class_value, instance_length);
+            memcpy(instance_name, wm_class, instance_length);
             instance_name[instance_length] = '\0';
 
-            class_name = (utf8_t*) xstrndup(
-                    &wm_class_value[instance_length + 1],
+            class_name = xstrndup(
+                    &wm_class[instance_length + 1],
                     wm_class_length - instance_length);
 
-            free(wm_class);
+            XFree(wm_class);
         } else if (atoms[i] == ATOM(_NET_WM_STATE)) {
-            states = get_atom_list(window->client.id, ATOM(_NET_WM_STATE));
+            states = get_atom_list_property(window->client.id,
+                    ATOM(_NET_WM_STATE));
         } else if (atoms[i] == ATOM(_NET_WM_WINDOW_TYPE)) {
-            types = get_atom_list(window->client.id, ATOM(_NET_WM_WINDOW_TYPE));
+            types = get_atom_list_property(window->client.id,
+                    ATOM(_NET_WM_WINDOW_TYPE));
         } else {
             cache_window_property(window, atoms[i]);
         }
@@ -488,11 +475,8 @@ window_mode_t initialize_window_properties(Window *window,
     } else if (window->transient_for != 0) {
         predicted_mode = WINDOW_MODE_FLOATING;
     /* floating windows have an equal minimum and maximum size */
-    } else if ((window->size_hints.flags &
-                (XCB_ICCCM_SIZE_HINT_P_MIN_SIZE |
-                 XCB_ICCCM_SIZE_HINT_P_MAX_SIZE)) ==
-                (XCB_ICCCM_SIZE_HINT_P_MIN_SIZE |
-                 XCB_ICCCM_SIZE_HINT_P_MAX_SIZE) &&
+    } else if ((window->size_hints.flags & (PMinSize | PMaxSize)) ==
+            (PMinSize | PMaxSize) &&
             (window->size_hints.min_width == window->size_hints.max_width ||
              window->size_hints.min_height == window->size_hints.max_height)) {
         predicted_mode = WINDOW_MODE_FLOATING;
@@ -511,10 +495,8 @@ window_mode_t initialize_window_properties(Window *window,
                 i++) {
             struct configuration_association *const association =
                 &configuration.assignment.associations[i];
-            if (matches_pattern((char*) association->instance_pattern,
-                        (char*) instance_name) &&
-                    matches_pattern((char*) association->class_pattern,
-                        (char*) class_name)) {
+            if (matches_pattern(association->instance_pattern, instance_name) &&
+                    matches_pattern(association->class_pattern, class_name)) {
                 *output_association = *association;
                 break;
             }
@@ -524,19 +506,20 @@ window_mode_t initialize_window_properties(Window *window,
     free(instance_name);
     free(class_name);
     free(types);
-    free(list_properties);
+
+    XFree(atoms);
 
     return predicted_mode;
 }
 
 /* Check if @properties includes @protocol. */
-bool supports_protocol(Window *window, xcb_atom_t protocol)
+bool supports_protocol(FcWindow *window, Atom protocol)
 {
     return is_atom_included(window->protocols, protocol);
 }
 
 /* Check if @properties includes @state. */
-bool has_state(Window *window, xcb_atom_t state)
+bool has_state(FcWindow *window, Atom state)
 {
     return is_atom_included(window->states, state);
 }

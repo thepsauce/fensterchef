@@ -34,15 +34,15 @@ columns should be 78 here.
 [general]
 overlap-percentage integer 80
    at which percentage to consider a window to be overlapped with a monitor
-root-cursor integer left-ptr
+root-cursor string left_ptr
    the name of the cursor used on the root window
-moving-cursor integer fleur
+moving-cursor string fleur
    the name of the cursor used for moving a window
-horizontal-cursor integer sb-h-double-arrow
+horizontal-cursor string sb_h_double_arrow
    the name of the cursor used for sizing a window horizontally
-vertical-cursor integer sb-v-double-arrow
+vertical-cursor string sb_v_double_arrow
    the name of the cursor used for sizing a window vertically
-sizing-cursor integer sizing
+sizing-cursor string sizing
    the name of the cursor used for sizing a window
 
 [assignment]*association
@@ -50,7 +50,7 @@ first-window-number integer 1
    the number the first window gets assigned
 *struct configuration_association *associations
    the associations that are wanted
-*uint32_t number_of_associations
+*size_t number_of_associations
    the number of associations
 
 [tiling]
@@ -67,10 +67,8 @@ auto-remove-void integer false
    whether to remove frames automatically when they become empty
 
 [font]
-use-core-font integer false
-   whether to use the core font instead of the better font rendering
 name string Mono
-   name of the font in fontconfig format
+   font name in fontconfig format
 
 [border]
 size integer 1
@@ -111,7 +109,7 @@ ignore-modifiers integer Lock+Mod2
    the modifiers to ignore for a mouse binding
 *struct configuration_button *buttons
    the configured buttons
-*uint32_t number_of_buttons
+*size_t number_of_buttons
    the number of configured buttons
 !merge-default
    Merge with the default mouse bindings
@@ -123,7 +121,7 @@ ignore-modifiers integer Lock+Mod2
    the modifiers to ignore for a key binding
 *struct configuration_key *keys
    the configured keys
-*uint32_t number_of_keys
+*size_t number_of_keys
    the number of configured keys
 !merge-default
    Merge with the default key bindings

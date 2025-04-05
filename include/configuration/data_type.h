@@ -1,14 +1,11 @@
 #ifndef CONFIGURATION__DATA_TYPE_H
 #define CONFIGURATION__DATA_TYPE_H
 
-#include <stdbool.h>
-#include <stdint.h>
-
 #include "bits/frame_typedef.h"
 #include "bits/window_typedef.h"
 
 #include "cursor.h"
-#include "utf8.h"
+#include "utility.h"
 
 /* data types the parser understands
  *

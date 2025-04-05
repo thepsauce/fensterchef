@@ -1,19 +1,20 @@
-#include <inttypes.h>
 #include <signal.h>
+
 #include <string.h>
 #include <sys/select.h>
 #include <unistd.h>
 
-#include <xcb/randr.h>
+#include <X11/XKBlib.h>
+
+#include <X11/extensions/Xrandr.h>
 
 #include "configuration/configuration.h"
 #include "event.h"
 #include "fensterchef.h"
 #include "frame.h"
-#include "keymap.h"
 #include "log.h"
 #include "monitor.h"
-#include "resources.h"
+#include "notification.h"
 #include "size_frame.h"
 #include "split.h"
 #include "utility.h"
@@ -31,8 +32,11 @@
  * to do now but to take note of it.
  */
 
-/* this is the first index of a randr event */
-uint8_t randr_event_base;
+/* first index of an xkb event */
+int xkb_event_base, xkb_error_base;
+
+/* first index of a randr event */
+int randr_event_base, randr_error_base;
 
 /* signals whether the alarm signal was received */
 volatile sig_atomic_t has_timer_expired;
@@ -48,7 +52,7 @@ bool has_client_list_changed;
 /* this is used for moving/resizing a floating window */
 static struct {
     /* the window that is being moved */
-    Window *window;
+    FcWindow *window;
     /* how to move or resize the window */
     wm_move_resize_direction_t direction;
     /* initial position and size of the window */
@@ -58,28 +62,17 @@ static struct {
 } move_resize;
 
 /* Handle an incoming alarm. */
-static void alarm_handler(int signal)
+static void alarm_handler(int signal_number)
 {
-    (void) signal;
     has_timer_expired = true;
+    /* make sure the signal handler sticks around and is not deinstalled */
+    signal(signal_number, alarm_handler);
 }
 
 /* Create a signal handler for `SIGALRM`. */
-int initialize_signal_handlers(void)
+void initialize_signal_handlers(void)
 {
-    struct sigaction action;
-
-    /* install the signal handler for the alarm signal, this is triggered when
-     * the alarm created by `alarm()` expires
-     */
-    memset(&action, 0, sizeof(action));
-    action.sa_handler = alarm_handler;
-    sigemptyset(&action.sa_mask);
-    if (sigaction(SIGALRM, &action, NULL) == -1) {
-        LOG_ERROR("could not create alarm handler\n");
-        return ERROR;
-    }
-    return OK;
+    signal(SIGALRM, alarm_handler);
 }
 
 /* Set the client list root property. */
@@ -88,14 +81,18 @@ void synchronize_client_list(void)
     /* a list of window ids that is synchronized with the actual windows */
     static struct {
         /* the id of the window */
-        xcb_window_t *ids;
+        Window *ids;
         /* the number of allocated ids */
-        uint32_t length;
+        unsigned length;
     } client_list;
 
-    Window *window;
-    uint32_t index = 0;
+    Window root;
+    FcWindow *window;
+    unsigned index = 0;
 
+    root = DefaultRootWindow(display);
+
+    /* allocate more ids if needed */
     if (Window_count > client_list.length) {
         client_list.length = Window_count;
         RESIZE(client_list.ids, client_list.length);
@@ -107,9 +104,8 @@ void synchronize_client_list(void)
         index++;
     }
     /* set the `_NET_CLIENT_LIST` property */
-    xcb_change_property(connection, XCB_PROP_MODE_REPLACE, screen->root,
-            ATOM(_NET_CLIENT_LIST), XCB_ATOM_WINDOW, 32,
-            Window_count, client_list.ids);
+    XChangeProperty(display, root, ATOM(_NET_CLIENT_LIST), XA_WINDOW, 32,
+            PropModeReplace, (unsigned char*) client_list.ids, Window_count);
 
     index = 0;
     /* sort the list in order of the Z stacking (bottom to top) */
@@ -118,13 +114,13 @@ void synchronize_client_list(void)
         index++;
     }
     /* set the `_NET_CLIENT_LIST_STACKING` property */
-    xcb_change_property(connection, XCB_PROP_MODE_REPLACE, screen->root,
-            ATOM(_NET_CLIENT_LIST_STACKING), XCB_ATOM_WINDOW, 32,
-            Window_count, client_list.ids);
+    XChangeProperty(display, root, ATOM(_NET_CLIENT_LIST_STACKING), XA_WINDOW,
+            32, PropModeReplace,
+            (unsigned char*) client_list.ids, Window_count);
 }
 
 /* Recursively check if the window is contained within @frame. */
-static bool is_window_part_of(Window *window, Frame *frame)
+static bool is_window_part_of(FcWindow *window, Frame *frame)
 {
     if (frame->left != NULL) {
         return is_window_part_of(window, frame->left) ||
@@ -136,15 +132,18 @@ static bool is_window_part_of(Window *window, Frame *frame)
 /* Synchronize the local data with the X server. */
 void synchronize_with_server(void)
 {
-    xcb_atom_t atoms[2];
+    Atom atoms[2];
 
     /* since the strut of a monitor might have changed because a window with
      * strut got hidden or shown, we need to recompute those
      */
     reconfigure_monitor_frames();
 
-    /* set the border colors of the windows */
-    for (Window *window = Window_first; window != NULL; window = window->next) {
+    /* set the border colors of the windows and manage the focused state */
+    for (FcWindow *window = Window_first;
+            window != NULL;
+            window = window->next) {
+        /* remove the focused state from windows that are not focused */
         if (window != Window_focus) {
             atoms[0] = ATOM(_NET_WM_STATE_FOCUSED);
             remove_window_states(window, atoms, 1);
@@ -171,33 +170,36 @@ void synchronize_with_server(void)
     }
 
     /* configure all visible windows and map them */
-    for (Window *window = Window_top; window != NULL; window = window->below) {
+    for (FcWindow *window = Window_top;
+            window != NULL;
+            window = window->below) {
         if (!window->state.is_visible) {
             continue;
         }
         configure_client(&window->client, window->x, window->y,
                 window->width, window->height, window->border_size);
         change_client_attributes(&window->client,
-                window->client.background_color, window->border_color);
+                window->client.background, window->border_color);
 
         atoms[0] = ATOM(_NET_WM_STATE_HIDDEN);
         remove_window_states(window, atoms, 1);
 
-        if (window->wm_state != XCB_ICCCM_WM_STATE_NORMAL) {
-            window->wm_state = XCB_ICCCM_WM_STATE_NORMAL;
-            atoms[0] = XCB_ICCCM_WM_STATE_NORMAL;
+        if (window->wm_state != NormalState) {
+            window->wm_state = NormalState;
+            atoms[0] = NormalState;
             /* no icon */
-            atoms[1] = XCB_NONE;
-            xcb_change_property(connection, XCB_PROP_MODE_REPLACE,
-                    window->client.id, ATOM(WM_STATE), ATOM(WM_STATE), 32, 2,
-                    atoms);
+            atoms[1] = None;
+            XChangeProperty(display, window->client.id, ATOM(WM_STATE),
+                    ATOM(WM_STATE), 32, PropModeReplace,
+                    (unsigned char*) atoms, 2);
         }
 
         map_client(&window->client);
     }
 
     /* unmap all invisible windows */
-    for (Window *window = Window_bottom; window != NULL;
+    for (FcWindow *window = Window_bottom;
+            window != NULL;
             window = window->above) {
         if (window->state.is_visible) {
             continue;
@@ -206,14 +208,14 @@ void synchronize_with_server(void)
         atoms[0] = ATOM(_NET_WM_STATE_HIDDEN);
         add_window_states(window, atoms, 1);
 
-        if (window->wm_state != XCB_ICCCM_WM_STATE_WITHDRAWN) {
-            window->wm_state = XCB_ICCCM_WM_STATE_WITHDRAWN;
-            atoms[0] = XCB_ICCCM_WM_STATE_WITHDRAWN;
+        if (window->wm_state != WithdrawnState) {
+            window->wm_state = WithdrawnState;
+            atoms[0] = WithdrawnState;
             /* no icon */
-            atoms[1] = XCB_NONE;
-            xcb_change_property(connection, XCB_PROP_MODE_REPLACE,
-                    window->client.id, ATOM(WM_STATE), ATOM(WM_STATE), 32, 2,
-                    atoms);
+            atoms[1] = None;
+            XChangeProperty(display, window->client.id, ATOM(WM_STATE),
+                    ATOM(WM_STATE), 32, PropModeReplace,
+                    (unsigned char*) atoms, 2);
         }
 
         unmap_client(&window->client);
@@ -223,17 +225,13 @@ void synchronize_with_server(void)
 /* Run the next cycle of the event loop. */
 int next_cycle(void)
 {
-    int connection_error;
-    Window *old_focus_window;
+    FcWindow *old_focus_window;
     Frame *old_focus_frame;
-    xcb_generic_event_t *event;
+    XEvent event;
     fd_set set;
 
-    connection_error = xcb_connection_has_error(connection);
-    if (!Fensterchef_is_running || connection_error > 0) {
-        if (connection_error > 0) {
-            LOG_ERROR("connection error: %X\n", connection_error);
-        }
+    /* signal to stop running */
+    if (!Fensterchef_is_running) {
         return ERROR;
     }
 
@@ -253,16 +251,17 @@ int next_cycle(void)
     FD_SET(x_file_descriptor, &set);
 
     /* using select here is key: select will block until data on the file
-     * descriptor for the X connection arrives; when a signal is received,
+     * descriptor for the X display arrives; when a signal is received,
      * `select()` will however also unblock and return -1
      */
     if (select(x_file_descriptor + 1, &set, NULL, NULL, NULL) > 0) {
         /* handle all received events */
-        while (event = xcb_poll_for_event(connection), event != NULL) {
-            handle_window_list_event(event);
+        while (XPending(display)) {
+            XNextEvent(display, &event);
 
-            handle_event(event);
-            free(event);
+            handle_window_list_event(&event);
+
+            handle_event(&event);
 
             if (is_reload_requested) {
                 reload_user_configuration();
@@ -283,7 +282,7 @@ int next_cycle(void)
 
         if (old_focus_frame != Frame_focus ||
                 (Frame_focus->window == Window_focus &&
-                 old_focus_window != Window_focus)) {
+                    old_focus_window != Window_focus)) {
             /* indicate the focused frame if there is no window inside or there
              * is no border to indicate that the frame is focused
              */
@@ -291,7 +290,7 @@ int next_cycle(void)
                      Frame_focus->window->border_size == 0) {
                 char number[MAXIMUM_DIGITS(Frame_focus->number) + 1];
 
-                snprintf(number, sizeof(number), "%" PRIu32,
+                snprintf(number, sizeof(number), "%u",
                         Frame_focus->number);
                 set_notification((utf8_t*) (Frame_focus->number > 0 ? number :
                             Frame_focus->left == NULL ?  "Current frame" :
@@ -304,7 +303,7 @@ int next_cycle(void)
     }
 
     if (has_timer_expired) {
-        unmap_client(&notification);
+        unmap_client(&Notification.client);
         has_timer_expired = false;
     }
 
@@ -317,22 +316,18 @@ int next_cycle(void)
     }
 
     /* flush after every series of events so all changes are reflected */
-    xcb_flush(connection);
+    XFlush(display);
 
     return OK;
 }
 
 /* Start moving/resizing given window. */
-void initiate_window_move_resize(Window *window,
+void initiate_window_move_resize(FcWindow *window,
         wm_move_resize_direction_t direction,
-        int32_t start_x, int32_t start_y)
+        int start_x, int start_y)
 {
-    xcb_query_pointer_cookie_t query_cookie;
-    xcb_query_pointer_reply_t *query;
-    xcb_grab_pointer_cookie_t grab_cookie;
-    xcb_grab_pointer_reply_t *grab;
-    xcb_generic_error_t *error;
-    core_cursor_t cursor;
+    Window root;
+    const char *cursor_name;
 
     /* check if no window is already being moved/resized */
     if (move_resize.window != NULL) {
@@ -347,39 +342,40 @@ void initiate_window_move_resize(Window *window,
 
     LOG("starting to move/resize %W\n", window);
 
+    root = DefaultRootWindow(display);
+
     /* get the mouse position if the caller does not supply it */
     if (start_x < 0) {
-        query_cookie = xcb_query_pointer(connection, screen->root);
-        query = xcb_query_pointer_reply(connection, query_cookie, &error);
-        if (query == NULL) {
-            LOG_ERROR("could not query pointer: %E\n", error);
-            free(error);
-            return;
-        }
-        start_x = query->root_x;
-        start_y = query->root_y;
-        free(query);
+        Window other_root;
+        Window child;
+        int window_x;
+        int window_y;
+        unsigned int mask;
+
+        XQueryPointer(display, root, &other_root, &child,
+                &start_x, &start_y, /* root_x, root_y */
+                &window_x, &window_y, &mask);
     }
 
-    /* figure out a good direction if the caller does not provide one */
+    /* figure out a good direction if the caller does not supply one */
     if (direction == _NET_WM_MOVERESIZE_AUTO) {
-        const uint32_t border = 2 * configuration.border.size;
+        const unsigned border = 2 * configuration.border.size;
         /* check if the mouse is at the top */
         if (start_y < window->y + configuration.mouse.resize_tolerance) {
             if (start_x < window->x + configuration.mouse.resize_tolerance) {
                 direction = _NET_WM_MOVERESIZE_SIZE_TOPLEFT;
-            } else if (start_x - (int32_t) (border + window->width) >=
+            } else if (start_x - (int) (border + window->width) >=
                     window->x - configuration.mouse.resize_tolerance) {
                 direction = _NET_WM_MOVERESIZE_SIZE_TOPRIGHT;
             } else {
                 direction = _NET_WM_MOVERESIZE_SIZE_TOP;
             }
         /* check if the mouse is at the bottom */
-        } else if (start_y - (int32_t) (border + window->height) >=
+        } else if (start_y - (int) (border + window->height) >=
                 window->y - configuration.mouse.resize_tolerance) {
             if (start_x < window->x + configuration.mouse.resize_tolerance) {
                 direction = _NET_WM_MOVERESIZE_SIZE_BOTTOMLEFT;
-            } else if (start_x - (int32_t) (border + window->width) >=
+            } else if (start_x - (int) (border + window->width) >=
                     window->x - configuration.mouse.resize_tolerance) {
                 direction = _NET_WM_MOVERESIZE_SIZE_BOTTOMRIGHT;
             } else {
@@ -389,7 +385,7 @@ void initiate_window_move_resize(Window *window,
         } else if (start_x < window->x + configuration.mouse.resize_tolerance) {
             direction = _NET_WM_MOVERESIZE_SIZE_LEFT;
         /* check if the mouse is right */
-        } else if (start_x - (int32_t) (border + window->width) >=
+        } else if (start_x - (int) (border + window->width) >=
                 window->x - configuration.mouse.resize_tolerance) {
             direction = _NET_WM_MOVERESIZE_SIZE_RIGHT;
         /* fall back to simply moving (the mouse is within the window) */
@@ -410,44 +406,28 @@ void initiate_window_move_resize(Window *window,
     /* determine a fitting cursor */
     switch (direction) {
     case _NET_WM_MOVERESIZE_MOVE:
-        cursor = configuration.general.moving_cursor;
+        cursor_name = configuration.general.moving_cursor;
         break;
 
     case _NET_WM_MOVERESIZE_SIZE_LEFT:
     case _NET_WM_MOVERESIZE_SIZE_RIGHT:
-        cursor = configuration.general.horizontal_cursor;
+        cursor_name = configuration.general.horizontal_cursor;
         break;
 
     case _NET_WM_MOVERESIZE_SIZE_TOP:
     case _NET_WM_MOVERESIZE_SIZE_BOTTOM:
-        cursor = configuration.general.vertical_cursor;
+        cursor_name = configuration.general.vertical_cursor;
         break;
 
     default:
-        cursor = configuration.general.sizing_cursor;
+        cursor_name = configuration.general.sizing_cursor;
     }
 
-    const xcb_cursor_t xcb_cursor = load_cursor(cursor);
+    const Cursor cursor = load_cursor(cursor_name);
     /* grab mouse events, we will then receive all mouse events */
-    grab_cookie = xcb_grab_pointer(connection, false, screen->root,
-            XCB_EVENT_MASK_BUTTON_PRESS | XCB_EVENT_MASK_BUTTON_RELEASE |
-                XCB_EVENT_MASK_BUTTON_MOTION,
-            XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC, screen->root,
-            xcb_cursor, XCB_CURRENT_TIME);
-    grab = xcb_grab_pointer_reply(connection, grab_cookie, &error);
-    if (grab == NULL) {
-        LOG_ERROR("could not grab pointer: %E\n", error);
-        free(error);
-        move_resize.window = NULL;
-        return;
-    }
-    if (grab->status != XCB_GRAB_STATUS_SUCCESS) {
-        LOG_ERROR("could not grab pointer\n");
-        free(grab);
-        move_resize.window = NULL;
-        return;
-    }
-    free(grab);
+    XGrabPointer(display, root, False,
+            ButtonPressMask | ButtonReleaseMask | ButtonMotionMask,
+            GrabModeAsync, GrabModeAsync, root, cursor, CurrentTime);
 }
 
 /* Reset the position of the window being moved/resized. */
@@ -486,42 +466,50 @@ static void cancel_window_move_resize(void)
     }
 
     /* release mouse events back to the applications */
-    xcb_ungrab_pointer(connection, XCB_CURRENT_TIME);
+    XUngrabPointer(display, CurrentTime);
+
     move_resize.window = NULL;
 }
 
 /* Key press events are sent when a grabbed key is pressed. */
-static void handle_key_press(xcb_key_press_event_t *event)
+static void handle_key_press(XKeyPressedEvent *event)
 {
     struct configuration_key *key;
 
-    key = find_configured_key_by_code(&configuration, event->state,
-            event->detail, 0);
+    key = find_configured_key(&configuration, event->state, event->keycode, 0);
     if (key != NULL) {
         /* before a key binding, hide the notification window */
         alarm(0);
-        unmap_client(&notification);
+        unmap_client(&Notification.client);
 
-        LOG("evaluating expression: %A\n", &key->expression);
+        LOG("evaluating expression: %A\n",
+                &key->expression);
         evaluate_expression(&key->expression, NULL);
+    } else {
+        LOG_DEBUG("key press had no bind: %#x %d\n",
+                event->state, event->keycode);
     }
 }
 
 /* Key release events are sent when a grabbed key is released. */
-static void handle_key_release(xcb_key_release_event_t *event)
+static void handle_key_release(XKeyReleasedEvent *event)
 {
     struct configuration_key *key;
 
-    key = find_configured_key_by_code(&configuration, event->state,
-            event->detail, BINDING_FLAG_RELEASE);
+    key = find_configured_key(&configuration, event->state,
+            event->keycode, BINDING_FLAG_RELEASE);
     if (key != NULL) {
-        LOG("evaluating expression: %A\n", &key->expression);
+        LOG("evaluating expression: %A\n",
+                &key->expression);
         evaluate_expression(&key->expression, NULL);
+    } else {
+        LOG_DEBUG("key release had no bing: %#x %d\n",
+                event->state, event->keycode);
     }
 }
 
 /* Button press events are sent when a grabbed button is pressed. */
-static void handle_button_press(xcb_button_press_event_t *event)
+static void handle_button_press(XButtonPressedEvent *event)
 {
     struct configuration_button *button;
 
@@ -531,17 +519,19 @@ static void handle_button_press(xcb_button_press_event_t *event)
         return;
     }
 
-    Window_pressed = get_window_of_xcb_window(event->event);
+    /* set the pressed window so actions can use it */
+    Window_pressed = get_fensterchef_window(event->window);
 
     button = find_configured_button(&configuration, event->state,
-            event->detail, 0);
+            event->button, 0);
     if (button != NULL) {
-        LOG("evaluating expression: %A\n", &button->expression);
+        LOG("evaluating expression: %A\n",
+                &button->expression);
         evaluate_expression(&button->expression, NULL);
 
         /* make the event pass through to the underlying window */
         if ((button->flags & BINDING_FLAG_TRANSPARENT)) {
-            xcb_allow_events(connection, XCB_ALLOW_REPLAY_POINTER, event->time);
+            XAllowEvents(display, ReplayPointer, event->time);
         }
     }
 
@@ -549,29 +539,32 @@ static void handle_button_press(xcb_button_press_event_t *event)
 }
 
 /* Button releases are sent when a grabbed button is released. */
-static void handle_button_release(xcb_button_release_event_t *event)
+static void handle_button_release(XButtonReleasedEvent *event)
 {
     struct configuration_button *button;
 
     if (move_resize.window != NULL) {
         /* release mouse events back to the applications */
-        xcb_ungrab_pointer(connection, XCB_CURRENT_TIME);
+        XUngrabPointer(display, CurrentTime);
+
         move_resize.window = NULL;
         /* use this event only for finishing the resize */
         return;
     }
 
-    Window_pressed = get_window_of_xcb_window(event->event);
+    /* set the pressed window so actions can use it */
+    Window_pressed = get_fensterchef_window(event->window);
 
     button = find_configured_button(&configuration, event->state,
-            event->detail, BINDING_FLAG_RELEASE);
+            event->button, BINDING_FLAG_RELEASE);
     if (button != NULL) {
-        LOG("evaluating expression: %A\n", &button->expression);
+        LOG("evaluating expression: %A\n",
+                &button->expression);
         evaluate_expression(&button->expression, NULL);
 
         /* make the event pass through to the underlying window */
         if ((button->flags & BINDING_FLAG_TRANSPARENT)) {
-            xcb_allow_events(connection, XCB_ALLOW_REPLAY_POINTER, event->time);
+            XAllowEvents(display, ReplayPointer, event->time);
         }
     }
 
@@ -581,12 +574,12 @@ static void handle_button_release(xcb_button_release_event_t *event)
 /* Motion notifications (mouse move events) are only sent when we grabbed them.
  * This only happens when a floating window is being moved.
  */
-static void handle_motion_notify(xcb_motion_notify_event_t *event)
+static void handle_motion_notify(XMotionEvent *event)
 {
     Rectangle new_geometry;
     Size minimum, maximum;
-    int32_t delta_x, delta_y;
-    int32_t left_delta, top_delta, right_delta, bottom_delta;
+    int delta_x, delta_y;
+    int left_delta, top_delta, right_delta, bottom_delta;
     Frame *frame;
 
     if (move_resize.window == NULL) {
@@ -599,35 +592,35 @@ static void handle_motion_notify(xcb_motion_notify_event_t *event)
     get_minimum_window_size(move_resize.window, &minimum);
     get_maximum_window_size(move_resize.window, &maximum);
 
-    delta_x = move_resize.start.x - event->root_x;
-    delta_y = move_resize.start.y - event->root_y;
+    delta_x = move_resize.start.x - event->x_root;
+    delta_y = move_resize.start.y - event->y_root;
 
     /* prevent overflows and clip so that moving an edge when no more size is
      * available does not move the window
      */
     if (delta_x < 0) {
-        left_delta = -MIN((uint32_t) -delta_x,
+        left_delta = -MIN((unsigned) -delta_x,
                 new_geometry.width - minimum.width);
     } else {
-        left_delta = MIN((uint32_t) delta_x,
+        left_delta = MIN((unsigned) delta_x,
                 maximum.width - new_geometry.width);
     }
     if (delta_y < 0) {
-        top_delta = -MIN((uint32_t) -delta_y,
+        top_delta = -MIN((unsigned) -delta_y,
                 new_geometry.height - minimum.height);
     } else {
-        top_delta = MIN((uint32_t) delta_y,
+        top_delta = MIN((unsigned) delta_y,
                 maximum.height - new_geometry.height);
     }
 
     /* prevent overflows */
     if (delta_x > 0) {
-        right_delta = MIN((uint32_t) delta_x, new_geometry.width);
+        right_delta = MIN((unsigned) delta_x, new_geometry.width);
     } else {
         right_delta = delta_x;
     }
     if (delta_y > 0) {
-        bottom_delta = MIN((uint32_t) delta_y, new_geometry.height);
+        bottom_delta = MIN((unsigned) delta_y, new_geometry.height);
     } else {
         bottom_delta = delta_y;
     }
@@ -721,11 +714,11 @@ static void handle_motion_notify(xcb_motion_notify_event_t *event)
 /* Unmap notifications are sent after a window decided it wanted to not be seen
  * anymore.
  */
-static void handle_unmap_notify(xcb_unmap_notify_event_t *event)
+static void handle_unmap_notify(XUnmapEvent *event)
 {
-    Window *window;
+    FcWindow *window;
 
-    window = get_window_of_xcb_window(event->window);
+    window = get_fensterchef_window(event->window);
     if (window == NULL) {
         return;
     }
@@ -735,7 +728,8 @@ static void handle_unmap_notify(xcb_unmap_notify_event_t *event)
     /* if the currently moved window is unmapped */
     if (window == move_resize.window) {
         /* release mouse events back to the applications */
-        xcb_ungrab_pointer(connection, XCB_CURRENT_TIME);
+        XUngrabPointer(display, CurrentTime);
+
         move_resize.window = NULL;
     }
 
@@ -744,17 +738,17 @@ static void handle_unmap_notify(xcb_unmap_notify_event_t *event)
 
 /* Map requests are sent when a new window wants to become on screen, this
  * is also where we register new windows and wrap them into the internal
- * `Window` struct.
+ * `FcWindow` struct.
  */
-static void handle_map_request(xcb_map_request_event_t *event)
+static void handle_map_request(XMapRequestEvent *event)
 {
-    Window *window;
+    FcWindow *window;
     bool is_first_time = false;
     struct configuration_association association = {
         .expression.instruction_size = 0
     };
 
-    window = get_window_of_xcb_window(event->window);
+    window = get_fensterchef_window(event->window);
     if (window == NULL) {
         window = create_window(event->window, &association);
         is_first_time = true;
@@ -774,8 +768,8 @@ static void handle_map_request(xcb_map_request_event_t *event)
         Window_pressed = NULL;
     } else {
         /* if a window does not start in normal state, do not map it */
-        if (is_first_time && (window->hints.flags & XCB_ICCCM_WM_HINT_STATE) &&
-                window->hints.initial_state != XCB_ICCCM_WM_STATE_NORMAL) {
+        if (is_first_time && (window->hints.flags & StateHint) &&
+                window->hints.initial_state != NormalState) {
             LOG("window %W starts off as hidden window\n", window);
             return;
         }
@@ -791,30 +785,22 @@ static void handle_map_request(xcb_map_request_event_t *event)
 /* Destroy notifications are sent when a window leaves the X server.
  * Good bye to that window!
  */
-static void handle_destroy_notify(xcb_destroy_notify_event_t *event)
+static void handle_destroy_notify(XDestroyWindowEvent *event)
 {
-    Window *window;
+    FcWindow *window;
 
-    window = get_window_of_xcb_window(event->window);
+    window = get_fensterchef_window(event->window);
     if (window != NULL) {
         destroy_window(window);
     }
 }
 
 /* Property notifications are sent when a window property changes. */
-static void handle_property_notify(xcb_property_notify_event_t *event)
+static void handle_property_notify(XPropertyEvent *event)
 {
-    Window *window;
+    FcWindow *window;
 
-    /* reload the resources if they changed */
-    if (event->window == screen->root) {
-        if (event->atom == XCB_ATOM_RESOURCE_MANAGER) {
-            reload_resources();
-        }
-        return;
-    }
-
-    window = get_window_of_xcb_window(event->window);
+    window = get_fensterchef_window(event->window);
     if (window == NULL) {
         return;
     }
@@ -824,75 +810,73 @@ static void handle_property_notify(xcb_property_notify_event_t *event)
 /* Configure requests are received when a window wants to choose its own
  * position and size. We allow this for unmanaged windows.
  */
-static void handle_configure_request(xcb_configure_request_event_t *event)
+static void handle_configure_request(XConfigureRequestEvent *event)
 {
-    Window *window;
-    int value_index = 0;
+    XWindowChanges changes;
+    FcWindow *window;
 
-    window = get_window_of_xcb_window(event->window);
+    window = get_fensterchef_window(event->window);
     if (window != NULL) {
-        char event_data[32];
-        xcb_configure_notify_event_t *notify_event;
+        XEvent notify_event;
 
         /* fake a configure notify, this is needed for many windows to work,
          * otherwise they get in a bugged state which could have various reasons
          * this all because we are a *tiling* window manager
          */
-        memset(event_data, 0, sizeof(event_data));
-        notify_event = (xcb_configure_notify_event_t*) event_data;
-        notify_event->response_type = XCB_CONFIGURE_NOTIFY;
-        notify_event->event = window->client.id;
-        notify_event->window = window->client.id;
-        notify_event->x = window->x;
-        notify_event->y = window->y;
-        notify_event->width = window->width;
-        notify_event->height = window->height;
-        notify_event->border_width = is_window_borderless(window) ?
+        memset(&notify_event, 0, sizeof(notify_event));
+        notify_event.type = ConfigureNotify;
+        notify_event.xconfigure.event = window->client.id;
+        notify_event.xconfigure.window = window->client.id;
+        notify_event.xconfigure.x = window->x;
+        notify_event.xconfigure.y = window->y;
+        notify_event.xconfigure.width = window->width;
+        notify_event.xconfigure.height = window->height;
+        notify_event.xconfigure.border_width = is_window_borderless(window) ?
             0 : window->border_size;
         LOG("sending fake configure notify event %V to %W\n",
-                event, window);
-        xcb_send_event(connection, false, window->client.id,
-                XCB_EVENT_MASK_STRUCTURE_NOTIFY, event_data);
+                &notify_event, window);
+        XSendEvent(display, window->client.id, false,
+                StructureNotifyMask, &notify_event);
         return;
     }
 
-    if ((event->value_mask & XCB_CONFIG_WINDOW_X)) {
-        general_values[value_index++] = event->x;
+    if ((event->value_mask & CWX)) {
+        changes.x = event->x;
     }
-    if ((event->value_mask & XCB_CONFIG_WINDOW_Y)) {
-        general_values[value_index++] = event->y;
+    if ((event->value_mask & CWY)) {
+        changes.y = event->y;
     }
-    if ((event->value_mask & XCB_CONFIG_WINDOW_WIDTH)) {
-        general_values[value_index++] = event->width;
+    if ((event->value_mask & CWWidth)) {
+        changes.width = event->width;
     }
-    if ((event->value_mask & XCB_CONFIG_WINDOW_HEIGHT)) {
-        general_values[value_index++] = event->height;
+    if ((event->value_mask & CWHeight)) {
+        changes.height = event->height;
     }
-    if ((event->value_mask & XCB_CONFIG_WINDOW_BORDER_WIDTH)) {
-        general_values[value_index++] = event->border_width;
+    if ((event->value_mask & CWBorderWidth)) {
+        changes.border_width = event->border_width;
     }
-    if ((event->value_mask & XCB_CONFIG_WINDOW_SIBLING)) {
-        general_values[value_index++] = event->sibling;
+    if ((event->value_mask & CWSibling)) {
+        changes.sibling = event->above;
     }
-    if ((event->value_mask & XCB_CONFIG_WINDOW_STACK_MODE)) {
-        general_values[value_index++] = event->stack_mode;
+    if ((event->value_mask & CWStackMode)) {
+        changes.stack_mode = event->detail;
     }
 
-    LOG("configuring unmanaged window %w\n", event->window);
-    xcb_configure_window(connection, event->window, event->value_mask,
-            general_values);
+    LOG("configuring unmanaged window %w\n",
+            event->window);
+    XConfigureWindow(display, event->window, event->value_mask, &changes);
 }
 
 /* Client messages are sent by a client to our window manager to request certain
  * things.
  */
-static void handle_client_message(xcb_client_message_event_t *event)
+static void handle_client_message(XClientMessageEvent *event)
 {
-    Window *window;
-    int32_t x, y;
-    uint32_t width, height;
+    FcWindow *window;
+    int x, y;
+    unsigned width, height;
 
-    window = get_window_of_xcb_window(event->window);
+    window = get_fensterchef_window(event->window);
     if (window == NULL) {
         return;
     }
@@ -903,53 +887,54 @@ static void handle_client_message(xcb_client_message_event_t *event)
     }
 
     /* request to close the window */
-    if (event->type == ATOM(_NET_CLOSE_WINDOW)) {
+    if (event->message_type == ATOM(_NET_CLOSE_WINDOW)) {
         close_window(window);
     /* request to move and resize the window */
-    } else if (event->type == ATOM(_NET_MOVERESIZE_WINDOW)) {
-        x = event->data.data32[1];
-        y = event->data.data32[2];
-        width = event->data.data32[3];
-        height = event->data.data32[4];
+    } else if (event->message_type == ATOM(_NET_MOVERESIZE_WINDOW)) {
+        x = event->data.l[1];
+        y = event->data.l[2];
+        width = event->data.l[3];
+        height = event->data.l[4];
         adjust_for_window_gravity(
                 get_monitor_from_rectangle_or_primary(x, y, width, height),
-                &x, &y, width, height, event->data.data32[0]);
+                &x, &y, width, height, event->data.l[0]);
         set_window_size(window, x, y, width, height);
     /* request to dynamically move and resize the window */
-    } else if (event->type == ATOM(_NET_WM_MOVERESIZE)) {
-        if (event->data.data32[2] == _NET_WM_MOVERESIZE_CANCEL) {
+    } else if (event->message_type == ATOM(_NET_WM_MOVERESIZE)) {
+        if (event->data.l[2] == _NET_WM_MOVERESIZE_CANCEL) {
             cancel_window_move_resize();
             return;
         }
-        initiate_window_move_resize(window, event->data.data32[2],
-                event->data.data32[0], event->data.data32[1]);
+        initiate_window_move_resize(window, event->data.l[2],
+                event->data.l[0], event->data.l[1]);
     /* a window wants to be iconified or put into normal state (shown) */
-    } else if (event->type == ATOM(WM_CHANGE_STATE)) {
-        switch (event->data.data32[0]) {
+    } else if (event->message_type == ATOM(WM_CHANGE_STATE)) {
+        switch (event->data.l[0]) {
         /* hide the window */
-        case XCB_ICCCM_WM_STATE_ICONIC:
-        case XCB_ICCCM_WM_STATE_WITHDRAWN:
+        case IconicState:
+        case WithdrawnState:
             hide_window(window);
             break;
 
         /* make the window normal again (show it) */
-        case XCB_ICCCM_WM_STATE_NORMAL:
+        case NormalState:
             show_window(window);
             break;
         }
     /* a window wants to change a window state */
-    } else if (event->type == ATOM(_NET_WM_STATE)) {
-        if (event->data.data32[1] == ATOM(_NET_WM_STATE_ABOVE)) {
-            switch (event->data.data32[0]) {
+    } else if (event->message_type == ATOM(_NET_WM_STATE)) {
+        const Atom atom = event->data.l[1];
+        if (atom == ATOM(_NET_WM_STATE_ABOVE)) {
+            switch (event->data.l[0]) {
             /* only react to adding */
             case _NET_WM_STATE_ADD:
                 update_window_layer(window);
                 break;
             }
-        } else if (event->data.data32[1] == ATOM(_NET_WM_STATE_FULLSCREEN) ||
-                event->data.data32[1] == ATOM(_NET_WM_STATE_MAXIMIZED_HORZ) ||
-                event->data.data32[1] == ATOM(_NET_WM_STATE_MAXIMIZED_VERT)) {
-            switch (event->data.data32[0]) {
+        } else if (atom == ATOM(_NET_WM_STATE_FULLSCREEN) ||
+                atom == ATOM(_NET_WM_STATE_MAXIMIZED_HORZ) ||
+                atom == ATOM(_NET_WM_STATE_MAXIMIZED_VERT)) {
+            switch (event->data.l[0]) {
             /* put the window out of fullscreen */
             case _NET_WM_STATE_REMOVE:
                 set_window_mode(window, window->state.previous_mode);
@@ -975,122 +960,104 @@ static void handle_client_message(xcb_client_message_event_t *event)
     /* TODO: handle _NET_REQUEST_FRAME_EXTENTS and _NET_RESTACK_WINDOW */
 }
 
-/* Mapping notifications are sent when the modifier keys or keyboard mapping
- * changes.
- */
-static void handle_mapping_notify(xcb_mapping_notify_event_t *event)
-{
-    refresh_keymap(event);
-}
-
-/* Screen change notifications are sent when the screen configurations is
- * changed, this can include position, size etc.
- */
-static void handle_screen_change(xcb_randr_screen_change_notify_event_t *event)
-{
-    screen->width_in_pixels = event->width;
-    screen->height_in_pixels = event->height;
-    screen->width_in_millimeters = event->mwidth;
-    screen->height_in_millimeters = event->mheight;
-    merge_monitors(query_monitors());
-}
-
 /* Handle the given X event.
  *
  * Descriptions for each event are above each handler.
  */
-void handle_event(xcb_generic_event_t *event)
+void handle_event(XEvent *event)
 {
-    uint8_t type;
+    if (event->type == xkb_event_base) {
+        LOG("%V\n", event);
+        switch (((XkbAnyEvent*) event)->xkb_type) {
+        /* the keyboard mapping changed */
+        case XkbNewKeyboardNotify:
+        case XkbMapNotify:
+            XkbRefreshKeyboardMapping((XkbMapNotifyEvent*) event);
+            grab_configured_keys();
+            break;
+        }
+        return;
+    }
 
-    /* remove the most significant bit, this gets the actual event type */
-    type = (event->response_type & ~0x80);
+    if (event->type == randr_event_base) {
+        LOG("%V\n", event);
+        /* screen change notifications are sent when the screen configuration is
+         * changed, this can include position, size etc.
+         */
+        merge_monitors(query_monitors());
+        return;
+    }
 
     /* log these events as verbose because they are not helpful */
-    if (type == XCB_MOTION_NOTIFY ||
-            (type == XCB_CLIENT_MESSAGE &&
-             ((xcb_client_message_event_t*) event)->type ==
-                ATOM(_NET_WM_USER_TIME))) {
+    if (event->type == MotionNotify || (event->type == ClientMessage &&
+                event->xclient.message_type == ATOM(_NET_WM_USER_TIME))) {
         LOG_VERBOSE("%V\n", event);
     } else {
         LOG("%V\n", event);
     }
 
-    if (randr_event_base > 0 &&
-            type == randr_event_base + XCB_RANDR_SCREEN_CHANGE_NOTIFY) {
-        handle_screen_change((xcb_randr_screen_change_notify_event_t*) event);
-        return;
-    }
-
-    switch (type) {
+    switch (event->type) {
     /* a key was pressed */
-    case XCB_KEY_PRESS:
-        handle_key_press((xcb_key_press_event_t*) event);
+    case KeyPress:
+        handle_key_press(&event->xkey);
         break;
 
     /* a key was released */
-    case XCB_KEY_RELEASE:
-        handle_key_release((xcb_key_release_event_t*) event);
+    case KeyRelease:
+        handle_key_release(&event->xkey);
         break;
 
     /* a mouse button was pressed */
-    case XCB_BUTTON_PRESS:
-        handle_button_press((xcb_button_press_event_t*) event);
+    case ButtonPress:
+        handle_button_press(&event->xbutton);
         /* continue processing pointer events normally, we need to do this
          * because we use SYNC when grabbing buttons so that we can handle
          * the events ourself but may also decide to replay it to the client it
          * was actually meant for, the replaying is done within the handlers
          */
-        xcb_allow_events(connection, XCB_ALLOW_ASYNC_POINTER,
-                ((xcb_button_press_event_t*) event)->time);
+        XAllowEvents(display, AsyncPointer, event->xbutton.time);
         break;
 
     /* a mouse button was released */
-    case XCB_BUTTON_RELEASE:
-        handle_button_release((xcb_button_release_event_t*) event);
+    case ButtonRelease:
+        handle_button_release(&event->xbutton);
         /* continue processing pointer events normally */
-        xcb_allow_events(connection, XCB_ALLOW_ASYNC_POINTER,
-                ((xcb_button_release_event_t*) event)->time);
+        XAllowEvents(display, AsyncPointer, event->xbutton.time);
         break;
 
     /* the mouse was moved */
-    case XCB_MOTION_NOTIFY:
-        handle_motion_notify((xcb_motion_notify_event_t*) event);
+    case MotionNotify:
+        handle_motion_notify(&event->xmotion);
         break;
 
     /* a window was destroyed */
-    case XCB_DESTROY_NOTIFY:
-        handle_destroy_notify((xcb_destroy_notify_event_t*) event);
+    case DestroyNotify:
+        handle_destroy_notify(&event->xdestroywindow);
         break;
 
     /* a window was removed from the screen */
-    case XCB_UNMAP_NOTIFY:
-        handle_unmap_notify((xcb_unmap_notify_event_t*) event);
+    case UnmapNotify:
+        handle_unmap_notify(&event->xunmap);
         break;
 
     /* a window wants to appear on the screen */
-    case XCB_MAP_REQUEST:
-        handle_map_request((xcb_map_request_event_t*) event);
+    case MapRequest:
+        handle_map_request(&event->xmaprequest);
         break;
 
     /* a window wants to configure itself */
-    case XCB_CONFIGURE_REQUEST:
-        handle_configure_request((xcb_configure_request_event_t*) event);
+    case ConfigureRequest:
+        handle_configure_request(&event->xconfigurerequest);
         break;
 
     /* a window changed a property */
-    case XCB_PROPERTY_NOTIFY:
-        handle_property_notify((xcb_property_notify_event_t*) event);
+    case PropertyNotify:
+        handle_property_notify(&event->xproperty);
         break;
 
     /* a client sent us a message */
-    case XCB_CLIENT_MESSAGE:
-        handle_client_message((xcb_client_message_event_t*) event);
-        break;
-
-    /* keyboard mapping changed */
-    case XCB_MAPPING_NOTIFY:
-        handle_mapping_notify((xcb_mapping_notify_event_t*) event);
+    case ClientMessage:
+        handle_client_message(&event->xclient);
         break;
     }
 }

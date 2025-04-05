@@ -1,8 +1,6 @@
 #ifndef MONITOR_H
 #define MONITOR_H
 
-#include <xcb/randr.h>
-
 #include "bits/frame_typedef.h"
 
 #include "x11_management.h"
@@ -16,10 +14,10 @@ typedef struct monitor {
     Extents strut;
 
     /* the position and size of the monitor */
-    int32_t x;
-    int32_t y;
-    uint32_t width;
-    uint32_t height;
+    int x;
+    int y;
+    unsigned width;
+    unsigned height;
 
     /* root frame */
     Frame *frame;
@@ -50,17 +48,17 @@ Monitor *get_monitor_containing_frame(Frame *frame);
  *
  * @return NULL if no monitor intersects the rectangle at all.
  */
-Monitor *get_monitor_from_rectangle(int32_t x, int32_t y,
-        uint32_t width, uint32_t height);
+Monitor *get_monitor_from_rectangle(int x, int y,
+        unsigned width, unsigned height);
 
 /* Get the monitor that overlaps given rectangle the most or primary if there
  * are there are no intersections.
  */
-Monitor *get_monitor_from_rectangle_or_primary(int32_t x, int32_t y,
-        uint32_t width, uint32_t height);
+Monitor *get_monitor_from_rectangle_or_primary(int x, int y,
+        unsigned width, unsigned height);
 
 /* Get a window covering given monitor. */
-Window *get_window_covering_monitor(Monitor *monitor);
+FcWindow *get_window_covering_monitor(Monitor *monitor);
 
 /* Get the monitor on the left of @monitor.
  *

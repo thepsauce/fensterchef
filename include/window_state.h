@@ -4,8 +4,6 @@
 #include <stdbool.h>
 #include <time.h>
 
-#include <xcb/xcb.h>
-
 #include "bits/window_typedef.h"
 
 /* the mode of the window */
@@ -44,42 +42,42 @@ typedef struct window_state {
 /* Predict what mode the window is expected to be in based on the X
  * properties.
  */
-window_mode_t predict_window_mode(Window *window);
+window_mode_t predict_window_mode(FcWindow *window);
 
 /* Check if @window should have a border. */
-bool is_window_borderless(Window *window);
+bool is_window_borderless(FcWindow *window);
 
 /* Get the side of a monitor @window would like to attach to.
  *
  * This is based on the window strut if it is set, otherwise the gravity in
  * `size_hints` is used.
  *
- * @return XCB_WINDOW_GRAVITY_STATIC if there is no preference.
+ * @return StaticGravity if there is no preference.
  */
-xcb_gravity_t get_window_gravity(Window *window);
+int get_window_gravity(FcWindow *window);
 
 /* Set the position and size of the window to a dock window. */
-void configure_dock_size(Window *window);
+void configure_dock_size(FcWindow *window);
 
 /* Add window states to the window's properties. */
-void add_window_states(Window *window, xcb_atom_t *states,
+void add_window_states(FcWindow *window, Atom *states,
         uint32_t number_of_states);
 
 /* Remove window states from the window's properties. */
-void remove_window_states(Window *window, xcb_atom_t *states,
+void remove_window_states(FcWindow *window, Atom *states,
         uint32_t number_of_states);
 
 /* Change the mode to given value and reconfigures the window if it is visible.
  *
  * @force_mode is used to force the change of the window mode.
  */
-void set_window_mode(Window *window, window_mode_t mode);
+void set_window_mode(FcWindow *window, window_mode_t mode);
 
 /* Show the window by positioning it and mapping it to the X server.
  *
  * Note that this removes the given window from the taken window list.
  */
-void show_window(Window *window);
+void show_window(FcWindow *window);
 
 /* Hide @window and adjust the tiling and focus.
  *
@@ -88,7 +86,7 @@ void show_window(Window *window);
  *
  * The next window is focused.
  */
-void hide_window(Window *window);
+void hide_window(FcWindow *window);
 
 /* Hide the window without touching the tiling or focus.
  *
@@ -96,6 +94,6 @@ void hide_window(Window *window);
  *
  * To abrubtly show a window, simply do: `window->state.is_visible = true`.
  */
-void hide_window_abruptly(Window *window);
+void hide_window_abruptly(FcWindow *window);
 
 #endif

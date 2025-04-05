@@ -43,6 +43,12 @@ extern log_severity_t log_severity;
 
 #endif
 
+#ifdef DEBUG
+# define LOG_DEBUG LOG
+#else
+# define LOG_DEBUG(...)
+#endif
+
 /* wrappers around `log_formatted` for different severities */
 #define LOG_VERBOSE(...) \
     log_formatted(LOG_SEVERITY_ALL, __FILE__, __LINE__, __VA_ARGS__)
@@ -58,19 +64,18 @@ extern log_severity_t log_severity;
  *
  * The following format specifiers are supported on top of the regular
  * format specifiers (some printf format specifiers might be overwritten):
- * %P   int32_t, int32_t        X+Y
- * %S   uint32_t, uint32_t      WIDTHxHEIGHT
- * %R   uint32_t[4]             X+Y+WIDTHxHEIGHT
- * %w   xcb_window_t            ID<NUMBER or NAME>
- * %W   Window*                 ID<NUMBER or NAME>
- * %m   window_state_t          WINDOW_STATE
- * %F   Frame*                  (X+Y+WIDTHxHEIGHT)
- * %A   Expression*             EXPRESSION
- * %X   int                     XCB CONNECTION ERROR
- * %a   xcb_atom_t              ATOM
- * %V   xcb_generic_event_t*    EVENT
- * %E   xcb_generic_error_t*    ERROR
- * %C   xcb_screen_t*           SCREEN
+ * %P   int32_t, int32_t    X+Y
+ * %S   uint32_t, uint32_t  WIDTHxHEIGHT
+ * %R   uint32_t[4]         X+Y+WIDTHxHEIGHT
+ * %w   Window              ID<NUMBER or NAME>
+ * %W   Window*             ID<NUMBER or NAME>
+ * %m   window_state_t      WINDOW_STATE
+ * %F   Frame*              (X+Y+WIDTHxHEIGHT)
+ * %A   Expression*         EXPRESSION
+ * %a   Atom                ATOM
+ * %V   XEvent*             EVENT
+ * %E   XError*             ERROR
+ * %D   Display*            DISPLAY
  */
 void log_formatted(log_severity_t severity, const char *file, int line,
         const char *format, ...);

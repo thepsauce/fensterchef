@@ -8,7 +8,7 @@ Note the 3 space indentation.
 
 string * utf8_t
    any utf8 text without any leading or trailing spaces
-integer 1 int32_t
+integer 1 int
    an integer in simple decimal notation
-quad 4 int32_t
+quad 4 int
    a set of 1, 2 or 4 integers

@@ -63,7 +63,7 @@ void initialize_expression_from_action(Expression *expression,
         uint32_t length;
         uint32_t length_in_4bytes;
 
-        length = strlen((char*) data->string);
+        length = strlen(data->string);
         length_in_4bytes = length / sizeof(*expression->instructions) + 1;
         expression->instruction_size = 2 + length_in_4bytes;
         expression->instructions = xmalloc(sizeof(*expression->instructions) *

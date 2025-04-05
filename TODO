@@ -1,14 +1,21 @@
 [Tasks]
-#51/#8 ! Fix fixed size fonts messing up
-    Fixed size fonts like emoji fonts are not scaled and it looks very weird
-
 #66 Always focus window above frames
     When a frame is focused and there is a window covering the monitor the frame
     is on, that window should be focused. If none is covering the monitor more
     than the configured percentage, there is still an attempt to focus the above
     floating window if the focused frame is empty.
 
-#68 ...
+#69 Simplify README
+    Shorten the README to only contain the must important information
+
+#70 Re-add the Wiki
+    Add the github wiki again
+
+#71 Make generic menu item chooser
+    Abstract parts of the window list away to make more choose menus like an
+    application launcher
+
+#72 ...
 
 #1000 Make a wayland port
     Make an additional repository that hosts fensterchef-wayland
@@ -25,9 +32,6 @@
 #1 ! Hover events not working in firefox sometimes
     This is fixed by resizing the window, try to find out why it happens in the
     first place and when it happens
-
-#8 ? Improve font rendering once again
-    Is there any way to make colored emojis work? Is artifical scaling needed?
 
 #10 ? Add frame indication for empty frames
     Make it so empty frames have a border indicating focus
@@ -325,3 +329,16 @@
     Try to check electron source code I guess... I do not know if it was made
     using electron actually. Is this on purpose?? I believe it is.
     Using WM_STATE I believe fixed this bug.
+
+#8 Improve font rendering once again
+    Is there any way to make colored emojis work? Is artifical scaling needed?
+    Solution: Use libXft
+
+#51/#8 ! Fix fixed size fonts messing up
+    Fixed size fonts like emoji fonts are not scaled and it looks very weird.
+    Solution: Use libXft
+
+#68 Integrate libX11
+    libX11 should be integrated to replace the poorly implemented xcb libraries,
+    there were not really meant for use it seems like.
+    Completely replace libxcb with libX11, it is not good for a window manager.

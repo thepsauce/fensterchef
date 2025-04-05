@@ -11,12 +11,14 @@
 /* Run @command within a shell in the background. */
 void run_shell(const char *command)
 {
-    int child_process_id;
+    pid_t child_process_id;
 
     /* using `fork()` twice and `_exit()` will give the child process to the
      * init system so we do not need to worry about cleaning up dead child
      * processes; we want to run the shell in a new session
      * TODO: explain why `setsid()` is needed
+     *
+     * `_exit()` is used for child processes
      */
 
     /* create a child process */
@@ -29,15 +31,15 @@ void run_shell(const char *command)
             /* make a new session */
             if (setsid() == -1) {
                 /* TODO: when does this happen? */
-                exit(EXIT_FAILURE);
+                _exit(EXIT_FAILURE);
             }
             /* this code is executed in the grandchild process */
             (void) execl("/bin/sh", "sh", "-c", command, (char*) NULL);
             /* this point is only reached if `execl()` failed */
-            exit(EXIT_FAILURE);
+            _exit(EXIT_FAILURE);
         } else {
             /* exit the child process */
-            _exit(0);
+            _exit(EXIT_SUCCESS);
         }
     } else {
         /* wait until the child process exits */
@@ -48,30 +50,38 @@ void run_shell(const char *command)
 /* Run @command as new process and get the first line from it. */
 char *run_command_and_get_output(const char *command)
 {
-    FILE *process;
-    char *line;
-    size_t length, capacity;
+    pid_t child_process_id;
+    int pipe_descriptors[2];
+    char buffer[1024];
 
-    process = popen(command, "r");
-    if (process == NULL) {
+    /* open a pipe */
+    if (pipe(pipe_descriptors) < 0) {
         return NULL;
     }
 
-    capacity = 128;
-    line = xmalloc(capacity);
-    length = 0;
-    /* read all output from the process, stopping at the end (EOF) or a new line
-     */
-    for (int c; (c = fgetc(process)) != EOF && c != '\n'; ) {
-        if (length + 1 == capacity) {
-            capacity *= 2;
-            RESIZE(line, capacity);
+    child_process_id = fork();
+    switch (child_process_id) {
+    case -1:
+        close(pipe_descriptors[0]);
+        close(pipe_descriptors[1]);
+        return NULL;
+
+    case 0:
+        close(pipe_descriptors[0]);
+        if (pipe_descriptors[1] != STDOUT_FILENO) {
+            dup2(pipe_descriptors[1], STDOUT_FILENO);
+            close(pipe_descriptors[1]);
         }
-        line[length++] = c;
+        (void) execl("/bin/sh", "sh", "-c", command, (char*) NULL);
+        _exit(EXIT_FAILURE);
+        break;
     }
-    line[length] = '\0';
-    pclose(process);
-    return line;
+
+    close(pipe_descriptors[1]);
+
+    read(pipe_descriptors[1], buffer, sizeof(buffer));
+
+    return xstrdup(buffer);
 }
 
 /* Get the length of @string up to a maximum of @max_length. */
@@ -199,4 +209,20 @@ backtrack:
             break;
         }
     }
+}
+
+/* Use the FNV-1 hash algorithm to compute the hash of @name. */
+uint32_t get_fnv1_hash(const char *name)
+{
+    const uint32_t fnv_prime = 0x01000193;
+    const uint32_t fnv_offset_basis = 0x811c9dc5;
+
+    uint32_t hash = 0;
+
+    hash = fnv_offset_basis;
+    for (; name[0] != '\0'; name++) {
+        hash *= fnv_prime;
+        hash ^= name[0];
+    }
+    return hash;
 }

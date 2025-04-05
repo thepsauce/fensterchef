@@ -1,230 +1,202 @@
 #include <inttypes.h>
 #include <string.h>
 
+#include <X11/XKBlib.h>
+#include <X11/Xproto.h>
+
+#include "event.h"
 #include "log.h"
 #include "fensterchef.h"
+#include "notification.h"
 #include "window.h"
 #include "window_list.h"
 #include "window_properties.h"
 #include "x11_management.h"
 
-/* event mask for the root window; with this event mask, we get the following
- * events:
- * SubstructureNotifyMask
- *  CirculateNotify
- * 	ConfigureNotify
- * 	CreateNotify
- * 	DestroyNotify
- * 	GravityNotify
- *  MapNotify
- *  ReparentNotify
- *  UnmapNotify
- * SubstructureRedirectMask
- *  CirculateRequest
- *  ConfigureRequest
- *  MapRequest
- *
- * And button press/release and property change events.
- */
-#define ROOT_EVENT_MASK (XCB_EVENT_MASK_SUBSTRUCTURE_REDIRECT | \
-                         XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY | \
-                         XCB_EVENT_MASK_BUTTON_PRESS | \
-                         XCB_EVENT_MASK_BUTTON_RELEASE | \
-                         XCB_EVENT_MASK_PROPERTY_CHANGE)
+/* supporting wm check window */
+Window wm_check_window;
 
-/* connection to the xcb server */
-xcb_connection_t *connection;
+/* display to the X server */
+Display *display;
 
-/* file descriptor associated to the X connection */
+/* file descriptor associated to the X display */
 int x_file_descriptor;
 
-/* the selected x screen */
-xcb_screen_t *screen;
-
-/* general purpose values for xcb function calls */
-uint32_t general_values[7];
-
-/* supporting wm check window */
-xcb_window_t wm_check_window;
-
-/* user notification window */
-XClient notification;
-
-/* Initialize the X server connection. */
-int initialize_x11(void)
+/* The handler for X errors. */
+static int x_error_handler(Display *display, XErrorEvent *error)
 {
-    int connection_error;
-    int screen_number;
-    const xcb_setup_t *setup;
-    xcb_screen_iterator_t i;
+    char buffer[128];
 
-    /* read the DISPLAY environment variable to determine the display to
-     * attach to; if the DISPLAY variable is in the form :X.Y then X is the
-     * display number and Y the screen number which is stored in `screen_number`
-     */
-    connection = xcb_connect(NULL, &screen_number);
-    /* standard way to check if a connection failed */
-    connection_error = xcb_connection_has_error(connection);
-    if (connection_error > 0) {
-        LOG_ERROR("could not connect to the X server: %X\n", connection_error);
-        return ERROR;
+    if (error->error_code == xkb_error_base) {
+        LOG_ERROR("Xkb request failed: %d\n",
+                error->request_code);
+        return 0;
     }
 
-    x_file_descriptor = xcb_get_file_descriptor(connection);
-
-    setup = xcb_get_setup(connection);
-
-    /* iterator over all screens to find the one with the screen number */
-    for(i = xcb_setup_roots_iterator(setup); i.rem > 0; xcb_screen_next(&i)) {
-        if (screen_number == 0) {
-            screen = i.data;
-            LOG("%C\n", screen);
-            break;
-        }
-        screen_number--;
+    if (error->error_code == randr_error_base) {
+        LOG_ERROR("Xkb request failed: %d\n",
+                error->request_code);
+        return 0;
     }
 
-    if (screen == NULL) {
-        /* this should in theory not happen because `xcb_connect()` already
-         * checks if the screen exists
-         */
-        LOG_ERROR("there is no screen no. %d\n", screen_number);
-        return ERROR;
+    if (error->request_code == X_ChangeWindowAttributes &&
+            error->error_code == BadAccess) {
+        LOG_ERROR("there is already a window manager running on %s\n",
+                XDisplayName(NULL));
+        Fensterchef_is_running = false;
+        return 0;
     }
 
-    return OK;
+    XGetErrorText(display, error->error_code, buffer, sizeof(buffer));
+
+    LOG_ERROR("X error: %s\n", buffer);
+    return 0;
 }
 
-/* Create the check, notification and window list windows. */
-static int create_utility_windows(void)
+/* Initialize the X display. */
+int initialize_connection(void)
 {
-    const char *notification_name = "[fensterchef] notification";
-    xcb_generic_error_t *error;
+    int major_version, minor_version;
+    int status;
 
-    /* create the wm check window, this can be used by other applications to
-     * identify our window manager, we also use it as fallback focus
-     */
-    wm_check_window = xcb_generate_id(connection);
-    error = xcb_request_check(connection, xcb_create_window_checked(connection,
-                XCB_COPY_FROM_PARENT, wm_check_window,
-                screen->root, -1, -1, 1, 1, 0,
-                XCB_WINDOW_CLASS_INPUT_ONLY, XCB_COPY_FROM_PARENT,
-                0, NULL));
-    if (error != NULL) {
-        LOG_ERROR("could not create check window: %E\n", error);
-        free(error);
+    major_version = XkbMajorVersion;
+    minor_version = XkbMinorVersion;
+    display = XkbOpenDisplay(NULL, &xkb_event_base, &xkb_error_base,
+            &major_version, &minor_version, &status);
+    if (display == NULL) {
+        LOG_ERROR("could not open display: " COLOR(RED));
+        switch (status) {
+        case XkbOD_BadLibraryVersion:
+            fprintf(stderr, "using a bad XKB library version\n");
+            break;
+
+        case XkbOD_ConnectionRefused:
+            fprintf(stderr, "could not open connection\n");
+            break;
+
+        case XkbOD_BadServerVersion:
+            fprintf(stderr, "the server and client XKB versions mismatch\n");
+            break;
+
+        case XkbOD_NonXkbServer:
+            fprintf(stderr, "the server does not have the XKB extension\n");
+            break;
+        }
         return ERROR;
     }
-    /* set the check window name to the name of fensterchef */
-    xcb_icccm_set_wm_name(connection, wm_check_window,
-            XCB_ATOM_STRING, 8, strlen(FENSTERCHEF_NAME), FENSTERCHEF_NAME);
-    /* the check window has itself as supporting wm check window */
-    xcb_change_property(connection, XCB_PROP_MODE_REPLACE, wm_check_window,
-            ATOM(_NET_SUPPORTING_WM_CHECK), XCB_ATOM_WINDOW,
-            32, 1, &wm_check_window);
 
-    /* map the window so it can receive focus */
-    xcb_map_window(connection, wm_check_window);
+    /* set an error handler */
+    XSetErrorHandler(x_error_handler);
+    /* TODO: set error handler for IO error */
 
-    /* create a notification window for showing the user messages */
-    notification.id = xcb_generate_id(connection);
-    notification.x = -1;
-    notification.y = -1;
-    notification.width = 1;
-    notification.height = 1;
-    /* indicate to not manage the window */
-    general_values[0] = true;
-    error = xcb_request_check(connection, xcb_create_window_checked(connection,
-                XCB_COPY_FROM_PARENT, notification.id,
-                screen->root, notification.x, notification.y,
-                notification.width, notification.height, 0,
-                XCB_WINDOW_CLASS_COPY_FROM_PARENT, XCB_COPY_FROM_PARENT,
-                XCB_CW_OVERRIDE_REDIRECT, general_values));
-    if (error != NULL) {
-        LOG_ERROR("could not create notification window: %E\n", error);
-        free(error);
-        return ERROR;
-    }
-    xcb_icccm_set_wm_name(connection, notification.id,
-            XCB_ATOM_STRING, 8, strlen(notification_name), notification_name);
+    /* receive events when the keyboard changes */
+    XkbSelectEventDetails(display, XkbUseCoreKbd, XkbNewKeyboardNotify,
+            XkbNKN_KeycodesMask,
+            XkbNKN_KeycodesMask);
+    /* listen for changes to key symbols and the modifier map */
+    XkbSelectEventDetails(display, XkbUseCoreKbd, XkbMapNotify,
+            XkbAllClientInfoMask,
+            XkbAllClientInfoMask);
 
-    /* create the window list */
-    if (initialize_window_list() != OK) {
-        return ERROR;
-    }
+    x_file_descriptor = XConnectionNumber(display);
+    LOG("%D\n", display);
     return OK;
 }
 
 /* Try to take control of the window manager role. */
 int take_control(void)
 {
-    xcb_generic_error_t *error;
+    XSetWindowAttributes attributes;
 
-    /* set the mask of the root window so we receive important events like
-     * map requests
+    Fensterchef_is_running = true;
+
+    /* with this event mask, we get the following events:
+     * SubstructureNotifyMask
+     *  CirculateNotify
+     * 	ConfigureNotify
+     * 	CreateNotify
+     * 	DestroyNotify
+     * 	GravityNotify
+     *  MapNotify
+     *  ReparentNotify
+     *  UnmapNotify
+     * SubstructureRedirectMask
+     *  CirculateRequest
+     *  ConfigureRequest
+     *  MapRequest
      */
-    general_values[0] = ROOT_EVENT_MASK;
-    error = xcb_request_check(connection,
-            xcb_change_window_attributes_checked(connection, screen->root,
-                XCB_CW_EVENT_MASK, general_values));
-    if (error != NULL) {
-        LOG_ERROR("could not change root window mask: %E\n", error);
-        free(error);
-        return ERROR;
-    }
+    attributes.event_mask = SubstructureRedirectMask | SubstructureNotifyMask;
 
-    /* create the necessary utility windows */
-    if (create_utility_windows() != OK) {
+    XChangeWindowAttributes(display, DefaultRootWindow(display), CWEventMask,
+            &attributes);
+
+    /* wait until we get a reply to our request */
+    XSync(display, False);
+
+    /* check if the error handler set this to false */
+    if (!Fensterchef_is_running) {
         return ERROR;
     }
+    return OK;
+}
+
+/* Initialize utility windows. */
+void initialize_utility_windows(void)
+{
+    /* create the wm check window, this can be used by other applications to
+     * identify our window manager, we also use it as fallback focus
+     */
+    wm_check_window = XCreateWindow(display, DefaultRootWindow(display),
+            -1, -1, 1, 1, 0, CopyFromParent, InputOnly,
+            (Visual*) CopyFromParent, 0, NULL);
+    /* set the title to the window manager name */
+    XStoreName(display, wm_check_window, FENSTERCHEF_NAME);
+    /* set the check window property so it points to itself */
+    XChangeProperty(display, wm_check_window, ATOM(_NET_SUPPORTING_WM_CHECK),
+            XA_WINDOW, 32, PropModeReplace,
+            (unsigned char*) &wm_check_window, 1);
+    /* map the window so it can receive the fallback focus */
+    XMapWindow(display, wm_check_window);
 
     /* intialize the focus */
-    xcb_set_input_focus(connection, XCB_INPUT_FOCUS_POINTER_ROOT,
-            wm_check_window, XCB_CURRENT_TIME);
-    return OK;
+    XSetInputFocus(display, wm_check_window, RevertToParent, CurrentTime);
 }
 
 /* Go through all existing windows and manage them. */
 void query_existing_windows(void)
 {
-    xcb_query_tree_cookie_t tree_cookie;
-    xcb_query_tree_reply_t *tree;
-    xcb_window_t *windows;
-    int length;
-    Window *window;
+    Window root;
+    Window parent;
+    Window *children;
+    unsigned number_of_children;
+    FcWindow *window;
     struct configuration_association association;
 
     /* get a list of child windows of the root in bottom-to-top stacking order
      */
-    tree_cookie = xcb_query_tree(connection, screen->root);
-    tree = xcb_query_tree_reply(connection, tree_cookie, NULL);
-    /* not sure what this implies, maybe the connection is broken */
-    if (tree == NULL) {
-        return;
-    }
+    XQueryTree(display, DefaultRootWindow(display), &root, &parent, &children,
+            &number_of_children);
 
-    windows = xcb_query_tree_children(tree);
-    length = xcb_query_tree_children_length(tree);
-    for (int i = 0; i < length; i++) {
-        window = create_window(windows[i], &association);
+    for (unsigned i = 0; i < number_of_children; i++) {
+        window = create_window(children[i], &association);
         if (window != NULL && window->client.is_mapped) {
             show_window(window);
         }
     }
 
-    free(tree);
+    XFree(children);
 }
 
 /* Set the input focus to @window. This window may be `NULL`. */
-void set_input_focus(Window *window)
+void set_input_focus(FcWindow *window)
 {
-    xcb_window_t focus_id = XCB_NONE;
-    xcb_window_t active_id;
-    xcb_atom_t state_atom;
+    Window focus_id = None;
+    Window active_id;
+    Atom state_atom;
 
     if (window == NULL) {
         LOG("removed focus from all windows\n");
-        active_id = screen->root;
+        active_id = DefaultRootWindow(display);
 
         focus_id = wm_check_window;
     } else {
@@ -234,22 +206,18 @@ void set_input_focus(Window *window)
         add_window_states(window, &state_atom, 1);
 
         /* if the window wants no focus itself */
-        if ((window->hints.flags & XCB_ICCCM_WM_HINT_INPUT) &&
-                window->hints.input == 0) {
-            char event_data[32];
-            xcb_client_message_event_t *event;
+        if ((window->hints.flags & InputHint) && window->hints.input == 0) {
+            XEvent event;
 
+            memset(&event, 0, sizeof(event));
             /* bake an event for running a protocol on the window */
-            event = (xcb_client_message_event_t*) event_data;
-            event->response_type = XCB_CLIENT_MESSAGE;
-            event->window = window->client.id;
-            event->type = ATOM(WM_PROTOCOLS);
-            event->format = 32;
-            memset(&event->data, 0, sizeof(event->data));
-            event->data.data32[0] = ATOM(WM_TAKE_FOCUS);
-            event->data.data32[1] = XCB_CURRENT_TIME;
-            xcb_send_event(connection, false, window->client.id,
-                    XCB_EVENT_MASK_NO_EVENT, event_data);
+            event.type = ClientMessage;
+            event.xclient.window = window->client.id;
+            event.xclient.message_type = ATOM(WM_PROTOCOLS);
+            event.xclient.format = 32;
+            event.xclient.data.l[0] = ATOM(WM_TAKE_FOCUS);
+            event.xclient.data.l[1] = CurrentTime;
+            XSendEvent(display, window->client.id, false, NoEventMask, &event);
 
             LOG("focusing client: %w through sending WM_TAKE_FOCUS\n",
                     window->client.id);
@@ -258,14 +226,15 @@ void set_input_focus(Window *window)
         }
     }
 
-    if (focus_id != XCB_NONE) {
+    if (focus_id != None) {
         LOG("focusing client: %w\n", focus_id);
-        xcb_set_input_focus(connection, XCB_INPUT_FOCUS_POINTER_ROOT,
-                focus_id, XCB_CURRENT_TIME);
+        XSetInputFocus(display, focus_id, RevertToParent, CurrentTime);
     }
 
-    xcb_change_property(connection, XCB_PROP_MODE_REPLACE, screen->root,
-            ATOM(_NET_ACTIVE_WINDOW), XCB_ATOM_WINDOW, 32, 1, &active_id);
+    /* set the active window root property */
+    XChangeProperty(display, DefaultRootWindow(display),
+            ATOM(_NET_ACTIVE_WINDOW), XA_WINDOW, 32, PropModeReplace,
+            (unsigned char*) &active_id, 1);
 }
 
 /* Show the client on the X server. */
@@ -279,7 +248,21 @@ void map_client(XClient *client)
 
     client->is_mapped = true;
 
-    xcb_map_window(connection, client->id);
+    XMapWindow(display, client->id);
+}
+
+/* Show the client on the X server at the top. */
+void map_client_raised(XClient *client)
+{
+    if (client->is_mapped) {
+        return;
+    }
+
+    LOG("showing client %w raised\n", client->id);
+
+    client->is_mapped = true;
+
+    XMapRaised(display, client->id);
 }
 
 /* Hide the client on the X server. */
@@ -293,55 +276,50 @@ void unmap_client(XClient *client)
 
     client->is_mapped = false;
 
-    xcb_unmap_window(connection, client->id);
+    XUnmapWindow(display, client->id);
 }
 
 /* Set the size of a window associated to the X server. */
 void configure_client(XClient *client, int32_t x, int32_t y, uint32_t width,
         uint32_t height, uint32_t border_width)
 {
-    uint16_t mask = 0;
-    uint16_t index = 0;
+    XWindowChanges changes;
+    unsigned mask = 0;
 
     if (client->x != x) {
         client->x = x;
-        general_values[index] = x;
-        index++;
-        mask |= XCB_CONFIG_WINDOW_X;
+        changes.x = x;
+        mask |= CWX;
     }
 
     if (client->y != y) {
         client->y = y;
-        general_values[index] = y;
-        index++;
-        mask |= XCB_CONFIG_WINDOW_Y;
+        changes.y = y;
+        mask |= CWY;
     }
 
     if (client->width != width) {
         client->width = width;
-        general_values[index] = width;
-        index++;
-        mask |= XCB_CONFIG_WINDOW_WIDTH;
+        changes.width = width;
+        mask |= CWWidth;
     }
 
     if (client->height != height) {
         client->height = height;
-        general_values[index] = height;
-        index++;
-        mask |= XCB_CONFIG_WINDOW_HEIGHT;
+        changes.height = height;
+        mask |= CWHeight;
     }
 
     if (client->border_width != border_width) {
         client->border_width = border_width;
-        general_values[index] = border_width;
-        index++;
-        mask |= XCB_CONFIG_WINDOW_BORDER_WIDTH;
+        changes.border_width = border_width;
+        mask |= CWBorderWidth;
     }
 
     if (mask != 0) {
-        LOG("configuring client %w to %R %" PRIu32 "\n", client->id,
-                x, y, width, height, border_width);
-        xcb_configure_window(connection, client->id, mask, general_values);
+        LOG("configuring client %w to %R %u\n",
+                client->id, x, y, width, height, border_width);
+        XConfigureWindow(display, client->id, mask, &changes);
     }
 }
 
@@ -349,29 +327,25 @@ void configure_client(XClient *client, int32_t x, int32_t y, uint32_t width,
 void change_client_attributes(XClient *client, uint32_t background_color,
         uint32_t border_color)
 {
-    uint16_t mask = 0;
-    uint16_t index = 0;
+    XSetWindowAttributes attributes;
+    unsigned mask = 0;
 
-    if (client->background_color != background_color) {
-        client->background_color = border_color;
-        general_values[index] = background_color;
-        index++;
-        mask |= XCB_CW_BACK_PIXEL;
+    if (client->background != background_color) {
+        client->background = background_color;
+        attributes.backing_pixel = background_color;
+        mask |= CWBackPixel;
     }
 
-    if (client->border_color != border_color) {
-        client->border_color = border_color;
-        general_values[index] = border_color;
-        index++;
-        mask |= XCB_CW_BORDER_PIXEL;
+    if (client->border != border_color) {
+        client->border = border_color;
+        attributes.border_pixel = border_color;
+        mask |= CWBorderPixel;
     }
 
-    if (mask > 0) {
-        LOG("changing attributes of client %w to " COLOR(GREEN) "#%06" PRIx32
-                    ", " COLOR(GREEN) "#%06" PRIx32 "\n",
+    if (mask != 0) {
+        LOG("changing attributes of client %w to " COLOR(GREEN) "#%08x, "
+                    COLOR(GREEN) "#%08x\n",
                 client->id, background_color, border_color);
-
-        xcb_change_window_attributes(connection, client->id,
-                mask, general_values);
+        XChangeWindowAttributes(display, client->id, mask, &attributes);
     }
 }

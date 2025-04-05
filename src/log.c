@@ -3,9 +3,9 @@
 #include <string.h>
 #include <time.h>
 
-#include <xcb/randr.h>
-#include <xcb/xcb_event.h>
-#include <xcb/xcb_event.h>
+#include <X11/XKBlib.h>
+
+#include <X11/extensions/Xrandr.h>
 
 #include "configuration/action.h"
 #include "configuration/expression.h"
@@ -14,6 +14,7 @@
 #include "event.h"
 #include "frame.h"
 #include "log.h"
+#include "notification.h"
 #include "window.h"
 #include "window_list.h"
 #include "window_properties.h"
@@ -25,170 +26,195 @@ log_severity_t log_severity = LOG_SEVERITY_INFO;
 /***********************/
 /** String conversion **/
 
-static const char *generic_event_strings[] = {
-    [XCB_REQUEST] = "REQUEST",
-    [XCB_VALUE] = "VALUE",
-    [XCB_WINDOW] = "WINDOW",
-    [XCB_PIXMAP] = "PIXMAP",
-    [XCB_ATOM] = "ATOM",
-    [XCB_CURSOR] = "CURSOR",
-    [XCB_FONT] = "FONT",
-    [XCB_MATCH] = "MATCH",
-    [XCB_DRAWABLE] = "DRAWABLE",
-    [XCB_ACCESS] = "ACCESS",
-    [XCB_ALLOC] = "ALLOC",
-    [XCB_COLORMAP] = "COLORMAP",
-    [XCB_G_CONTEXT] = "G_CONTEXT",
-    [XCB_ID_CHOICE] = "ID_CHOICE",
-    [XCB_NAME] = "NAME",
-    [XCB_LENGTH] = "LENGTH",
-    [XCB_IMPLEMENTATION] = "IMPLEMENTATION",
-};
-
-static const char *atom_to_string(xcb_atom_t atom)
+static const char *event_to_string(int type)
 {
-    const char *xcb_atoms[] = {
-        [XCB_ATOM_NONE] = "NONE",
-        [XCB_ATOM_PRIMARY] = "PRIMARY",
-        [XCB_ATOM_SECONDARY] = "SECONDARY",
-        [XCB_ATOM_ARC] = "ARC",
-        [XCB_ATOM_ATOM] = "ATOM",
-        [XCB_ATOM_BITMAP] = "BITMAP",
-        [XCB_ATOM_CARDINAL] = "CARDINAL",
-        [XCB_ATOM_COLORMAP] = "COLORMAP",
-        [XCB_ATOM_CURSOR] = "CURSOR",
-        [XCB_ATOM_CUT_BUFFER0] = "CUT_BUFFER0",
-        [XCB_ATOM_CUT_BUFFER1] = "CUT_BUFFER1",
-        [XCB_ATOM_CUT_BUFFER2] = "CUT_BUFFER2",
-        [XCB_ATOM_CUT_BUFFER3] = "CUT_BUFFER3",
-        [XCB_ATOM_CUT_BUFFER4] = "CUT_BUFFER4",
-        [XCB_ATOM_CUT_BUFFER5] = "CUT_BUFFER5",
-        [XCB_ATOM_CUT_BUFFER6] = "CUT_BUFFER6",
-        [XCB_ATOM_CUT_BUFFER7] = "CUT_BUFFER7",
-        [XCB_ATOM_DRAWABLE] = "DRAWABLE",
-        [XCB_ATOM_FONT] = "FONT",
-        [XCB_ATOM_INTEGER] = "INTEGER",
-        [XCB_ATOM_PIXMAP] = "PIXMAP",
-        [XCB_ATOM_POINT] = "POINT",
-        [XCB_ATOM_RECTANGLE] = "RECTANGLE",
-        [XCB_ATOM_RESOURCE_MANAGER] = "RESOURCE_MANAGER",
-        [XCB_ATOM_RGB_COLOR_MAP] = "RGB_COLOR_MAP",
-        [XCB_ATOM_RGB_BEST_MAP] = "RGB_BEST_MAP",
-        [XCB_ATOM_RGB_BLUE_MAP] = "RGB_BLUE_MAP",
-        [XCB_ATOM_RGB_DEFAULT_MAP] = "RGB_DEFAULT_MAP",
-        [XCB_ATOM_RGB_GRAY_MAP] = "RGB_GRAY_MAP",
-        [XCB_ATOM_RGB_GREEN_MAP] = "RGB_GREEN_MAP",
-        [XCB_ATOM_RGB_RED_MAP] = "RGB_RED_MAP",
-        [XCB_ATOM_STRING] = "STRING",
-        [XCB_ATOM_VISUALID] = "VISUALID",
-        [XCB_ATOM_WINDOW] = "WINDOW",
-        [XCB_ATOM_WM_COMMAND] = "WM_COMMAND",
-        [XCB_ATOM_WM_HINTS] = "WM_HINTS",
-        [XCB_ATOM_WM_CLIENT_MACHINE] = "WM_CLIENT_MACHINE",
-        [XCB_ATOM_WM_ICON_NAME] = "WM_ICON_NAME",
-        [XCB_ATOM_WM_ICON_SIZE] = "WM_ICON_SIZE",
-        [XCB_ATOM_WM_NAME] = "WM_NAME",
-        [XCB_ATOM_WM_NORMAL_HINTS] = "WM_NORMAL_HINTS",
-        [XCB_ATOM_WM_SIZE_HINTS] = "WM_SIZE_HINTS",
-        [XCB_ATOM_WM_ZOOM_HINTS] = "WM_ZOOM_HINTS",
-        [XCB_ATOM_MIN_SPACE] = "MIN_SPACE",
-        [XCB_ATOM_NORM_SPACE] = "NORM_SPACE",
-        [XCB_ATOM_MAX_SPACE] = "MAX_SPACE",
-        [XCB_ATOM_END_SPACE] = "END_SPACE",
-        [XCB_ATOM_SUPERSCRIPT_X] = "SUPERSCRIPT_X",
-        [XCB_ATOM_SUPERSCRIPT_Y] = "SUPERSCRIPT_Y",
-        [XCB_ATOM_SUBSCRIPT_X] = "SUBSCRIPT_X",
-        [XCB_ATOM_SUBSCRIPT_Y] = "SUBSCRIPT_Y",
-        [XCB_ATOM_UNDERLINE_POSITION] = "UNDERLINE_POSITION",
-        [XCB_ATOM_UNDERLINE_THICKNESS] = "UNDERLINE_THICKNESS",
-        [XCB_ATOM_STRIKEOUT_ASCENT] = "STRIKEOUT_ASCENT",
-        [XCB_ATOM_STRIKEOUT_DESCENT] = "STRIKEOUT_DESCENT",
-        [XCB_ATOM_ITALIC_ANGLE] = "ITALIC_ANGLE",
-        [XCB_ATOM_X_HEIGHT] = "X_HEIGHT",
-        [XCB_ATOM_QUAD_WIDTH] = "QUAD_WIDTH",
-        [XCB_ATOM_WEIGHT] = "WEIGHT",
-        [XCB_ATOM_POINT_SIZE] = "POINT_SIZE",
-        [XCB_ATOM_RESOLUTION] = "RESOLUTION",
-        [XCB_ATOM_COPYRIGHT] = "COPYRIGHT",
-        [XCB_ATOM_NOTICE] = "NOTICE",
-        [XCB_ATOM_FONT_NAME] = "FONT_NAME",
-        [XCB_ATOM_FAMILY_NAME] = "FAMILY_NAME",
-        [XCB_ATOM_FULL_NAME] = "FULL_NAME",
-        [XCB_ATOM_CAP_HEIGHT] = "CAP_HEIGHT",
-        [XCB_ATOM_WM_CLASS] = "WM_CLASS",
-        [XCB_ATOM_WM_TRANSIENT_FOR] = "WM_TRANSIENT_FOR",
+    const char *event_strings[] = {
+        [KeyPress] = "KeyPress",
+        [KeyRelease] = "KeyRelease",
+        [ButtonPress] = "ButtonPress",
+        [ButtonRelease] = "ButtonRelease",
+        [MotionNotify] = "MotionNotify",
+        [EnterNotify] = "EnterNotify",
+        [LeaveNotify] = "LeaveNotify",
+        [FocusIn] = "FocusIn",
+        [FocusOut] = "FocusOut",
+        [KeymapNotify] = "KeymapNotify",
+        [Expose] = "Expose",
+        [GraphicsExpose] = "GraphicsExpose",
+        [NoExpose] = "NoExpose",
+        [VisibilityNotify] = "VisibilityNotify",
+        [CreateNotify] = "CreateNotify",
+        [DestroyNotify] = "DestroyNotify",
+        [UnmapNotify] = "UnmapNotify",
+        [MapNotify] = "MapNotify",
+        [MapRequest] = "MapRequest",
+        [ReparentNotify] = "ReparentNotify",
+        [ConfigureNotify] = "ConfigureNotify",
+        [ConfigureRequest] = "ConfigureRequest",
+        [GravityNotify] = "GravityNotify",
+        [ResizeRequest] = "ResizeRequest",
+        [CirculateNotify] = "CirculateNotify",
+        [CirculateRequest] = "CirculateRequest",
+        [PropertyNotify] = "PropertyNotify",
+        [SelectionClear] = "SelectionClear",
+        [SelectionRequest] = "SelectionRequest",
+        [SelectionNotify] = "SelectionNotify",
+        [ColormapNotify] = "ColormapNotify",
+        [ClientMessage] = "ClientMessage",
+        [MappingNotify] = "MappingNotify",
     };
 
-    if (atom < SIZE(xcb_atoms)) {
-        return xcb_atoms[atom];
+    /* types smaller than 0 are reserved for errors and replies */
+    if (type < 2 || type > (int) SIZE(event_strings)) {
+        return NULL;
     }
-    for (uint32_t i = 0; i < SIZE(x_atoms); i++) {
-        if (x_atoms[i].atom == atom) {
-            return x_atoms[i].name;
+    return event_strings[type];
+}
+
+static const char *atom_to_string(Atom atom)
+{
+    const char *atom_strings[] = {
+        [None] = "NONE",
+        [XA_PRIMARY] = "PRIMARY",
+        [XA_SECONDARY] = "SECONDARY",
+        [XA_ARC] = "ARC",
+        [XA_ATOM] = "ATOM",
+        [XA_BITMAP] = "BITMAP",
+        [XA_CARDINAL] = "CARDINAL",
+        [XA_COLORMAP] = "COLORMAP",
+        [XA_CURSOR] = "CURSOR",
+        [XA_CUT_BUFFER0] = "CUT_BUFFER0",
+        [XA_CUT_BUFFER1] = "CUT_BUFFER1",
+        [XA_CUT_BUFFER2] = "CUT_BUFFER2",
+        [XA_CUT_BUFFER3] = "CUT_BUFFER3",
+        [XA_CUT_BUFFER4] = "CUT_BUFFER4",
+        [XA_CUT_BUFFER5] = "CUT_BUFFER5",
+        [XA_CUT_BUFFER6] = "CUT_BUFFER6",
+        [XA_CUT_BUFFER7] = "CUT_BUFFER7",
+        [XA_DRAWABLE] = "DRAWABLE",
+        [XA_FONT] = "FONT",
+        [XA_INTEGER] = "INTEGER",
+        [XA_PIXMAP] = "PIXMAP",
+        [XA_POINT] = "POINT",
+        [XA_RECTANGLE] = "RECTANGLE",
+        [XA_RESOURCE_MANAGER] = "RESOURCE_MANAGER",
+        [XA_RGB_COLOR_MAP] = "RGB_COLOR_MAP",
+        [XA_RGB_BEST_MAP] = "RGB_BEST_MAP",
+        [XA_RGB_BLUE_MAP] = "RGB_BLUE_MAP",
+        [XA_RGB_DEFAULT_MAP] = "RGB_DEFAULT_MAP",
+        [XA_RGB_GRAY_MAP] = "RGB_GRAY_MAP",
+        [XA_RGB_GREEN_MAP] = "RGB_GREEN_MAP",
+        [XA_RGB_RED_MAP] = "RGB_RED_MAP",
+        [XA_STRING] = "STRING",
+        [XA_VISUALID] = "VISUALID",
+        [XA_WINDOW] = "WINDOW",
+        [XA_WM_COMMAND] = "WM_COMMAND",
+        [XA_WM_HINTS] = "WM_HINTS",
+        [XA_WM_CLIENT_MACHINE] = "WM_CLIENT_MACHINE",
+        [XA_WM_ICON_NAME] = "WM_ICON_NAME",
+        [XA_WM_ICON_SIZE] = "WM_ICON_SIZE",
+        [XA_WM_NAME] = "WM_NAME",
+        [XA_WM_NORMAL_HINTS] = "WM_NORMAL_HINTS",
+        [XA_WM_SIZE_HINTS] = "WM_SIZE_HINTS",
+        [XA_WM_ZOOM_HINTS] = "WM_ZOOM_HINTS",
+        [XA_MIN_SPACE] = "MIN_SPACE",
+        [XA_NORM_SPACE] = "NORM_SPACE",
+        [XA_MAX_SPACE] = "MAX_SPACE",
+        [XA_END_SPACE] = "END_SPACE",
+        [XA_SUPERSCRIPT_X] = "SUPERSCRIPT_X",
+        [XA_SUPERSCRIPT_Y] = "SUPERSCRIPT_Y",
+        [XA_SUBSCRIPT_X] = "SUBSCRIPT_X",
+        [XA_SUBSCRIPT_Y] = "SUBSCRIPT_Y",
+        [XA_UNDERLINE_POSITION] = "UNDERLINE_POSITION",
+        [XA_UNDERLINE_THICKNESS] = "UNDERLINE_THICKNESS",
+        [XA_STRIKEOUT_ASCENT] = "STRIKEOUT_ASCENT",
+        [XA_STRIKEOUT_DESCENT] = "STRIKEOUT_DESCENT",
+        [XA_ITALIC_ANGLE] = "ITALIC_ANGLE",
+        [XA_X_HEIGHT] = "X_HEIGHT",
+        [XA_QUAD_WIDTH] = "QUAD_WIDTH",
+        [XA_WEIGHT] = "WEIGHT",
+        [XA_POINT_SIZE] = "POINT_SIZE",
+        [XA_RESOLUTION] = "RESOLUTION",
+        [XA_COPYRIGHT] = "COPYRIGHT",
+        [XA_NOTICE] = "NOTICE",
+        [XA_FONT_NAME] = "FONT_NAME",
+        [XA_FAMILY_NAME] = "FAMILY_NAME",
+        [XA_FULL_NAME] = "FULL_NAME",
+        [XA_CAP_HEIGHT] = "CAP_HEIGHT",
+        [XA_WM_CLASS] = "WM_CLASS",
+        [XA_WM_TRANSIENT_FOR] = "WM_TRANSIENT_FOR",
+    };
+
+    if (atom < SIZE(atom_strings)) {
+        return atom_strings[atom];
+    }
+    for (unsigned i = 0; i < ATOM_MAX; i++) {
+        if (x_atom_ids[i] == atom) {
+            return x_atom_names[i];
         }
     }
 
     return NULL;
 }
 
-static const char *notify_detail_to_string(xcb_notify_detail_t detail)
+static const char *notify_detail_to_string(int detail)
 {
     switch (detail) {
-    case XCB_NOTIFY_DETAIL_ANCESTOR:
+    case NotifyAncestor:
         return "ancestor";
-    case XCB_NOTIFY_DETAIL_VIRTUAL:
+    case NotifyVirtual:
         return "virtual";
-    case XCB_NOTIFY_DETAIL_INFERIOR:
+    case NotifyInferior:
         return "inferior";
-    case XCB_NOTIFY_DETAIL_NONLINEAR:
+    case NotifyNonlinear:
         return "nonlinear";
-    case XCB_NOTIFY_DETAIL_NONLINEAR_VIRTUAL:
+    case NotifyNonlinearVirtual:
         return "nonlinear virtual";
-    case XCB_NOTIFY_DETAIL_POINTER:
+    case NotifyPointer:
         return "pointer";
-    case XCB_NOTIFY_DETAIL_POINTER_ROOT:
+    case NotifyPointerRoot:
         return "pointer root";
-    case XCB_NOTIFY_DETAIL_NONE:
+    case NotifyDetailNone:
         return "none";
     default:
         return NULL;
     }
 }
 
-static const char *notify_mode_to_string(xcb_notify_mode_t mode)
+static const char *notify_mode_to_string(int mode)
 {
     switch (mode) {
-    case XCB_NOTIFY_MODE_NORMAL:
+    case NotifyNormal:
         return "normal";
-    case XCB_NOTIFY_MODE_GRAB:
+    case NotifyGrab:
         return "grab";
-    case XCB_NOTIFY_MODE_UNGRAB:
+    case NotifyUngrab:
         return "ungrab";
-    case XCB_NOTIFY_MODE_WHILE_GRABBED:
+    case NotifyWhileGrabbed:
         return "while grabbed";
     default:
         return NULL;
     }
 }
 
-static const char *button_to_string(xcb_button_t button)
+static const char *button_to_string(unsigned button)
 {
     switch (button) {
-    case XCB_BUTTON_INDEX_ANY:
+    case AnyButton:
         return "any";
-    case XCB_BUTTON_INDEX_1:
+    case Button1:
         return "left";
-    case XCB_BUTTON_INDEX_2:
+    case Button2:
         return "middle";
-    case XCB_BUTTON_INDEX_3:
+    case Button3:
         return "right";
-    case XCB_BUTTON_INDEX_4:
+    case Button4:
         return "scroll up";
-    case XCB_BUTTON_INDEX_5:
+    case Button5:
         return "scroll down";
-    case /* XCB_BUTTON_INDEX_6 */ 6:
+    case /* Button6 */ 6:
         return "scroll left";
-    case /* XCB_BUTTON_INDEX_7 */ 7:
+    case /* Button7 */ 7:
         return "scroll right";
     default:
         return NULL;
@@ -227,30 +253,30 @@ static const char *direction_to_string(wm_move_resize_direction_t direction)
     }
 }
 
-static const char *gravity_to_string(xcb_gravity_t gravity)
+static const char *gravity_to_string(int gravity)
 {
     switch (gravity) {
-    case XCB_GRAVITY_WIN_UNMAP:
+    case UnmapGravity:
         return "win unmap";
-    case XCB_GRAVITY_NORTH_WEST:
+    case NorthWestGravity:
         return "north west";
-    case XCB_GRAVITY_NORTH:
+    case NorthGravity:
         return "north";
-    case XCB_GRAVITY_NORTH_EAST:
+    case NorthEastGravity:
         return "north east";
-    case XCB_GRAVITY_WEST:
+    case WestGravity:
         return "west";
-    case XCB_GRAVITY_CENTER:
+    case CenterGravity:
         return "center";
-    case XCB_GRAVITY_EAST:
+    case EastGravity:
         return "east";
-    case XCB_GRAVITY_SOUTH_WEST:
+    case SouthWestGravity:
         return "south west";
-    case XCB_GRAVITY_SOUTH:
+    case SouthGravity:
         return "south";
-    case XCB_GRAVITY_SOUTH_EAST:
+    case SouthEastGravity:
         return "south east";
-    case XCB_GRAVITY_STATIC:
+    case StaticGravity:
         return "static";
     default:
         return NULL;
@@ -266,45 +292,49 @@ static void log_boolean(bool boolean)
             COLOR(RED) "false" CLEAR_COLOR, stderr);
 }
 
-static void log_hexadecimal(uint32_t x)
+static void log_hexadecimal(unsigned x)
 {
-    fprintf(stderr, COLOR(GREEN) "%#" PRIx32 CLEAR_COLOR, x);
+    fprintf(stderr, COLOR(GREEN) "%#x" CLEAR_COLOR,
+            x);
 }
 
-static void log_point(int32_t x, int32_t y)
+static void log_point(int x, int y)
 {
-    fprintf(stderr, COLOR(GREEN) "%" PRId32 "+%" PRId32 CLEAR_COLOR, x, y);
+    fprintf(stderr, COLOR(GREEN) "%d+%d" CLEAR_COLOR,
+            x, y);
 }
 
-static void log_rectangle(int32_t x, int32_t y, uint32_t width, uint32_t height)
+static void log_rectangle(int x, int y, unsigned width, unsigned height)
 {
-    fprintf(stderr, COLOR(GREEN) "%" PRId32 "+%" PRId32
-                "+%" PRIu32 "x%" PRIu32  CLEAR_COLOR,
+    fprintf(stderr, COLOR(GREEN) "%d+%d+%ux%u" CLEAR_COLOR,
             x, y, width, height);
 }
 
-static void log_size(uint32_t width, uint32_t height)
+static void log_size(unsigned width, unsigned height)
 {
-    fprintf(stderr, COLOR(GREEN) "%" PRId32 "x%" PRId32 CLEAR_COLOR,
+    fprintf(stderr, COLOR(GREEN) "%ux%u" CLEAR_COLOR,
             width, height);
 }
 
-static void log_integer(int32_t x)
+static void log_integer(int x)
 {
-    fprintf(stderr, COLOR(GREEN) "%" PRId32 CLEAR_COLOR, x);
+    fprintf(stderr, COLOR(GREEN) "%d" CLEAR_COLOR,
+            x);
 }
 
-static void log_unsigned(uint32_t x)
+static void log_unsigned(unsigned x)
 {
-    fprintf(stderr, COLOR(GREEN) "%" PRIu32 CLEAR_COLOR, x);
+    fprintf(stderr, COLOR(GREEN) "%d" CLEAR_COLOR,
+            x);
 }
 
-static void log_unsigned_pair(uint32_t x, uint32_t y)
+static void log_unsigned_pair(unsigned x, unsigned y)
 {
-    fprintf(stderr, COLOR(GREEN) "%" PRIu32 ",%" PRIu32 CLEAR_COLOR, x, y);
+    fprintf(stderr, COLOR(GREEN) "%u,%u" CLEAR_COLOR,
+            x, y);
 }
 
-static void log_button(xcb_button_t button)
+static void log_button(unsigned button)
 {
     const char *string;
 
@@ -316,7 +346,7 @@ static void log_button(xcb_button_t button)
     }
 }
 
-static void log_source(uint32_t source)
+static void log_source(int source)
 {
     switch (source) {
     case 1:
@@ -331,7 +361,7 @@ static void log_source(uint32_t source)
     }
 }
 
-static void log_gravity(xcb_gravity_t gravity)
+static void log_gravity(int gravity)
 {
     const char *string;
 
@@ -355,7 +385,7 @@ static void log_direction(wm_move_resize_direction_t direction)
     }
 }
 
-static void log_modifiers(uint32_t mask)
+static void log_modifiers(unsigned mask)
 {
     static const char *modifiers[] = {
         "Shift", "Lock", "Ctrl",
@@ -377,23 +407,29 @@ static void log_modifiers(uint32_t mask)
     fputs(CLEAR_COLOR, stderr);
 }
 
-static void log_xcb_window(xcb_window_t xcb_window)
+static void log_x_window(Window window)
 {
-    log_hexadecimal(xcb_window);
+    if (window == None) {
+        fputs(COLOR(CYAN) "None" CLEAR_COLOR, stderr);
+        return;
+    }
+
+    log_hexadecimal(window);
     fputs(COLOR(YELLOW), stderr);
-    if (xcb_window == wm_check_window) {
+    if (window == wm_check_window) {
         fputs("<check>", stderr);
-    } else if (xcb_window == window_list.client.id) {
+    } else if (window == WindowList.client.id) {
         fputs("<window list>", stderr);
-    } else if (xcb_window == notification.id) {
+    } else if (window == Notification.client.id) {
         fputs("<notification>", stderr);
-    } else if (xcb_window == screen->root) {
+    } else if (window == DefaultRootWindow(display)) {
         fputs("<root>", stderr);
     } else {
-        for (Window *window = Window_first; window != NULL;
-                window = window->next) {
-            if (window->client.id == xcb_window) {
-                fprintf(stderr, "<%" PRIu32 ">", window->number);
+        for (FcWindow *fwindow = Window_first;
+                fwindow != NULL;
+                fwindow = fwindow->next) {
+            if (fwindow->client.id == window) {
+                fprintf(stderr, "<%u>", fwindow->number);
                 break;
             }
         }
@@ -401,14 +437,14 @@ static void log_xcb_window(xcb_window_t xcb_window)
     fputs(CLEAR_COLOR, stderr);
 }
 
-static void log_motion(xcb_motion_t motion)
+static void log_motion(int motion)
 {
     fputs(COLOR(CYAN), stderr);
     switch (motion) {
-    case XCB_MOTION_NORMAL:
+    case NotifyNormal:
         fputs("normal", stderr);
         break;
-    case XCB_MOTION_HINT:
+    case NotifyHint:
         fputs("hint", stderr);
         break;
     default:
@@ -417,7 +453,7 @@ static void log_motion(xcb_motion_t motion)
     fputs(CLEAR_COLOR, stderr);
 }
 
-static void log_notify_detail(xcb_notify_detail_t detail)
+static void log_notify_detail(int detail)
 {
     const char *string;
 
@@ -431,7 +467,7 @@ static void log_notify_detail(xcb_notify_detail_t detail)
     fputs(CLEAR_COLOR, stderr);
 }
 
-static void log_notify_mode(xcb_notify_mode_t mode)
+static void log_notify_mode(int mode)
 {
     const char *string;
 
@@ -445,14 +481,14 @@ static void log_notify_mode(xcb_notify_mode_t mode)
     fputs(CLEAR_COLOR, stderr);
 }
 
-static void log_place(xcb_place_t place)
+static void log_place(int place)
 {
     fputs(COLOR(CYAN), stderr);
     switch (place) {
-    case XCB_PLACE_ON_TOP:
+    case PlaceOnTop:
         fputs("on top", stderr);
         break;
-    case XCB_PLACE_ON_BOTTOM:
+    case PlaceOnBottom:
         fputs("on bottom", stderr);
         break;
     default:
@@ -461,58 +497,58 @@ static void log_place(xcb_place_t place)
     fputs(CLEAR_COLOR, stderr);
 }
 
-static void log_property_state(uint8_t state)
+static void log_property_state(int state)
 {
     fputs(COLOR(CYAN), stderr);
     switch (state) {
-    case XCB_PROPERTY_NEW_VALUE:
+    case PropertyNewValue:
         fputs("new value", stderr);
         break;
-    case XCB_PROPERTY_DELETE:
+    case PropertyDelete:
         fputs("delete", stderr);
         break;
     default:
-        fprintf(stderr, "%" PRIu8, state);
+        fprintf(stderr, "%d", state);
     }
     fputs(CLEAR_COLOR, stderr);
 }
 
-static void log_atom(xcb_atom_t atom)
+static void log_atom(Atom atom)
 {
     const char *atom_string;
-    xcb_get_atom_name_cookie_t name_cookie;
-    xcb_get_atom_name_reply_t *name;
 
     fputs(COLOR(CYAN), stderr);
     atom_string = atom_to_string(atom);
     if (atom_string == NULL) {
-        name_cookie = xcb_get_atom_name(connection, atom);
-        name = xcb_get_atom_name_reply(connection, name_cookie, NULL);
+        char *name;
+
+        name = XGetAtomName(display, atom);
         if (name == NULL) {
-            fprintf(stderr, "%" PRIu32, atom);
+            fprintf(stderr, "%ld",
+                    atom);
         } else {
-            fprintf(stderr, "%.*s", xcb_get_atom_name_name_length(name),
-                    xcb_get_atom_name_name(name));
-            free(name);
+            fputs(name, stderr);
+            XFree(name);
         }
         fputs(COLOR(RED) "<not known>", stderr);
     } else {
-        fprintf(stderr, "%s", atom_string);
+        fprintf(stderr, "%s",
+                atom_string);
     }
     fputs(CLEAR_COLOR, stderr);
 }
 
-static void log_visibility(xcb_visibility_t visibility)
+static void log_visibility(int visibility)
 {
     fputs(COLOR(CYAN), stderr);
     switch (visibility) {
-    case XCB_VISIBILITY_UNOBSCURED:
+    case VisibilityUnobscured:
         fputs("unobscured", stderr);
         break;
-    case XCB_VISIBILITY_PARTIALLY_OBSCURED:
+    case VisibilityPartiallyObscured:
         fputs("partially obscured", stderr);
         break;
-    case XCB_VISIBILITY_FULLY_OBSCURED:
+    case VisibilityFullyObscured:
         fputs("fully obscured", stderr);
         break;
     default:
@@ -521,7 +557,7 @@ static void log_visibility(xcb_visibility_t visibility)
     fputs(CLEAR_COLOR, stderr);
 }
 
-static void log_configure_mask(uint32_t mask)
+static void log_configure_mask(unsigned mask)
 {
     static const char *flags[] = {
         "X", "Y", "WIDTH", "HEIGHT",
@@ -542,17 +578,17 @@ static void log_configure_mask(uint32_t mask)
     fputs(CLEAR_COLOR, stderr);
 }
 
-static void log_mapping(xcb_mapping_t mapping)
+static void log_mapping(int mapping)
 {
     fputs(COLOR(CYAN), stderr);
     switch (mapping) {
-    case XCB_MAPPING_MODIFIER:
+    case MappingModifier:
         fputs("modifier", stderr);
         break;
-    case XCB_MAPPING_KEYBOARD:
+    case MappingKeyboard:
         fputs("keyboard", stderr);
         break;
-    case XCB_MAPPING_POINTER:
+    case MappingPointer:
         fputs("pointer", stderr);
         break;
     default:
@@ -561,17 +597,17 @@ static void log_mapping(xcb_mapping_t mapping)
     fputs(CLEAR_COLOR, stderr);
 }
 
-static void log_wm_state(xcb_icccm_wm_state_t state)
+static void log_wm_state(int state)
 {
     fputs(COLOR(CYAN), stderr);
     switch (state) {
-    case XCB_ICCCM_WM_STATE_WITHDRAWN:
+    case WithdrawnState:
         fputs("withdrawn", stderr);
         break;
-    case XCB_ICCCM_WM_STATE_NORMAL:
+    case NormalState:
         fputs("normal", stderr);
         break;
-    case XCB_ICCCM_WM_STATE_ICONIC:
+    case IconicState:
         fputs("iconic", stderr);
         break;
     default:
@@ -606,176 +642,145 @@ static void log_window_mode(window_mode_t mode)
     fputs(CLEAR_COLOR, stderr);
 }
 
-static void log_connection_error(int error)
-{
-    fputs(COLOR(RED), stderr);
-    switch (error) {
-    case XCB_CONN_ERROR:
-        fputs("socket, pipe or other stream error", stderr);
-        break;
-    case XCB_CONN_CLOSED_EXT_NOTSUPPORTED:
-        fputs("an extension is not supported", stderr);
-        break;
-    case XCB_CONN_CLOSED_MEM_INSUFFICIENT:
-        fputs("insufficient memory", stderr);
-        break;
-    case XCB_CONN_CLOSED_REQ_LEN_EXCEED:
-        fputs("maximum request length exceeded", stderr);
-        break;
-    case XCB_CONN_CLOSED_PARSE_ERR:
-        fputs("failed parsing display string", stderr);
-        break;
-    case XCB_CONN_CLOSED_INVALID_SCREEN:
-        fputs("no screen matching the display", stderr);
-        break;
-    case XCB_CONN_CLOSED_FDPASSING_FAILED:
-        fputs("FD passing operation failed", stderr);
-        break;
-    default:
-        fprintf(stderr, "%d", error);
-    }
-    fputs(CLEAR_COLOR, stderr);
-}
-
 /*************************/
 /** Event log functions **/
 
 #define V(string) fputs(", " string "=", stderr)
 
 /* Log a RandrScreenChangeNotifyEvent to standard error output. */
+static void log_xkb_new_keyboard_notify_event(
+        XkbNewKeyboardNotifyEvent *event)
+{
+    V("device"); log_integer(event->device);
+    V("min_key_code"); log_integer(event->min_key_code);
+    V("max_key_code"); log_integer(event->max_key_code);
+}
+
+/* Log a RandrScreenChangeNotifyEvent to standard error output. */
+static void log_xkb_map_notify_event(XkbMapNotifyEvent *event)
+{
+    V("device"); log_integer(event->device);
+    V("change_mask"); log_hexadecimal(event->device);
+}
+
+/* Log a XRRScreenChangeNotifyEvent to standard error output. */
 static void log_randr_screen_change_notify_event(
-        xcb_randr_screen_change_notify_event_t *event)
+        XRRScreenChangeNotifyEvent *event)
 {
     V("size"); log_size(event->width, event->height);
     V("millimeter size"); log_size(event->mwidth, event->mheight);
 }
 
-/* Log an error to standard error output. */
-static void log_generic_error(xcb_generic_error_t *error)
+/* Log a KeyPressed-/KeyReleasedEvent to standard error output. */
+static void log_key_press_event(XKeyPressedEvent *event)
 {
-    const char *error_label;
-
-    /* get textual representation of the error */
-    error_label = xcb_event_get_error_label(error->error_code);
-    if (error_label == NULL) {
-        V("error_code"); log_unsigned(error->error_code);
-    } else {
-        V("error_label"); fprintf(stderr, COLOR(CYAN) "%s" CLEAR_COLOR,
-                error_label);
-    }
-    V("code"); log_unsigned_pair(error->major_code, error->minor_code);
-}
-
-/* Log a KeyPress-/KeyReleaseEvent to standard error output. */
-static void log_key_press_event(xcb_key_press_event_t *event)
-{
-    V("keycode"); log_unsigned(event->detail);
+    V("keycode"); log_unsigned(event->keycode);
     V("time"); log_unsigned(event->time);
-    V("root"); log_xcb_window(event->root);
-    V("event"); log_xcb_window(event->event);
-    V("child"); log_xcb_window(event->child);
-    V("root_position"); log_point(event->root_x, event->root_y);
-    V("event_position"); log_point(event->event_x, event->event_y);
+    V("root"); log_x_window(event->root);
+    V("window"); log_x_window(event->window);
+    V("child"); log_x_window(event->subwindow);
+    V("root_position"); log_point(event->x_root, event->x_root);
+    V("position"); log_point(event->x, event->y);
     V("modifiers"); log_modifiers(event->state);
     V("same_screen"); log_boolean(event->same_screen);
 }
 
-/* Log a ButtonPress-/ButtonReleaseEvent to standard error output. */
-static void log_button_press_event(xcb_button_press_event_t *event)
+/* Log a ButtonPressed-/ButtonReleasedEvent to standard error output. */
+static void log_button_press_event(XButtonPressedEvent *event)
 {
-    V("button"); log_button(event->detail);
+    V("button"); log_button(event->button);
     V("time"); log_unsigned(event->time);
-    V("root"); log_xcb_window(event->root);
-    V("event"); log_xcb_window(event->event);
-    V("child"); log_xcb_window(event->child);
-    V("root_position"); log_point(event->root_x, event->root_y);
-    V("event_position"); log_point(event->event_x, event->event_y);
+    V("root"); log_x_window(event->root);
+    V("window"); log_x_window(event->window);
+    V("child"); log_x_window(event->subwindow);
+    V("position"); log_point(event->x, event->y);
+    V("root_position"); log_point(event->x_root, event->x_root);
     V("modifiers"); log_modifiers(event->state);
     V("same_screen"); log_boolean(event->same_screen);
 }
 
 /* Log a MotionNotifyEvent to standard error output. */
-static void log_motion_notify_event(xcb_motion_notify_event_t *event)
+static void log_motion_notify_event(XMotionEvent *event)
 {
-    V("motion"); log_motion(event->detail);
+    V("motion"); log_motion(event->is_hint);
     V("time"); log_unsigned(event->time);
-    V("root"); log_xcb_window(event->root);
-    V("event"); log_xcb_window(event->event);
-    V("child"); log_xcb_window(event->child);
-    V("root_position"); log_point(event->root_x, event->root_y);
-    V("event_position"); log_point(event->event_x, event->event_y);
+    V("root"); log_x_window(event->root);
+    V("window"); log_x_window(event->window);
+    V("child"); log_x_window(event->subwindow);
+    V("position"); log_point(event->x, event->y);
+    V("root_position"); log_point(event->x_root, event->x_root);
     V("modifiers"); log_modifiers(event->state);
     V("same_screen"); log_boolean(event->same_screen);
 }
 
 /* Log a Enter-/LeaveNotifyEvent to standard error output. */
-static void log_enter_notify_event(xcb_enter_notify_event_t *event)
+static void log_enter_notify_event(XEnterWindowEvent *event)
 {
     V("detail"); log_notify_detail(event->detail);
     V("time"); log_unsigned(event->time);
-    V("root"); log_xcb_window(event->root);
-    V("event"); log_xcb_window(event->event);
-    V("child"); log_xcb_window(event->child);
-    V("root_position"); log_point(event->root_x, event->root_y);
-    V("event_position"); log_point(event->event_x, event->event_y);
+    V("root"); log_x_window(event->root);
+    V("window"); log_x_window(event->window);
+    V("child"); log_x_window(event->subwindow);
+    V("position"); log_point(event->x, event->y);
+    V("root_position"); log_point(event->x_root, event->x_root);
     V("modifiers"); log_modifiers(event->state);
     V("mode"); log_notify_mode(event->mode);
-    V("same_screen_focus"); log_boolean(event->same_screen_focus);
+    V("same_screen_focus"); log_boolean(event->same_screen);
 }
 
 /* Log a FocusIn-/FocusOutEvent to standard error output. */
-static void log_focus_in_event(xcb_focus_in_event_t *event)
+static void log_focus_in_event(XFocusInEvent *event)
 {
     V("detail"); log_notify_detail(event->detail);
-    V("event"); log_xcb_window(event->event);
+    V("window"); log_x_window(event->window);
     V("mode"); log_notify_mode(event->mode);
 }
 
 /* Log a KeymapNotifyEvent to standard error output. */
-static void log_keymap_notify_event(xcb_keymap_notify_event_t *event)
+static void log_keymap_notify_event(XKeymapEvent *event)
 {
     (void) event;
     fprintf(stderr, ", keys=...");
 }
 
 /* Log a ExposeEvent to standard error output. */
-static void log_expose_event(xcb_expose_event_t *event)
+static void log_expose_event(XExposeEvent *event)
 {
-    V("window"); log_xcb_window(event->window);
+    V("window"); log_x_window(event->window);
     V("positon"); log_point(event->x, event->y);
     V("size"); log_size(event->width, event->height);
     V("count"); log_unsigned(event->count);
 }
 
 /* Log a GraphicsExposureEvent to standard error output. */
-static void log_graphics_exposure_event(xcb_graphics_exposure_event_t *event)
+static void log_graphics_exposure_event(XGraphicsExposeEvent *event)
 {
     V("drawable"); log_hexadecimal(event->drawable);
     V("positon"); log_point(event->x, event->y);
     V("size"); log_size(event->width, event->height);
     V("count"); log_unsigned(event->count);
-    V("opcode"); log_unsigned_pair(event->major_opcode, event->minor_opcode);
+    V("opcode"); log_unsigned_pair(event->major_code, event->minor_code);
 }
 
 /* Log a NoExposureEvent to standard error output. */
-static void log_no_exposure_event(xcb_no_exposure_event_t *event)
+static void log_no_exposure_event(XNoExposeEvent *event)
 {
     V("drawable"); log_hexadecimal(event->drawable);
-    V("opcode"); log_unsigned_pair(event->major_opcode, event->minor_opcode);
+    V("opcode"); log_unsigned_pair(event->major_code, event->minor_code);
 }
 
 /* Log a VisibilityNotifyEvent to standard error output. */
-static void log_visibility_notify_event(xcb_visibility_notify_event_t *event)
+static void log_visibility_notify_event(XVisibilityEvent *event)
 {
-    V("window"); log_xcb_window(event->window);
+    V("window"); log_x_window(event->window);
     V("visibility"); log_visibility(event->state);
 }
 
 /* Log a CreateNotifyEvent to standard error output. */
-static void log_create_notify_event(xcb_create_notify_event_t *event)
+static void log_create_notify_event(XCreateWindowEvent *event)
 {
-    V("parent"); log_xcb_window(event->parent);
-    V("window"); log_xcb_window(event->window);
+    V("parent"); log_x_window(event->parent);
+    V("window"); log_x_window(event->window);
     V("position"); log_point(event->x, event->y);
     V("size"); log_size(event->width, event->height);
     V("border_width"); log_unsigned(event->border_width);
@@ -783,51 +788,51 @@ static void log_create_notify_event(xcb_create_notify_event_t *event)
 }
 
 /* Log a DestroyNotifyEvent to standard error output. */
-static void log_destroy_notify_event(xcb_destroy_notify_event_t *event)
+static void log_destroy_notify_event(XDestroyWindowEvent *event)
 {
-    V("event"); log_xcb_window(event->event);
-    V("window"); log_xcb_window(event->window);
+    V("event"); log_x_window(event->event);
+    V("window"); log_x_window(event->window);
 }
 
 /* Log a UnmapNotifyEvent to standard error output. */
-static void log_unmap_notify_event(xcb_unmap_notify_event_t *event)
+static void log_unmap_notify_event(XUnmapEvent *event)
 {
-    V("event"); log_xcb_window(event->event);
-    V("window"); log_xcb_window(event->window);
+    V("event"); log_x_window(event->event);
+    V("window"); log_x_window(event->window);
     V("from_configure"); log_boolean(event->from_configure);
 }
 
 /* Log a MapNotifyEvent to standard error output. */
-static void log_map_notify_event(xcb_map_notify_event_t *event)
+static void log_map_notify_event(XMapEvent *event)
 {
-    V("event"); log_xcb_window(event->event);
-    V("window"); log_xcb_window(event->window);
+    V("event"); log_x_window(event->event);
+    V("window"); log_x_window(event->window);
     V("override_redirect"); log_boolean(event->override_redirect);
 }
 
 /* Log a MapRequestEvent to standard error output. */
-static void log_map_request_event(xcb_map_request_event_t *event)
+static void log_map_request_event(XMapRequestEvent *event)
 {
-    V("parent"); log_xcb_window(event->parent);
-    V("window"); log_xcb_window(event->window);
+    V("parent"); log_x_window(event->parent);
+    V("window"); log_x_window(event->window);
 }
 
 /* Log a ReparentNotifyEvent to standard error output. */
-static void log_reparent_notify_event(xcb_reparent_notify_event_t *event)
+static void log_reparent_notify_event(XReparentEvent *event)
 {
-    V("event"); log_xcb_window(event->event);
-    V("parent"); log_xcb_window(event->parent);
-    V("window"); log_xcb_window(event->window);
+    V("event"); log_x_window(event->event);
+    V("parent"); log_x_window(event->parent);
+    V("window"); log_x_window(event->window);
     V("position"); log_point(event->x, event->y);
     V("override_redirect"); log_boolean(event->override_redirect);
 }
 
 /* Log a ConfigureNotifyEvent to standard error output. */
-static void log_configure_notify_event(xcb_configure_notify_event_t *event)
+static void log_configure_notify_event(XConfigureEvent *event)
 {
-    V("event"); log_xcb_window(event->event);
-    V("window"); log_xcb_window(event->window);
-    V("above_sibling"); log_xcb_window(event->above_sibling);
+    V("event"); log_x_window(event->event);
+    V("window"); log_x_window(event->window);
+    V("above"); log_x_window(event->above);
     V("position"); log_point(event->x, event->y);
     V("size"); log_size(event->width, event->height);
     V("border_width"); log_unsigned(event->border_width);
@@ -835,59 +840,59 @@ static void log_configure_notify_event(xcb_configure_notify_event_t *event)
 }
 
 /* Log a ConfigureRequestEvent to standard error output. */
-static void log_configure_request_event(xcb_configure_request_event_t *event)
+static void log_configure_request_event(XConfigureRequestEvent *event)
 {
-    V("parent"); log_xcb_window(event->parent);
-    V("window"); log_xcb_window(event->window);
-    V("sibling"); log_xcb_window(event->sibling);
+    V("parent"); log_x_window(event->parent);
+    V("window"); log_x_window(event->window);
+    V("sibling"); log_x_window(event->above);
     V("position"); log_point(event->x, event->y);
     V("size"); log_size(event->width, event->height);
     V("border_width"); log_unsigned(event->border_width);
     V("value_mask"); log_configure_mask(event->value_mask);
 }
 
-/* Log a GravityNotifyEvent to standard error output. */
-static void log_gravity_notify_event(xcb_gravity_notify_event_t *event)
+/* Log a NotifyEventGravity to standard error output. */
+static void log_gravity_notify_event(XGravityEvent *event)
 {
-    V("event"); log_xcb_window(event->event);
-    V("window"); log_xcb_window(event->window);
+    V("event"); log_x_window(event->event);
+    V("window"); log_x_window(event->window);
     V("position"); log_point(event->x, event->y);
 }
 
 /* Log a ResizeRequestEvent to standard error output. */
-static void log_resize_request_event(xcb_resize_request_event_t *event)
+static void log_resize_request_event(XResizeRequestEvent *event)
 {
-    V("window"); log_xcb_window(event->window);
+    V("window"); log_x_window(event->window);
     V("size"); log_size(event->width, event->height);
 }
 
 /* Log a CirculateNotify-/CirculateRequestEvent to standard error output. */
-static void log_circulate_notify_event(xcb_circulate_notify_event_t *event)
+static void log_circulate_notify_event(XCirculateEvent *event)
 {
-    V("event"); log_xcb_window(event->event);
-    V("window"); log_xcb_window(event->window);
+    V("event"); log_x_window(event->event);
+    V("window"); log_x_window(event->window);
     V("place"); log_place(event->place);
 }
 
 /* Log a PropertyNotifyEvent to standard error output. */
-static void log_property_notify_event(xcb_property_notify_event_t *event)
+static void log_property_notify_event(XPropertyEvent *event)
 {
-    V("window"); log_xcb_window(event->window);
+    V("window"); log_x_window(event->window);
     V("atom"); log_atom(event->atom);
     V("time"); log_unsigned(event->time);
     V("state"); log_property_state(event->state);
 }
 
 /* Log a SelectionClearEvent to standard error output. */
-static void log_selection_clear_event(xcb_selection_clear_event_t *event)
+static void log_selection_clear_event(XSelectionClearEvent *event)
 {
-    V("time"); log_unsigned(event->time);
-    V("owner"); log_unsigned(event->owner);
+    V("window"); log_x_window(event->window);
     V("selection"); log_atom(event->selection);
+    V("time"); log_unsigned(event->time);
 }
 
 /* Log a SelectionRequestEvent to standard error output. */
-static void log_selection_request_event(xcb_selection_request_event_t *event)
+static void log_selection_request_event(XSelectionRequestEvent *event)
 {
     V("time"); log_unsigned(event->time);
     V("owner"); log_unsigned(event->owner);
@@ -898,7 +903,7 @@ static void log_selection_request_event(xcb_selection_request_event_t *event)
 }
 
 /* Log a SelectionNotifyEvent to standard error output. */
-static void log_selection_notify_event(xcb_selection_notify_event_t *event)
+static void log_selection_notify_event(XSelectionEvent *event)
 {
     V("time"); log_unsigned(event->time);
     V("requestor"); log_unsigned(event->requestor);
@@ -908,15 +913,15 @@ static void log_selection_notify_event(xcb_selection_notify_event_t *event)
 }
 
 /* Log a ColormapNotifyEvent to standard error output. */
-static void log_colormap_notify_event(xcb_colormap_notify_event_t *event)
+static void log_colormap_notify_event(XColormapEvent *event)
 {
-    V("window"); log_xcb_window(event->window);
+    V("window"); log_x_window(event->window);
     V("colormap"); log_hexadecimal(event->colormap);
     V("state"); log_unsigned(event->state);
 }
 
 /* Log a ClientMessageEvent to standard error output. */
-static void log_client_message_event(xcb_client_message_event_t *event)
+static void log_client_message_event(XClientMessageEvent *event)
 {
     const char *state_strings[] = {
         [_NET_WM_STATE_REMOVE] = "remove",
@@ -925,257 +930,232 @@ static void log_client_message_event(xcb_client_message_event_t *event)
     };
 
     V("format"); log_unsigned(event->format);
-    V("window"); log_xcb_window(event->window);
-    V("type"); log_atom(event->type);
-    if (event->type == ATOM(_NET_CLOSE_WINDOW)) {
-        V("time"); log_unsigned(event->data.data32[0]);
-        V("source"); log_source(event->data.data32[1]);
-    } else if (event->type == ATOM(_NET_MOVERESIZE_WINDOW)) {
-        V("gravity"); log_gravity((event->data.data32[0] & 0xff));
-        V("flags"); log_configure_mask(((event->data.data32[0] << 8) & 0x7));
-        V("source"); log_source(event->data.data32[0] << 12);
-        V("geometry"); log_rectangle(event->data.data32[1],
-                event->data.data32[2], event->data.data32[3],
-                event->data.data32[4]);
-    } else if (event->type == ATOM(_NET_WM_MOVERESIZE)) {
-        V("root_position"); log_point(event->data.data32[0],
-                event->data.data32[1]);
-        V("direction"); log_direction(event->data.data32[2]);
-        V("button"); log_button(event->data.data32[3]);
-        V("source"); log_source(event->data.data32[4]);
-    } else if (event->type == ATOM(_NET_RESTACK_WINDOW)) {
-        V("source"); log_source(event->data.data32[0]);
-        V("sibling"); log_xcb_window(event->data.data32[1]);
-        V("detail"); log_notify_detail(event->data.data32[2]);
-    } else if (event->type == ATOM(_NET_REQUEST_FRAME_EXTENTS)) {
+    V("window"); log_x_window(event->window);
+    V("message_type"); log_atom(event->message_type);
+    if (event->message_type == ATOM(_NET_CLOSE_WINDOW)) {
+        V("time"); log_unsigned(event->data.l[0]);
+        V("source"); log_source(event->data.l[1]);
+    } else if (event->message_type == ATOM(_NET_MOVERESIZE_WINDOW)) {
+        V("gravity"); log_gravity((event->data.l[0] & 0xff));
+        V("flags"); log_configure_mask(((event->data.l[0] << 8) & 0x7));
+        V("source"); log_source(event->data.l[0] << 12);
+        V("geometry"); log_rectangle(event->data.l[1],
+                event->data.l[2], event->data.l[3],
+                event->data.l[4]);
+    } else if (event->message_type == ATOM(_NET_WM_MOVERESIZE)) {
+        V("root_position"); log_point(event->data.l[0],
+                event->data.l[1]);
+        V("direction"); log_direction(event->data.l[2]);
+        V("button"); log_button(event->data.l[3]);
+        V("source"); log_source(event->data.l[4]);
+    } else if (event->message_type == ATOM(_NET_RESTACK_WINDOW)) {
+        V("source"); log_source(event->data.l[0]);
+        V("sibling"); log_x_window(event->data.l[1]);
+        V("detail"); log_notify_detail(event->data.l[2]);
+    } else if (event->message_type == ATOM(_NET_REQUEST_FRAME_EXTENTS)) {
         /* no data */
-    } else if (event->type == ATOM(_NET_WM_DESKTOP)) {
-        V("new_desktop"); log_unsigned(event->data.data32[0]);
-        V("source"); log_source(event->data.data32[1]);
-    } else if (event->type == ATOM(_NET_ACTIVE_WINDOW)) {
-        V("source"); log_unsigned(event->data.data32[0]);
-        V("window"); log_xcb_window(event->data.data32[1]);
-    } else if (event->type == ATOM(WM_CHANGE_STATE)) {
-        V("state"); log_wm_state(event->data.data32[0]);
-    } else if (event->type == ATOM(_NET_WM_STATE)) {
+    } else if (event->message_type == ATOM(_NET_WM_DESKTOP)) {
+        V("new_desktop"); log_unsigned(event->data.l[0]);
+        V("source"); log_source(event->data.l[1]);
+    } else if (event->message_type == ATOM(_NET_ACTIVE_WINDOW)) {
+        V("source"); log_unsigned(event->data.l[0]);
+        V("window"); log_x_window(event->data.l[1]);
+    } else if (event->message_type == ATOM(WM_CHANGE_STATE)) {
+        V("state"); log_wm_state(event->data.l[0]);
+    } else if (event->message_type == ATOM(_NET_WM_STATE)) {
         V("data");
-        if (event->data.data32[0] >= SIZE(state_strings)) {
+        if (event->data.l[0] >= (long) SIZE(state_strings)) {
             fprintf(stderr, COLOR(RED) "<misformatted>");
         } else {
             fprintf(stderr, COLOR(CYAN) "%s",
-                    state_strings[event->data.data32[0]]);
+                    state_strings[event->data.l[0]]);
         }
         fputc(' ', stderr);
-        log_atom(event->data.data32[1]);
+        log_atom(event->data.l[1]);
     } else {
-        V("data32");
-        fprintf(stderr, COLOR(GREEN) "%" PRIu32 " %" PRIu32 " %" PRIu32
-                    " %" PRIu32 " %" PRIu32 CLEAR_COLOR,
-                event->data.data32[0], event->data.data32[1],
-                event->data.data32[2], event->data.data32[3],
-                event->data.data32[4]);
+        V("l");
+        fprintf(stderr, COLOR(GREEN) "%ld %ld %ld %ld %ld" CLEAR_COLOR,
+                event->data.l[0], event->data.l[1], event->data.l[2],
+                event->data.l[3], event->data.l[4]);
     }
 }
 
 /* Log a MappingNotifyEvent to standard error output. */
-static void log_mapping_notify_event(xcb_mapping_notify_event_t *event)
+static void log_mapping_notify_event(XMappingEvent *event)
 {
     V("request"); log_mapping(event->request);
-    V("first_keycode"); log_unsigned(event->first_keycode);
-    V("count"); log_unsigned(event->count);
-}
-
-/* Log a GeGenericEvent to standard error output. */
-static void log_ge_generic_event(xcb_ge_generic_event_t *event)
-{
-    V("length"); log_unsigned(event->length);
-    V("event_type"); log_unsigned(event->event_type);
-    V("full_sequence"); log_unsigned(event->full_sequence);
+    V("first_keycode"); log_integer(event->first_keycode);
+    V("count"); log_integer(event->count);
 }
 
 /* Log an event to standard error output. */
-static void log_event(xcb_generic_event_t *event)
+static void log_event(XEvent *event)
 {
-    uint8_t event_type;
+    fprintf(stderr, "[");
 
-    event_type = (event->response_type & ~0x80);
-    if (randr_event_base > 0 &&
-            event_type == randr_event_base + XCB_RANDR_SCREEN_CHANGE_NOTIFY) {
-        fputs("RandrScreenChangeNotify", stderr);
-    } else if (randr_event_base > 0 &&
-            event_type == randr_event_base + XCB_RANDR_NOTIFY) {
-        fputs("RandrNotify", stderr);
-    } else if (xcb_event_get_label(event_type) != NULL) {
-        fputs(xcb_event_get_label(event_type), stderr);
-    } else {
-        fprintf(stderr, "EVENT[%" PRIu8 "]", event_type);
-    }
+    if (event->type == xkb_event_base) {
+        switch (((XkbAnyEvent*) event)->xkb_type) {
+        case XkbNewKeyboardNotify:
+            fputs("XkbNewKeyboardNotify", stderr);
+            log_xkb_new_keyboard_notify_event(
+                    (XkbNewKeyboardNotifyEvent*) event);
+            break;
 
-    if (event_type == XCB_GE_GENERIC) {
-        xcb_ge_generic_event_t *const generic_event =
-            (xcb_ge_generic_event_t*) event;
-        if (generic_event->extension >= SIZE(generic_event_strings)) {
-            fprintf(stderr, "EVENT[%" PRIu8 "]", event_type);
-        } else {
-            fprintf(stderr, "%s",
-                    generic_event_strings[generic_event->extension]);
+        case XkbMapNotify:
+            fputs("XkbMapNotify", stderr);
+            log_xkb_map_notify_event((XkbMapNotifyEvent*) event);
+            break;
+
+        default:
+            fprintf(stderr, "UNKNOWN_XKB_EVENT(%d)",
+                    ((XkbAnyEvent*) event)->xkb_type);
         }
-    }
-
-    fprintf(stderr, "(sequence=");
-    log_unsigned(event->sequence);
-
-    if (randr_event_base > 0 &&
-            event_type == randr_event_base + XCB_RANDR_SCREEN_CHANGE_NOTIFY) {
-        log_randr_screen_change_notify_event(
-                (xcb_randr_screen_change_notify_event_t*) event);
-        fputs(")", stderr);
+        fputs("]", stderr);
         return;
     }
 
-    switch (event_type) {
-    case 0:
-        log_generic_error((xcb_generic_error_t*) event);
+    if (event->type == randr_event_base) {
+        fputs("RandrScreenChangeNotify", stderr);
+        log_randr_screen_change_notify_event(
+                (XRRScreenChangeNotifyEvent*) event);
+        fputs("]", stderr);
+        return;
+    }
+
+    if (event_to_string(event->type) == NULL) {
+        fprintf(stderr, "UNKNOWN_EVENT(%d)",
+                event->type);
+    } else {
+        fputs(event_to_string(event->type), stderr);
+    }
+
+    switch (event->type) {
+    case KeyPress:
+    case KeyRelease:
+        log_key_press_event((XKeyPressedEvent*) event);
         break;
 
-    case XCB_KEY_PRESS:
-    case XCB_KEY_RELEASE:
-        log_key_press_event((xcb_key_press_event_t*) event);
+    case ButtonPress:
+    case ButtonRelease:
+        log_button_press_event((XButtonPressedEvent*) event);
         break;
 
-    case XCB_BUTTON_PRESS:
-    case XCB_BUTTON_RELEASE:
-        log_button_press_event((xcb_button_press_event_t*) event);
+    case MotionNotify:
+        log_motion_notify_event((XMotionEvent*) event);
         break;
 
-    case XCB_MOTION_NOTIFY:
-        log_motion_notify_event((xcb_motion_notify_event_t*) event);
+    case EnterNotify:
+    case LeaveNotify:
+        log_enter_notify_event((XEnterWindowEvent*) event);
         break;
 
-    case XCB_ENTER_NOTIFY:
-    case XCB_LEAVE_NOTIFY:
-        log_enter_notify_event((xcb_enter_notify_event_t*) event);
+    case FocusIn:
+    case FocusOut:
+        log_focus_in_event((XFocusInEvent*) event);
         break;
 
-    case XCB_FOCUS_IN:
-    case XCB_FOCUS_OUT:
-        log_focus_in_event((xcb_focus_in_event_t*) event);
+    case KeymapNotify:
+        log_keymap_notify_event((XKeymapEvent*) event);
         break;
 
-    case XCB_KEYMAP_NOTIFY:
-        log_keymap_notify_event((xcb_keymap_notify_event_t*) event);
+    case Expose:
+        log_expose_event((XExposeEvent*) event);
         break;
 
-    case XCB_EXPOSE:
-        log_expose_event((xcb_expose_event_t*) event);
+    case GraphicsExpose:
+        log_graphics_exposure_event((XGraphicsExposeEvent*) event);
         break;
 
-    case XCB_GRAPHICS_EXPOSURE:
-        log_graphics_exposure_event((xcb_graphics_exposure_event_t*) event);
+    case NoExpose:
+        log_no_exposure_event((XNoExposeEvent*) event);
         break;
 
-    case XCB_NO_EXPOSURE:
-        log_no_exposure_event((xcb_no_exposure_event_t*) event);
+    case VisibilityNotify:
+        log_visibility_notify_event((XVisibilityEvent*) event);
         break;
 
-    case XCB_VISIBILITY_NOTIFY:
-        log_visibility_notify_event((xcb_visibility_notify_event_t*) event);
+    case CreateNotify:
+        log_create_notify_event((XCreateWindowEvent*) event);
         break;
 
-    case XCB_CREATE_NOTIFY:
-        log_create_notify_event((xcb_create_notify_event_t*) event);
+    case DestroyNotify:
+        log_destroy_notify_event((XDestroyWindowEvent*) event);
         break;
 
-    case XCB_DESTROY_NOTIFY:
-        log_destroy_notify_event((xcb_destroy_notify_event_t*) event);
+    case UnmapNotify:
+        log_unmap_notify_event((XUnmapEvent*) event);
         break;
 
-    case XCB_UNMAP_NOTIFY:
-        log_unmap_notify_event((xcb_unmap_notify_event_t*) event);
+    case MapNotify:
+        log_map_notify_event((XMapEvent*) event);
         break;
 
-    case XCB_MAP_NOTIFY:
-        log_map_notify_event((xcb_map_notify_event_t*) event);
+    case MapRequest:
+        log_map_request_event((XMapRequestEvent*) event);
         break;
 
-    case XCB_MAP_REQUEST:
-        log_map_request_event((xcb_map_request_event_t*) event);
+    case ReparentNotify:
+        log_reparent_notify_event((XReparentEvent*) event);
         break;
 
-    case XCB_REPARENT_NOTIFY:
-        log_reparent_notify_event((xcb_reparent_notify_event_t*) event);
+    case ConfigureNotify:
+        log_configure_notify_event((XConfigureEvent*) event);
         break;
 
-    case XCB_CONFIGURE_NOTIFY:
-        log_configure_notify_event((xcb_configure_notify_event_t*) event);
+    case ConfigureRequest:
+        log_configure_request_event((XConfigureRequestEvent*) event);
         break;
 
-    case XCB_CONFIGURE_REQUEST:
-        log_configure_request_event((xcb_configure_request_event_t*) event);
+    case GravityNotify:
+        log_gravity_notify_event((XGravityEvent*) event);
         break;
 
-    case XCB_GRAVITY_NOTIFY:
-        log_gravity_notify_event((xcb_gravity_notify_event_t*) event);
+    case ResizeRequest:
+        log_resize_request_event((XResizeRequestEvent*) event);
         break;
 
-    case XCB_RESIZE_REQUEST:
-        log_resize_request_event((xcb_resize_request_event_t*) event);
+    case CirculateNotify:
+    case CirculateRequest:
+        log_circulate_notify_event((XCirculateEvent*) event);
         break;
 
-    case XCB_CIRCULATE_NOTIFY:
-    case XCB_CIRCULATE_REQUEST:
-        log_circulate_notify_event((xcb_circulate_notify_event_t*) event);
+    case SelectionClear:
+        log_selection_clear_event((XSelectionClearEvent*) event);
         break;
 
-    case XCB_PROPERTY_NOTIFY:
-        log_property_notify_event((xcb_property_notify_event_t*) event);
+    case SelectionRequest:
+        log_selection_request_event((XSelectionRequestEvent*) event);
         break;
 
-    case XCB_SELECTION_CLEAR:
-        log_selection_clear_event((xcb_selection_clear_event_t*) event);
+    case SelectionNotify:
+        log_selection_notify_event((XSelectionEvent*) event);
         break;
 
-    case XCB_SELECTION_REQUEST:
-        log_selection_request_event((xcb_selection_request_event_t*) event);
+    case ColormapNotify:
+        log_colormap_notify_event((XColormapEvent*) event);
         break;
 
-    case XCB_SELECTION_NOTIFY:
-        log_selection_notify_event((xcb_selection_notify_event_t*) event);
+    case PropertyNotify:
+        log_property_notify_event((XPropertyEvent*) event);
         break;
 
-    case XCB_COLORMAP_NOTIFY:
-        log_colormap_notify_event((xcb_colormap_notify_event_t*) event);
+    case ClientMessage:
+        log_client_message_event((XClientMessageEvent*) event);
         break;
 
-    case XCB_CLIENT_MESSAGE:
-        log_client_message_event((xcb_client_message_event_t*) event);
-        break;
-
-    case XCB_MAPPING_NOTIFY:
-        log_mapping_notify_event((xcb_mapping_notify_event_t*) event);
-        break;
-
-    case XCB_GE_GENERIC:
-        log_ge_generic_event((xcb_ge_generic_event_t*) event);
+    case MappingNotify:
+        log_mapping_notify_event((XMappingEvent*) event);
         break;
     }
-    fputs(")", stderr);
-}
-
-/* Log an xcb error to standard error output. */
-static void log_error(xcb_generic_error_t *error)
-{
-    fprintf(stderr, "(sequence=");
-    log_integer(error->sequence);
-    log_generic_error(error);
-    fputs(")", stderr);
+    fputs("]", stderr);
 }
 
 /* Log a window to standard error output. */
-static void log_window(const Window *window)
+static void log_window(const FcWindow *window)
 {
     log_hexadecimal(window->client.id);
-    fprintf(stderr, COLOR(YELLOW) "<%" PRIu32 ">" CLEAR_COLOR, window->number);
+    fprintf(stderr, COLOR(YELLOW) "<%u>" CLEAR_COLOR,
+            window->number);
 }
 
 /* Log a window to standard error output. */
@@ -1185,7 +1165,7 @@ static void log_frame(const Frame *frame)
     log_rectangle(frame->x, frame->y, frame->width, frame->height);
     fputs(COLOR(MAGENTA) "]" CLEAR_COLOR, stderr);
     if (frame->number > 0) {
-        fprintf(stderr, COLOR(YELLOW) "<%" PRIu32 ">" CLEAR_COLOR,
+        fprintf(stderr, COLOR(YELLOW) "<%u>" CLEAR_COLOR,
                 frame->number);
     }
 }
@@ -1237,7 +1217,7 @@ static const uint32_t *log_instruction(const uint32_t *instructions)
     /* get a string */
     case LITERAL_STRING:
         fprintf(stderr, COLOR(GREEN) "%s" CLEAR_COLOR,
-                (char*) &instructions[0]);
+                (utf8_t*) &instructions[0]);
         instructions += instruction >> 8;
         break;
 
@@ -1377,17 +1357,45 @@ static void log_expression(const Expression *expression)
     }
 }
 
-/* Log the screen information to standard error output. */
-static void log_screen(xcb_screen_t *screen)
+/* Log the display information to standard error output. */
+static void log_display(Display *display)
 {
-    fprintf(stderr, "Screen(root="); log_hexadecimal(screen->root);
-    V("default_colormap"); log_hexadecimal(screen->default_colormap);
-    V("white_pixel"); log_hexadecimal(screen->white_pixel);
-    V("black_pixel"); log_hexadecimal(screen->black_pixel);
-    V("size"); log_size(screen->width_in_pixels, screen->height_in_pixels);
-    V("millimeter_size"); log_size(screen->width_in_millimeters,
-                                screen->height_in_millimeters);
-    fputs(")", stderr);
+    int connection_number;
+    int screen, screen_count;
+    unsigned long black_pixel, white_pixel;
+    Colormap colormap;
+    int depth;
+    Window root;
+    int width;
+    int height;
+    int millimeter_width;
+    int millimeter_height;
+
+    connection_number = ConnectionNumber(display);
+    screen = DefaultScreen(display);
+    screen_count = ScreenCount(display);
+    black_pixel = BlackPixel(display, screen);
+    white_pixel = WhitePixel(display, screen);
+    colormap = DefaultColormap(display, screen);
+    depth = DefaultDepth(display, screen);
+    root = DefaultRootWindow(display);
+    width = DisplayWidth(display, screen);
+    height = DisplayHeight(display, screen);
+    millimeter_width = DisplayWidthMM(display, screen);
+    millimeter_height = DisplayHeightMM(display, screen);
+
+    fprintf(stderr,
+            "Display[connection_number="); log_integer(connection_number);
+    V("default_screen"); log_integer(screen);
+    V("screen_count"); log_integer(screen_count);
+    V("white_pixel"); log_hexadecimal(white_pixel);
+    V("black_pixel"); log_hexadecimal(black_pixel);
+    V("default_colormap"); log_hexadecimal(colormap);
+    V("default_depth"); log_integer(depth);
+    V("default_root"); log_hexadecimal(root);
+    V("size"); log_size(width, height);
+    V("millimeter_size"); log_size(millimeter_width, millimeter_height);
+    fputs("]", stderr);
 }
 
 /* Print a formatted string to standard error output. */
@@ -1427,24 +1435,27 @@ void log_formatted(log_severity_t severity, const char *file, int line,
 
             /* print a point */
             case 'P': {
-                const int32_t x = va_arg(list, int32_t);
-                log_point(x, va_arg(list, int32_t));
+                const int x = va_arg(list, int);
+                const int y = va_arg(list, int);
+                log_point(x, y);
                 break;
             }
 
             /* print a size */
             case 'S': {
-                const uint32_t width = va_arg(list, uint32_t);
-                log_size(width, va_arg(list, uint32_t));
+                const unsigned width = va_arg(list, unsigned);
+                const unsigned height = va_arg(list, unsigned);
+                log_size(width, height);
                 break;
             }
 
             /* print a rectangle */
             case 'R': {
-                const int32_t x = va_arg(list, int32_t);
-                const int32_t y = va_arg(list, int32_t);
-                const uint32_t width = va_arg(list, uint32_t);
-                log_rectangle(x, y, width, va_arg(list, uint32_t));
+                const int x = va_arg(list, int);
+                const int y = va_arg(list, int);
+                const unsigned width = va_arg(list, unsigned);
+                const unsigned height = va_arg(list, unsigned);
+                log_rectangle(x, y, width, height);
                 break;
             }
 
@@ -1453,14 +1464,14 @@ void log_formatted(log_severity_t severity, const char *file, int line,
                 log_boolean(va_arg(list, int));
                 break;
 
-            /* print an xcb window */
+            /* print an X window */
             case 'w':
-                log_xcb_window(va_arg(list, xcb_window_t));
+                log_x_window(va_arg(list, Window));
                 break;
 
             /* print a window */
             case 'W':
-                log_window(va_arg(list, Window*));
+                log_window(va_arg(list, FcWindow*));
                 break;
 
             /* print a window mode */
@@ -1473,9 +1484,9 @@ void log_formatted(log_severity_t severity, const char *file, int line,
                 log_frame(va_arg(list, Frame*));
                 break;
 
-            /* print an xcb event */
+            /* print an X event */
             case 'V':
-                log_event(va_arg(list, xcb_generic_event_t*));
+                log_event(va_arg(list, XEvent*));
                 break;
 
             /* print an expression */
@@ -1483,24 +1494,14 @@ void log_formatted(log_severity_t severity, const char *file, int line,
                 log_expression(va_arg(list, Expression*));
                 break;
 
-            /* print an xcb atom */
+            /* print an X atom */
             case 'a':
-                log_atom(va_arg(list, xcb_atom_t));
+                log_atom(va_arg(list, Atom));
                 break;
 
-            /* print an xcb connection error */
-            case 'X':
-                log_connection_error(va_arg(list, int));
-                break;
-
-            /* print an xcb error */
-            case 'E':
-                log_error(va_arg(list, xcb_generic_error_t*));
-                break;
-
-            /* print a screen */
-            case 'C':
-                log_screen(va_arg(list, xcb_screen_t*));
+            /* print display information */
+            case 'D':
+                log_display(va_arg(list, Display*));
                 break;
 
             /* standard print format specifiers */

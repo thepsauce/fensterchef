@@ -1,35 +1,39 @@
 #ifndef X11_MANAGEMENT_H
 #define X11_MANAGEMENT_H
 
-#include <xcb/xcb.h>
-#include <xcb/xcb_icccm.h> // xcb_size_hints_t,
-                           // xcb_icccm_wm_hints_t
+#include <X11/Xlib.h>
+#include <X11/Xutil.h>
 
 #include "bits/window_typedef.h"
 
-#include "utf8.h"
 #include "utility.h"
 
 /* needed for `_NET_WM_STRUT_PARTIAL`/`_NET_WM_STRUT` */
 typedef struct wm_strut_partial {
-    /* reserved space on the border of the screen */
-    Extents reserved;
+    /* reserved space on left border */
+    int left;
+    /* reserved space on right border */
+    int right;
+    /* reserved space on top border */
+    int top;
+    /* reserved space on bottom border */
+    int bottom;
     /* beginning y coordinate of the left strut */
-    uint32_t left_start_y;
+    int left_start_y;
     /* ending y coordinate of the left strut */
-    uint32_t left_end_y;
+    int left_end_y;
     /* beginning y coordinate of the right strut */
-    uint32_t right_start_y;
+    int right_start_y;
     /* ending y coordinate of the right strut */
-    uint32_t right_end_y;
+    int right_end_y;
     /* beginning x coordinate of the top strut */
-    uint32_t top_start_x;
+    int top_start_x;
     /* ending x coordinate of the top strut */
-    uint32_t top_end_x;
+    int top_end_x;
     /* beginning x coordinate of the bottom strut */
-    uint32_t bottom_start_x;
+    int bottom_start_x;
     /* ending x coordinate of the bottom strut */
-    uint32_t bottom_end_x;
+    int bottom_end_x;
 } wm_strut_partial_t;
 
 /* `_NET_WM_MOVERESIZE` window movement or resizing */
@@ -72,56 +76,52 @@ typedef enum {
 
 typedef struct x_client {
     /* the id of the window */
-    xcb_window_t id;
+    Window id;
     /* if the window is mapped (visible) */
     bool is_mapped;
     /* position and size of the window */
-    int32_t x;
-    int32_t y;
-    uint32_t width;
-    uint32_t height;
-    /* the background colorr */
-    uint32_t background_color;
+    int x;
+    int y;
+    unsigned width;
+    unsigned height;
     /* the size of the border */
-    uint32_t border_width;
+    unsigned int border_width;
     /* the color of the border */
-    uint32_t border_color;
+    uint32_t border;
+    /* the background color */
+    uint32_t background;
 } XClient;
 
-/* connection to the X server */
-extern xcb_connection_t *connection;
-
-/* file descriptor associated to the X connection */
-extern int x_file_descriptor;
-
-/* general purpose values for xcb function calls */
-extern uint32_t general_values[7];
-
-/* the selected X screen */
-extern xcb_screen_t *screen;
-
 /* supporting wm check window */
-extern xcb_window_t wm_check_window;
+extern Window wm_check_window;
 
-/* user notification window */
-extern XClient notification;
+/* display to the X server */
+extern Display *display;
+
+/* file descriptor associated to the X display */
+extern int x_file_descriptor;
 
 /* Check if given strut has any reserved space. */
 static inline bool is_strut_empty(wm_strut_partial_t *strut)
 {
-    return strut->reserved.left == 0 && strut->reserved.top == 0 &&
-        strut->reserved.right == 0 && strut->reserved.bottom == 0;
+    return strut->left == 0 && strut->top == 0 &&
+        strut->right == 0 && strut->bottom == 0;
 }
 
-/* Initialize the X connection. */
-int initialize_x11(void);
+/* Initialize the X11 display. */
+int initialize_connection(void);
 
-/* Try to take control of the window manager role (also initialize the
- * fensterchef windows).
+/* Try to take control of the window manager role.
  *
- * Call this after `initialize_x11()`
+ * Call this after `initialize_connection()`. This will set
+ * `Fensterchef_is_running` to true if it succeeds.
+ *
+ * @return ERROR when no control was able to be taken, otherwise OK.
  */
 int take_control(void);
+
+/* Initialize utility windows. */
+void initialize_utility_windows(void);
 
 /* Go through all already existing windows and manage them.
  *
@@ -130,26 +130,23 @@ int take_control(void);
 void query_existing_windows(void);
 
 /* Set the input focus to @window. This window may be `NULL`. */
-void set_input_focus(Window *window);
+void set_input_focus(FcWindow *window);
 
 /* Show the client on the X server. */
 void map_client(XClient *client);
+
+/* Show the client on the X server at the top. */
+void map_client_raised(XClient *client);
 
 /* Hide the client on the X server. */
 void unmap_client(XClient *client);
 
 /* Set the size of a window associated to the X server. */
-void configure_client(XClient *client, int32_t x, int32_t y, uint32_t width,
-        uint32_t height, uint32_t border_width);
+void configure_client(XClient *client, int x, int y, unsigned width,
+        unsigned height, unsigned border_width);
 
 /* Set the background and border color of @client. */
 void change_client_attributes(XClient *client, uint32_t background_color,
         uint32_t border_color);
-
-/* Translate a string to a key symbol.
- *
- * *Implemented in string_to_keysym.c*
- */
-xcb_keysym_t string_to_keysym(const char *string);
 
 #endif

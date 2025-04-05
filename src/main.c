@@ -3,12 +3,9 @@
 #include "event.h"
 #include "fensterchef.h"
 #include "frame.h"
-#include "keymap.h"
 #include "log.h"
 #include "monitor.h"
 #include "program_options.h"
-#include "render.h"
-#include "resources.h"
 #include "window.h"
 #include "window_properties.h"
 #include "x11_management.h"
@@ -48,36 +45,24 @@ int main(int argc, char **argv)
     LOG("welcome to " FENSTERCHEF_NAME " " FENSTERCHEF_VERSION "\n");
     LOG("the configuration file may reside in %s\n", Fensterchef_configuration);
 
-    /* initialize the X connection */
-    if (initialize_x11() != OK) {
+    /* initialize the X display */
+    if (initialize_connection() != OK) {
+        quit_fensterchef(EXIT_FAILURE);
+    }
+
+    /* try to take control of the window manager role */
+    if (take_control() == ERROR) {
         quit_fensterchef(EXIT_FAILURE);
     }
 
     /* initialize the X atoms */
-    if (initialize_atoms() != OK) {
-        quit_fensterchef(EXIT_FAILURE);
-    }
-
-    /* try to take control of the window manager role and create utility windows
-     */
-    if (take_control() != OK) {
-        quit_fensterchef(EXIT_FAILURE);
-    }
-
-    /* initialize the key symbol table */
-    if (initialize_keymap() != OK) {
-        quit_fensterchef(EXIT_FAILURE);
-    }
-
-    /* initialize graphical stock objects used for rendering */
-    if (initialize_renderer() != OK) {
-        quit_fensterchef(EXIT_FAILURE);
-    }
+    initialize_atoms();
 
     /* set the signal handlers */
-    if (initialize_signal_handlers() != OK) {
-        quit_fensterchef(EXIT_FAILURE);
-    }
+    initialize_signal_handlers();
+
+    /* initialize utility windows */
+    initialize_utility_windows();
 
     /* initialize randr if possible and the initial frames */
     initialize_monitors();
@@ -105,8 +90,6 @@ int main(int argc, char **argv)
     /* configure the monitor frames before running the startup actions */
     reconfigure_monitor_frames();
 
-    Fensterchef_is_running = true;
-
     /* run the startup expression */
     LOG("running startup expression: %A\n", &configuration.startup.expression);
     evaluate_expression(&configuration.startup.expression, NULL);
@@ -121,7 +104,7 @@ int main(int argc, char **argv)
     synchronize_client_list();
 
     /* before entering the loop, flush all the initialization calls */
-    xcb_flush(connection);
+    XFlush(display);
 
     /* run the main event loop */
     while (next_cycle() == OK) {

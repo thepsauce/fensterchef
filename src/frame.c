@@ -265,7 +265,7 @@ void set_focus_frame(Frame *frame)
 }
 
 /* Focus @window and the frame it is contained in if any. */
-void set_focus_window_with_frame(Window *window)
+void set_focus_window_with_frame(FcWindow *window)
 {
     if (window == NULL) {
         set_focus_window(NULL);

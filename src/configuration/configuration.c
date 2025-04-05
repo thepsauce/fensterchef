@@ -5,11 +5,11 @@
 
 #include "configuration/parser.h"
 #include "fensterchef.h"
+#include "font.h"
 #include "frame.h"
 #include "log.h"
 #include "monitor.h"
-#include "render.h"
-#include "resources.h"
+#include "notification.h"
 #include "size_frame.h"
 #include "utility.h"
 #include "window.h"
@@ -25,15 +25,13 @@ static void duplicate_configuration_associations(
     duplicate->assignment.associations = DUPLICATE(
             duplicate->assignment.associations,
             duplicate->assignment.number_of_associations);
-    for (uint32_t i = 0;
+    for (size_t i = 0;
             i < duplicate->assignment.number_of_associations;
             i++) {
         struct configuration_association *const association =
             &duplicate->assignment.associations[i];
-        association->instance_pattern = (utf8_t*)
-            xstrdup((char*) association->instance_pattern);
-        association->class_pattern = (utf8_t*)
-            xstrdup((char*) association->class_pattern);
+        association->instance_pattern = xstrdup(association->instance_pattern);
+        association->class_pattern = xstrdup(association->class_pattern);
         association->expression.instructions = DUPLICATE(
                 association->expression.instructions,
                 association->expression.instruction_size);
@@ -47,7 +45,7 @@ static void duplicate_configuration_button_bindings(
     duplicate->mouse.buttons = DUPLICATE(
             duplicate->mouse.buttons,
             duplicate->mouse.number_of_buttons);
-    for (uint32_t i = 0; i < duplicate->mouse.number_of_buttons; i++) {
+    for (size_t i = 0; i < duplicate->mouse.number_of_buttons; i++) {
         struct configuration_button *const button =
             &duplicate->mouse.buttons[i];
         button->expression.instructions = DUPLICATE(
@@ -63,7 +61,7 @@ static void duplicate_configuration_key_bindings(
     duplicate->keyboard.keys = DUPLICATE(
             duplicate->keyboard.keys,
             duplicate->keyboard.number_of_keys);
-    for (uint32_t i = 0; i < duplicate->keyboard.number_of_keys; i++) {
+    for (size_t i = 0; i < duplicate->keyboard.number_of_keys; i++) {
         struct configuration_key *const key = &duplicate->keyboard.keys[i];
         key->expression.instructions = DUPLICATE(
                 key->expression.instructions,
@@ -74,7 +72,7 @@ static void duplicate_configuration_key_bindings(
 /* Create a deep copy of @duplicate and put it into itself. */
 void duplicate_configuration(struct configuration *duplicate)
 {
-    duplicate->font.name = (utf8_t*) xstrdup((char*) duplicate->font.name);
+    duplicate->font.name = xstrdup(duplicate->font.name);
     duplicate->startup.expression.instructions = DUPLICATE(
             duplicate->startup.expression.instructions,
             duplicate->startup.expression.instruction_size);
@@ -91,7 +89,7 @@ void clear_configuration(struct configuration *configuration)
     free(configuration->startup.expression.instructions);
 
     /* free associations */
-    for (uint32_t i = 0;
+    for (size_t i = 0;
             i < configuration->assignment.number_of_associations;
             i++) {
         struct configuration_association *const association =
@@ -103,13 +101,13 @@ void clear_configuration(struct configuration *configuration)
     free(configuration->assignment.associations);
 
     /* free button bindings */
-    for (uint32_t i = 0; i < configuration->mouse.number_of_buttons; i++) {
+    for (size_t i = 0; i < configuration->mouse.number_of_buttons; i++) {
         free(configuration->mouse.buttons[i].expression.instructions);
     }
     free(configuration->mouse.buttons);
 
     /* free key bindings */
-    for (uint32_t i = 0; i < configuration->keyboard.number_of_keys; i++) {
+    for (size_t i = 0; i < configuration->keyboard.number_of_keys; i++) {
         free(configuration->keyboard.keys[i].expression.instructions);
     }
     free(configuration->keyboard.keys);
@@ -129,7 +127,7 @@ void reload_user_configuration(void)
 /* Get a key from button modifiers and a button index. */
 struct configuration_button *find_configured_button(
         struct configuration *configuration,
-        uint16_t modifiers, xcb_button_t button_index, uint16_t flags)
+        unsigned modifiers, unsigned button_index, unsigned flags)
 {
     struct configuration_button *button;
 
@@ -140,10 +138,9 @@ struct configuration_button *find_configured_button(
     flags &= ~BINDING_FLAG_TRANSPARENT;
 
     /* find a matching button (the button AND modifiers must match up) */
-    for (uint32_t i = 0; i < configuration->mouse.number_of_buttons; i++) {
+    for (size_t i = 0; i < configuration->mouse.number_of_buttons; i++) {
         button = &configuration->mouse.buttons[i];
-        if (button->index == button_index &&
-                button->modifiers == modifiers &&
+        if (button->modifiers == modifiers && button->index == button_index &&
                 (button->flags & ~BINDING_FLAG_TRANSPARENT) == flags) {
             return button;
         }
@@ -158,44 +155,38 @@ struct configuration_button *find_configured_button(
  * led to weird bugs which I can not explain that caused odd behaviours when
  * replaying events.
  */
-void grab_configured_buttons(xcb_window_t window)
+void grab_configured_buttons(Window window)
 {
     struct configuration_button *button;
 
     /* ungrab all previous buttons so we can overwrite them */
-    xcb_ungrab_button(connection, XCB_BUTTON_INDEX_ANY, window,
-            XCB_BUTTON_MASK_ANY);
+    XUngrabButton(display, AnyButton, AnyModifier, window);
 
-    for (uint32_t i = 0; i < configuration.mouse.number_of_buttons; i++) {
+    for (size_t i = 0; i < configuration.mouse.number_of_buttons; i++) {
         button = &configuration.mouse.buttons[i];
         /* use every possible combination of modifiers we do not care about
          * so that when the user has CAPS LOCK for example, it does not mess
          * with mouse bindings
          */
-        for (uint16_t j = configuration.mouse.ignore_modifiers;
+        for (unsigned j = configuration.mouse.ignore_modifiers;
                 true;
                 j = ((j - 1) & configuration.mouse.ignore_modifiers)) {
-            xcb_grab_button(connection,
-                    true, /* report all events with respect to `window` */
+            XGrabButton(display, button->index, (j | button->modifiers),
                     window, /* this is the window we grab the button for */
-                    /* TODO: specifying the ButtonPressMask makes no
-                     * difference, figure out why and who is responsible for
-                     * that
-                     */
+                    True, /* report all events with respect to `window` */
                     (button->flags & BINDING_FLAG_RELEASE) ?
-                        XCB_EVENT_MASK_BUTTON_RELEASE :
-                        XCB_EVENT_MASK_BUTTON_PRESS,
+                        ButtonPressMask | ButtonReleaseMask :
+                        ButtonPressMask,
                     /* SYNC means that pointer (mouse) events will be frozen
                      * until we issue a AllowEvents request; this allows us to
                      * make the decision to either drop the event or send it on
                      * to the actually pressed client
                      */
-                    XCB_GRAB_MODE_SYNC,
+                    GrabModeSync,
                     /* do not freeze keyboard events */
-                    XCB_GRAB_MODE_ASYNC,
-                    XCB_NONE, /* no confinement of the pointer */
-                    XCB_NONE, /* no change of cursor */
-                    button->index, (j | button->modifiers));
+                    GrabModeAsync,
+                    None, /* no confinement of the pointer */
+                    None /* no change of cursor */);
 
             if (j == 0) {
                 break;
@@ -205,33 +196,9 @@ void grab_configured_buttons(xcb_window_t window)
 }
 
 /* Get a configured key from key modifiers and a key code. */
-struct configuration_key *find_configured_key_by_code(
+struct configuration_key *find_configured_key(
         struct configuration *configuration,
-        uint16_t modifiers, xcb_keycode_t key_code, uint16_t flags)
-{
-    struct configuration_key *key;
-
-    modifiers &= ~configuration->keyboard.ignore_modifiers;
-    flags &= ~BINDING_FLAG_TRANSPARENT;
-
-    /* find a matching key (the key code AND modifiers must match up) */
-    for (uint32_t i = 0; i < configuration->keyboard.number_of_keys; i++) {
-        key = &configuration->keyboard.keys[i];
-        if (key->modifiers == modifiers &&
-                (key->flags & ~BINDING_FLAG_TRANSPARENT) == flags) {
-            if (key->key_code == key_code || (key->key_symbol != XCB_NONE &&
-                    get_keysym(key_code) == key->key_symbol)) {
-                return key;
-            }
-        }
-    }
-    return NULL;
-}
-
-/* Get a configured key from key modifiers and a key symbol. */
-struct configuration_key *find_configured_key_by_symbol(
-        struct configuration *configuration,
-        uint16_t modifiers, xcb_keysym_t key_symbol, uint16_t flags)
+        unsigned modifiers, KeyCode key_code, unsigned flags)
 {
     struct configuration_key *key;
 
@@ -239,92 +206,75 @@ struct configuration_key *find_configured_key_by_symbol(
     flags &= ~BINDING_FLAG_TRANSPARENT;
 
     /* find a matching key (the key symbol AND modifiers must match up) */
-    for (uint32_t i = 0; i < configuration->keyboard.number_of_keys; i++) {
+    for (size_t i = 0; i < configuration->keyboard.number_of_keys; i++) {
         key = &configuration->keyboard.keys[i];
-        if (key->modifiers == modifiers &&
+        if (key->modifiers == modifiers && key->key_code == key_code &&
                 (key->flags & ~BINDING_FLAG_TRANSPARENT) == flags) {
-            if (key->key_symbol == key_symbol || (key->key_symbol == XCB_NONE &&
-                    get_keysym(key->key_code) == key_symbol)) {
-                return key;
-            }
+            return key;
         }
     }
     return NULL;
 }
 
-/* Grab a binding by key code. */
-static inline void grab_key_code(const struct configuration_key *key)
+/* Get a configured key from key modifiers and a key symbol. */
+struct configuration_key *find_configured_key_by_key_symbol(
+        struct configuration *configuration,
+        unsigned modifiers, KeySym key_symbol, unsigned flags)
 {
-    /* iterate over all bit combinations */
-    for (uint16_t i = configuration.keyboard.ignore_modifiers;
-            true;
-            i = ((i - 1) & configuration.keyboard.ignore_modifiers)) {
-        xcb_grab_key(connection,
-                true, /* report the event relative to the root */
-                screen->root, /* the window to grab the keys for */
-                (i | key->modifiers), key->key_code,
-                /* do not freeze pointer (mouse) events */
-                XCB_GRAB_MODE_ASYNC,
-                /* do not freeze keyboard events */
-                XCB_GRAB_MODE_ASYNC);
+    struct configuration_key *key;
 
-        if (i == 0) {
-            break;
+    modifiers &= ~configuration->keyboard.ignore_modifiers;
+    flags &= ~BINDING_FLAG_TRANSPARENT;
+
+    /* find a matching key (the key symbol AND modifiers must match up) */
+    for (size_t i = 0; i < configuration->keyboard.number_of_keys; i++) {
+        key = &configuration->keyboard.keys[i];
+        if (key->key_symbol == NoSymbol) {
+            continue;
+        }
+        if (key->modifiers == modifiers && key->key_symbol == key_symbol &&
+                (key->flags & ~BINDING_FLAG_TRANSPARENT) == flags) {
+            return key;
         }
     }
+    return NULL;
 }
 
-/* Grab a binding by key symbol. */
-static inline void grab_key_symbol(const struct configuration_key *key)
+/* Grab the key bindings so we receive KeyPressed/KeyReleased events for them.
+ */
+void grab_configured_keys(void)
 {
-    xcb_keycode_t *keycodes;
+    Window root;
+    const struct configuration_key *key;
 
-    /* go over all keycodes of a specific key symbol and grab them with
-     * needed modifiers
-     */
-    keycodes = get_keycodes(key->key_symbol);
-    if (keycodes == NULL) {
-        return;
+    root = DefaultRootWindow(display);
+
+    /* remove all previously grabbed keys so that we can overwrite them */
+    XUngrabKey(display, AnyKey, AnyModifier, root);
+
+    /* re-compute any key codes */
+    for (size_t i = 0; i < configuration.keyboard.number_of_keys; i++) {
+        struct configuration_key *const key = &configuration.keyboard.keys[i];
+        key->key_code = XKeysymToKeycode(display, key->key_symbol);
     }
 
-    /* iterate over all key codes associated to the key symbol */
-    for (uint32_t i = 0; keycodes[i] != XCB_NO_SYMBOL; i++) {
+    for (size_t i = 0; i < configuration.keyboard.number_of_keys; i++) {
+        key = &configuration.keyboard.keys[i];
         /* iterate over all bit combinations */
-        for (uint16_t j = configuration.keyboard.ignore_modifiers;
+        for (unsigned j = configuration.keyboard.ignore_modifiers;
                 true;
                 j = ((j - 1) & configuration.keyboard.ignore_modifiers)) {
-            xcb_grab_key(connection,
-                    true, /* report the event relative to the root */
-                    screen->root, /* the window to grab the keys for */
-                    (j | key->modifiers), keycodes[i],
+            XGrabKey(display, key->key_code, (j | key->modifiers),
+                    root, /* the window to grab the keys for */
+                    True, /* report the event relative to the root */
                     /* do not freeze pointer (mouse) events */
-                    XCB_GRAB_MODE_ASYNC,
+                    GrabModeAsync,
                     /* do not freeze keyboard events */
-                    XCB_GRAB_MODE_ASYNC);
+                    GrabModeAsync);
 
             if (j == 0) {
                 break;
             }
-        }
-    }
-    free(keycodes);
-}
-
-/* Grab the key bindings so we receive the KeyPress/KeyRelease events for them.
- */
-void grab_configured_keys(void)
-{
-    const struct configuration_key *key;
-
-    /* remove all previously grabbed keys so that we can overwrite them */
-    xcb_ungrab_key(connection, XCB_GRAB_ANY, screen->root, XCB_MOD_MASK_ANY);
-
-    for (uint32_t i = 0; i < configuration.keyboard.number_of_keys; i++) {
-        key = &configuration.keyboard.keys[i];
-        if (key->key_symbol == XCB_NONE) {
-            grab_key_code(key);
-        } else {
-            grab_key_symbol(key);
         }
     }
 }
@@ -336,21 +286,17 @@ void set_configuration(struct configuration *new_configuration)
     clear_configuration(&configuration);
     configuration = *new_configuration;
 
-    /* reload all X cursors and cursor themes */
-    reload_resources();
-
     /* set the root cursor */
-    general_values[0] = load_cursor(configuration.general.root_cursor);
-    xcb_change_window_attributes(connection, screen->root, XCB_CW_CURSOR,
-            general_values);
+    XDefineCursor(display, DefaultRootWindow(display),
+            load_cursor(configuration.general.root_cursor));
 
     /* reload the font */
     if (configuration.font.name != NULL) {
-        set_modern_font(configuration.font.name);
+        set_font(configuration.font.name);
     }
 
     /* refresh the border size and color of all windows */
-    for (Window *window = Window_first; window != NULL; window = window->next) {
+    for (FcWindow *window = Window_first; window != NULL; window = window->next) {
         if (window == Window_focus) {
             window->border_color = configuration.border.focus_color;
         } else {
@@ -369,24 +315,10 @@ void set_configuration(struct configuration *new_configuration)
                 monitor->frame->height);
     }
 
-    /* change border color and size of the notification window */
-    change_client_attributes(&notification,
-            configuration.notification.background,
-            configuration.notification.border_color);
-    configure_client(&notification, notification.x, notification.y,
-            notification.width, notification.height,
-            configuration.notification.border_size);
-
-    /* change border color and size of the window list window */
-    change_client_attributes(&window_list.client,
-            configuration.notification.background,
-            configuration.notification.border_color);
-    configure_client(&window_list.client, window_list.client.x,
-            window_list.client.y, window_list.client.width,
-            window_list.client.height, configuration.notification.border_size);
-
     /* re-grab all bindings */
-    for (Window *window = Window_first; window != NULL; window = window->next) {
+    for (FcWindow *window = Window_first;
+            window != NULL;
+            window = window->next) {
         grab_configured_buttons(window->client.id);
     }
     grab_configured_keys();
@@ -439,21 +371,21 @@ int load_configuration(const char *string,
 
             if (error == PARSER_ERROR_TRAILING) {
                 /* indicate all trailing characters using "  ^~~~" */
-                for (size_t i = 0; i < parser.column; i++) {
+                for (unsigned i = 0; i < parser.column; i++) {
                     fprintf(stderr, " ");
                 }
                 fprintf(stderr, "^");
-                for (size_t i = parser.column + 1;
+                for (unsigned i = parser.column + 1;
                         parser.line[i] != '\0'; i++) {
                     fprintf(stderr, "~");
                 }
                 fprintf(stderr, "\n");
             } else {
                 /* indicate the error region using "  ~~~^" */
-                for (size_t i = 0; i < parser.item_start_column; i++) {
+                for (unsigned i = 0; i < parser.item_start_column; i++) {
                     fprintf(stderr, " ");
                 }
-                for (size_t i = parser.item_start_column + 1;
+                for (unsigned i = parser.item_start_column + 1;
                         i < parser.column; i++) {
                     fprintf(stderr, "~");
                 }

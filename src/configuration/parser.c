@@ -57,7 +57,7 @@ void deinitialize_parser(Parser *parser)
 
     free(parser->line);
 
-    for (uint32_t i = 0; i < parser->number_of_pushed_files; i++) {
+    for (unsigned i = 0; i < parser->number_of_pushed_files; i++) {
         entry = &parser->file_stack[i];
         free(entry->name);
         fclose(entry->file);
@@ -70,7 +70,7 @@ void deinitialize_parser(Parser *parser)
     free(parser->locals);
 }
 
-#include "bits/configuration_parser_label_information.h"
+#include "configuration/label_information.h"
 
 /* Read the next line from the parsed files or string source into @parser->line.
  */
@@ -297,11 +297,11 @@ parser_error_t parse_string(Parser *parser, utf8_t **output)
  * identifier in the list, this be accessible in `parser->identifier`.
  */
 static parser_error_t parse_button_or_key_modifiers(Parser *parser,
-        uint16_t *modifiers)
+        unsigned *modifiers)
 {
     parser_error_t error;
-    uint16_t modifier;
-    uint32_t old_start_column;
+    unsigned modifier;
+    unsigned old_start_column;
 
     *modifiers = 0;
 
@@ -332,7 +332,7 @@ static parser_error_t parse_button_or_key_modifiers(Parser *parser,
 }
 
 /* Parse binding flags, e.g.: `--release --transparent` */
-static parser_error_t parse_binding_flags(Parser *parser, uint16_t *flags)
+static parser_error_t parse_binding_flags(Parser *parser, unsigned *flags)
 {
     parser_error_t error = PARSER_SUCCESS;
 
@@ -386,7 +386,7 @@ static parser_error_t parse_button(Parser *parser,
     return PARSER_SUCCESS;
 }
 
-/* Parse a key binding, e.g.: `shift+v split-horizontally ; move-right`. */
+/* Parse a key binding, e.g.: `Shift+v split-horizontally ; move-right`. */
 static parser_error_t parse_key(Parser *parser, struct configuration_key *key)
 {
     parser_error_t error;
@@ -401,25 +401,28 @@ static parser_error_t parse_key(Parser *parser, struct configuration_key *key)
     key->key_code = 0;
     /* intepret starting with a digit as keycode */
     if (isdigit(parser->identifier[0])) {
+        int min_key_code, max_key_code;
 
-        key->key_symbol = XCB_NONE;
-        for (uint32_t i = 0; parser->identifier[i] != '\0'; i++) {
+        key->key_symbol = None;
+        for (unsigned i = 0; parser->identifier[i] != '\0'; i++) {
             if (!isdigit(parser->identifier[i])) {
                 error = PARSER_ERROR_INVALID_KEY_CODE;
                 break;
             }
             key->key_code *= 10;
             key->key_code += parser->identifier[i] - '0';
+            if (key->key_code > max_key_code) {
+                break;
+            }
         }
 
-        const xcb_setup_t *const setup = xcb_get_setup(connection);
-        if (key->key_code < setup->min_keycode ||
-                key->key_code > setup->max_keycode) {
+        XDisplayKeycodes(display, &min_key_code, &max_key_code);
+        if (key->key_code < min_key_code || key->key_code > max_key_code) {
             error = PARSER_ERROR_INVALID_KEY_CODE;
         }
     } else {
-        key->key_symbol = string_to_keysym(parser->identifier);
-        if (key->key_symbol == XCB_NONE) {
+        key->key_symbol = XStringToKeysym(parser->identifier);
+        if (key->key_symbol == None) {
             error = PARSER_ERROR_INVALID_KEY_SYMBOL;
         }
     }
@@ -526,11 +529,11 @@ static parser_error_t parse_keyboard_binding(Parser *parser)
         return error;
     }
 
-    if (key.key_symbol == XCB_NONE) {
-        key_pointer = find_configured_key_by_code(&parser->configuration,
+    if (key.key_symbol == None) {
+        key_pointer = find_configured_key(&parser->configuration,
                 key.modifiers, key.key_code, key.flags);
     } else {
-        key_pointer = find_configured_key_by_symbol(&parser->configuration,
+        key_pointer = find_configured_key_by_key_symbol(&parser->configuration,
                 key.modifiers, key.key_symbol, key.flags);
     }
 
@@ -714,7 +717,7 @@ parser_error_t parse_line(Parser *parser)
         }
 
         /* open the file */
-        parser->file = fopen((char*) path, "r");
+        parser->file = fopen(path, "r");
         if (parser->file == NULL) {
             free(path);
             return PARSER_ERROR_INVALID_INCLUDE;
@@ -728,7 +731,7 @@ parser_error_t parse_line(Parser *parser)
     }
 
     /* check for a variable setting */
-    for (uint32_t i = 0; labels[parser->label].variables[i].name != NULL; i++) {
+    for (unsigned i = 0; labels[parser->label].variables[i].name != NULL; i++) {
         const struct configuration_parser_label_variable *const variable =
             &labels[parser->label].variables[i];
 
@@ -784,7 +787,7 @@ parser_error_t parse_line(Parser *parser)
     }
 
     /* check for a parser command */
-    for (uint32_t i = 0; i < SIZE(commands[parser->label]); i++) {
+    for (unsigned i = 0; i < SIZE(commands[parser->label]); i++) {
         const struct configuration_parser_command *const command =
             &commands[parser->label][i];
         if (command->name == NULL) {

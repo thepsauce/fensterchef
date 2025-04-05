@@ -5,7 +5,7 @@
 #include "utility.h"
 
 /* Translate a string like "Shift" to a modifier bit. */
-int string_to_modifier(const char *string, uint16_t *output)
+int string_to_modifier(const char *string, unsigned *output)
 {
     /* conversion of string to modifier mask */
     static const struct modifier_string {
@@ -16,24 +16,24 @@ int string_to_modifier(const char *string, uint16_t *output)
     } modifier_strings[] = {
         { "None", 0 },
 
-        { "Shift", XCB_MOD_MASK_SHIFT },
-        { "Lock", XCB_MOD_MASK_LOCK },
-        { "CapsLock", XCB_MOD_MASK_LOCK },
-        { "Ctrl", XCB_MOD_MASK_CONTROL },
-        { "Control", XCB_MOD_MASK_CONTROL },
+        { "Shift", ShiftMask },
+        { "Lock", LockMask },
+        { "CapsLock", LockMask },
+        { "Ctrl", ControlMask },
+        { "Control", ControlMask },
 
         /* common synonyms for some modifiers */
-        { "Alt", XCB_MOD_MASK_1 },
-        { "Super", XCB_MOD_MASK_4 },
+        { "Alt", Mod1Mask },
+        { "Super", Mod4Mask },
 
-        { "Mod1", XCB_MOD_MASK_1 },
-        { "Mod2", XCB_MOD_MASK_2 },
-        { "Mod3", XCB_MOD_MASK_3 },
-        { "Mod4", XCB_MOD_MASK_4 },
-        { "Mod5", XCB_MOD_MASK_5 }
+        { "Mod1", Mod1Mask },
+        { "Mod2", Mod2Mask },
+        { "Mod3", Mod3Mask },
+        { "Mod4", Mod4Mask },
+        { "Mod5", Mod5Mask }
     };
 
-    for (uint32_t i = 0; i < SIZE(modifier_strings); i++) {
+    for (unsigned i = 0; i < SIZE(modifier_strings); i++) {
         if (strcmp(modifier_strings[i].name, string) == 0) {
             *output = modifier_strings[i].modifier;
             return OK;
@@ -43,14 +43,14 @@ int string_to_modifier(const char *string, uint16_t *output)
 }
 
 /* Translate a string like "Button1" to a button index. */
-int string_to_button(const char *string, xcb_button_t *output)
+int string_to_button(const char *string, unsigned *output)
 {
     /* conversion from string to button index */
     static const struct button_string {
         /* the string representation of the button */
         const char *name;
         /* the button index */
-        xcb_button_t button_index;
+        unsigned button_index;
     } button_strings[] = {
         /* buttons can also be Button<integer> to directly address the index */
         { "LButton", 1 },
@@ -81,7 +81,7 @@ int string_to_button(const char *string, xcb_button_t *output)
          */
     };
 
-    uint32_t index = 0;
+    unsigned index = 0;
 
     /* parse indexes starting with "X" */
     if (string[0] == 'X') {
@@ -121,7 +121,7 @@ int string_to_button(const char *string, xcb_button_t *output)
         return OK;
     }
 
-    for (uint32_t i = 0; i < SIZE(button_strings); i++) {
+    for (unsigned i = 0; i < SIZE(button_strings); i++) {
         if (strcmp(button_strings[i].name, string) == 0) {
             *output = button_strings[i].button_index;
             return OK;
@@ -151,7 +151,7 @@ int string_to_boolean(const char *string, bool *output)
      * this one has a good property that the boolean value can also be implied
      * very easily through the hash value
      */
-    const uint32_t hash = ((string[1] * 57) >> 7) & 0x7;
+    const unsigned hash = ((string[1] * 57) >> 7) & 0x7;
     if (hash < SIZE(strings) && strcmp(strings[hash], string) == 0) {
         *output = !(hash & 1);
         return OK;
@@ -162,14 +162,13 @@ int string_to_boolean(const char *string, bool *output)
 
 /* Translate a constant which can be any of the above functions to an integer.
  */
-int string_to_constant(const char *string, int32_t *output)
+int string_to_constant(const char *string, int *output)
 {
     bool boolean;
-    uint16_t modifier;
-    uint8_t index;
+    unsigned modifier;
+    unsigned index;
     char buffer[20];
-    core_cursor_t cursor;
-    uint32_t length;
+    unsigned length;
 
     if (string_to_boolean(string, &boolean) == OK) {
         *output = boolean;
@@ -199,12 +198,6 @@ int string_to_constant(const char *string, int32_t *output)
         }
     }
     length = 0;
-
-    cursor = string_to_cursor(buffer);
-    if (cursor != XCURSOR_MAX) {
-        *output = cursor;
-        return OK;
-    }
 
     return ERROR;
 }

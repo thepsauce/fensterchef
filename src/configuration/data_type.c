@@ -17,7 +17,7 @@ void duplicate_data_value(data_type_t type, GenericData *data)
     switch (type) {
     /* do a copy of the string */
     case DATA_TYPE_STRING:
-        data->string = (utf8_t*) xstrdup((char*) data->string);
+        data->string = xstrdup(data->string);
         break;
 
     /* these have no data that needs to be deep copied */

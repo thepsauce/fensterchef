@@ -1,13 +1,8 @@
 #ifndef CONFIGURATION_STRUCTURE_H
 #define CONFIGURATION_STRUCTURE_H
 
-#include <stdbool.h>
-#include <stdint.h>
-
 #include "configuration/action.h"
 #include "configuration/expression.h"
-#include "keymap.h"
-#include "utf8.h"
 #include "utility.h"
 
 /**
@@ -23,11 +18,11 @@
 /* button binding */
 struct configuration_button {
     /* the button modifiers */
-    uint16_t modifiers;
+    unsigned modifiers;
     /* additional flags */
-    uint16_t flags;
+    unsigned flags;
     /* the actual mouse button index */
-    xcb_button_t index;
+    unsigned index;
     /* the expression to evaluate */
     Expression expression;
 };
@@ -35,13 +30,13 @@ struct configuration_button {
 /* key binding */
 struct configuration_key {
     /* the key modifiers */
-    uint16_t modifiers;
+    unsigned modifiers;
     /* additional flags */
-    uint16_t flags;
+    unsigned flags;
     /* the key symbol */
-    xcb_keysym_t key_symbol;
+    KeySym key_symbol;
     /* the code of the key, used when `key_symbol` is NoSymbol */
-    xcb_keycode_t key_code;
+    KeyCode key_code;
     /* the expression to evaluate */
     Expression expression;
 };
@@ -49,7 +44,7 @@ struct configuration_key {
 /* association between class/instance and window number */
 struct configuration_association {
     /* the window number */
-    uint32_t number;
+    unsigned number;
     /* the pattern the instance should match */
     utf8_t *instance_pattern;
     /* the pattern the class should match */
@@ -74,113 +69,111 @@ struct configuration_startup {
 /* general settings */
 struct configuration_general {
     /* at which percentage to consider a window to be overlapped with a monitor */
-    int32_t overlap_percentage;
+    int overlap_percentage;
     /* the name of the cursor used on the root window */
-    int32_t root_cursor;
+    utf8_t *root_cursor;
     /* the name of the cursor used for moving a window */
-    int32_t moving_cursor;
+    utf8_t *moving_cursor;
     /* the name of the cursor used for sizing a window horizontally */
-    int32_t horizontal_cursor;
+    utf8_t *horizontal_cursor;
     /* the name of the cursor used for sizing a window vertically */
-    int32_t vertical_cursor;
+    utf8_t *vertical_cursor;
     /* the name of the cursor used for sizing a window */
-    int32_t sizing_cursor;
+    utf8_t *sizing_cursor;
 };
 
 /* assignment settings */
 struct configuration_assignment {
     /* the number the first window gets assigned */
-    int32_t first_window_number;
+    int first_window_number;
     /* the associations that are wanted */
     struct configuration_association *associations;
     /* the number of associations */
-    uint32_t number_of_associations;
+    size_t number_of_associations;
 };
 
 /* tiling settings */
 struct configuration_tiling {
     /* whether to automatically create a split when a window is shown */
-    int32_t auto_split;
+    int auto_split;
     /* whether to automatically equalize all frames within the root */
-    int32_t auto_equalize;
+    int auto_equalize;
     /* whether to fill in empty frames automatically */
-    int32_t auto_fill_void;
+    int auto_fill_void;
     /* whether to remove frames automatically when their inner windows is
      * hidden
      */
-    int32_t auto_remove;
+    int auto_remove;
     /* whether to remove frames automatically when they become empty */
-    int32_t auto_remove_void;
+    int auto_remove_void;
 };
 
 /* font settings */
 struct configuration_font {
-    /* whether to use the core font instead of the better font rendering */
-    int32_t use_core_font;
-    /* name of the font in fontconfig format */
+    /* font name in fontconfig format */
     utf8_t *name;
 };
 
 /* border settings */
 struct configuration_border {
     /* width of the border around the windows */
-    int32_t size;
+    int size;
     /* color of the border of an unfocused window */
-    int32_t color;
+    int color;
     /* color of the border of an unfocused tiling window */
-    int32_t active_color;
+    int active_color;
     /* color of the border of a focused window */
-    int32_t focus_color;
+    int focus_color;
 };
 
 /* gaps settings */
 struct configuration_gaps {
     /* width of the inner gaps (between frames) */
-    int32_t inner[4];
+    int inner[4];
     /* width of the outer gaps (between frames and monitor boundaries */
-    int32_t outer[4];
+    int outer[4];
 };
 
 /* notification settings */
 struct configuration_notification {
     /* the duration in seconds a notification window should linger for */
-    int32_t duration;
+    int duration;
     /* padding of text within the notification window */
-    int32_t padding;
+    int padding;
     /* width of the border */
-    int32_t border_size;
+    int border_size;
     /* color of the border around the window */
-    int32_t border_color;
+    int border_color;
     /* color of the text */
-    int32_t foreground;
+    int foreground;
     /* color of the background */
-    int32_t background;
+    int background;
 };
 
 /* mouse settings */
 struct configuration_mouse {
     /* how many pixels off the edges of windows should be used for resizing */
-    int32_t resize_tolerance;
+    int resize_tolerance;
     /* the modifier key for all buttons (applied at the parsing step) */
-    int32_t modifiers;
+    int modifiers;
     /* the modifiers to ignore for a mouse binding */
-    int32_t ignore_modifiers;
+    int ignore_modifiers;
     /* the configured buttons */
     struct configuration_button *buttons;
     /* the number of configured buttons */
-    uint32_t number_of_buttons;
+    size_t number_of_buttons;
 };
 
 /* keyboard settings */
 struct configuration_keyboard {
     /* the modifier key for all keys (applied at the parsing step) */
-    int32_t modifiers;
+    int modifiers;
     /* the modifiers to ignore for a key binding */
-    int32_t ignore_modifiers;
+    int ignore_modifiers;
     /* the configured keys */
     struct configuration_key *keys;
     /* the number of configured keys */
-    uint32_t number_of_keys;
+    size_t number_of_keys;
 };
 
 /* configuration settings */

@@ -1,7 +1,7 @@
 #ifndef CONFIGURATION_H
 #define CONFIGURATION_H
 
-#include "bits/configuration_structure.h"
+#include "configuration/structure.h"
 
 /* the currently loaded configuration */
 extern struct configuration configuration;
@@ -34,28 +34,28 @@ void reload_user_configuration(void);
  */
 struct configuration_button *find_configured_button(
         struct configuration *configuration,
-        uint16_t modifiers, xcb_button_t button_index, uint16_t flags);
+        unsigned modifiers, unsigned button_index, unsigned flags);
 
 /* Grab the mousebindings so we receive the ButtonPress events for them. */
-void grab_configured_buttons(xcb_window_t window);
+void grab_configured_buttons(Window window);
 
 /* Get a configured key from key modifiers and a key code.
  *
  * @flags is a combination of `BINDING_FLAG_*` where the transparent flag is
  *        ignored.
  */
-struct configuration_key *find_configured_key_by_code(
+struct configuration_key *find_configured_key(
         struct configuration *configuration,
-        uint16_t modifiers, xcb_keycode_t key_code, uint16_t flags);
+        unsigned modifiers, KeyCode key_code, unsigned flags);
 
-/* Get a key from key modifiers and a key symbol.
+/* Get a configured key from key modifiers and a key symbol.
  *
  * @flags is a combination of `BINDING_FLAG_*` where the transparent flag is
  *        ignored.
  */
-struct configuration_key *find_configured_key_by_symbol(
+struct configuration_key *find_configured_key_by_key_symbol(
         struct configuration *configuration,
-        uint16_t modifiers, xcb_keysym_t key_symbol, uint16_t flags);
+        unsigned modifiers, KeySym key_symbol, unsigned flags);
 
 /* Grab the keybindings so we receive the KeyPress events for them. */
 void grab_configured_keys(void);

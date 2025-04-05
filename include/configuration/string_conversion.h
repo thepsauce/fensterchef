@@ -4,13 +4,11 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include <xcb/xcb.h>
-
 /* Translate a string like "Shift" to a modifier bit. */
-int string_to_modifier(const char *string, uint16_t *output);
+int string_to_modifier(const char *string, unsigned *output);
 
 /* Translate a string like "Button1" to a button index. */
-int string_to_button(const char *string, xcb_button_t *index);
+int string_to_button(const char *string, unsigned *index);
 
 /* Translate a string like "false" to a boolean value. */
 int string_to_boolean(const char *string, bool *output);
@@ -19,6 +17,6 @@ int string_to_boolean(const char *string, bool *output);
  *
  * The string can also be a cursor constant.
  */
-int string_to_constant(const char *string, int32_t *output);
+int string_to_constant(const char *string, int *output);
 
 #endif

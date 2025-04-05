@@ -1,12 +1,10 @@
 #ifndef CONFIGURATION__PARSER_H
 #define CONFIGURATION__PARSER_H
 
-#include <stdbool.h>
 #include <stdio.h>
 
-#include "bits/configuration_parser_label.h"
-
 #include "configuration/default.h"
+#include "configuration/label.h"
 #include "data_type.h"
 #include "utility.h"
 
@@ -103,26 +101,26 @@ typedef struct parser {
         /* the pushed file */
         FILE *file;
         /* the current line number within `file` */
-        size_t line_number;
+        unsigned long line_number;
         /* the label before opening `file` */
         parser_label_t label;
     } file_stack[32];
     /* the number of files on the file stack */
     uint32_t number_of_pushed_files;
     /* a string being read from, this is used if `file` is NULL. */
-    const char *string_source;
+    const utf8_t *string_source;
     /* the current index within `string_source` */
     size_t string_source_index;
     /* the current line being parsed */
-    char *line;
+    utf8_t *line;
     /* the number of allocated bytes for the line */
     size_t line_capacity;
     /* the line number the parser is one (1 based) */
-    size_t line_number;
+    unsigned long line_number;
     /* where the start of the last syntax item is */
-    size_t item_start_column;
+    unsigned item_start_column;
     /* the current position on the line */
-    size_t column;
+    unsigned column;
     /* the configuration being filled */
     struct configuration configuration;
     /* the labels that have appeared in the configuration */
@@ -130,9 +128,9 @@ typedef struct parser {
     /* the currently active label */
     parser_label_t label;
     /* the latest parsed identifier */
-    char identifier[PARSER_IDENTIFIER_LIMIT];
+    utf8_t identifier[PARSER_IDENTIFIER_LIMIT];
     /* a single identifying character like '[' or ']' */
-    char character;
+    utf8_t character;
 
     /** utility for expression parsing **/
     /* the instructions being filled */

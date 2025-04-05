@@ -38,7 +38,7 @@ static uint32_t validate_inner_windows(Frame *frame)
         return validate_inner_windows(frame->left) +
             validate_inner_windows(frame->right);
     } else if (frame->window != NULL) {
-        if (frame->window->client.id == XCB_NONE ||
+        if (frame->window->client.id == None ||
                 frame->window->state.is_visible) {
             dereference_window(frame->window);
             frame->window = NULL;

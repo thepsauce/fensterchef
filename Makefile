@@ -2,11 +2,14 @@
 CC := gcc
 
 # Packages
-PACKAGES := x11 xcb xcb-image xcb-randr xcb-icccm xcb-keysyms xcb-event xcb-render freetype2 fontconfig
+PACKAGES := x11 xrandr xcursor xft fontconfig
 
-# Compiler flags
-DEBUG_FLAGS := -DDEBUG -g -fsanitize=address -pg
-C_FLAGS := -Iinclude -std=c99 $(shell pkg-config --cflags $(PACKAGES)) -Wall -Wextra -Wpedantic -Werror -Wno-format-zero-length
+# Compiler flags #-Werror
+DEBUG_FLAGS := -DDEBUG -g -fsanitize=address -pg -Werror
+# Also include freetype2 which is needed for Xft headers to work
+C_FLAGS := -Iinclude -std=c99 \
+		   $(shell pkg-config --cflags $(PACKAGES) freetype2) \
+           -Wall -Wextra -Wpedantic -Wno-format-zero-length
 RELEASE_FLAGS := -O3
 
 # Libraries
@@ -18,6 +21,10 @@ BINARY := /usr/bin/fensterchef
 MANUAL_PAGE_1 := /usr/share/man/man1/fensterchef.1.gz
 MANUAL_PAGE_5 := /usr/share/man/man5/fensterchef.5.gz
 
+# Sandbox parameters
+SANDBOX_DISPLAY := 8
+SANDBOX := Xephyr :$(SANDBOX_DISPLAY) +extension RANDR -br -ac -noreset -screen 800x600
+
 # Find all source files
 SOURCES := $(shell find src -name '*.c')
 # Get all corresponding object paths
@@ -27,10 +34,6 @@ INCLUDES := $(shell find include -name '*.h')
 
 # Get dependencies
 DEPENDENCIES := $(patsubst %.o,%.d,$(OBJECTS))
-
-# Sandbox parameters
-SANDBOX_DISPLAY := 8
-SANDBOX := Xephyr :$(SANDBOX_DISPLAY) +extension RANDR -br -ac -noreset -screen 800x600
 
 .PHONY: default
 default: build
@@ -76,10 +79,10 @@ sandbox: build
 release: release/fensterchef.1.gz release/fensterchef.5.gz release/fensterchef
 
 install: release
-	install -Dm644 -t "/usr/share/licenses/fensterchef" LICENSE.txt
-	install -Dt "/usr/bin" "release/fensterchef"
-	install -Dm644 -t "/usr/share/man/man1" release/fensterchef.1.gz
-	install -Dm644 -t "/usr/share/man/man5" release/fensterchef.5.gz
+	install -Dm644 -t $(dir $(LICENSE))       LICENSE.txt
+	install -D     -t $(dir $(BINARY))        release/fensterchef
+	install -Dm644 -t $(dir $(MANUAL_PAGE_1)) release/fensterchef.1.gz
+	install -Dm644 -t $(dir $(MANUAL_PAGE_5)) release/fensterchef.5.gz
 
 uninstall:
 	rm -r $(LICENSE)

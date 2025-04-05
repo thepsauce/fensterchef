@@ -15,7 +15,7 @@
  */
 
 /* Check if @window should have no border. */
-bool is_window_borderless(Window *window)
+bool is_window_borderless(FcWindow *window)
 {
     /* tiling windows always have a border */
     if (window->state.mode == WINDOW_MODE_TILING) {
@@ -29,48 +29,48 @@ bool is_window_borderless(Window *window)
 }
 
 /* Get the side of a monitor @window would like to attach to. */
-xcb_gravity_t get_window_gravity(Window *window)
+int get_window_gravity(FcWindow *window)
 {
-    if (window->strut.reserved.left > 0) {
-        return XCB_GRAVITY_WEST;
+    if (window->strut.left > 0) {
+        return WestGravity;
     }
-    if (window->strut.reserved.top > 0) {
-        return XCB_GRAVITY_NORTH;
+    if (window->strut.top > 0) {
+        return NorthGravity;
     }
-    if (window->strut.reserved.right > 0) {
-        return XCB_GRAVITY_EAST;
+    if (window->strut.right > 0) {
+        return EastGravity;
     }
-    if (window->strut.reserved.bottom > 0) {
-        return XCB_GRAVITY_SOUTH;
+    if (window->strut.bottom > 0) {
+        return SouthGravity;
     }
 
-    if ((window->size_hints.flags & XCB_ICCCM_SIZE_HINT_P_WIN_GRAVITY)) {
+    if ((window->size_hints.flags & PWinGravity)) {
         return window->size_hints.win_gravity;
     }
-    return XCB_GRAVITY_STATIC;
+    return StaticGravity;
 }
 
 /* Return a comparison value for two windows. */
 static int sort_by_x(const void *a, const void *b)
 {
-    const Window *const window_a = *(Window**) a;
-    const Window *const window_b = *(Window**) b;
+    const FcWindow *const window_a = *(FcWindow**) a;
+    const FcWindow *const window_b = *(FcWindow**) b;
     return window_a->x - window_b->x;
 }
 
 /* Put windows along a diagonal line, spacing them out a little. */
-static inline void move_to_next_available(Monitor *monitor, Window *window,
+static inline void move_to_next_available(Monitor *monitor, FcWindow *window,
         int32_t *x, int32_t *y)
 {
     /* step 1: get all windows on the diagonal line */
-    Window *in_line_windows[Window_count];
+    FcWindow *in_line_windows[Window_count];
     uint32_t count = 0;
     int32_t best_x = 0;
 
     *x = monitor->x + monitor->width / 10;
     *y = monitor->y + monitor->height / 10;
 
-    for (Window *other = Window_first; other != NULL; other = other->next) {
+    for (FcWindow *other = Window_first; other != NULL; other = other->next) {
         if (other == window || !other->state.is_visible) {
             continue;
         }
@@ -91,7 +91,7 @@ static inline void move_to_next_available(Monitor *monitor, Window *window,
     /* intermediary step: if the windows were already sorted advantageously,
      * immediately find a gap
      */
-    for (Window *other = Window_first; other != NULL; other = other->next) {
+    for (FcWindow *other = Window_first; other != NULL; other = other->next) {
         const Point difference = {
             other->x - *x,
             other->y - *y,
@@ -113,7 +113,7 @@ static inline void move_to_next_available(Monitor *monitor, Window *window,
 
     /* step 3: find a gap */
     for (uint32_t i = 0; i < count; i++) {
-        Window *const other = in_line_windows[i];
+        FcWindow *const other = in_line_windows[i];
         if (other->x != *x || other->y != *y) {
             break;
         }
@@ -123,7 +123,7 @@ static inline void move_to_next_available(Monitor *monitor, Window *window,
 }
 
 /* Set the window size and position according to the size hints. */
-static void configure_floating_size(Window *window)
+static void configure_floating_size(FcWindow *window)
 {
     Monitor *monitor, *original_monitor = NULL;
     int32_t x, y;
@@ -154,7 +154,7 @@ static void configure_floating_size(Window *window)
         if (window->floating.width > 0) {
             width = window->floating.width;
             height = window->floating.height;
-        } else if ((window->size_hints.flags & XCB_ICCCM_SIZE_HINT_P_SIZE)) {
+        } else if ((window->size_hints.flags & PSize)) {
             width = window->size_hints.width;
             height = window->size_hints.height;
         } else {
@@ -162,24 +162,22 @@ static void configure_floating_size(Window *window)
             height = monitor->height * 2 / 3;
         }
 
-        if ((window->size_hints.flags & XCB_ICCCM_SIZE_HINT_P_MIN_SIZE)) {
+        if ((window->size_hints.flags & PMinSize)) {
             width = MAX(width, (uint32_t) window->size_hints.min_width);
             height = MAX(height, (uint32_t) window->size_hints.min_height);
         }
 
-        if ((window->size_hints.flags & XCB_ICCCM_SIZE_HINT_P_MAX_SIZE)) {
+        if ((window->size_hints.flags & PMaxSize)) {
             width = MIN(width, (uint32_t) window->size_hints.max_width);
             height = MIN(height, (uint32_t) window->size_hints.max_height);
         }
 
         /* non resizable windows are centered */
-        if ((window->size_hints.flags &
-                (XCB_ICCCM_SIZE_HINT_P_MIN_SIZE |
-                 XCB_ICCCM_SIZE_HINT_P_MAX_SIZE)) ==
-                (XCB_ICCCM_SIZE_HINT_P_MIN_SIZE |
-                 XCB_ICCCM_SIZE_HINT_P_MAX_SIZE) &&
+        if ((window->size_hints.flags & (PMinSize | PMaxSize)) ==
+                    (PMinSize | PMaxSize) &&
                 (window->size_hints.min_width == window->size_hints.max_width ||
-                 window->size_hints.min_height == window->size_hints.max_height)) {
+                    window->size_hints.min_height ==
+                        window->size_hints.max_height)) {
             x = monitor->x + (monitor->width - width) / 2;
             y = monitor->y + (monitor->height - height) / 2;
         } else {
@@ -196,7 +194,7 @@ static void configure_floating_size(Window *window)
 }
 
 /* Set the position and size of the window to fullscreen. */
-static void configure_fullscreen_size(Window *window)
+static void configure_fullscreen_size(FcWindow *window)
 {
     Monitor *monitor;
 
@@ -216,7 +214,7 @@ static void configure_fullscreen_size(Window *window)
 }
 
 /* Set the position and size of the window to a dock window. */
-void configure_dock_size(Window *window)
+void configure_dock_size(FcWindow *window)
 {
     Monitor *monitor;
     int32_t x, y;
@@ -234,31 +232,31 @@ void configure_dock_size(Window *window)
          * reasoning is that when the window wants to occupy screen space, then
          * it should be within that occupied space
          */
-        if (window->strut.reserved.left != 0) {
-            width = window->strut.reserved.left;
+        if (window->strut.left != 0) {
+            width = window->strut.left;
             /* check if the extended strut is set or if it is malformed */
             if (window->strut.left_start_y < window->strut.left_end_y) {
                 y = window->strut.left_start_y;
                 height = window->strut.left_end_y -
                     window->strut.left_start_y + 1;
             }
-        } else if (window->strut.reserved.top != 0) {
-            height = window->strut.reserved.top;
+        } else if (window->strut.top != 0) {
+            height = window->strut.top;
             if (window->strut.top_start_x < window->strut.top_end_x) {
                 x = window->strut.top_start_x;
                 width = window->strut.top_end_x - window->strut.top_start_x + 1;
             }
-        } else if (window->strut.reserved.right != 0) {
-            x = monitor->x + monitor->width - window->strut.reserved.right;
-            width = window->strut.reserved.right;
+        } else if (window->strut.right != 0) {
+            x = monitor->x + monitor->width - window->strut.right;
+            width = window->strut.right;
             if (window->strut.right_start_y < window->strut.right_end_y) {
                 y = window->strut.right_start_y;
                 height = window->strut.right_end_y -
                     window->strut.right_start_y + 1;
             }
-        } else if (window->strut.reserved.bottom != 0) {
-            y = monitor->y + monitor->height - window->strut.reserved.bottom;
-            height = window->strut.reserved.bottom;
+        } else if (window->strut.bottom != 0) {
+            y = monitor->y + monitor->height - window->strut.bottom;
+            height = window->strut.bottom;
             if (window->strut.bottom_start_x < window->strut.bottom_end_x) {
                 x = window->strut.bottom_start_x;
                 width = window->strut.bottom_end_x -
@@ -271,7 +269,7 @@ void configure_dock_size(Window *window)
         width = window->width;
         height = window->height;
 
-        const xcb_gravity_t gravity = get_window_gravity(window);
+        const int gravity = get_window_gravity(window);
         adjust_for_window_gravity(monitor, &x, &y, width, height, gravity);
     }
 
@@ -279,9 +277,9 @@ void configure_dock_size(Window *window)
 }
 
 /* Synchronize the `_NET_WM_ALLOWED_ACTIONS` X property. */
-static void synchronize_allowed_actions(Window *window)
+static void synchronize_allowed_actions(FcWindow *window)
 {
-    const xcb_atom_t atom_lists[WINDOW_MODE_MAX][16] = {
+    const Atom atom_lists[WINDOW_MODE_MAX][16] = {
         [WINDOW_MODE_TILING] = {
             ATOM(_NET_WM_ACTION_MOVE),
             ATOM(_NET_WM_ACTION_RESIZE),
@@ -290,7 +288,7 @@ static void synchronize_allowed_actions(Window *window)
             ATOM(_NET_WM_ACTION_MAXIMIZE_HORZ),
             ATOM(_NET_WM_ACTION_MAXIMIZE_VERT),
             ATOM(_NET_WM_ACTION_CLOSE),
-            XCB_NONE,
+            None,
         },
 
         [WINDOW_MODE_FLOATING] = {
@@ -302,42 +300,41 @@ static void synchronize_allowed_actions(Window *window)
             ATOM(_NET_WM_ACTION_MAXIMIZE_VERT),
             ATOM(_NET_WM_ACTION_CLOSE),
             ATOM(_NET_WM_ACTION_ABOVE),
-            XCB_NONE,
+            None,
         },
 
         [WINDOW_MODE_FULLSCREEN] = {
             ATOM(_NET_WM_ACTION_MINIMIZE),
             ATOM(_NET_WM_ACTION_CLOSE),
             ATOM(_NET_WM_ACTION_ABOVE),
-            XCB_NONE,
+            None,
         },
 
         [WINDOW_MODE_DOCK] = {
-            XCB_NONE,
+            None,
         },
 
         [WINDOW_MODE_DESKTOP] = {
-            XCB_NONE,
+            None,
         },
     };
 
-    const xcb_atom_t *list;
+    const Atom *list;
     uint32_t list_length;
 
     list = atom_lists[window->state.mode];
     for (list_length = 0; list_length < SIZE(atom_lists[0]); list_length++) {
-        if (list[list_length] == XCB_NONE) {
+        if (list[list_length] == None) {
             break;
         }
     }
 
-    xcb_change_property(connection, XCB_PROP_MODE_REPLACE,
-            window->client.id, ATOM(_NET_WM_ALLOWED_ACTIONS),
-            XCB_ATOM_ATOM, 32, list_length, list);
+    XChangeProperty(display, window->client.id, ATOM(_NET_WM_ALLOWED_ACTIONS),
+            XA_ATOM, 32, PropModeReplace, (unsigned char*) list, list_length);
 }
 
 /* Add window states to the window properties. */
-void add_window_states(Window *window, xcb_atom_t *states,
+void add_window_states(FcWindow *window, Atom *states,
         uint32_t number_of_states)
 {
     uint32_t effective_count = 0;
@@ -354,14 +351,14 @@ void add_window_states(Window *window, xcb_atom_t *states,
         /* add the state to the window properties */
         if (window->states != NULL) {
             /* find the number of elements */
-            for (; window->states[j] != XCB_NONE; j++) {
+            for (; window->states[j] != None; j++) {
                 /* nothing */
             }
         }
 
         RESIZE(window->states, j + 2);
         window->states[j] = states[i];
-        window->states[j + 1] = XCB_NONE;
+        window->states[j + 1] = None;
 
         states[effective_count++] = states[i];
     }
@@ -372,13 +369,12 @@ void add_window_states(Window *window, xcb_atom_t *states,
     }
 
     /* append the properties to the list in the X server */
-    xcb_change_property(connection, XCB_PROP_MODE_APPEND,
-            window->client.id, ATOM(_NET_WM_STATE),
-            XCB_ATOM_ATOM, 32, effective_count, states);
+    XChangeProperty(display, window->client.id, ATOM(_NET_WM_STATE), XA_ATOM,
+            32, PropModeAppend, (unsigned char*) states, effective_count);
 }
 
 /* Remove window states from the window properties. */
-void remove_window_states(Window *window, xcb_atom_t *states,
+void remove_window_states(FcWindow *window, Atom *states,
         uint32_t number_of_states)
 {
     uint32_t i;
@@ -390,7 +386,7 @@ void remove_window_states(Window *window, xcb_atom_t *states,
     }
 
     /* filter out all states in the window properties that are in `states` */
-    for (i = 0; window->states[i] != XCB_NONE; i++) {
+    for (i = 0; window->states[i] != None; i++) {
         uint32_t j;
 
         /* check if the state exists in `states`... */
@@ -411,21 +407,20 @@ void remove_window_states(Window *window, xcb_atom_t *states,
         return;
     }
 
-    /* terminate the end with `XCB_NONE` */
-    window->states[effective_count] = XCB_NONE;
+    /* terminate the end with `None` */
+    window->states[effective_count] = None;
 
     /* replace the atom list on the X server */
-    xcb_change_property(connection, XCB_PROP_MODE_REPLACE,
-            window->client.id, ATOM(_NET_WM_STATE),
-            XCB_ATOM_ATOM, 32, effective_count,
-            window->states);
+    XChangeProperty(display, window->client.id, ATOM(_NET_WM_STATE), XA_ATOM,
+            32, PropModeReplace,
+            (unsigned char*) window->states, effective_count);
 }
 
 /* When a window changes mode or is shown, this is called.
  *
  * This adjusts the window size or puts the window into the tiling layout.
  */
-static void update_shown_window(Window *window)
+static void update_shown_window(FcWindow *window)
 {
     switch (window->state.mode) {
     /* the window has to become part of the tiling layout */
@@ -490,9 +485,9 @@ static void update_shown_window(Window *window)
 /* Changes the window state to given value and reconfigures the window only
  * if the mode changed.
  */
-void set_window_mode(Window *window, window_mode_t mode)
+void set_window_mode(FcWindow *window, window_mode_t mode)
 {
-    xcb_atom_t states[3];
+    Atom states[3];
 
     if (window->state.mode == mode) {
         return;
@@ -559,7 +554,7 @@ void set_window_mode(Window *window, window_mode_t mode)
 }
 
 /* Show the window by mapping it to the X server. */
-void show_window(Window *window)
+void show_window(FcWindow *window)
 {
     if (window->state.is_visible) {
         return;
@@ -571,7 +566,7 @@ void show_window(Window *window)
 }
 
 /* Hide @window and adjust the tiling and focus. */
-void hide_window(Window *window)
+void hide_window(FcWindow *window)
 {
     Frame *frame, *stash;
 
@@ -660,7 +655,7 @@ void hide_window(Window *window)
 }
 
 /* Hide the window without touching the tiling or focus. */
-void hide_window_abruptly(Window *window)
+void hide_window_abruptly(FcWindow *window)
 {
     /* do nothing if the window is already hidden */
     if (!window->state.is_visible) {

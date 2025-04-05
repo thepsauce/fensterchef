@@ -1,14 +1,13 @@
 #include <inttypes.h>
 #include <string.h>
 
-#include <xcb/xcb_renderutil.h>
+#include <X11/extensions/Xrandr.h>
 
 #include "configuration/configuration.h"
 #include "event.h" // randr_event_base
 #include "frame.h"
 #include "log.h"
 #include "monitor.h"
-#include "render.h"
 #include "size_frame.h"
 #include "split.h"
 #include "stash_frame.h"
@@ -17,8 +16,11 @@
 #include "x11_management.h"
 #include "xalloc.h"
 
-/* if randr is enabled for usage */
+/* if Xrandr is enabled for usage */
 static bool randr_enabled = false;
+
+/* if the Xrandr version supports primary outputs */
+static bool randr_has_primary_outputs = false;
 
 /* the first monitor in the monitor linked list */
 Monitor *Monitor_first;
@@ -36,51 +38,39 @@ static Monitor *create_monitor(const char *name, uint32_t name_len)
 /* Try to initialize randr. */
 void initialize_monitors(void)
 {
-    const xcb_query_extension_reply_t *extension;
-    xcb_generic_error_t *error;
-    xcb_randr_query_version_cookie_t version_cookie;
-    xcb_randr_query_version_reply_t *version;
+    int major, minor;
 
-    /* get the data for the randr extension and check if it is there */
-    extension = xcb_get_extension_data(connection, &xcb_randr_id);
-    if (!extension->present) {
-        /* merge with a default monitor surrounding everything */
-        merge_monitors(NULL);
-        return;
-    }
+    /* get the event base for XRandr */
+    if (XRRQueryExtension(display, &randr_event_base, &randr_error_base)) {
+        XRRQueryVersion(display, &major, &minor);
 
-    /* get the randr version number, currently not used for anything */
-    version_cookie = xcb_randr_query_version(connection,
-            XCB_RANDR_MAJOR_VERSION, XCB_RANDR_MINOR_VERSION);
-    version = xcb_randr_query_version_reply(connection, version_cookie, &error);
-    if (version == NULL) {
-        LOG_ERROR("could not query randr version: %E\n", error);
-        free(error);
-    } else {
-        free(version);
-
-        randr_enabled = true;
-        randr_event_base = extension->first_event;
-
-        xcb_randr_select_input(connection, screen->root,
-                XCB_RANDR_NOTIFY_MASK_SCREEN_CHANGE |
-                XCB_RANDR_NOTIFY_MASK_OUTPUT_CHANGE |
-                XCB_RANDR_NOTIFY_MASK_CRTC_CHANGE |
-                XCB_RANDR_NOTIFY_MASK_OUTPUT_PROPERTY);
+        /* only version 1.2 and upwards is interesting for us */
+        if (major > 1 || (major == 1 && minor >= 2)) {
+            if (major > 1 || (major == 1 && minor >= 3)) {
+                randr_has_primary_outputs = true;
+            }
+            randr_enabled = true;
+            /* get ScreenChangeNotify events */
+            XRRSelectInput(display, DefaultRootWindow(display),
+                    RRScreenChangeNotifyMask);
+        } else {
+            /* nevermind */
+            randr_event_base = -1;
+        }
     }
 
     merge_monitors(query_monitors());
 }
 
 /* Push all dock windows coming after @window. */
-static void push_other_dock_windows(Monitor *monitor, Window *window)
+static void push_other_dock_windows(Monitor *monitor, FcWindow *window)
 {
-    const xcb_gravity_t gravity = get_window_gravity(window);
-    if (gravity == XCB_GRAVITY_STATIC) {
+    const int gravity = get_window_gravity(window);
+    if (gravity == StaticGravity) {
         return;
     }
 
-    for (Window *other = window->next; other != NULL; other = other->next) {
+    for (FcWindow *other = window->next; other != NULL; other = other->next) {
         if (!other->state.is_visible) {
             continue;
         }
@@ -94,10 +84,10 @@ static void push_other_dock_windows(Monitor *monitor, Window *window)
             continue;
         }
 
-        const xcb_gravity_t other_gravity = get_window_gravity(other);
+        const int other_gravity = get_window_gravity(other);
         switch (gravity) {
-        case XCB_GRAVITY_NORTH:
-            if (other_gravity == XCB_GRAVITY_SOUTH) {
+        case NorthGravity:
+            if (other_gravity == SouthGravity) {
                 break;
             }
             if (other_gravity != gravity && other->height > window->height) {
@@ -106,8 +96,8 @@ static void push_other_dock_windows(Monitor *monitor, Window *window)
             other->y = window->y + window->height;
             break;
 
-        case XCB_GRAVITY_WEST:
-            if (other_gravity == XCB_GRAVITY_EAST) {
+        case WestGravity:
+            if (other_gravity == EastGravity) {
                 break;
             }
             if (other_gravity != gravity && other->width > window->width) {
@@ -116,8 +106,8 @@ static void push_other_dock_windows(Monitor *monitor, Window *window)
             other->x = window->x + window->width;
             break;
 
-        case XCB_GRAVITY_SOUTH:
-            if (other_gravity == XCB_GRAVITY_NORTH) {
+        case SouthGravity:
+            if (other_gravity == NorthGravity) {
                 break;
             }
             if (other_gravity == gravity) {
@@ -127,8 +117,8 @@ static void push_other_dock_windows(Monitor *monitor, Window *window)
             }
             break;
 
-        case XCB_GRAVITY_EAST:
-            if (other_gravity == XCB_GRAVITY_WEST) {
+        case EastGravity:
+            if (other_gravity == WestGravity) {
                 break;
             }
             if (other_gravity == gravity) {
@@ -159,7 +149,9 @@ void reconfigure_monitor_frames(void)
     }
 
     /* reconfigure all dock windows */
-    for (Window *window = Window_first; window != NULL; window = window->next) {
+    for (FcWindow *window = Window_first;
+            window != NULL;
+            window = window->next) {
         if (window->state.mode != WINDOW_MODE_DOCK) {
             continue;
         }
@@ -167,7 +159,9 @@ void reconfigure_monitor_frames(void)
     }
 
     /* recompute all struts and push dock windows */
-    for (Window *window = Window_first; window != NULL; window = window->next) {
+    for (FcWindow *window = Window_first;
+            window != NULL;
+            window = window->next) {
         if (!window->state.is_visible) {
             continue;
         }
@@ -183,10 +177,10 @@ void reconfigure_monitor_frames(void)
             continue;
         }
 
-        monitor->strut.left += window->strut.reserved.left;
-        monitor->strut.top += window->strut.reserved.top;
-        monitor->strut.right += window->strut.reserved.right;
-        monitor->strut.bottom += window->strut.reserved.bottom;
+        monitor->strut.left += window->strut.left;
+        monitor->strut.top += window->strut.top;
+        monitor->strut.right += window->strut.right;
+        monitor->strut.bottom += window->strut.bottom;
 
         push_other_dock_windows(monitor, window);
     }
@@ -315,16 +309,16 @@ static Monitor *get_monitor_by_name(Monitor *monitor,
 }
 
 /* Get a window covering given monitor. */
-Window *get_window_covering_monitor(Monitor *monitor)
+FcWindow *get_window_covering_monitor(Monitor *monitor)
 {
     uint64_t monitor_area;
-    Window *best_window = NULL;
+    FcWindow *best_window = NULL;
     uint64_t best_area = 0, area;
     Size overlap;
 
     monitor_area = (uint64_t) monitor->width * monitor->height;
     /* go through the windows from bottom to top */
-    for (Window *window = Window_bottom;
+    for (FcWindow *window = Window_bottom;
             window != NULL;
             window = window->above) {
         /* ignore invisible windows */
@@ -613,115 +607,67 @@ Monitor *get_monitor_by_pattern(const char *pattern)
     return NULL;
 }
 
+/* Get the primary randr output or `None` if there is none. */
+RROutput get_primary_output(void)
+{
+#if RANDR_MAJOR > 1 || (RANDR_MAJOR == 1 && RANDR_MINOR >= 3)
+    if (randr_has_primary_outputs) {
+        return XRRGetOutputPrimary(display, DefaultRootWindow(display));
+    }
+#endif
+    return None;
+}
+
 /* Get a list of monitors that are associated to the screen. */
 Monitor *query_monitors(void)
 {
-    xcb_generic_error_t *error;
+    RROutput primary_output;
 
-    xcb_randr_get_output_primary_cookie_t primary_cookie;
-    xcb_randr_get_output_primary_reply_t *primary;
-    xcb_randr_output_t primary_output;
-
-    xcb_randr_get_screen_resources_current_cookie_t resources_cookie;
-    xcb_randr_get_screen_resources_current_reply_t *resources;
-
-    xcb_randr_output_t *outputs;
-    int output_count;
+    XRRScreenResources *resources;
 
     Monitor *monitor;
     Monitor *first_monitor = NULL, *last_monitor, *primary_monitor = NULL;
-
-    xcb_randr_get_output_info_cookie_t output_cookie;
-    xcb_randr_get_output_info_reply_t *output;
-
-    char *name;
-    int name_length;
-
-    xcb_randr_get_crtc_info_cookie_t crtc_cookie;
-    xcb_randr_get_crtc_info_reply_t *crtc;
 
     if (!randr_enabled) {
         return NULL;
     }
 
-    /* get cookies for later */
-    primary_cookie = xcb_randr_get_output_primary(connection,
-            screen->root);
-    resources_cookie = xcb_randr_get_screen_resources_current(connection,
-            screen->root);
+    primary_output = get_primary_output();
 
-    /* get the primary monitor */
-    primary = xcb_randr_get_output_primary_reply(connection, primary_cookie,
-            NULL);
-    if (primary == NULL) {
-        primary_output = XCB_NONE;
-    } else {
-        primary_output = primary->output;
-        free(primary);
-    }
+    resources = XRRGetScreenResources(display, DefaultRootWindow(display));
 
-    /* get the screen resources for querying the screen outputs */
-    resources = xcb_randr_get_screen_resources_current_reply(connection,
-            resources_cookie, &error);
-    if (error != NULL) {
-        LOG_ERROR("could not get screen resources: %E\n", error);
-        free(error);
-        return NULL;
-    }
+    /* go through the outputs */
+    for (int i = 0; i < resources->noutput; i++) {
+        RROutput output;
+        XRROutputInfo *info;
+        XRRCrtcInfo *crtc;
 
-    /* get the outputs (monitors) */
-    outputs = xcb_randr_get_screen_resources_current_outputs(resources);
-    output_count =
-        xcb_randr_get_screen_resources_current_outputs_length(resources);
+        output = resources->outputs[i];
 
-    for (int i = 0; i < output_count; i++) {
         /* get the output information which includes the output name */
-        output_cookie = xcb_randr_get_output_info(connection, outputs[i],
-               resources->timestamp);
-        output = xcb_randr_get_output_info_reply(connection, output_cookie,
-                &error);
-        if (error != NULL) {
-            LOG_ERROR("unable to get output info of %d: %E\n", i, error);
-            free(error);
-            continue;
-        }
+        info = XRRGetOutputInfo(display, resources, output);
 
-        /* extract the name information from the reply */
-        name = (char*) xcb_randr_get_output_info_name(output);
-        name_length = xcb_randr_get_output_info_name_length(output);
-
-        if (output->crtc == XCB_NONE) {
-            LOG("ignored output %.*s: no crtc\n", name_length, name);
-            free(output);
+        /* only continue with outputs that have a size */
+        if (info->crtc == None) {
             continue;
         }
 
         /* get the crtc (cathodic ray tube configuration, basically an old TV)
          * which tells us the size of the output
          */
-        crtc_cookie = xcb_randr_get_crtc_info(connection, output->crtc,
-                resources->timestamp);
+        crtc = XRRGetCrtcInfo(display, resources, info->crtc);
 
-        crtc = xcb_randr_get_crtc_info_reply(connection, crtc_cookie, &error);
-        if (crtc == NULL) {
-            LOG_ERROR("output %.*s gave a NULL crtc: %E\n", name_length, name,
-                    error);
-            free(error);
-            free(output);
-            continue;
-        }
-
-        LOG("output %.*s: %R\n", name_length, name,
+        LOG("output %.*s: %R\n", info->nameLen, info->name,
                 crtc->x, crtc->y, crtc->width, crtc->height);
 
-        monitor = create_monitor(name, name_length);
+        monitor = create_monitor(info->name, info->nameLen);
 
         /* add the monitor to the linked list */
         if (first_monitor == NULL) {
             first_monitor = monitor;
             last_monitor = first_monitor;
         } else {
-            if (primary_output == outputs[i]) {
+            if (primary_output == output) {
                 primary_monitor = last_monitor;
             } else {
                 last_monitor->next = monitor;
@@ -734,8 +680,8 @@ Monitor *query_monitors(void)
         monitor->width = crtc->width;
         monitor->height = crtc->height;
 
-        free(crtc);
-        free(output);
+        XRRFreeCrtcInfo(crtc);
+        XRRFreeOutputInfo(info);
     }
 
     /* add the primary monitor to the start of the list */
@@ -744,7 +690,7 @@ Monitor *query_monitors(void)
         first_monitor = primary_monitor;
     }
 
-    free(resources);
+    XRRFreeScreenResources(resources);
 
     /* remove monitors that are contained within other monitors */
     for (Monitor *monitor = first_monitor;
@@ -803,8 +749,8 @@ void merge_monitors(Monitor *monitors)
 
     if (monitors == NULL) {
         monitors = create_monitor("default", UINT32_MAX);
-        monitors->width = screen->width_in_pixels;
-        monitors->height = screen->height_in_pixels;
+        monitors->width = DisplayWidth(display, DefaultScreen(display));
+        monitors->height = DisplayHeight(display, DefaultScreen(display));
     }
 
     /* copy frames from the old monitors to the new ones with same name */

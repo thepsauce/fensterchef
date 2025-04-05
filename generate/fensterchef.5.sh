@@ -42,7 +42,7 @@ replace_lines() {
 
             done
         fi
-    done <include/action.h
+    done <include/configuration/action.h
 }
 
 start_marker='.SH ACTION'

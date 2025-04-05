@@ -5,17 +5,16 @@
 #include "configuration/default.h"
 #include "configuration/expression.h"
 #include "utility.h"
-#include "utf8.h"
 
 /* the default configuration */
 const struct configuration default_configuration = {
     .general = {
         .overlap_percentage = 80,
-        .root_cursor = XCURSOR_LEFT_PTR,
-        .moving_cursor = XCURSOR_FLEUR,
-        .horizontal_cursor = XCURSOR_SB_H_DOUBLE_ARROW,
-        .vertical_cursor = XCURSOR_SB_V_DOUBLE_ARROW,
-        .sizing_cursor = XCURSOR_SIZING,
+        .root_cursor = "left_ptr",
+        .moving_cursor = "fleur",
+        .horizontal_cursor = "sb_h_double_arrow",
+        .vertical_cursor = "sb_v_double_arrow",
+        .sizing_cursor = "sizing",
     },
 
     .assignment = {
@@ -31,15 +30,14 @@ const struct configuration default_configuration = {
     },
 
     .font = {
-        .use_core_font = false,
-        .name = (utf8_t*) "Mono",
+        .name = "Mono",
     },
 
     .border = {
         .size = 1,
-        .color = 0x36454f,
-        .active_color = 0x71797e,
-        .focus_color = 0xc7bb28,
+        .color = 0xff36454f,
+        .active_color = 0xff71797e,
+        .focus_color = 0xffc7bb28,
     },
 
     .gaps = {
@@ -51,20 +49,20 @@ const struct configuration default_configuration = {
         .duration = 2,
         .padding = 6,
         .border_size = 1,
-        .border_color = 0x000000,
-        .foreground = 0x000000,
-        .background = 0xffffff,
+        .border_color = 0xff000000,
+        .foreground = 0xff000000,
+        .background = 0xffffffff,
     },
 
     .mouse = {
         .resize_tolerance = 8,
-        .modifiers = XCB_MOD_MASK_4,
-        .ignore_modifiers = XCB_MOD_MASK_LOCK | XCB_MOD_MASK_2,
+        .modifiers = Mod4Mask,
+        .ignore_modifiers = LockMask | Mod2Mask,
     },
 
     .keyboard = {
-        .modifiers = XCB_MOD_MASK_4,
-        .ignore_modifiers = XCB_MOD_MASK_LOCK | XCB_MOD_MASK_2,
+        .modifiers = Mod4Mask,
+        .ignore_modifiers = LockMask | Mod2Mask,
     },
 };
 
@@ -78,11 +76,11 @@ void merge_with_default_button_bindings(struct configuration *configuration)
      */
     struct {
         /* the modifiers of the button */
-        uint16_t modifiers;
+        unsigned modifiers;
         /* the binding flags */
-        uint16_t flags;
+        unsigned flags;
         /* the button to press */
-        xcb_button_t button_index;
+        int button_index;
         /* the singular action to execute */
         action_type_t type;
     } default_bindings[] = {
@@ -100,8 +98,8 @@ void merge_with_default_button_bindings(struct configuration *configuration)
 
     /* get the number of buttons not defined yet */
     new_count = configuration->mouse.number_of_buttons;
-    for (uint32_t i = 0; i < SIZE(default_bindings); i++) {
-        const uint16_t modifiers = default_bindings[i].modifiers |
+    for (unsigned i = 0; i < SIZE(default_bindings); i++) {
+        const unsigned modifiers = default_bindings[i].modifiers |
             configuration->mouse.modifiers;
         button = find_configured_button(configuration, modifiers,
                 default_bindings[i].button_index, default_bindings[i].flags);
@@ -120,8 +118,8 @@ void merge_with_default_button_bindings(struct configuration *configuration)
     RESIZE(configuration->mouse.buttons, new_count);
     next_button =
         &configuration->mouse.buttons[configuration->mouse.number_of_buttons];
-    for (uint32_t i = 0; i < SIZE(default_bindings); i++) {
-        const uint16_t modifiers = default_bindings[i].modifiers |
+    for (unsigned i = 0; i < SIZE(default_bindings); i++) {
+        const unsigned modifiers = default_bindings[i].modifiers |
             configuration->mouse.modifiers;
         button = find_configured_button(configuration, modifiers,
                 default_bindings[i].button_index, default_bindings[i].flags);
@@ -149,9 +147,9 @@ void merge_with_default_key_bindings(struct configuration *configuration)
      */
     struct {
         /* the modifiers of the key */
-        uint16_t modifiers;
+        unsigned modifiers;
         /* the key symbol */
-        xcb_keysym_t key_symbol;
+        KeySym key_symbol;
         /* the singular action to execute */
         struct {
             /* the type of the action */
@@ -163,12 +161,12 @@ void merge_with_default_key_bindings(struct configuration *configuration)
         } action;
     } default_bindings[] = {
         /* reload the configuration */
-        { XCB_MOD_MASK_SHIFT, XK_r, { .type = ACTION_RELOAD_CONFIGURATION } },
+        { ShiftMask, XK_r, { .type = ACTION_RELOAD_CONFIGURATION } },
 
         /* move the focus to a child or parent frame */
         { 0, XK_a, { ACTION_FOCUS_PARENT, true, { .integer = 1 } } },
         { 0, XK_b, { ACTION_FOCUS_CHILD, true, { .integer = 1 } } },
-        { XCB_MOD_MASK_SHIFT, XK_a, { ACTION_FOCUS_PARENT, true, {
+        { ShiftMask, XK_a, { ACTION_FOCUS_PARENT, true, {
                                        .integer = UINT32_MAX } } },
 
         /* make the size of frames equal */
@@ -191,7 +189,7 @@ void merge_with_default_key_bindings(struct configuration *configuration)
         { 0, XK_o, { .type = ACTION_OTHER_FRAME } },
 
         /* toggle between tiling and the previous mode */
-        { XCB_MOD_MASK_SHIFT, XK_space, { .type = ACTION_TOGGLE_TILING } },
+        { ShiftMask, XK_space, { .type = ACTION_TOGGLE_TILING } },
 
         /* toggle between fullscreen and the previous mode */
         { 0, XK_f, { .type = ACTION_TOGGLE_FULLSCREEN } },
@@ -210,10 +208,10 @@ void merge_with_default_key_bindings(struct configuration *configuration)
         { 0, XK_j, { .type = ACTION_FOCUS_DOWN } },
 
         /* exchange frames */
-        { XCB_MOD_MASK_SHIFT, XK_k, { .type = ACTION_EXCHANGE_UP } },
-        { XCB_MOD_MASK_SHIFT, XK_h, { .type = ACTION_EXCHANGE_LEFT } },
-        { XCB_MOD_MASK_SHIFT, XK_l, { .type = ACTION_EXCHANGE_RIGHT } },
-        { XCB_MOD_MASK_SHIFT, XK_j, { .type = ACTION_EXCHANGE_DOWN } },
+        { ShiftMask, XK_k, { .type = ACTION_EXCHANGE_UP } },
+        { ShiftMask, XK_h, { .type = ACTION_EXCHANGE_LEFT } },
+        { ShiftMask, XK_l, { .type = ACTION_EXCHANGE_RIGHT } },
+        { ShiftMask, XK_j, { .type = ACTION_EXCHANGE_DOWN } },
 
         /* move a window */
         { 0, XK_Left, { ACTION_RESIZE_BY, true, {
@@ -226,29 +224,29 @@ void merge_with_default_key_bindings(struct configuration *configuration)
                 .quad = { 0, -20, 0, 20 } } } },
 
         /* resizing the top/left edges of a window */
-        { XCB_MOD_MASK_CONTROL, XK_Left, { ACTION_RESIZE_BY, true, {
+        { ControlMask, XK_Left, { ACTION_RESIZE_BY, true, {
                 .quad = { 20, 0, 0, 0 } } } },
-        { XCB_MOD_MASK_CONTROL, XK_Up, { ACTION_RESIZE_BY, true, {
+        { ControlMask, XK_Up, { ACTION_RESIZE_BY, true, {
                 .quad = { 0, 20, 0, 0 } } } },
-        { XCB_MOD_MASK_CONTROL, XK_Right, { ACTION_RESIZE_BY, true, {
+        { ControlMask, XK_Right, { ACTION_RESIZE_BY, true, {
                 .quad = { -20, 0, 0, 0 } } } },
-        { XCB_MOD_MASK_CONTROL, XK_Down, { ACTION_RESIZE_BY, true, {
+        { ControlMask, XK_Down, { ACTION_RESIZE_BY, true, {
                 .quad = { 0, -20, 0, 0 } } } },
 
         /* resizing the bottom/right edges of a window */
-        { XCB_MOD_MASK_SHIFT, XK_Left, { ACTION_RESIZE_BY, true, {
+        { ShiftMask, XK_Left, { ACTION_RESIZE_BY, true, {
                 .quad = { 0, 0, -20, 0 } } } },
-        { XCB_MOD_MASK_SHIFT, XK_Up, { ACTION_RESIZE_BY, true, {
+        { ShiftMask, XK_Up, { ACTION_RESIZE_BY, true, {
                 .quad = { 0, 0, 0, -20 } } } },
-        { XCB_MOD_MASK_SHIFT, XK_Right, { ACTION_RESIZE_BY, true, {
+        { ShiftMask, XK_Right, { ACTION_RESIZE_BY, true, {
                 .quad = { 0, 0, 20, 0 } } } },
-        { XCB_MOD_MASK_SHIFT, XK_Down, { ACTION_RESIZE_BY, true, {
+        { ShiftMask, XK_Down, { ACTION_RESIZE_BY, true, {
                 .quad = { 0, 0, 0, 20 } } } },
 
         /* inflate/deflate a window */
-        { XCB_MOD_MASK_CONTROL, XK_equal, {
+        { ControlMask, XK_equal, {
                 ACTION_RESIZE_BY, true, { .quad = { 10, 10, 10, 10 } } } },
-        { XCB_MOD_MASK_CONTROL, XK_minus, {
+        { ControlMask, XK_minus, {
                 ACTION_RESIZE_BY, true, { .quad = { -10, -10, -10, -10 } } } },
 
         /* show the interactive window list */
@@ -261,8 +259,7 @@ void merge_with_default_key_bindings(struct configuration *configuration)
             } } },
 
         /* quit fensterchef */
-        { XCB_MOD_MASK_CONTROL | XCB_MOD_MASK_SHIFT, XK_e,
-            { .type = ACTION_QUIT } }
+        { ControlMask | ShiftMask, XK_e, { .type = ACTION_QUIT } }
     };
 
     struct configuration_key *key;
@@ -271,10 +268,10 @@ void merge_with_default_key_bindings(struct configuration *configuration)
 
     /* get the number of keys not defined yet */
     new_count = configuration->keyboard.number_of_keys;
-    for (uint32_t i = 0; i < SIZE(default_bindings); i++) {
-        const uint16_t modifiers = default_bindings[i].modifiers |
+    for (unsigned i = 0; i < SIZE(default_bindings); i++) {
+        const unsigned modifiers = default_bindings[i].modifiers |
             configuration->keyboard.modifiers;
-        key = find_configured_key_by_symbol(configuration, modifiers,
+        key = find_configured_key_by_key_symbol(configuration, modifiers,
                 default_bindings[i].key_symbol, 0);
         if (key != NULL) {
             continue;
@@ -291,10 +288,10 @@ void merge_with_default_key_bindings(struct configuration *configuration)
     RESIZE(configuration->keyboard.keys, new_count);
     next_key =
         &configuration->keyboard.keys[configuration->keyboard.number_of_keys];
-    for (uint32_t i = 0; i < SIZE(default_bindings); i++) {
-        const uint16_t modifiers = default_bindings[i].modifiers |
+    for (unsigned i = 0; i < SIZE(default_bindings); i++) {
+        const unsigned modifiers = default_bindings[i].modifiers |
             configuration->keyboard.modifiers;
-        key = find_configured_key_by_symbol(configuration, modifiers,
+        key = find_configured_key_by_key_symbol(configuration, modifiers,
                 default_bindings[i].key_symbol, 0);
         if (key != NULL) {
             continue;
@@ -328,4 +325,3 @@ void load_default_configuration(void)
 
     set_configuration(&configuration);
 }
-

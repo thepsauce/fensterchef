@@ -9,6 +9,7 @@
 #include "log.h"
 #include "monitor.h"
 #include "move_frame.h"
+#include "notification.h"
 #include "size_frame.h"
 #include "split.h"
 #include "stash_frame.h"
@@ -35,7 +36,7 @@ action_type_t string_to_action_type(const char *string)
 }
 
 /* Resize the current window or current frame if it does not exist. */
-static bool resize_frame_or_window_by(Window *window, int32_t left, int32_t top,
+static bool resize_frame_or_window_by(FcWindow *window, int32_t left, int32_t top,
         int32_t right, int32_t bottom)
 {
     Frame *frame;
@@ -80,7 +81,7 @@ static bool resize_frame_or_window_by(Window *window, int32_t left, int32_t top,
  */
 bool set_showable_tiling_window(uint32_t count, bool previous)
 {
-    Window *start, *next, *valid_window = NULL;
+    FcWindow *start, *next, *valid_window = NULL;
 
     if (Frame_focus->window == NULL) {
         start = NULL;
@@ -117,7 +118,7 @@ bool set_showable_tiling_window(uint32_t count, bool previous)
     }
 
     if (valid_window == NULL) {
-        set_notification((utf8_t*) "No other window",
+        set_notification("No other window",
                 Frame_focus->x + Frame_focus->width / 2,
                 Frame_focus->y + Frame_focus->height / 2);
         return false;
@@ -137,7 +138,7 @@ bool set_showable_tiling_window(uint32_t count, bool previous)
 /* Change the focus from tiling to non tiling and vise versa. */
 bool toggle_focus(void)
 {
-    Window *window;
+    FcWindow *window;
 
     /* Four cases must be handled:
      * 1. No window is focused
@@ -181,7 +182,7 @@ static void move_to_frame(Frame *from, Frame *to, Monitor *monitor,
         exchange_frames(from, to);
     /* check if a window is covering the monitor */
     } else if (monitor != NULL) {
-        Window *const window = get_window_covering_monitor(monitor);
+        FcWindow *const window = get_window_covering_monitor(monitor);
         if (window != NULL) {
             set_focus_window(window);
             Frame_focus = to;
@@ -330,7 +331,7 @@ static bool move_to_below_frame(Frame *relative, bool do_exchange)
 /* Do the given action. */
 bool do_action(action_type_t type, GenericData *data)
 {
-    Window *window;
+    FcWindow *window;
     char *shell;
     int32_t count;
     Frame *frame;
@@ -363,12 +364,12 @@ bool do_action(action_type_t type, GenericData *data)
     /* assign a number to a frame */
     case ACTION_ASSIGN:
         /* remove the number from the old frame if there is any */
-        frame = get_frame_by_number((uint32_t) data->integer);
+        frame = get_frame_by_number((unsigned) data->integer);
         /* also try to find it in the stash */
         if (frame == NULL) {
             frame = Frame_last_stashed;
             for (; frame != NULL; frame = frame->previous_stashed) {
-                if (frame->number == (uint32_t) data->integer) {
+                if (frame->number == (unsigned) data->integer) {
                     break;
                 }
             }
@@ -379,14 +380,14 @@ bool do_action(action_type_t type, GenericData *data)
 
         Frame_focus->number = data->integer;
         if (Frame_focus->number == 0) {
-            set_notification((utf8_t*) "Number removed",
+            set_notification("Number removed",
                     Frame_focus->x + Frame_focus->width / 2,
                     Frame_focus->y + Frame_focus->height / 2);
         } else {
             char number[MAXIMUM_DIGITS(Frame_focus->number) + 1];
 
             snprintf(number, sizeof(number), "%" PRIu32, Frame_focus->number);
-            set_notification((utf8_t*) number,
+            set_notification(number,
                     Frame_focus->x + Frame_focus->width / 2,
                     Frame_focus->y + Frame_focus->height / 2);
         }
@@ -394,7 +395,7 @@ bool do_action(action_type_t type, GenericData *data)
 
     /* focus a frame with given number */
     case ACTION_FOCUS_FRAME:
-        frame = get_frame_by_number((uint32_t) data->integer);
+        frame = get_frame_by_number((unsigned) data->integer);
         /* check if the frame is already shown */
         if (frame != NULL) {
             set_focus_frame(frame);
@@ -404,7 +405,7 @@ bool do_action(action_type_t type, GenericData *data)
         frame = Frame_last_stashed;
         /* also try to find it in the stash */
         for (; frame != NULL; frame = frame->previous_stashed) {
-            if (frame->number == (uint32_t) data->integer) {
+            if (frame->number == (unsigned) data->integer) {
                 break;
             }
         }
@@ -699,30 +700,29 @@ bool do_action(action_type_t type, GenericData *data)
     /* toggle visibility of the interactive window list */
     case ACTION_SHOW_WINDOW_LIST:
         if (show_window_list() == ERROR) {
-            unmap_client(&window_list.client);
             return false;
         }
         break;
 
     /* run a shell program */
     case ACTION_RUN:
-        run_shell((char*) data->string);
+        run_shell(data->string);
         break;
 
     /* show the user a message */
     case ACTION_SHOW_MESSAGE:
-        set_notification((utf8_t*) data->string,
+        set_notification(data->string,
                 Frame_focus->x + Frame_focus->width / 2,
                 Frame_focus->y + Frame_focus->height / 2);
         break;
 
     /* show a message by getting output from a shell script */
     case ACTION_SHOW_MESSAGE_RUN:
-        shell = run_command_and_get_output((char*) data->string);
+        shell = run_command_and_get_output(data->string);
         if (shell == NULL) {
             return false;
         }
-        set_notification((utf8_t*) shell,
+        set_notification(shell,
                 Frame_focus->x + Frame_focus->width / 2,
                 Frame_focus->y + Frame_focus->height / 2);
         free(shell);
@@ -765,7 +765,7 @@ bool do_action(action_type_t type, GenericData *data)
             monitor = get_monitor_from_rectangle(window->x,
                     window->y, window->width, window->height);
         } else {
-            monitor = get_monitor_by_pattern((char*) data->string);
+            monitor = get_monitor_by_pattern(data->string);
         }
 
         if (monitor == NULL) {
@@ -781,7 +781,7 @@ bool do_action(action_type_t type, GenericData *data)
 
     /* write all frensterchef information to a file */
     case ACTION_DUMP_LAYOUT:
-        if (dump_frames_and_windows((char*) data->string) == ERROR) {
+        if (dump_frames_and_windows(data->string) == ERROR) {
             return false;
         }
         break;

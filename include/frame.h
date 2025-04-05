@@ -1,8 +1,6 @@
 #ifndef FRAME_H
 #define FRAME_H
 
-#include <xcb/xcb.h>
-
 #include <stdbool.h>
 
 #include "bits/frame_typedef.h"
@@ -48,20 +46,20 @@ struct frame {
     /* reference counter to keep the pointer around for longer after the frame
      * has been destroyed
      */
-    uint32_t reference_count;
+    unsigned reference_count;
 
     /* the window inside the frame, may be NULL; it can also happen that this
      * becomes a completely invalid memory address but only if the frame is
      * stashed, these invalid windows are resolved once the frame becomes
      * unstashed
      */
-    Window *window;
+    FcWindow *window;
 
     /* coordinates and size of the frame */
-    int32_t x;
-    int32_t y;
-    uint32_t width;
-    uint32_t height;
+    int x;
+    int y;
+    unsigned width;
+    unsigned height;
 
     /* ration between the two children */
     Ratio ratio;
@@ -84,7 +82,7 @@ struct frame {
     Frame *previous_stashed;
 
     /* the id of this frame, this is a unique number, the exception is 0 */
-    uint32_t number;
+    unsigned number;
 };
 
 /* the last frame in the frame stashed linked list */
@@ -111,7 +109,7 @@ Frame *create_frame(void);
 void destroy_frame(Frame *frame);
 
 /* Look through all visible frames to find a frame with given @number. */
-Frame *get_frame_by_number(uint32_t number);
+Frame *get_frame_by_number(unsigned number);
 
 /* Check if the given @frame has no splits and no window. */
 bool is_frame_void(const Frame *frame);
@@ -120,13 +118,13 @@ bool is_frame_void(const Frame *frame);
  *
  * @return if the point is inside the frame.
  */
-bool is_point_in_frame(const Frame *frame, int32_t x, int32_t y);
+bool is_point_in_frame(const Frame *frame, int x, int y);
 
 /* Get a frame at given position.
  *
  * @return a LEAF frame at given position or NULL when there is none.
  */
-Frame *get_frame_at_position(int32_t x, int32_t y);
+Frame *get_frame_at_position(int x, int y);
 
 /* Replace @frame with @with.
  *
@@ -152,7 +150,7 @@ void reload_frame(Frame *frame);
 void set_focus_frame(Frame *frame);
 
 /* Focus @window and the frame it is in. */
-void set_focus_window_with_frame(Window *window);
+void set_focus_window_with_frame(FcWindow *window);
 
 /* Get the frame above the given one that has no parent.
  *

@@ -9,56 +9,56 @@
 /* Allocate a minimum of @size bytes of memory. */
 void *xmalloc(size_t size)
 {
-    void *ptr;
+    void *pointer;
 
     if (UNLIKELY(size == 0)) {
         return NULL;
     }
 
-    ptr = malloc(size);
-    ASSERT(ptr != NULL, strerror(errno));
-    return ptr;
+    pointer = malloc(size);
+    ASSERT(pointer != NULL, strerror(errno));
+    return pointer;
 }
 
 /* Allocate @number_of_elements number of elements with each element being
  * @size_per_element large.
  */
-void *xcalloc(size_t nmemb, size_t size)
+void *xcalloc(size_t number_of_elements, size_t size_per_element)
 {
-    void *ptr;
+    void *pointer;
 
-    if (UNLIKELY(nmemb == 0 || size == 0)) {
+    if (UNLIKELY(number_of_elements == 0 || size_per_element == 0)) {
         return NULL;
     }
 
-    ptr = calloc(nmemb, size);
-    ASSERT(ptr != NULL, strerror(errno));
-    return ptr;
+    pointer = calloc(number_of_elements, size_per_element);
+    ASSERT(pointer != NULL, strerror(errno));
+    return pointer;
 }
 
 /* Grow or shrink a previously allocated memory region. */
-void *xrealloc(void *ptr, size_t size)
+void *xrealloc(void *pointer, size_t size)
 {
     if (size == 0) {
-        free(ptr);
+        free(pointer);
         return NULL;
     }
 
-    ptr = realloc(ptr, size);
-    ASSERT(ptr != NULL, strerror(errno));
-    return ptr;
+    pointer = realloc(pointer, size);
+    ASSERT(pointer != NULL, strerror(errno));
+    return pointer;
 }
 
 /* Same as `xrealloc()` but instead of using bytes as argument, use
  * @number_of_elements * @size_per_element.
  */
-void *xreallocarray(void *ptr, size_t nmemb, size_t size)
+void *xreallocarray(void *pointer, size_t number_of_elements, size_t size)
 {
-    size_t n_bytes;
+    size_t byte_count;
 
-    ASSERT(!OVERFLOW_MULTIPLY(nmemb, size, n_bytes),
+    ASSERT(!OVERFLOW_MULTIPLY(number_of_elements, size, byte_count),
             "unsigned integer overflow");
-    return xrealloc(ptr, n_bytes);
+    return xrealloc(pointer, byte_count);
 }
 
 /* Combination of `xmalloc()` and `memcpy()`. */

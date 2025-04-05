@@ -1,7 +1,7 @@
 #ifndef WINDOW_PROPERTIES_H
 #define WINDOW_PROPERTIES_H
 
-#include "bits/configuration_structure.h"
+#include <X11/Xatom.h>
 
 #include "window_state.h"
 
@@ -191,7 +191,7 @@
     X(FENSTERCHEF_COMMAND)
 
 /* get the atom identifier from an atom constant */
-#define ATOM(id) (x_atoms[id].atom)
+#define ATOM(id) (x_atom_ids[id])
 
 /* constant list expansion of all atoms */
 enum {
@@ -201,24 +201,20 @@ enum {
     ATOM_MAX
 };
 
-/* all X atoms, initially all identifiers are 0 until `initialize_atoms()` is
- * called
- */
-extern struct x_atoms {
-    /* name of the atom */
-    const char *name;
-    /* atom identifier */
-    xcb_atom_t atom;
-} x_atoms[ATOM_MAX];
+/* all X atom names */
+extern const char *x_atom_names[ATOM_MAX];
+
+/* all X atom ids */
+extern Atom x_atom_ids[ATOM_MAX];
 
 /* Intern all X atoms we require. */
-int initialize_atoms(void);
+void initialize_atoms(void);
 
 /* Set the initial root window properties. */
 void initialize_root_properties(void);
 
 /* Gets the `FENSTERCHEF_COMMAND` property from @window. */
-char *get_fensterchef_command_property(xcb_window_t window);
+char *get_fensterchef_command_property(Window window);
 
 /* Initialize all properties within @window.
  *
@@ -226,16 +222,16 @@ char *get_fensterchef_command_property(xcb_window_t window);
  *
  * @return the mode the window should be in initially.
  */
-window_mode_t initialize_window_properties(Window *window,
+window_mode_t initialize_window_properties(FcWindow *window,
         struct configuration_association *association);
 
 /* Update the property within @window corresponding to given @atom. */
-bool cache_window_property(Window *window, xcb_atom_t atom);
+bool cache_window_property(FcWindow *window, Atom atom);
 
 /* Check if @window supports @protocol. */
-bool supports_protocol(Window *window, xcb_atom_t protocol);
+bool supports_protocol(FcWindow *window, Atom protocol);
 
 /* Check if @window includes @state. */
-bool has_state(Window *window, xcb_atom_t state);
+bool has_state(FcWindow *window, Atom state);
 
 #endif

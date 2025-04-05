@@ -11,6 +11,8 @@
 
 #include "xalloc.h"
 
+typedef char utf8_t;
+
 /* success indicator value */
 #define OK 0
 
@@ -122,47 +124,47 @@
 /* a point at position x, y */
 typedef struct position {
     /* horizontal position */
-    int32_t x;
+    int x;
     /* vertical position */
-    int32_t y;
+    int y;
 } Point;
 
 /* a size of width x height */
 typedef struct size {
     /* horizontal size */
-    uint32_t width;
+    unsigned int width;
     /* vertical size */
-    uint32_t height;
+    unsigned int height;
 } Size;
 
 /* offsets from the edges of *something* */
 typedef struct extents {
     /* left extent */
-    int32_t left;
+    int left;
     /* right extent */
-    int32_t right;
+    int right;
     /* top extent */
-    int32_t top;
+    int top;
     /* bottom extent */
-    int32_t bottom;
+    int bottom;
 } Extents;
 
 /* a rectangular region */
 typedef struct rectangle {
     /* horizontal position */
-    int32_t x;
+    int x;
     /* vertical position */
-    int32_t y;
+    int y;
     /* horizontal size */
-    uint32_t width;
+    unsigned int width;
     /* vertical size */
-    uint32_t height;
+    unsigned int height;
 } Rectangle;
 
 /* fraction: numerator over denominator */
 typedef struct ratio {
-    uint32_t numerator;
-    uint32_t denominator;
+    unsigned int numerator;
+    unsigned int denominator;
 } Ratio;
 
 /* Run @command within a shell in the background. */
@@ -193,5 +195,8 @@ int strcasecmp(const char *string1, const char *string2);
  * @return if the string matches the pattern.
  */
 bool matches_pattern(char const *pattern, char const *string);
+
+/* Use the FNV-1 hash algorithm to compute the hash of @name. */
+uint32_t get_fnv1_hash(const char *name);
 
 #endif
