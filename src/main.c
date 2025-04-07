@@ -45,24 +45,20 @@ int main(int argc, char **argv)
     LOG("welcome to " FENSTERCHEF_NAME " " FENSTERCHEF_VERSION "\n");
     LOG("the configuration file may reside in %s\n", Fensterchef_configuration);
 
-    /* initialize the X display */
+    /* initialize the X display and atoms */
     if (initialize_connection() != OK) {
         quit_fensterchef(EXIT_FAILURE);
     }
 
-    /* try to take control of the window manager role */
-    if (take_control() == ERROR) {
-        quit_fensterchef(EXIT_FAILURE);
-    }
+    /* try to take control of the window manager role, this will quit on its own
+     * if it failed
+     */
+    take_control();
 
-    /* initialize the X atoms */
-    initialize_atoms();
-
-    /* set the signal handlers */
+    /* set the signal handlers (very crucial because if we do not handle
+     * `SIGALRM`, fensterchef quits)
+     */
     initialize_signal_handlers();
-
-    /* initialize utility windows */
-    initialize_utility_windows();
 
     /* initialize randr if possible and the initial frames */
     initialize_monitors();

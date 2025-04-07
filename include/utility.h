@@ -70,8 +70,8 @@ typedef char utf8_t;
 #define SIZE(a) (sizeof(a) / sizeof(*(a)))
 
 /* Turn the argument into a string. */
-#define _STRINGIFY(str) #str
-#define STRINGIFY(str) _STRINGIFY(str)
+#define _STRINGIFY(x) #x
+#define STRINGIFY(x) _STRINGIFY(x)
 
 /* Resize allocated array to given number of elements.
  *
@@ -87,6 +87,12 @@ typedef char utf8_t;
  * ```
  */
 #define RESIZE(p, a) ((p) = xreallocarray(p, (a), sizeof(*(p))))
+
+/* Allocate a block of memory and put it into @p. */
+#define ALLOCATE(p, a) ((p) = xreallocarray(NULL, (a), sizeof(*(p))))
+
+/* Allocate a zeroed out block of memory and put it into @p. */
+#define ZERO_ALLOCATE(p, a) ((p) = xcalloc((a), sizeof(*(p))))
 
 /* Duplicate a memory block. */
 #define DUPLICATE(p, n) (xmemdup((p), sizeof(*(p)) * (n)))

@@ -127,7 +127,7 @@ bool move_frame_down(Frame *frame);
 
 /* Exchange @from with @to.
  *
- * The exchange must be well defined for the two frames and these cases lead to
+ * The exchange must be well defined for the two frames. These cases lead to
  * undefined behavior:
  * - @to is within @from
  * - @from is within @to

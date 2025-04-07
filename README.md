@@ -2,40 +2,29 @@
 
 Fensterchef is a keyboard-centric tiling window manager for X11.
 
-### Fensterchef includes
-
-- Manual tiling
-- Dynamic tiling
-- Floating windows
-- Dock windows of any kind
-- Desktop windows
-- Fullscreen windows
-- Minimizing windows
-- A simple configuration
-- Sending of external commands
-
-### Fensterchef does not include
-
-- A builtin bar
-- Window frames (only simple borders)
-- Desktops or workspaces in i3 terms
-
-### Why no workspaces?
-
-Workspaces are a good way to group windows together but since windows can be
-minimized and re-opened at any time through the window list or special hotkeys,
-there is no need for that.
-
-## Gallery
-
-I am a boring person when it comes to customizing but this is how it might look:
-
-![fensterchef](./images/fensterchef.png)
-![fensterchef](./images/fensterchef2.png)
-
 ## Installation
 
-Get started immediately! Open a terminal and clone the repository:
+### Dependencies
+
+#### Make dependencies
+
+- make
+- pkg-config
+- find
+- (Optionally) Xephyr
+
+#### Library dependencies
+
+- X11
+- Xrandr
+- Xcursor
+- Xft
+- fontconfig
+- freetype2
+
+### Build from source
+
+Open a terminal and clone the repository:
 ```sh
 git clone https://github.com/thepsauce/fensterchef.git
 ```
@@ -71,14 +60,9 @@ make sandbox
 This will open a 800x600 window in your current desktop environment in which you
 can try out **fensterchef**.
 
-## Bugs and feature requests
+### What now
 
-Report any issues directly to us over the Github issues tab.
-
-An issue should start with the version, the rest is up to you. Try to add steps
-to reproduce the issue and add the relevant excerpts from the log.
-
-If it is a feature request, you can freely write anything.
+Check out the Wiki on Github!
 
 ## Contact
 

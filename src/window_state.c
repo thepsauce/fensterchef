@@ -4,7 +4,7 @@
 #include "frame.h"
 #include "log.h"
 #include "monitor.h"
-#include "split.h"
+#include "split_frame.h"
 #include "stash_frame.h"
 #include "utility.h"
 #include "window.h"

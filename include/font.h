@@ -41,6 +41,9 @@ typedef struct text {
 /* Get the text colors for rendering. */
 int get_xft_colors(XftColor *background, XftColor *foreground);
 
+/* Free the resources the font list occupies. */
+void free_font_list(void);
+
 /* Set the global font using given fontconfig pattern string. */
 int set_font(const char *name);
 

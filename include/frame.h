@@ -48,10 +48,9 @@ struct frame {
      */
     unsigned reference_count;
 
-    /* the window inside the frame, may be NULL; it can also happen that this
-     * becomes a completely invalid memory address but only if the frame is
-     * stashed, these invalid windows are resolved once the frame becomes
-     * unstashed
+    /* the window inside the frame, may be NULL; this might become a destroyed
+     * window when this frame is stashed, to check this use `window->client.id`,
+     * it should be `None` when the window is destroyed
      */
     FcWindow *window;
 

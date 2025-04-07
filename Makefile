@@ -4,16 +4,16 @@ CC := gcc
 # Packages
 PACKAGES := x11 xrandr xcursor xft fontconfig
 
-# Compiler flags #-Werror
-DEBUG_FLAGS := -DDEBUG -g -fsanitize=address -pg -Werror
+# Compiler flags
 # Also include freetype2 which is needed for Xft headers to work
 C_FLAGS := -Iinclude -std=c99 \
 		   $(shell pkg-config --cflags $(PACKAGES) freetype2) \
            -Wall -Wextra -Wpedantic -Wno-format-zero-length
-RELEASE_FLAGS := -O3
+DEBUG_FLAGS := -DDEBUG -g -fsanitize=address -pg -Werror $(C_FLAGS)
+RELEASE_FLAGS := -O3 $(C_FLAGS)
 
 # Libraries
-C_LIBS := $(shell pkg-config --libs $(PACKAGES))
+C_LIBRARIES := $(shell pkg-config --libs $(PACKAGES))
 
 # Installation paths
 LICENSE := /usr/share/licenses/fensterchef
@@ -23,7 +23,7 @@ MANUAL_PAGE_5 := /usr/share/man/man5/fensterchef.5.gz
 
 # Sandbox parameters
 SANDBOX_DISPLAY := 8
-SANDBOX := Xephyr :$(SANDBOX_DISPLAY) +extension RANDR -br -ac -noreset -screen 800x600
+SANDBOX := Xephyr :$(SANDBOX_DISPLAY) -screen 800x600
 
 # Find all source files
 SOURCES := $(shell find src -name '*.c')
@@ -43,12 +43,12 @@ default: build
 # Build each object from corresponding source file
 build/%.o: src/%.c
 	mkdir -p $(dir $@)
-	$(CC) $(DEBUG_FLAGS) $(C_FLAGS) -c $< -o $@ -MMD
+	$(CC) $(DEBUG_FLAGS) -c $< -o $@ -MMD
 
 # Build the main executable from all object files
 build/fensterchef: $(OBJECTS)
 	mkdir -p $(dir $@)
-	$(CC) $(DEBUG_FLAGS) $(C_FLAGS) $(OBJECTS) -o $@ $(C_LIBS)
+	$(CC) $(DEBUG_FLAGS) $(OBJECTS) -o $@ $(C_LIBRARIES)
 
 # Manual pages
 release/fensterchef.1.gz: man/fensterchef.1
@@ -62,7 +62,7 @@ release/fensterchef.5.gz: man/fensterchef.5
 # Release executable
 release/fensterchef: $(SOURCES) $(INCLUDES)
 	mkdir -p release
-	gcc $(RELEASE_FLAGS) $(C_FLAGS) $(SOURCES) -o release/fensterchef $(C_LIBS)
+	gcc $(RELEASE_FLAGS) $(SOURCES) -o release/fensterchef $(C_LIBRARIES)
 
 # Functions
 .PHONY: build sandbox release install uninstall clean

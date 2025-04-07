@@ -9,7 +9,6 @@
 #include "log.h"
 #include "monitor.h"
 #include "size_frame.h"
-#include "split.h"
 #include "stash_frame.h"
 #include "utility.h"
 #include "window.h"

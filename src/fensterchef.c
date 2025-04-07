@@ -4,6 +4,7 @@
 #include <X11/Xatom.h>
 
 #include "fensterchef.h"
+#include "font.h"
 #include "frame.h"
 #include "log.h"
 #include "monitor.h"
@@ -78,6 +79,8 @@ void quit_fensterchef(int exit_code)
 {
     LOG("quitting fensterchef with exit code: %d\n", exit_code);
     XCloseDisplay(display);
+    /* when debugging, this avoids ugly messages from the sanitizer */
+    free_font_list();
     exit(exit_code);
 }
 

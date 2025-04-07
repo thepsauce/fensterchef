@@ -16,7 +16,6 @@
 #include "monitor.h"
 #include "notification.h"
 #include "size_frame.h"
-#include "split.h"
 #include "utility.h"
 #include "window.h"
 #include "window_list.h"
@@ -485,9 +484,6 @@ static void handle_key_press(XKeyPressedEvent *event)
         LOG("evaluating expression: %A\n",
                 &key->expression);
         evaluate_expression(&key->expression, NULL);
-    } else {
-        LOG_DEBUG("key press had no bind: %#x %d\n",
-                event->state, event->keycode);
     }
 }
 
@@ -502,9 +498,6 @@ static void handle_key_release(XKeyReleasedEvent *event)
         LOG("evaluating expression: %A\n",
                 &key->expression);
         evaluate_expression(&key->expression, NULL);
-    } else {
-        LOG_DEBUG("key release had no bing: %#x %d\n",
-                event->state, event->keycode);
     }
 }
 

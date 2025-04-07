@@ -114,7 +114,7 @@ int get_xft_colors(XftColor *background, XftColor *foreground)
 }
 
 /* Free the resources the font list occupies. */
-static void free_font_list(void)
+void free_font_list(void)
 {
     for (int i = 0; i < font_list.count; i++) {
         if (font_list.fonts[i].font != NULL) {
@@ -171,6 +171,7 @@ int set_font(const char *name)
         font_count++;
     }
 
+    FcPatternDestroy(match);
     FcFontSetDestroy(set);
 
     if (font_count < 0) {
@@ -227,8 +228,8 @@ void initialize_text(Text *text, const FcChar32 *glyphs, int glyph_count)
     int glyph_index = 0;
 
     /* initialize the text object */
-    text->glyphs = xreallocarray(NULL, glyph_count, sizeof(*text->glyphs));
-    text->items = xreallocarray(NULL, item_capacity, sizeof(*text->items));
+    ALLOCATE(text->glyphs, glyph_count);
+    ALLOCATE(text->items, item_capacity);
     text->item_count = 0;
     text->x = 0;
     text->y = 0;

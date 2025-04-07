@@ -11,7 +11,7 @@
 #include "move_frame.h"
 #include "notification.h"
 #include "size_frame.h"
-#include "split.h"
+#include "split_frame.h"
 #include "stash_frame.h"
 #include "utility.h"
 #include "window_list.h"

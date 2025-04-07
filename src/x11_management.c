@@ -22,37 +22,6 @@ Display *display;
 /* file descriptor associated to the X display */
 int x_file_descriptor;
 
-/* The handler for X errors. */
-static int x_error_handler(Display *display, XErrorEvent *error)
-{
-    char buffer[128];
-
-    if (error->error_code == xkb_error_base) {
-        LOG_ERROR("Xkb request failed: %d\n",
-                error->request_code);
-        return 0;
-    }
-
-    if (error->error_code == randr_error_base) {
-        LOG_ERROR("Xkb request failed: %d\n",
-                error->request_code);
-        return 0;
-    }
-
-    if (error->request_code == X_ChangeWindowAttributes &&
-            error->error_code == BadAccess) {
-        LOG_ERROR("there is already a window manager running on %s\n",
-                XDisplayName(NULL));
-        Fensterchef_is_running = false;
-        return 0;
-    }
-
-    XGetErrorText(display, error->error_code, buffer, sizeof(buffer));
-
-    LOG_ERROR("X error: %s\n", buffer);
-    return 0;
-}
-
 /* Initialize the X display. */
 int initialize_connection(void)
 {
@@ -85,10 +54,6 @@ int initialize_connection(void)
         return ERROR;
     }
 
-    /* set an error handler */
-    XSetErrorHandler(x_error_handler);
-    /* TODO: set error handler for IO error */
-
     /* receive events when the keyboard changes */
     XkbSelectEventDetails(display, XkbUseCoreKbd, XkbNewKeyboardNotify,
             XkbNKN_KeycodesMask,
@@ -100,17 +65,45 @@ int initialize_connection(void)
 
     x_file_descriptor = XConnectionNumber(display);
     LOG("%D\n", display);
+
+    /* initialize the X atoms */
+    initialize_atoms();
     return OK;
 }
 
+/* The handler for X errors. */
+static int x_error_handler(Display *display, XErrorEvent *error)
+{
+    char buffer[128];
+
+    if (error->error_code == xkb_error_base) {
+        LOG_ERROR("Xkb request failed: %d\n",
+                error->request_code);
+        return 0;
+    }
+
+    if (error->error_code == randr_error_base) {
+        LOG_ERROR("Xkb request failed: %d\n",
+                error->request_code);
+        return 0;
+    }
+
+    XGetErrorText(display, error->error_code, buffer, sizeof(buffer));
+
+    LOG_ERROR("X error: %s\n", buffer);
+    return 0;
+}
+
 /* Try to take control of the window manager role. */
-int take_control(void)
+void take_control(void)
 {
     XSetWindowAttributes attributes;
 
-    Fensterchef_is_running = true;
-
     /* with this event mask, we get the following events:
+     * SubstructureRedirectMask
+     *  CirculateRequest
+     *  ConfigureRequest
+     *  MapRequest
      * SubstructureNotifyMask
      *  CirculateNotify
      * 	ConfigureNotify
@@ -120,29 +113,11 @@ int take_control(void)
      *  MapNotify
      *  ReparentNotify
      *  UnmapNotify
-     * SubstructureRedirectMask
-     *  CirculateRequest
-     *  ConfigureRequest
-     *  MapRequest
      */
     attributes.event_mask = SubstructureRedirectMask | SubstructureNotifyMask;
-
     XChangeWindowAttributes(display, DefaultRootWindow(display), CWEventMask,
             &attributes);
 
-    /* wait until we get a reply to our request */
-    XSync(display, False);
-
-    /* check if the error handler set this to false */
-    if (!Fensterchef_is_running) {
-        return ERROR;
-    }
-    return OK;
-}
-
-/* Initialize utility windows. */
-void initialize_utility_windows(void)
-{
     /* create the wm check window, this can be used by other applications to
      * identify our window manager, we also use it as fallback focus
      */
@@ -160,6 +135,14 @@ void initialize_utility_windows(void)
 
     /* intialize the focus */
     XSetInputFocus(display, wm_check_window, RevertToParent, CurrentTime);
+
+    /* wait until we get replies to our requests, all should succeed */
+    XSync(display, False);
+
+    /* set an error handler so that further errors do not abort fensterchef */
+    XSetErrorHandler(x_error_handler);
+
+    Fensterchef_is_running = true;
 }
 
 /* Go through all existing windows and manage them. */

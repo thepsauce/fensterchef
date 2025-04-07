@@ -6,7 +6,7 @@
 #include "log.h"
 #include "monitor.h"
 #include "size_frame.h"
-#include "split.h"
+#include "split_frame.h"
 #include "stash_frame.h"
 #include "utility.h"
 #include "window.h"
@@ -36,7 +36,9 @@ inline void dereference_frame(Frame *frame)
 /* Create a frame object. */
 inline Frame *create_frame(void)
 {
-    Frame *const frame = xcalloc(1, sizeof(*Frame_focus));
+    Frame *frame;
+
+    ZERO_ALLOCATE(frame, 1);
     frame->reference_count = 1;
     return frame;
 }

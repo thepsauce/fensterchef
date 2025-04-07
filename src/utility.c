@@ -1,4 +1,5 @@
 #include <ctype.h>
+#include <errno.h> // EINTR
 #include <stdbool.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -61,11 +62,13 @@ char *run_command_and_get_output(const char *command)
 
     child_process_id = fork();
     switch (child_process_id) {
+    /* fork failed */
     case -1:
         close(pipe_descriptors[0]);
         close(pipe_descriptors[1]);
         return NULL;
 
+    /* child process */
     case 0:
         close(pipe_descriptors[0]);
         if (pipe_descriptors[1] != STDOUT_FILENO) {
@@ -77,9 +80,17 @@ char *run_command_and_get_output(const char *command)
         break;
     }
 
+    /* parent process */
     close(pipe_descriptors[1]);
 
-    read(pipe_descriptors[1], buffer, sizeof(buffer));
+    read(pipe_descriptors[0], buffer, sizeof(buffer));
+
+    char *const new_line = strchr(buffer, '\n');
+    if (new_line != NULL) {
+        new_line[0] = '\0';
+    }
+
+    close(pipe_descriptors[0]);
 
     return xstrdup(buffer);
 }

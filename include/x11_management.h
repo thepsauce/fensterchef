@@ -116,12 +116,9 @@ int initialize_connection(void);
  * Call this after `initialize_connection()`. This will set
  * `Fensterchef_is_running` to true if it succeeds.
  *
- * @return ERROR when no control was able to be taken, otherwise OK.
+ * If it fails, it aborts fensterchef.
  */
-int take_control(void);
-
-/* Initialize utility windows. */
-void initialize_utility_windows(void);
+void take_control(void);
 
 /* Go through all already existing windows and manage them.
  *
