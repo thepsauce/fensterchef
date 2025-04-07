@@ -78,9 +78,9 @@ void run_external_command(const char *command)
 void quit_fensterchef(int exit_code)
 {
     LOG("quitting fensterchef with exit code: %d\n", exit_code);
-    XCloseDisplay(display);
     /* when debugging, this avoids ugly messages from the sanitizer */
     free_font_list();
+    XCloseDisplay(display);
     exit(exit_code);
 }
 

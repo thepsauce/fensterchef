@@ -92,7 +92,7 @@ typedef char utf8_t;
 #define ALLOCATE(p, a) ((p) = xreallocarray(NULL, (a), sizeof(*(p))))
 
 /* Allocate a zeroed out block of memory and put it into @p. */
-#define ZERO_ALLOCATE(p, a) ((p) = xcalloc((a), sizeof(*(p))))
+#define ALLOCATE_ZERO(p, a) ((p) = xcalloc((a), sizeof(*(p))))
 
 /* Duplicate a memory block. */
 #define DUPLICATE(p, n) (xmemdup((p), sizeof(*(p)) * (n)))

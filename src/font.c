@@ -126,18 +126,20 @@ void free_font_list(void)
 }
 
 /* Set the global font using given fontconfig pattern string. */
-int set_font(const char *name)
+int set_font(const utf8_t *name)
 {
     FcPattern *pattern;
     FcPattern *match;
     FcResult result;
     FcFontSet *set;
 
-    struct font *fonts = NULL;
+    struct font *fonts;
     int font_count = 0;
 
-    pattern = FcNameParse((FcChar8*) name);
+    pattern = XftNameParse(name);
     if (pattern == NULL) {
+        LOG_ERROR("could not parse font name: %s\n",
+                name);
         return ERROR;
     }
 
@@ -145,9 +147,12 @@ int set_font(const char *name)
     FcPatternDestroy(pattern);
 
     if (match == NULL) {
+        LOG_ERROR("could not match font name: %s\n",
+                name);
         return ERROR;
     }
 
+    /* get a set of fonts covering most unicode glyphs */
     set = FcFontSort(NULL, match, FcTrue, NULL, &result);
     if (set == NULL) {
         FcPatternDestroy(match);
@@ -156,16 +161,16 @@ int set_font(const char *name)
     }
 
     /* allocate the fonts to hold onto the patterns */
-    fonts = xcalloc(set->nfont, sizeof(*fonts));
+    ALLOCATE_ZERO(fonts, set->nfont);
 
     for (int i = 0; i < set->nfont; i++) {
         fonts[i].pattern = FcFontRenderPrepare(NULL, match, set->fonts[i]);
         if (fonts[i].pattern == NULL) {
-            /* free all previous patterns */
-            for (int j = 0; j < i; j++) {
-                FcPatternDestroy(fonts[i].pattern);
-            }
             font_count = -1;
+            /* dereference all previous font patterns */
+            for (int j = 0; j < i; j++) {
+                FcPatternDestroy(fonts[j].pattern);
+            }
             break;
         }
         font_count++;
@@ -186,8 +191,8 @@ int set_font(const char *name)
     font_list.fonts = fonts;
     font_list.count = font_count;
 
-    LOG("got %d fonts\n",
-            font_count);
+    LOG("got %d fonts from %s\n",
+            font_count, name);
     return OK;
 }
 
@@ -210,7 +215,7 @@ FcChar32 *get_glyphs(const utf8_t *utf8, int length, int *glyph_count)
         }
         index++;
         if (index == sizeof(glyphs)) {
-            LOG_DEBUG("ran out of glyph space, have %d more bytes\n",
+            LOG_VERBOSE("ran out of glyph space, have %d more bytes\n",
                     length);
             break;
         }
@@ -264,8 +269,15 @@ void initialize_text(Text *text, const FcChar32 *glyphs, int glyph_count)
 
         /* create the font if not already created */
         if (font_list.fonts[j].font == NULL) {
-            font_list.fonts[j].font =
-                XftFontOpenPattern(display, font_list.fonts[j].pattern);
+            FcResult result;
+            FcPattern *match;
+
+            match = XftFontMatch(display, DefaultScreen(display),
+                    font_list.fonts[j].pattern, &result);
+            if (match != NULL) {
+                font_list.fonts[j].font = XftFontOpenPattern(display, match);
+                FcPatternDestroy(match);
+            }
         }
 
         /* get the font and do a sanity check */

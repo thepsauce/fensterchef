@@ -38,7 +38,7 @@ inline Frame *create_frame(void)
 {
     Frame *frame;
 
-    ZERO_ALLOCATE(frame, 1);
+    ALLOCATE_ZERO(frame, 1);
     frame->reference_count = 1;
     return frame;
 }
