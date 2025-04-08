@@ -3,11 +3,11 @@
 #include "configuration/configuration.h"
 #include "fensterchef.h"
 #include "frame.h"
+#include "frame_sizing.h"
+#include "frame_splitting.h"
+#include "frame_stashing.h"
 #include "log.h"
 #include "monitor.h"
-#include "size_frame.h"
-#include "split_frame.h"
-#include "stash_frame.h"
 #include "utility.h"
 #include "window.h"
 
@@ -132,7 +132,6 @@ Frame *get_frame_by_number(uint32_t number)
 /* Check if the given frame has no splits and no window. */
 inline bool is_frame_void(const Frame *frame)
 {
-    /* the frame is a void if it is has both no child frames and no window */
     return frame->left == NULL && frame->window == NULL;
 }
 
@@ -261,7 +260,19 @@ void reload_frame(Frame *frame)
 /* Set the frame in focus, this also focuses the inner window if possible. */
 void set_focus_frame(Frame *frame)
 {
-    set_focus_window(frame->window);
+    Monitor *monitor;
+    FcWindow *window;
+
+    monitor = get_monitor_containing_frame(frame);
+    window = get_window_covering_monitor(monitor);
+    /* if there is a floating/fullscreen window on top of this frame (by
+     * covering the monitor by a certain percentage), focus that window instead
+     */
+    if (window != NULL) {
+        set_focus_window(window);
+    } else {
+        set_focus_window(frame->window);
+    }
 
     Frame_focus = frame;
 }
@@ -269,18 +280,13 @@ void set_focus_frame(Frame *frame)
 /* Focus @window and the frame it is contained in if any. */
 void set_focus_window_with_frame(FcWindow *window)
 {
-    if (window == NULL) {
-        set_focus_window(NULL);
-    /* if the frame the window is contained in is already focused */
-    } else if (Frame_focus->window == window) {
-        set_focus_window(window);
-    } else {
-        Frame *const frame = get_frame_of_window(window);
-        if (frame == NULL) {
-            set_focus_window(window);
-        } else {
-            set_focus_frame(frame);
-        }
+    Frame *frame;
+
+    set_focus_window(window);
+
+    frame = get_frame_of_window(window);
+    if (frame != NULL) {
+        Frame_focus = frame;
     }
 }
 

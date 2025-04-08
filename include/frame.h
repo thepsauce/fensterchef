@@ -141,7 +141,10 @@ void get_frame_gaps(const Frame *frame, Extents *gaps);
 /* Resizes the inner window to fit within the frame. */
 void reload_frame(Frame *frame);
 
-/* Set the frame in focus, this also focuses the inner window if it exists.
+/* Set the frame in focus, this also focuses an associated window if possible.
+ *
+ * The associated window is either a window covering the monitor the frame is on
+ * or the window within the frame.
  *
  * If you just want to set the focused frame without focusing the inner window:
  * `Frame_focus = frame` suffices.

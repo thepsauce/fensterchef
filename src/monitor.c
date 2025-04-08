@@ -6,10 +6,10 @@
 #include "configuration/configuration.h"
 #include "event.h" // randr_event_base
 #include "frame.h"
+#include "frame_sizing.h"
+#include "frame_stashing.h"
 #include "log.h"
 #include "monitor.h"
-#include "size_frame.h"
-#include "stash_frame.h"
 #include "utility.h"
 #include "window.h"
 #include "x11_management.h"

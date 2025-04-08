@@ -2,8 +2,8 @@
 
 #include "configuration/configuration.h"
 #include "log.h"
-#include "size_frame.h"
-#include "stash_frame.h"
+#include "frame_sizing.h"
+#include "frame_stashing.h"
 #include "utility.h"
 #include "window.h"
 

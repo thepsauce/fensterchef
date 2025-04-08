@@ -1,6 +1,6 @@
-#include "move_frame.h"
+#include "frame_moving.h"
+#include "frame_sizing.h"
 #include "utility.h"
-#include "size_frame.h"
 #include "log.h"
 
 /* Apply the auto equalizationg to given frame. */

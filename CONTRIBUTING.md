@@ -75,16 +75,17 @@ share the parent space.
   a completely usable and valid frame and no further setup is needed
 - All other functions are helper functions to manage frames, refer to the
   comments describing them in `include/frame.h`
-- Go to `src/split_frame.c` to see how frames are split in two and unsplitted
+- Go to `src/frame_splitting.c` to see how frames are split in two and
+  unsplitted
 - Note that unlike windows, doing `frame->x = 8` visibly does not change
   anything. In addition, you must call `reload_frame(frame)` to also size the
   inner window. To size the inner children, use `resize_frame(frame, x, y,
-  width, height)` from `include/size_frame.h`
-- Go to `src/size_frame.c` to see how frames are size and how when parents
+  width, height)` from `include/frame_sizing.h`
+- Go to `src/frame_sizing.c` to see how frames are size and how when parents
   are size, recursively resize their chilrend
-- Go to `src/move_frame.c` to see how frames are moved around the tiling layout
-  and how we get from one frame to another
-- Go to `src/stash_frame.c` to see how frames are stashed, stashed frames are
+- Go to `src/frame_moving.c` to see how frames are moved around the tiling
+  layout and how we get from one frame to another
+- Go to `src/frame_stashing.c` to see how frames are stashed, stashed frames are
   simply off-screen frames
 
 ### X client management

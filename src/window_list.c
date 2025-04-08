@@ -6,7 +6,7 @@
 #include "frame.h"
 #include "log.h"
 #include "notification.h"
-#include "stash_frame.h"
+#include "frame_stashing.h"
 #include "window_list.h"
 
 /* user window list window */

@@ -6,13 +6,13 @@
 #include "event.h"
 #include "fensterchef.h"
 #include "frame.h"
+#include "frame_moving.h"
+#include "frame_sizing.h"
+#include "frame_splitting.h"
+#include "frame_stashing.h"
 #include "log.h"
 #include "monitor.h"
-#include "move_frame.h"
 #include "notification.h"
-#include "size_frame.h"
-#include "split_frame.h"
-#include "stash_frame.h"
 #include "utility.h"
 #include "window_list.h"
 
@@ -36,8 +36,8 @@ action_type_t string_to_action_type(const char *string)
 }
 
 /* Resize the current window or current frame if it does not exist. */
-static bool resize_frame_or_window_by(FcWindow *window, int32_t left, int32_t top,
-        int32_t right, int32_t bottom)
+static bool resize_frame_or_window_by(FcWindow *window, int left, int top,
+        int right, int bottom)
 {
     Frame *frame;
 
@@ -59,10 +59,10 @@ static bool resize_frame_or_window_by(FcWindow *window, int32_t left, int32_t to
         right += left;
         bottom += top;
         /* check for underflows */
-        if ((int32_t) window->width < -right) {
+        if ((int) window->width < -right) {
             right = -window->width;
         }
-        if ((int32_t) window->height < -bottom) {
+        if ((int) window->height < -bottom) {
             bottom = -window->height;
         }
         set_window_size(window,
@@ -79,7 +79,7 @@ static bool resize_frame_or_window_by(FcWindow *window, int32_t left, int32_t to
  *
  * @return if there is another window.
  */
-bool set_showable_tiling_window(uint32_t count, bool previous)
+bool set_showable_tiling_window(unsigned count, bool previous)
 {
     FcWindow *start, *next, *valid_window = NULL;
 
@@ -175,22 +175,12 @@ bool toggle_focus(void)
 }
 
 /* Move the focus from @from to @to and exchange if requested. */
-static void move_to_frame(Frame *from, Frame *to, Monitor *monitor,
-        bool do_exchange)
+static void move_to_frame(Frame *from, Frame *to, bool do_exchange)
 {
     if (do_exchange) {
         exchange_frames(from, to);
-    /* check if a window is covering the monitor */
-    } else if (monitor != NULL) {
-        FcWindow *const window = get_window_covering_monitor(monitor);
-        if (window != NULL) {
-            set_focus_window(window);
-            Frame_focus = to;
-        } else {
-            set_focus_frame(to);
-        }
-    /* simply "move" to the next frame by focusing it */
     } else {
+        /* simply "move" to the next frame by focusing it */
         set_focus_frame(to);
     }
 }
@@ -224,7 +214,7 @@ static bool move_to_above_frame(Frame *relative, bool do_exchange)
     }
 
     frame = get_bottom_leaf_frame(frame, relative->x + relative->width / 2);
-    move_to_frame(relative, frame, monitor, do_exchange);
+    move_to_frame(relative, frame, do_exchange);
     return true;
 }
 
@@ -258,7 +248,7 @@ static bool move_to_left_frame(Frame *relative, bool do_exchange)
 
     frame = get_most_right_leaf_frame(frame,
             relative->y + relative->height / 2);
-    move_to_frame(relative, frame, monitor, do_exchange);
+    move_to_frame(relative, frame, do_exchange);
     return true;
 }
 
@@ -291,7 +281,7 @@ static bool move_to_right_frame(Frame *relative, bool do_exchange)
     }
 
     frame = get_most_left_leaf_frame(frame, relative->y + relative->height / 2);
-    move_to_frame(relative, frame, monitor, do_exchange);
+    move_to_frame(relative, frame, do_exchange);
     return true;
 }
 
@@ -324,7 +314,7 @@ static bool move_to_below_frame(Frame *relative, bool do_exchange)
     }
 
     frame = get_top_leaf_frame(frame, relative->y + relative->height / 2);
-    move_to_frame(relative, frame, monitor, do_exchange);
+    move_to_frame(relative, frame, do_exchange);
     return true;
 }
 
@@ -333,7 +323,7 @@ bool do_action(action_type_t type, GenericData *data)
 {
     FcWindow *window;
     char *shell;
-    int32_t count;
+    int count;
     Frame *frame;
     bool is_previous = true;
 
