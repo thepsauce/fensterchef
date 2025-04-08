@@ -31,9 +31,36 @@
 
 #75 Do not check if we are on a different monitor now
     For re-showing floating windows, show them were there were, even when on
-    another monitor. Only reshow them if that they are out of bounds
+    another monitor. Only re-show them if they are out of bounds
 
-#76 ...
+#76 Make advanced notification windows
+    Allow more notification windows to be visible at the same time and
+    allow them to be individually configurable
+
+#77 Allow multi-line for notification windows
+    Line breaks should be considered and text wrapping should be used when the
+    text overflows a maximum configured width
+
+#78 Add XML based markup options
+    Make text formatting with options for bold <b> ... </b>,
+    italic <i> ... </i>, underline <u> ... </u>,
+    hyperlinks <a href="..."> ... </a> and
+    images <img src="..." alt="..."/>
+
+#79 Add DBUS support for a notification server
+    Allow fensterchef to act as a notification server so notifications can be
+    shown using `notify-send`
+
+#80 ...
+
+#200 Make repository for fensterchef-menu
+    Menus of all kind for any window manager
+
+#300 Make repository for fensterchef-notify
+    Notification daemon for notify-send usable in any window manager
+
+#400 Make repository for fensterchef-window-list
+    Window list usable in any window manager
 
 #1000 Make a wayland port
     Make an additional repository that hosts fensterchef-wayland
@@ -50,15 +77,13 @@
     Shorten the README to only contain the must important information
 
 #73 Make a CONTRIBUTING file
-    Make a file explaining source code internals and where to start looking
+    Make a file explaining source code internals and where to start looking to
+    start contributing to the fensterchef project
 
 [Recheck]
 #1 ! Hover events not working in firefox sometimes
     This is fixed by resizing the window, try to find out why it happens in the
-    first place and when it happens
-
-#10 ? Add frame indication for empty frames
-    Make it so empty frames have a border indicating focus
+    first place and when it happens. Seems to be fixed
 
 #13 ! Unable to reload configuration after an error
     When reloading the configuration and an error was detected the bind for
@@ -67,11 +92,6 @@
 #18 ! No window in focus after toggling fullscreen
     When putting a window out of fullscreen and put into the focus frame, in
     some circumstances it can happen that no window has focus now
-
-#20/#10 ? Make extra window for empty frames
-    ?? Extra translucent border windows have to be shown
-
-#34 ? Think about how numbers should be handled when stashing
 
 #37 ? Add hooks
     When certain events occur like showing a window, the user should be able to
@@ -127,6 +147,14 @@
     Also this can be escaped as well as ';' with a backslash.
 
 [Trash]
+#10 ? Add frame indication for empty frames
+    Make it so empty frames have a border indicating focus
+
+#20/#10 ? Make extra window for empty frames
+    ?? Extra translucent border windows have to be shown
+
+#34 ? Think about how numbers should be handled when stashing
+    What does this task even mean
 
 [Done]
 #9 Add maintainability macros
