@@ -115,7 +115,7 @@ void merge_with_default_button_bindings(struct configuration *configuration)
     }
 
     /* add the new buttons on top of the already defined buttons */
-    RESIZE(configuration->mouse.buttons, new_count);
+    REALLOCATE(configuration->mouse.buttons, new_count);
     next_button =
         &configuration->mouse.buttons[configuration->mouse.number_of_buttons];
     for (unsigned i = 0; i < SIZE(default_bindings); i++) {
@@ -285,7 +285,7 @@ void merge_with_default_key_bindings(struct configuration *configuration)
     }
 
     /* add the new keys on top of the already defined keys */
-    RESIZE(configuration->keyboard.keys, new_count);
+    REALLOCATE(configuration->keyboard.keys, new_count);
     next_key =
         &configuration->keyboard.keys[configuration->keyboard.number_of_keys];
     for (unsigned i = 0; i < SIZE(default_bindings); i++) {

@@ -42,7 +42,7 @@ int initialize_parser(Parser *parser, const char *string, bool is_string_file)
     parser->line = xmalloc(parser->line_capacity);
 
     parser->instruction_capacity = 4;
-    RESIZE(parser->instructions, parser->instruction_capacity);
+    REALLOCATE(parser->instructions, parser->instruction_capacity);
     return OK;
 }
 
@@ -106,7 +106,7 @@ bool read_next_line(Parser *parser)
 
             if (parser->line_capacity <= length) {
                 parser->line_capacity += length + 1;
-                RESIZE(parser->line, parser->line_capacity);
+                REALLOCATE(parser->line, parser->line_capacity);
             }
 
             memcpy(parser->line, start, length);
@@ -140,7 +140,7 @@ bool read_next_line(Parser *parser)
                     break;
                 }
                 parser->line_capacity += length + 1;
-                RESIZE(parser->line, parser->line_capacity);
+                REALLOCATE(parser->line, parser->line_capacity);
             } while (fgets(&parser->line[length],
                         parser->line_capacity - length,
                         parser->file) != NULL);
@@ -285,7 +285,7 @@ parser_error_t parse_string(Parser *parser, utf8_t **output)
     string[last_index + 1] = '\0';
 
     /* trim anything we allocated too much */
-    RESIZE(string, last_index + 2);
+    REALLOCATE(string, last_index + 2);
 
     *output = string;
 
@@ -476,7 +476,7 @@ static parser_error_t parse_startup_actions(Parser *parser)
             parser->instructions, parser->instruction_size);
 
     /* append the parsed expression to the startup expression */
-    RESIZE(parser->configuration.startup.expression.instructions,
+    REALLOCATE(parser->configuration.startup.expression.instructions,
             parser->configuration.startup.expression.instruction_size +
                 expression.instruction_size);
     memcpy(&parser->configuration.startup.expression.instructions[
@@ -508,7 +508,7 @@ static parser_error_t parse_mouse_binding(Parser *parser)
         free(button_pointer->expression.instructions);
     } else {
         /* add the button to the end */
-        RESIZE(parser->configuration.mouse.buttons,
+        REALLOCATE(parser->configuration.mouse.buttons,
                 parser->configuration.mouse.number_of_buttons + 1);
         button_pointer = &parser->configuration.mouse.buttons[
             parser->configuration.mouse.number_of_buttons];
@@ -542,7 +542,7 @@ static parser_error_t parse_keyboard_binding(Parser *parser)
         free(key_pointer->expression.instructions);
     } else {
         /* the key does not exist already, add a new one */
-        RESIZE(parser->configuration.keyboard.keys,
+        REALLOCATE(parser->configuration.keyboard.keys,
                 parser->configuration.keyboard.number_of_keys + 1);
         key_pointer = &parser->configuration.keyboard.keys[
             parser->configuration.keyboard.number_of_keys];
@@ -625,7 +625,7 @@ static parser_error_t parse_assignment_association(Parser *parser)
     }
 
     /* add the association to the end of the association list */
-    RESIZE(parser->configuration.assignment.associations,
+    REALLOCATE(parser->configuration.assignment.associations,
             parser->configuration.assignment.number_of_associations + 1);
     parser->configuration.assignment.associations[
         parser->configuration.assignment.number_of_associations] = association;

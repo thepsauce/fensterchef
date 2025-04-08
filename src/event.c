@@ -94,7 +94,7 @@ void synchronize_client_list(void)
     /* allocate more ids if needed */
     if (Window_count > client_list.length) {
         client_list.length = Window_count;
-        RESIZE(client_list.ids, client_list.length);
+        REALLOCATE(client_list.ids, client_list.length);
     }
 
     /* sort the list in order of their age (oldest to newest) */

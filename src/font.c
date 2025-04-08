@@ -295,7 +295,7 @@ void initialize_text(Text *text, const FcChar32 *glyphs, int glyph_count)
                 text->items[text->item_count - 1].font != font) {
             if (text->item_count == item_capacity) {
                 item_capacity *= 2;
-                RESIZE(text->items, item_capacity);
+                REALLOCATE(text->items, item_capacity);
             }
             /* initialize the item */
             text->items[text->item_count].font = font;

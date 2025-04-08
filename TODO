@@ -29,7 +29,11 @@
     Stack changes should be only locally noticed and then sent at once to the X
     server
 
-#75 ...
+#75 Do not check if we are on a different monitor now
+    For re-showing floating windows, show them were there were, even when on
+    another monitor. Only reshow them if that they are out of bounds
+
+#76 ...
 
 #1000 Make a wayland port
     Make an additional repository that hosts fensterchef-wayland

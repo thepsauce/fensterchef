@@ -356,7 +356,7 @@ void add_window_states(FcWindow *window, Atom *states,
             }
         }
 
-        RESIZE(window->states, j + 2);
+        REALLOCATE(window->states, j + 2);
         window->states[j] = states[i];
         window->states[j + 1] = None;
 

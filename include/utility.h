@@ -73,26 +73,26 @@ typedef char utf8_t;
 #define _STRINGIFY(x) #x
 #define STRINGIFY(x) _STRINGIFY(x)
 
-/* Resize allocated array to given number of elements.
- *
- * Example usage:
- * ```
- * uint32_t *integers = xmalloc(sizeof(*integers) * 60);
- *
- * integers[59] = 64;
- *
- * RESIZE(integers, 120);
- *
- * integers[119] = 8449;
- * ```
- */
-#define RESIZE(p, a) ((p) = xreallocarray(p, (a), sizeof(*(p))))
-
 /* Allocate a block of memory and put it into @p. */
 #define ALLOCATE(p, a) ((p) = xreallocarray(NULL, (a), sizeof(*(p))))
 
 /* Allocate a zeroed out block of memory and put it into @p. */
 #define ALLOCATE_ZERO(p, a) ((p) = xcalloc((a), sizeof(*(p))))
+
+/* Resize allocated array to given number of elements.
+ *
+ * Example usage:
+ * ```
+ * int *integers;
+ *
+ * ALLOCATE(integers, 60);
+ * integers[59] = 64;
+ *
+ * REALLOCATE(integers, 120);
+ * integers[119] = 8449;
+ * ```
+ */
+#define REALLOCATE(p, a) ((p) = xreallocarray(p, (a), sizeof(*(p))))
 
 /* Duplicate a memory block. */
 #define DUPLICATE(p, n) (xmemdup((p), sizeof(*(p)) * (n)))

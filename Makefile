@@ -52,17 +52,17 @@ build/fensterchef: $(OBJECTS)
 
 # Manual pages
 release/fensterchef.1.gz: man/fensterchef.1
-	mkdir -p release
-	gzip --best -c man/fensterchef.1 >$@
+	mkdir -p $(dir $@)
+	gzip --best -c $< >$@
 
 release/fensterchef.5.gz: man/fensterchef.5
-	mkdir -p release
-	gzip --best -c man/fensterchef.5 >$@
+	mkdir -p $(dir $@)
+	gzip --best -c $< >$@
 
 # Release executable
 release/fensterchef: $(SOURCES) $(INCLUDES)
-	mkdir -p release
-	gcc $(RELEASE_FLAGS) $(SOURCES) -o release/fensterchef $(C_LIBRARIES)
+	mkdir -p $(dir $@)
+	gcc $(RELEASE_FLAGS) $(SOURCES) -o $@ $(C_LIBRARIES)
 
 # Functions
 .PHONY: build sandbox release install uninstall clean

@@ -42,7 +42,7 @@ static void insert_instruction(Parser *parser,
 {
     if (parser->instruction_size >= parser->instruction_capacity) {
         parser->instruction_capacity *= 2;
-        RESIZE(parser->instructions, parser->instruction_capacity);
+        REALLOCATE(parser->instructions, parser->instruction_capacity);
     }
     memmove(&parser->instructions[position + 1],
             &parser->instructions[position],
@@ -66,10 +66,10 @@ static void push_local(Parser *parser, data_type_t type, const char *name,
 
     if (parser->locals_capacity == 0) {
         parser->locals_capacity = 8;
-        RESIZE(parser->locals, parser->locals_capacity);
+        REALLOCATE(parser->locals, parser->locals_capacity);
     } else if (parser->number_of_locals == parser->locals_capacity) {
         parser->locals_capacity *= 2;
-        RESIZE(parser->locals, parser->locals_capacity);
+        REALLOCATE(parser->locals, parser->locals_capacity);
     }
 
     local = &parser->locals[parser->number_of_locals];
@@ -231,7 +231,7 @@ static inline parser_error_t parse_action(Parser *parser)
         new_size = parser->instruction_size + length_in_4bytes;
         if (new_size > parser->instruction_capacity) {
             parser->instruction_capacity += new_size;
-            RESIZE(parser->instructions, parser->instruction_capacity);
+            REALLOCATE(parser->instructions, parser->instruction_capacity);
         }
         memcpy(&parser->instructions[parser->instruction_size],
                 string, length + 1);
