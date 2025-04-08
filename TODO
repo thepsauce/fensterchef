@@ -5,12 +5,6 @@
     using electron actually. Is this on purpose?? I believe it is.
     Using WM_STATE I believe fixed this bug.
 
-#66 Always focus window above frames
-    When a frame is focused and there is a window covering the monitor the frame
-    is on, that window should be focused. If none is covering the monitor more
-    than the configured percentage, there is still an attempt to focus the above
-    floating window if the focused frame is empty.
-
 #70 Re-add the wiki
     Add the Github wiki again
 
@@ -28,10 +22,6 @@
 #74 Add caching of window stack
     Stack changes should be only locally noticed and then sent at once to the X
     server
-
-#75 Do not check if we are on a different monitor now
-    For re-showing floating windows, show them were there were, even when on
-    another monitor. Only re-show them if they are out of bounds
 
 #76 Make advanced notification windows
     Allow more notification windows to be visible at the same time and
@@ -79,6 +69,12 @@
 #73 Make a CONTRIBUTING file
     Make a file explaining source code internals and where to start looking to
     start contributing to the fensterchef project
+
+#66 Always focus window above frames
+    When a frame is focused and there is a window covering the monitor the frame
+    is on, that window should be focused. If none is covering the monitor more
+    than the configured percentage, there is still an attempt to focus the above
+    floating window if the focused frame is empty.
 
 [Recheck]
 #1 ! Hover events not working in firefox sometimes
@@ -388,3 +384,7 @@
     libX11 should be integrated to replace the poorly implemented xcb libraries,
     there were not really meant for use it seems like.
     Completely replace libxcb with libX11, it is not good for a window manager.
+
+#75 Do not check if we are on a different monitor now
+    For re-showing floating windows, show them were there were, even when on
+    another monitor. Only re-show them if they are out of bounds

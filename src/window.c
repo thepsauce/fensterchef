@@ -490,32 +490,6 @@ void get_maximum_window_size(const FcWindow *window, Size *size)
     size->height = MIN(height, WINDOW_MAXIMUM_SIZE);
 }
 
-/* Move the window such that it is in bounds of the screen. */
-void place_window_in_bounds(FcWindow *window)
-{
-    int width, height;
-
-    /* do not move dock windows */
-    if (window->state.mode == WINDOW_MODE_DOCK) {
-        return;
-    }
-
-    width = DisplayWidth(display, DefaultScreen(display));
-    height = DisplayHeight(display, DefaultScreen(display));
-    /* make the window horizontally visible */
-    if (window->x + (int32_t) window->width < WINDOW_MINIMUM_VISIBLE_SIZE) {
-        window->x = WINDOW_MINIMUM_VISIBLE_SIZE - window->width;
-    } else if (window->x + WINDOW_MINIMUM_VISIBLE_SIZE >= width) {
-        window->x = width - WINDOW_MINIMUM_VISIBLE_SIZE;
-    }
-    /* make the window vertically visible */
-    if (window->y + (int32_t) window->height < WINDOW_MINIMUM_VISIBLE_SIZE) {
-        window->y = WINDOW_MINIMUM_VISIBLE_SIZE - window->height;
-    } else if (window->y + WINDOW_MINIMUM_VISIBLE_SIZE >= height) {
-        window->y = height - WINDOW_MINIMUM_VISIBLE_SIZE;
-    }
-}
-
 /* Set the position and size of a window. */
 void set_window_size(FcWindow *window, int x, int y, unsigned int width,
         unsigned int height)
@@ -542,8 +516,6 @@ void set_window_size(FcWindow *window, int x, int y, unsigned int width,
     window->y = y;
     window->width = width;
     window->height = height;
-
-    place_window_in_bounds(window);
 }
 
 /* Links the window into the z linked list at a specific place and synchronizes

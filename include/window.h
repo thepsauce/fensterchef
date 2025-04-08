@@ -167,9 +167,6 @@ void close_window(FcWindow *window);
 void adjust_for_window_gravity(Monitor *monitor, int *x, int *y,
         unsigned int width, unsigned int height, int gravity);
 
-/* Move the window such that it is in bounds of the screen. */
-void place_window_in_bounds(FcWindow *window);
-
 /* Get the minimum size the window should have. */
 void get_minimum_window_size(const FcWindow *window, Size *size);
 

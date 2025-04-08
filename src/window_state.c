@@ -60,12 +60,12 @@ static int sort_by_x(const void *a, const void *b)
 
 /* Put windows along a diagonal line, spacing them out a little. */
 static inline void move_to_next_available(Monitor *monitor, FcWindow *window,
-        int32_t *x, int32_t *y)
+        int *x, int *y)
 {
     /* step 1: get all windows on the diagonal line */
     FcWindow *in_line_windows[Window_count];
-    uint32_t count = 0;
-    int32_t best_x = 0;
+    unsigned count = 0;
+    int best_x = 0;
 
     *x = monitor->x + monitor->width / 10;
     *y = monitor->y + monitor->height / 10;
@@ -112,7 +112,7 @@ static inline void move_to_next_available(Monitor *monitor, FcWindow *window,
     qsort(in_line_windows, count, sizeof(*in_line_windows), sort_by_x);
 
     /* step 3: find a gap */
-    for (uint32_t i = 0; i < count; i++) {
+    for (unsigned i = 0; i < count; i++) {
         FcWindow *const other = in_line_windows[i];
         if (other->x != *x || other->y != *y) {
             break;
@@ -125,32 +125,25 @@ static inline void move_to_next_available(Monitor *monitor, FcWindow *window,
 /* Set the window size and position according to the size hints. */
 static void configure_floating_size(FcWindow *window)
 {
-    Monitor *monitor, *original_monitor = NULL;
-    int32_t x, y;
-    uint32_t width, height;
+    int x, y;
+    unsigned width, height;
 
-    /* put the window on the monitor that is either on the same monitor as the
-     * focused window or the focused frame
+    /* if the window never had a floating size, figure it out based off the
+     * hints
      */
-    if (Window_focus != NULL) {
-        monitor = get_monitor_from_rectangle_or_primary(Window_focus->x,
-                Window_focus->y, Window_focus->width, Window_focus->height);
-    } else {
-        monitor = get_monitor_containing_frame(Frame_focus);
-    }
+    if (window->floating.width == 0) {
+        Monitor *monitor;
 
-    if (window->floating.width > 0) {
-        /* the monitor the window was on before */
-        original_monitor = get_monitor_from_rectangle(window->floating.x,
-                window->floating.y, window->floating.width,
-                window->floating.height);
-    }
+        /* put the window on the monitor that is either on the same monitor as
+         * the focused window or the focused frame
+         */
+        if (Window_focus != NULL) {
+            monitor = get_monitor_from_rectangle_or_primary(Window_focus->x,
+                    Window_focus->y, Window_focus->width, Window_focus->height);
+        } else {
+            monitor = get_monitor_containing_frame(Frame_focus);
+        }
 
-    /* if the window never had a floating size or it would be shown on a monitor
-     * different from the focused monitor, use the size hints to get a size that
-     * the window prefers
-     */
-    if (monitor != original_monitor) {
         if (window->floating.width > 0) {
             width = window->floating.width;
             height = window->floating.height;
@@ -163,13 +156,13 @@ static void configure_floating_size(FcWindow *window)
         }
 
         if ((window->size_hints.flags & PMinSize)) {
-            width = MAX(width, (uint32_t) window->size_hints.min_width);
-            height = MAX(height, (uint32_t) window->size_hints.min_height);
+            width = MAX(width, (unsigned) window->size_hints.min_width);
+            height = MAX(height, (unsigned) window->size_hints.min_height);
         }
 
         if ((window->size_hints.flags & PMaxSize)) {
-            width = MIN(width, (uint32_t) window->size_hints.max_width);
-            height = MIN(height, (uint32_t) window->size_hints.max_height);
+            width = MIN(width, (unsigned) window->size_hints.max_width);
+            height = MIN(height, (unsigned) window->size_hints.max_height);
         }
 
         /* non resizable windows are centered */
@@ -217,8 +210,8 @@ static void configure_fullscreen_size(FcWindow *window)
 void configure_dock_size(FcWindow *window)
 {
     Monitor *monitor;
-    int32_t x, y;
-    uint32_t width, height;
+    int x, y;
+    unsigned width, height;
 
     monitor = get_monitor_from_rectangle_or_primary(window->x, window->y, 1, 1);
 
@@ -320,7 +313,7 @@ static void synchronize_allowed_actions(FcWindow *window)
     };
 
     const Atom *list;
-    uint32_t list_length;
+    unsigned list_length;
 
     list = atom_lists[window->state.mode];
     for (list_length = 0; list_length < SIZE(atom_lists[0]); list_length++) {
@@ -335,12 +328,12 @@ static void synchronize_allowed_actions(FcWindow *window)
 
 /* Add window states to the window properties. */
 void add_window_states(FcWindow *window, Atom *states,
-        uint32_t number_of_states)
+        unsigned number_of_states)
 {
-    uint32_t effective_count = 0;
+    unsigned effective_count = 0;
 
     /* for each state in `states`, either add it or filter it out */
-    for (uint32_t i = 0, j; i < number_of_states; i++) {
+    for (unsigned i = 0, j; i < number_of_states; i++) {
         /* filter out the states already in the window properties */
         if (has_state(window, states[i])) {
             continue;
@@ -375,10 +368,10 @@ void add_window_states(FcWindow *window, Atom *states,
 
 /* Remove window states from the window properties. */
 void remove_window_states(FcWindow *window, Atom *states,
-        uint32_t number_of_states)
+        unsigned number_of_states)
 {
-    uint32_t i;
-    uint32_t effective_count = 0;
+    unsigned i;
+    unsigned effective_count = 0;
 
     /* if no states are there, nothing can be removed */
     if (window->states == NULL) {
@@ -387,7 +380,7 @@ void remove_window_states(FcWindow *window, Atom *states,
 
     /* filter out all states in the window properties that are in `states` */
     for (i = 0; window->states[i] != None; i++) {
-        uint32_t j;
+        unsigned j;
 
         /* check if the state exists in `states`... */
         for (j = 0; j < number_of_states; j++) {
