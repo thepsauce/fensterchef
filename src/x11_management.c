@@ -88,6 +88,10 @@ static int x_error_handler(Display *display, XErrorEvent *error)
         return 0;
     }
 
+    /* TODO: ignore BadWindow errors because they appear even when everything is
+     * fine
+     */
+
     XGetErrorText(display, error->error_code, buffer, sizeof(buffer));
 
     LOG_ERROR("X error: %s\n", buffer);

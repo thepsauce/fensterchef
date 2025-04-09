@@ -634,9 +634,7 @@ void hide_window(FcWindow *window)
     case WINDOW_MODE_FULLSCREEN:
     case WINDOW_MODE_DOCK:
     case WINDOW_MODE_DESKTOP:
-        if (window == Window_focus) {
-            set_focus_frame(Frame_focus);
-        }
+        set_focus_window(Frame_focus->window);
         break;
 
     /* not a real window mode */

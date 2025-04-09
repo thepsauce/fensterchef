@@ -1,10 +1,4 @@
 [Tasks]
-#7 ! Discord hides itself again on WM_CHANGE_STATE
-    When starting Discord, it sometimes hides itself again
-    Try to check electron source code I guess... I do not know if it was made
-    using electron actually. Is this on purpose?? I believe it is.
-    Using WM_STATE I believe fixed this bug.
-
 #70 Re-add the wiki
     Add the Github wiki again
 
@@ -79,10 +73,6 @@
     When reloading the configuration and an error was detected the bind for
     reloading no longer works. It works on an initial load if the parser fails
 
-#18 ! No window in focus after toggling fullscreen
-    When putting a window out of fullscreen and put into the focus frame, in
-    some circumstances it can happen that no window has focus now
-
 #37 ? Add hooks
     When certain events occur like showing a window, the user should be able to
     make a hook for an alternative action that should occur (instead of the
@@ -105,6 +95,31 @@
     Right now using -e, only actions can be sent. Make it so entire
     configurations can be sent. This is helpful when setting a specific layout
 
+#63 ? Replace deletion of atom with setting of another
+    When a command is sent via the FENSTERCHEF_COMMAND atom, it is currently
+    deleted. Instead, set FENSTERCHEF_RETURN on the window.
+
+#25 ? Make string arguments more shell like
+    One should be able to specify in quotes: "what is here ".
+    So if a line starts with `"`, then this should be interpreted as string.
+    Also this can be escaped as well as ';' with a backslash.
+
+#7 ! Discord hides itself again on WM_CHANGE_STATE
+    When starting Discord, it sometimes hides itself again
+    Try to check electron source code I guess... I do not know if it was made
+    using electron actually. Is this on purpose?? I believe it is.
+    Using WM_STATE I believe fixed this bug.
+
+[Trash]
+#10 ? Add frame indication for empty frames
+    Make it so empty frames have a border indicating focus
+
+#20/#10 ? Make extra window for empty frames
+    ?? Extra translucent border windows have to be shown
+
+#34 ? Think about how numbers should be handled when stashing
+    What does this task even mean
+
 #24 ! Monitor frames wrong when screen size changes
     Exactly in what circumstances this bug appears is not known but running
     randfix.sh gets a window in a bugged state, this might have to do with
@@ -126,25 +141,6 @@
     ```
     No window gets in a bugged state it seems anymore. This is just a poor
     script to reconfigure the monitors.
-
-#63 ? Replace deletion of atom with setting of another
-    When a command is sent via the FENSTERCHEF_COMMAND atom, it is currently
-    deleted. Instead, set FENSTERCHEF_RETURN on the window.
-
-#25 ? Make string arguments more shell like
-    One should be able to specify in quotes: "what is here ".
-    So if a line starts with `"`, then this should be interpreted as string.
-    Also this can be escaped as well as ';' with a backslash.
-
-[Trash]
-#10 ? Add frame indication for empty frames
-    Make it so empty frames have a border indicating focus
-
-#20/#10 ? Make extra window for empty frames
-    ?? Extra translucent border windows have to be shown
-
-#34 ? Think about how numbers should be handled when stashing
-    What does this task even mean
 
 [Done]
 #9 Add maintainability macros
@@ -386,3 +382,7 @@
 #66 Always focus window above frames
     When a frame is focused and there is a window covering the monitor the frame
     is on, that window should be focused.
+
+#18 ! No window in focus after toggling fullscreen
+    When putting a window out of fullscreen and put into the focus frame, in
+    some circumstances it can happen that no window has focus now
