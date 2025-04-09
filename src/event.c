@@ -282,11 +282,15 @@ int next_cycle(void)
         if (old_focus_frame != Frame_focus ||
                 (Frame_focus->window == Window_focus &&
                     old_focus_window != Window_focus)) {
-            /* indicate the focused frame if there is no window inside or there
-             * is no border to indicate that the frame is focused
+            /* indicate the focused frame if one of:
+             * - the frame has no inner window
+             * - the inner window has no border
+             * - the focused window is a non tiling window
              */
             if (Frame_focus->window == NULL ||
-                     Frame_focus->window->border_size == 0) {
+                     Frame_focus->window->border_size == 0 ||
+                     (Window_focus != NULL &&
+                        Window_focus->state.mode != WINDOW_MODE_TILING)) {
                 char number[MAXIMUM_DIGITS(Frame_focus->number) + 1];
 
                 snprintf(number, sizeof(number), "%u",

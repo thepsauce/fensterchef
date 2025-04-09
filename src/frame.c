@@ -257,21 +257,27 @@ void reload_frame(Frame *frame)
                 frame->height - gaps.bottom);
 }
 
-/* Set the frame in focus, this also focuses the inner window if possible. */
+/* Set the frame in focus, this also focuses an associated window if possible.
+ */
 void set_focus_frame(Frame *frame)
 {
     Monitor *monitor;
     FcWindow *window;
 
-    monitor = get_monitor_containing_frame(frame);
-    window = get_window_covering_monitor(monitor);
-    /* if there is a floating/fullscreen window on top of this frame (by
-     * covering the monitor by a certain percentage), focus that window instead
-     */
-    if (window != NULL) {
-        set_focus_window(window);
-    } else {
-        set_focus_window(frame->window);
+    /* if the frame is empty, keep the focus on the non tiling window */
+    if (frame->window != NULL || Window_focus == NULL ||
+            Window_focus->state.mode == WINDOW_MODE_TILING) {
+        monitor = get_monitor_containing_frame(frame);
+        window = get_window_covering_monitor(monitor);
+        /* if there is a floating/fullscreen window on top of this frame (by
+         * covering the monitor by a certain percentage), focus that window
+         * instead
+         */
+        if (window != NULL) {
+            set_focus_window(window);
+        } else {
+            set_focus_window(frame->window);
+        }
     }
 
     Frame_focus = frame;
