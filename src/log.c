@@ -420,7 +420,8 @@ static void log_x_window(Window window)
         fputs("<check>", stderr);
     } else if (window == WindowList.client.id) {
         fputs("<window list>", stderr);
-    } else if (window == Notification.client.id) {
+    } else if (system_notification != NULL &&
+            window == system_notification->client.id) {
         fputs("<notification>", stderr);
     } else if (window == DefaultRootWindow(display)) {
         fputs("<root>", stderr);

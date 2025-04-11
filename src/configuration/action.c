@@ -118,7 +118,7 @@ bool set_showable_tiling_window(unsigned count, bool previous)
     }
 
     if (valid_window == NULL) {
-        set_notification("No other window",
+        set_system_notification("No other window",
                 Frame_focus->x + Frame_focus->width / 2,
                 Frame_focus->y + Frame_focus->height / 2);
         return false;
@@ -370,14 +370,14 @@ bool do_action(action_type_t type, GenericData *data)
 
         Frame_focus->number = data->integer;
         if (Frame_focus->number == 0) {
-            set_notification("Number removed",
+            set_system_notification("Number removed",
                     Frame_focus->x + Frame_focus->width / 2,
                     Frame_focus->y + Frame_focus->height / 2);
         } else {
             char number[MAXIMUM_DIGITS(Frame_focus->number) + 1];
 
             snprintf(number, sizeof(number), "%" PRIu32, Frame_focus->number);
-            set_notification(number,
+            set_system_notification(number,
                     Frame_focus->x + Frame_focus->width / 2,
                     Frame_focus->y + Frame_focus->height / 2);
         }
@@ -701,7 +701,7 @@ bool do_action(action_type_t type, GenericData *data)
 
     /* show the user a message */
     case ACTION_SHOW_MESSAGE:
-        set_notification(data->string,
+        set_system_notification(data->string,
                 Frame_focus->x + Frame_focus->width / 2,
                 Frame_focus->y + Frame_focus->height / 2);
         break;
@@ -712,7 +712,7 @@ bool do_action(action_type_t type, GenericData *data)
         if (shell == NULL) {
             return false;
         }
-        set_notification(shell,
+        set_system_notification(shell,
                 Frame_focus->x + Frame_focus->width / 2,
                 Frame_focus->y + Frame_focus->height / 2);
         free(shell);

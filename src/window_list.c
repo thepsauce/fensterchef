@@ -126,7 +126,14 @@ static int render_window_list(void)
     unsigned width = 0, height = 0;
     int selected_y = 0, selected_height = 0;
 
-    if (get_xft_colors(&background, &foreground) == ERROR) {
+    if (allocate_xft_color(configuration.notification.background,
+                &background) == ERROR) {
+        return ERROR;
+    }
+
+    if (allocate_xft_color(configuration.notification.foreground,
+                &foreground) == ERROR) {
+        free_xft_color(&background);
         return ERROR;
     }
 
@@ -289,6 +296,9 @@ static int render_window_list(void)
     for (unsigned i = 0; i < item_count; i++) {
         clear_text(&texts[i]);
     }
+
+    free_xft_color(&foreground);
+    free_xft_color(&background);
 
     return OK;
 }

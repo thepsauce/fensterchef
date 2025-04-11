@@ -38,8 +38,11 @@ typedef struct text {
     int item_count;
 } Text;
 
-/* Get the text colors for rendering. */
-int get_xft_colors(XftColor *background, XftColor *foreground);
+/* Get an Xft color from an RGB color. */
+int allocate_xft_color(uint32_t rgb, XftColor *color);
+
+/* Free an Xft color previous allocated by `allocate_xft_color()`. */
+void free_xft_color(XftColor *color);
 
 /* Free the resources the font list occupies. */
 void free_font_list(void);

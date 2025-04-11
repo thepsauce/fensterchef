@@ -6,22 +6,6 @@
 #include "utility.h"
 #include "x11_management.h"
 
-/* Colors that can be used, these are kept in sync with the configured colors.
- *
- * We want to cache these because when the underlying color map is using a
- * palette, retrieving colors can be slow.
- */
-static struct color {
-    /* if the colors were ever initialized */
-    bool is_colors_initialized;
-    /* the background and foreground colors */
-    XftColor background;
-    XftColor foreground;
-    /* the last rgb values from the configuration used */
-    uint32_t last_background_rgb;
-    uint32_t last_foreground_rgb;
-} xft_colors;
-
 /* a list of known fonts */
 struct font {
     /* the pattern of the font */
@@ -37,80 +21,35 @@ struct font_list {
     int count;
 } font_list;
 
-/* Get an Xft color from an RGB value. */
-static Bool get_xft_color(uint32_t rgb, XftColor *xft_color)
+/* Get an xft color from an RGB color. */
+int allocate_xft_color(uint32_t rgb, XftColor *color)
 {
-    XRenderColor color;
+    XRenderColor render_color;
     Bool result;
 
-    color.red = ((rgb >> 8) & 0xff00);
-    color.green = (rgb & 0xff00);
-    color.blue = (rgb & 0xff) << 8;
-    color.alpha = 0xffff;
+    render_color.red = ((rgb >> 8) & 0xff00);
+    render_color.green = (rgb & 0xff00);
+    render_color.blue = (rgb & 0xff) << 8;
+    render_color.alpha = 0xffff;
     result = XftColorAllocValue(display,
             DefaultVisual(display, DefaultScreen(display)),
             DefaultColormap(display, DefaultScreen(display)),
-            &color, xft_color);
-
+            &render_color, color);
     if (!result) {
-        LOG_ERROR("could not allocate xft color value for background\n");
-    } else {
-        LOG_DEBUG("Xft color pixel from (%04x %04x %04x): %#08lx\n",
-                color.red, color.green, color.blue,
-                xft_color->pixel);
+        LOG_ERROR("could not allocate Xft color value for background\n");
+        return ERROR;
     }
-
-    return result;
-}
-
-/* Get the text colors. */
-int get_xft_colors(XftColor *background, XftColor *foreground)
-{
-    Visual *visual;
-    Colormap color_map;
-    XftColor new_background, new_foreground;
-
-    visual = DefaultVisual(display, DefaultScreen(display));
-    color_map = DefaultColormap(display, DefaultScreen(display));
-
-    if (!xft_colors.is_colors_initialized) {
-        if (!get_xft_color(configuration.notification.background,
-                    &new_background)) {
-            return ERROR;
-        }
-
-        if (!get_xft_color(configuration.notification.foreground,
-                    &new_foreground)) {
-            XftColorFree(display, visual, color_map, &new_background);
-            return ERROR;
-        }
-
-        xft_colors.background = new_background;
-        xft_colors.foreground = new_foreground;
-        xft_colors.is_colors_initialized = true;
-    } else if (xft_colors.last_background_rgb !=
-            /* TODO: big configuration change */
-            (uint32_t) configuration.notification.background) {
-        if (get_xft_color(configuration.notification.background,
-                &new_background)) {
-            xft_colors.background = new_background;
-        }
-    } else if (xft_colors.last_foreground_rgb !=
-            /* TODO: big configuration change */
-            (uint32_t) configuration.notification.foreground) {
-        if (get_xft_color(configuration.notification.foreground,
-                &new_foreground)) {
-            xft_colors.foreground = new_foreground;
-        }
-    }
-
-    xft_colors.last_background_rgb = configuration.notification.background;
-    xft_colors.last_foreground_rgb = configuration.notification.foreground;
-
-    *background = xft_colors.background;
-    *foreground = xft_colors.foreground;
 
     return OK;
+}
+
+/* Free an Xft color previous allocated by `allocate_xft_color()`. */
+void free_xft_color(XftColor *color)
+{
+    XftColorFree(display,
+            DefaultVisual(display, DefaultScreen(display)),
+            DefaultColormap(display, DefaultScreen(display)),
+            color);
 }
 
 /* Free the resources the font list occupies. */

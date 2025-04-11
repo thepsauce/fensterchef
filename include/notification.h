@@ -6,12 +6,20 @@
 #include "x11_management.h" // XClient
 
 /* notification window */
-extern struct notification {
+typedef struct notification {
     /* the X correspondence */
     XClient client;
     /* Xft drawing context */
     XftDraw *xft_draw;
+    /* text color */
+    uint32_t foreground;
 } Notification;
+
+/* notification window for fensterchef windows */
+extern Notification *system_notification;
+
+/* Create a notification window for showing text. */
+Notification *create_notification(void);
 
 /* Show the notification window with given message at given coordinates for
  * a duration in seconds specified in the configuration.
@@ -20,6 +28,6 @@ extern struct notification {
  * @x Center x position.
  * @y Center y position.
  */
-void set_notification(const utf8_t *message, int x, int y);
+void set_system_notification(const utf8_t *message, int x, int y);
 
 #endif

@@ -295,9 +295,9 @@ int next_cycle(void)
 
                 snprintf(number, sizeof(number), "%u",
                         Frame_focus->number);
-                set_notification((utf8_t*) (Frame_focus->number > 0 ? number :
+                set_system_notification(Frame_focus->number > 0 ? number :
                             Frame_focus->left == NULL ?  "Current frame" :
-                            "Current frames"),
+                            "Current frames",
                         Frame_focus->x + Frame_focus->width / 2,
                         Frame_focus->y + Frame_focus->height / 2);
             }
@@ -306,7 +306,7 @@ int next_cycle(void)
     }
 
     if (has_timer_expired) {
-        unmap_client(&Notification.client);
+        unmap_client(&system_notification->client);
         has_timer_expired = false;
     }
 
@@ -481,9 +481,11 @@ static void handle_key_press(XKeyPressedEvent *event)
 
     key = find_configured_key(&configuration, event->state, event->keycode, 0);
     if (key != NULL) {
-        /* before a key binding, hide the notification window */
-        alarm(0);
-        unmap_client(&Notification.client);
+        if (system_notification != NULL) {
+            /* before a key binding, hide the notification window */
+            alarm(0);
+            unmap_client(&system_notification->client);
+        }
 
         LOG("evaluating expression: %A\n",
                 &key->expression);

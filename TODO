@@ -10,10 +10,6 @@
     Stack changes should be only locally noticed and then sent at once to the X
     server to allow more tolerance in scripts (expected to improve performance)
 
-#76 Make advanced notification windows
-    Allow more notification windows to be visible at the same time and
-    allow them to be individually configurable
-
 #77 Allow multi-line for notification windows
     Line breaks should be considered and text wrapping should be used when the
     text overflows a maximum configured width
@@ -385,4 +381,9 @@
 
 #18 ! No window in focus after toggling fullscreen
     When putting a window out of fullscreen and put into the focus frame, in
-    some circumstances it can happen that no window has focus now
+    some circumstances it can happen that no window has focus now.
+    Solution: Use `set_focus_window()` instead of `set_focus_frame()`.
+
+#76 Make advanced notification windows
+    Allow more notification windows to be visible at the same time and
+    allow them to be individually configurable
