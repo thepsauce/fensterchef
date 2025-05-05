@@ -3,7 +3,7 @@
 
 #include <stdio.h>
 
-#include "utility.h"
+#include "utility/utility.h"
 
 typedef enum {
     /* everything gets logged */
@@ -71,7 +71,7 @@ extern log_severity_t log_severity;
  * %W   Window*             ID<NUMBER or NAME>
  * %m   window_state_t      WINDOW_STATE
  * %F   Frame*              (X+Y+WIDTHxHEIGHT)
- * %A   Expression*         EXPRESSION
+ * %A   struct action_list* ACTION LIST
  * %a   Atom                ATOM
  * %V   XEvent*             EVENT
  * %E   XError*             ERROR

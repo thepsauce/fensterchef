@@ -1,9 +1,9 @@
 #ifndef NOTIFICATION_H
 #define NOTIFICATION_H
 
-#include "font.h" // XftDraw
-#include "utility.h" // utf8_t
-#include "x11_management.h" // XClient
+#include "font.h" /* XftDraw */
+#include "utility/utility.h" /* utf8_t */
+#include "x11_management.h" /* XClient */
 
 /* notification window */
 typedef struct notification {

@@ -8,9 +8,6 @@
 #include <X11/extensions/Xrandr.h>
 
 #include "configuration/action.h"
-#include "configuration/expression.h"
-#include "configuration/instructions.h"
-#include "configuration/variables.h"
 #include "event.h"
 #include "frame.h"
 #include "log.h"
@@ -1171,190 +1168,11 @@ static void log_frame(const Frame *frame)
     }
 }
 
-static const uint32_t *log_instruction(const uint32_t *instructions)
+/* Log a list of actions. */
+static void log_action_list(const struct action_list *list)
 {
-    const uint32_t instruction = instructions[0];
-    instructions++;
-    const instruction_type_t type = (instruction & 0xff);
-    switch (type) {
-    /* get a 24 bit signed integer */
-    case LITERAL_INTEGER: {
-        const struct {
-            int32_t x : 24;
-        } sign_extend = { instruction >> 8 };
-        log_integer(sign_extend.x);
-        break;
-    }
-
-    /* a quad value */
-    case LITERAL_QUAD: {
-        switch (instruction >> 8) {
-        /* copy the single value into the other */
-        case 1:
-            instructions = log_instruction(instructions);
-            break;
-
-        /* copy the two values into the other */
-        case 2:
-            instructions = log_instruction(instructions);
-            fputc(' ', stderr);
-            instructions = log_instruction(instructions);
-            break;
-
-        /* simply get all four values */
-        case 4:
-            instructions = log_instruction(instructions);
-            fputc(' ', stderr);
-            instructions = log_instruction(instructions);
-            fputc(' ', stderr);
-            instructions = log_instruction(instructions);
-            fputc(' ', stderr);
-            instructions = log_instruction(instructions);
-            break;
-        }
-        break;
-    }
-
-    /* get a string */
-    case LITERAL_STRING:
-        fprintf(stderr, COLOR(GREEN) "%s" CLEAR_COLOR,
-                (utf8_t*) &instructions[0]);
-        instructions += instruction >> 8;
-        break;
-
-    /* get the value of a variable */
-    case INSTRUCTION_VARIABLE:
-        fprintf(stderr, COLOR(BLUE) "%s" CLEAR_COLOR,
-                variables[instruction >> 8].name);
-        break;
-
-#define WRAP_INSTRUCTION do { \
-    const enum precedence_class precedence = \
-        get_instruction_precedence((instructions[0] & 0xff)); \
-    if (precedence < get_instruction_precedence(type)) { \
-        fputs("(", stderr); \
-    } \
-    instructions = log_instruction(instructions); \
-    if (precedence < get_instruction_precedence(type)) { \
-        fputs(")", stderr); \
-    } \
-} while (false)
-
-#define SINGLE_OPERATION(operator) do { \
-    fputs(COLOR(MAGENTA) STRINGIFY(operator) CLEAR_COLOR, stderr); \
-    WRAP_INSTRUCTION; \
-} while (false)
-
-#define DUAL_OPERATION(operator) do { \
-    WRAP_INSTRUCTION; \
-    fputs(COLOR(MAGENTA) " " STRINGIFY(operator) " " CLEAR_COLOR, stderr); \
-    WRAP_INSTRUCTION; \
-} while (false)
-
-    /* execute the two next instructions */
-    case INSTRUCTION_NEXT:
-        DUAL_OPERATION(;);
-        break;
-
-    /* jump operations */
-    case INSTRUCTION_LOGICAL_AND:
-        DUAL_OPERATION(&&);
-        break;
-    case INSTRUCTION_LOGICAL_OR:
-        DUAL_OPERATION(||);
-        break;
-
-    /* set a variable */
-    case INSTRUCTION_SET:
-        fprintf(stderr, COLOR(BLUE) "set " COLOR(YELLOW) "%s "
-                    COLOR(MAGENTA) "=" CLEAR_COLOR " ",
-                variables[instruction >> 8].name);
-        WRAP_INSTRUCTION;
-        break;
-
-    /* push an integer */
-    case INSTRUCTION_PUSH_INTEGER:
-        fprintf(stderr, COLOR(BLUE) "pushlocal" COLOR(YELLOW) "<integer>"
-                    CLEAR_COLOR "(");
-        instructions = log_instruction(instructions);
-        fprintf(stderr, ")");
-        break;
-
-    /* load an integer */
-    case INSTRUCTION_LOAD_INTEGER:
-        fprintf(stderr, COLOR(BLUE) "loadlocal" COLOR(YELLOW) "<integer>"
-                    CLEAR_COLOR "(&%" PRIu32 ")",
-                instruction >> 8);
-        break;
-
-    /* load an integer */
-    case INSTRUCTION_SET_INTEGER:
-        fprintf(stderr, COLOR(BLUE) "setlocal" COLOR(YELLOW) "<integer>"
-                    CLEAR_COLOR "(&%" PRIu32 ") = ",
-                instruction >> 8);
-        WRAP_INSTRUCTION;
-        break;
-
-    /* set the stack pointer */
-    case INSTRUCTION_STACK_POINTER:
-        fprintf(stderr, COLOR(BLUE) "droplocals" CLEAR_COLOR "(&%" PRIu32 ")",
-                instruction >> 8);
-        break;
-
-    /* integer operations */
-    case INSTRUCTION_NOT:
-        SINGLE_OPERATION(!);
-        break;
-    case INSTRUCTION_NEGATE:
-        SINGLE_OPERATION(-);
-        break;
-    case INSTRUCTION_ADD:
-        DUAL_OPERATION(+);
-        break;
-    case INSTRUCTION_SUBTRACT:
-        DUAL_OPERATION(-);
-        break;
-    case INSTRUCTION_MULTIPLY:
-        DUAL_OPERATION(*);
-        break;
-    case INSTRUCTION_DIVIDE:
-        DUAL_OPERATION(/);
-        break;
-    case INSTRUCTION_MODULO:
-        DUAL_OPERATION(%);
-        break;
-
-#undef DUAL_OPERATION
-
-    /* run an action */
-    case INSTRUCTION_RUN_ACTION:
-        fprintf(stderr, COLOR(CYAN) "%s " CLEAR_COLOR,
-                action_type_to_string(instruction >> 8));
-        instructions = log_instruction(instructions);
-        break;
-
-    /* run an action without parameter */
-    case INSTRUCTION_RUN_VOID_ACTION:
-        fprintf(stderr, COLOR(CYAN) "%s" CLEAR_COLOR,
-                action_type_to_string(instruction >> 8));
-        break;
-    }
-    return instructions;
-}
-
-/* Log an expression to standard error output. */
-static void log_expression(const Expression *expression)
-{
-    const uint32_t *instructions, *end;
-
-    instructions = expression->instructions;
-    end = &expression->instructions[expression->instruction_size];
-
-    while (instructions < end) {
-        instructions = log_instruction(instructions);
-        if (instructions < end) {
-            fputs(COLOR(MAGENTA) " ; " CLEAR_COLOR, stderr);
-        }
+    for (size_t i = 0; i < list->number_of_items; i++) {
+        fprintf(stderr, "%d ", list->items[i].type);
     }
 }
 
@@ -1490,9 +1308,9 @@ void log_formatted(log_severity_t severity, const char *file, int line,
                 log_event(va_arg(list, XEvent*));
                 break;
 
-            /* print an expression */
+            /* print a list of actions */
             case 'A':
-                log_expression(va_arg(list, Expression*));
+                log_action_list(va_arg(list, const struct action_list*));
                 break;
 
             /* print an X atom */

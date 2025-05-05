@@ -1,5 +1,5 @@
+#include <errno.h>
 #include <signal.h>
-
 #include <string.h>
 #include <sys/select.h>
 #include <unistd.h>
@@ -9,6 +9,9 @@
 #include <X11/extensions/Xrandr.h>
 
 #include "configuration/configuration.h"
+#include "configuration/parse.h"
+#include "configuration/stream.h"
+#include "cursor.h"
 #include "event.h"
 #include "fensterchef.h"
 #include "frame.h"
@@ -16,7 +19,7 @@
 #include "log.h"
 #include "monitor.h"
 #include "notification.h"
-#include "utility.h"
+#include "utility/utility.h"
 #include "window.h"
 #include "window_list.h"
 #include "window_properties.h"
@@ -149,22 +152,22 @@ void synchronize_with_server(void)
         }
         /* set the color of the focused window */
         if (window == Window_focus) {
-            window->border_color = configuration.border.focus_color;
+            window->border_color = configuration.border_focus_color;
         /* deeply set the colors of all windows within the focused frame */
         } else if ((Window_focus == NULL ||
-                    Window_focus->state.mode == WINDOW_MODE_TILING) &&
+                        Window_focus->state.mode == WINDOW_MODE_TILING) &&
                 window->state.mode == WINDOW_MODE_TILING &&
                 is_window_part_of(window, Frame_focus)) {
-            window->border_color = configuration.border.focus_color;
+            window->border_color = configuration.border_focus_color;
         /* if the window is the top window or within the focused frame, give it
          * the active color
          */
         } else if (is_window_part_of(window, Frame_focus) ||
                 (window->state.mode == WINDOW_MODE_FLOATING &&
-                 window == Window_top)) {
-            window->border_color = configuration.border.active_color;
+                    window == Window_top)) {
+            window->border_color = configuration.border_active_color;
         } else {
-            window->border_color = configuration.border.color;
+            window->border_color = configuration.border_color;
         }
     }
 
@@ -263,7 +266,12 @@ int next_cycle(void)
             handle_event(&event);
 
             if (is_reload_requested) {
-                reload_user_configuration();
+                if (initialize_file_stream(Fensterchef_configuration) != OK) {
+                    LOG("could not open \"%s\": %s\n",
+                            Fensterchef_configuration, strerror(errno));
+                } else {
+                    (void) parse_stream_and_run_actions();
+                }
                 is_reload_requested = false;
             }
         }
@@ -330,7 +338,7 @@ void initiate_window_move_resize(FcWindow *window,
         int start_x, int start_y)
 {
     Window root;
-    const char *cursor_name;
+    Cursor cursor;
 
     /* check if no window is already being moved/resized */
     if (move_resize.window != NULL) {
@@ -362,7 +370,7 @@ void initiate_window_move_resize(FcWindow *window,
 
     /* figure out a good direction if the caller does not supply one */
     if (direction == _NET_WM_MOVERESIZE_AUTO) {
-        const unsigned border = 2 * configuration.border.size;
+        const unsigned border = 2 * configuration.border_size;
         /* check if the mouse is at the top */
         if (start_y < window->y + configuration.mouse.resize_tolerance) {
             if (start_x < window->x + configuration.mouse.resize_tolerance) {
@@ -409,24 +417,23 @@ void initiate_window_move_resize(FcWindow *window,
     /* determine a fitting cursor */
     switch (direction) {
     case _NET_WM_MOVERESIZE_MOVE:
-        cursor_name = configuration.general.moving_cursor;
+        cursor = configuration.moving_cursor;
         break;
 
     case _NET_WM_MOVERESIZE_SIZE_LEFT:
     case _NET_WM_MOVERESIZE_SIZE_RIGHT:
-        cursor_name = configuration.general.horizontal_cursor;
+        cursor = configuration.horizontal_cursor;
         break;
 
     case _NET_WM_MOVERESIZE_SIZE_TOP:
     case _NET_WM_MOVERESIZE_SIZE_BOTTOM:
-        cursor_name = configuration.general.vertical_cursor;
+        cursor = configuration.vertical_cursor;
         break;
 
     default:
-        cursor_name = configuration.general.sizing_cursor;
+        cursor = configuration.sizing_cursor;
     }
 
-    const Cursor cursor = load_cursor(cursor_name);
     /* grab mouse events, we will then receive all mouse events */
     XGrabPointer(display, root, False,
             ButtonPressMask | ButtonReleaseMask | ButtonMotionMask,
@@ -477,9 +484,10 @@ static void cancel_window_move_resize(void)
 /* Key press events are sent when a grabbed key is pressed. */
 static void handle_key_press(XKeyPressedEvent *event)
 {
-    struct configuration_key *key;
+    const struct configuration_key *key;
 
-    key = find_configured_key(&configuration, event->state, event->keycode, 0);
+    key = find_configured_key(&configuration, false,
+            event->state, event->keycode);
     if (key != NULL) {
         if (system_notification != NULL) {
             /* before a key binding, hide the notification window */
@@ -487,30 +495,30 @@ static void handle_key_press(XKeyPressedEvent *event)
             unmap_client(&system_notification->client);
         }
 
-        LOG("evaluating expression: %A\n",
-                &key->expression);
-        evaluate_expression(&key->expression, NULL);
+        LOG("running actions: %A\n",
+                &key->actions);
+        do_list_of_actions(&key->actions);
     }
 }
 
 /* Key release events are sent when a grabbed key is released. */
 static void handle_key_release(XKeyReleasedEvent *event)
 {
-    struct configuration_key *key;
+    const struct configuration_key *key;
 
-    key = find_configured_key(&configuration, event->state,
-            event->keycode, BINDING_FLAG_RELEASE);
+    key = find_configured_key(&configuration, true,
+            event->state, event->keycode);
     if (key != NULL) {
-        LOG("evaluating expression: %A\n",
-                &key->expression);
-        evaluate_expression(&key->expression, NULL);
+        LOG("running actions: %A\n",
+                &key->actions);
+        do_list_of_actions(&key->actions);
     }
 }
 
 /* Button press events are sent when a grabbed button is pressed. */
 static void handle_button_press(XButtonPressedEvent *event)
 {
-    struct configuration_button *button;
+    const struct configuration_button *button;
 
     if (move_resize.window != NULL) {
         cancel_window_move_resize();
@@ -521,15 +529,13 @@ static void handle_button_press(XButtonPressedEvent *event)
     /* set the pressed window so actions can use it */
     Window_pressed = get_fensterchef_window(event->window);
 
-    button = find_configured_button(&configuration, event->state,
-            event->button, 0);
+    button = find_configured_button(&configuration, false,
+            event->state, event->button);
     if (button != NULL) {
-        LOG("evaluating expression: %A\n",
-                &button->expression);
-        evaluate_expression(&button->expression, NULL);
-
-        /* make the event pass through to the underlying window */
-        if ((button->flags & BINDING_FLAG_TRANSPARENT)) {
+        LOG("running actions: %A\n",
+                &button->actions);
+        do_list_of_actions(&button->actions);
+        if (button->is_transparent) {
             XAllowEvents(display, ReplayPointer, event->time);
         }
     }
@@ -540,7 +546,7 @@ static void handle_button_press(XButtonPressedEvent *event)
 /* Button releases are sent when a grabbed button is released. */
 static void handle_button_release(XButtonReleasedEvent *event)
 {
-    struct configuration_button *button;
+    const struct configuration_button *button;
 
     if (move_resize.window != NULL) {
         /* release mouse events back to the applications */
@@ -554,17 +560,12 @@ static void handle_button_release(XButtonReleasedEvent *event)
     /* set the pressed window so actions can use it */
     Window_pressed = get_fensterchef_window(event->window);
 
-    button = find_configured_button(&configuration, event->state,
-            event->button, BINDING_FLAG_RELEASE);
+    button = find_configured_button(&configuration, true,
+            event->state, event->button);
     if (button != NULL) {
-        LOG("evaluating expression: %A\n",
-                &button->expression);
-        evaluate_expression(&button->expression, NULL);
-
-        /* make the event pass through to the underlying window */
-        if ((button->flags & BINDING_FLAG_TRANSPARENT)) {
-            XAllowEvents(display, ReplayPointer, event->time);
-        }
+        LOG("running actions: %A\n",
+                &button->actions);
+        do_list_of_actions(&button->actions);
     }
 
     Window_pressed = NULL;
@@ -742,41 +743,13 @@ static void handle_unmap_notify(XUnmapEvent *event)
 static void handle_map_request(XMapRequestEvent *event)
 {
     FcWindow *window;
-    bool is_first_time = false;
-    struct configuration_association association = {
-        .expression.instruction_size = 0
-    };
 
     window = get_fensterchef_window(event->window);
     if (window == NULL) {
-        window = create_window(event->window, &association);
-        is_first_time = true;
-    }
-    if (window == NULL) {
-        LOG("not managing %w\n", event->window);
-        return;
-    }
-
-    /* check if the user defined an expression to run when after the window
-     * is mapped
-     */
-    if (association.expression.instruction_size > 0) {
-        LOG("running associated expression: %A\n", &association.expression);
-        Window_pressed = window;
-        evaluate_expression(&association.expression, NULL);
-        Window_pressed = NULL;
-    } else {
-        /* if a window does not start in normal state, do not map it */
-        if (is_first_time && (window->hints.flags & StateHint) &&
-                window->hints.initial_state != NormalState) {
-            LOG("window %W starts off as hidden window\n", window);
+        window = create_window(event->window);
+        if (window == NULL) {
+            LOG("not managing %w\n", event->window);
             return;
-        }
-
-        show_window(window);
-        update_window_layer(window);
-        if (is_window_focusable(window)) {
-            set_focus_window_with_frame(window);
         }
     }
 }

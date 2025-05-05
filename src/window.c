@@ -2,14 +2,14 @@
 #include <limits.h>
 #include <string.h>
 
-#include "configuration/configuration.h"
+#include "configuration/parse.h"
+#include "configuration/stream.h"
 #include "event.h"
 #include "frame.h"
 #include "log.h"
 #include "monitor.h"
 #include "window.h"
 #include "window_properties.h"
-#include "xalloc.h"
 
 /* the number of all windows within the linked list, this value is kept up to
  * date through `create_window()` and `destroy_window()`
@@ -64,8 +64,7 @@ static inline FcWindow *find_number_gap(void)
     /* if the first window has window number greater than the first number that
      * means there is space at the front
      */
-    if (Window_first->number > (uint32_t)
-            configuration.assignment.first_window_number) {
+    if (Window_first->number > configuration.first_window_number) {
         return NULL;
     }
 
@@ -74,8 +73,7 @@ static inline FcWindow *find_number_gap(void)
      * `first_window_number`
      */
     for (; previous->next != NULL; previous = previous->next) {
-        if (previous->next->number > (uint32_t)
-                configuration.assignment.first_window_number) {
+        if (previous->next->number > configuration.first_window_number) {
             break;
         }
     }
@@ -112,8 +110,7 @@ static inline FcWindow *find_window_number(uint32_t number)
 }
 
 /* Create a window struct and add it to the window list. */
-FcWindow *create_window(Window id,
-        struct configuration_association *association)
+FcWindow *create_window(Window id)
 {
     XWindowAttributes attributes;
     Window root;
@@ -125,28 +122,23 @@ FcWindow *create_window(Window id,
     FcWindow *window;
     FcWindow *previous;
     window_mode_t mode;
+    const struct configuration_association *association;
 
     XGetWindowAttributes(display, id, &attributes);
 
-    /* override redirect is used by windows to indicate that our window manager
-     * should not tamper with them, we also check if the class is InputOnly
-     * which is not a case we want to handle
+    /* Override redirect is used by windows to indicate that our window manager
+     * should not tamper with them.  We also check if the class is InputOnly
+     * which is not a case we want to handle (the window has no graphics).
      */
     if (attributes.override_redirect || attributes.class == InputOnly) {
         /* check if the window holds a command */
-        char *const command = get_fensterchef_command_property(id);
+        utf8_t *const command = get_fensterchef_command_property(id);
         if (command != NULL) {
-            struct configuration configuration;
-
             LOG("window %#ld has command: %s\n",
                     id, command);
 
-            if (load_configuration(command, &configuration, false) == OK) {
-                LOG("doing its actions: %A\n",
-                        &configuration.startup.expression);
-                evaluate_expression(&configuration.startup.expression, NULL);
-                clear_configuration(&configuration);
-            }
+            (void) initialize_string_stream(command);
+            (void) parse_stream_and_run_actions();
 
             free(command);
 
@@ -159,7 +151,7 @@ FcWindow *create_window(Window id,
     }
 
     /* set the initial border color */
-    set_attributes.border_pixel = configuration.border.color;
+    set_attributes.border_pixel = configuration.border_color;
     /* we want to know if if any properties change */
     set_attributes.event_mask = PropertyChangeMask;
     XChangeWindowAttributes(display, id, CWBorderPixel | CWEventMask,
@@ -168,7 +160,7 @@ FcWindow *create_window(Window id,
     XGetGeometry(display, id, &root, &x, &y, &width, &height, &border_width,
             &depth);
 
-    window = xcalloc(1, sizeof(*window));
+    ALLOCATE_ZERO(window, 1);
 
     window->reference_count = 1;
     window->client.id = id;
@@ -177,7 +169,7 @@ FcWindow *create_window(Window id,
     window->client.width = width;
     window->client.height = height;
     window->client.background = attributes.backing_pixel;
-    window->client.border = configuration.border.color;
+    window->client.border = configuration.border_color;
     /* check if the window is already mapped on the X server */
     if (attributes.map_state != IsUnmapped) {
         window->client.is_mapped = true;
@@ -191,9 +183,8 @@ FcWindow *create_window(Window id,
     window->height = height;
     window->border_color = window->client.border;
 
-    /* get the initial mode and set the window number */
-    mode = initialize_window_properties(window, association);
-    window->number = association->number;
+    /* get the initial mode and a defined association */
+    association = initialize_window_properties(window, &mode);
 
     /* link into the Z, age and number linked lists */
     if (Window_first == NULL) {
@@ -202,7 +193,7 @@ FcWindow *create_window(Window id,
         Window_top = window;
         Window_first = window;
         if (window->number == 0) {
-            window->number = configuration.assignment.first_window_number;
+            window->number = configuration.first_window_number;
         }
     } else {
         previous = Window_first;
@@ -216,14 +207,12 @@ FcWindow *create_window(Window id,
             window->next = Window_first;
             Window_first = window;
             if (window->number == 0) {
-                window->number = configuration.assignment.first_window_number;
+                window->number = configuration.first_window_number;
             }
         } else {
             if (window->number == 0) {
-                if (previous->number < (uint32_t)
-                        configuration.assignment.first_window_number) {
-                    window->number =
-                        configuration.assignment.first_window_number;
+                if (previous->number < configuration.first_window_number) {
+                    window->number = configuration.first_window_number;
                 } else {
                     window->number = previous->number + 1;
                 }
@@ -258,6 +247,23 @@ FcWindow *create_window(Window id,
     grab_configured_buttons(id);
 
     LOG("created new window %W\n", window);
+
+    if (association != NULL) {
+        /* run the user defined actions */
+        do_list_of_actions(&association->actions);
+    /* if a window does not start in normal state, do not map it */
+    } else if ((window->hints.flags & StateHint) &&
+            window->hints.initial_state != NormalState) {
+        LOG("window %W starts off as hidden window\n", window);
+    } else {
+        /* run the default behavior */
+        show_window(window);
+        update_window_layer(window);
+        if (is_window_focusable(window)) {
+            set_focus_window_with_frame(window);
+        }
+    }
+
     return window;
 }
 

@@ -64,6 +64,7 @@ int initialize_connection(void)
             XkbAllClientInfoMask);
 
     x_file_descriptor = XConnectionNumber(display);
+
     LOG("%D\n", display);
 
     /* initialize the X atoms */
@@ -137,7 +138,7 @@ void take_control(void)
     /* map the window so it can receive the fallback focus */
     XMapWindow(display, wm_check_window);
 
-    /* intialize the focus */
+    /* initialize the focus */
     XSetInputFocus(display, wm_check_window, RevertToParent, CurrentTime);
 
     /* wait until we get replies to our requests, all should succeed */
@@ -156,8 +157,6 @@ void query_existing_windows(void)
     Window parent;
     Window *children;
     unsigned number_of_children;
-    FcWindow *window;
-    struct configuration_association association;
 
     /* get a list of child windows of the root in bottom-to-top stacking order
      */
@@ -165,10 +164,7 @@ void query_existing_windows(void)
             &number_of_children);
 
     for (unsigned i = 0; i < number_of_children; i++) {
-        window = create_window(children[i], &association);
-        if (window != NULL && window->client.is_mapped) {
-            show_window(window);
-        }
+        (void) create_window(children[i]);
     }
 
     XFree(children);

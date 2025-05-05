@@ -1,51 +1,40 @@
 #ifndef CONFIGURATION__DATA_TYPE_H
 #define CONFIGURATION__DATA_TYPE_H
 
-#include "bits/frame_typedef.h"
-#include "bits/window_typedef.h"
+#include <stddef.h>
 
-#include "cursor.h"
-#include "utility.h"
+#include "utility/utility.h"
 
-/* data types the parser understands
- *
- * NOTE: After editing a data type, also edit the data_types[] array in
- * configuration_parser.c and implement its parser function. It will then be
- * automatically be used in parse_line().
- * The compiler will also complain about certain switches that need to be
- * implemented in data_type.c.
+/* align data to pointer boundaries */
+typedef ptrdiff_t parse_data_align_t;
+
+/* If the integer is a percentage of something.  For example this might be 20%
+ * off the width of a monitor.
  */
-typedef enum data_type {
-    /* no data type at all */
-    DATA_TYPE_VOID,
-    /* any utf8 text without any leading or trailing spaces */
-    DATA_TYPE_STRING,
-    /* an integer in simple decimal notation */
-    DATA_TYPE_INTEGER,
-    /* a set of 1, 2 or 4 integers */
-    DATA_TYPE_QUAD,
+#define PARSE_DATA_FLAGS_IS_PERCENT (1 << 0)
 
-    /* the maximum value of a data type */
-    DATA_TYPE_MAX
-} data_type_t;
+/* If the integer is a pixel value.  When talking about units, 1 != 1px.
+ * The first "1" is a device independent 1 that is combined with the monitors
+ * DPI.  The second "1px" is always 1 pixel, no matter the device.
+ */
+#define PARSE_DATA_FLAGS_IS_PIXEL (1 << 1)
 
-/* generic value of a data type */
-typedef union data_type_value {
-    /* any utf8 text without any leading or trailing spaces */
-    utf8_t *string;
-    /* an integer in simple decimal notation */
-    int32_t integer;
-    /* a set of 1, 2 or 4 integers */
-    int32_t quad[4];
-} GenericData;
+/* If the data must be freed. */
+#define PARSE_DATA_FLAGS_IS_POINTER (1 << 2)
 
-/* the size in bytes of each data type */
-extern size_t data_type_sizes[DATA_TYPE_MAX];
-
-/* Duplicate given @value deeply into itself. */
-void duplicate_data_value(data_type_t type, GenericData *data);
-
-/* Free the resources the given data value occupies. */
-void clear_data_value(data_type_t type, GenericData *data);
+/* generic action data */
+struct parse_generic_data {
+    /* an OR combination of `PARSE_DATA_FLAGS_*` */
+    parse_data_align_t flags;
+    /* the literal value */
+    union {
+        /* integer value */
+        parse_data_align_t integer;
+        /* a nul-terminated string */
+        utf8_t *string;
+        /* a pointer used for freeing pointer values like `string` */
+        void *pointer;
+    } u;
+};
 
 #endif

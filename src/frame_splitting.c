@@ -4,7 +4,7 @@
 #include "log.h"
 #include "frame_sizing.h"
 #include "frame_stashing.h"
-#include "utility.h"
+#include "utility/utility.h"
 #include "window.h"
 
 /* Split a frame horizontally or vertically. */
@@ -16,7 +16,7 @@ void split_frame(Frame *split_from, Frame *other, bool is_left_split,
     new = create_frame();
     if (other == NULL) {
         other = create_frame();
-        if (configuration.tiling.auto_fill_void) {
+        if (configuration.auto_fill_void) {
             fill_void_with_stash(other);
         }
     }
@@ -57,7 +57,7 @@ void split_frame(Frame *split_from, Frame *other, bool is_left_split,
     /* size the child frames */
     resize_frame(split_from, split_from->x, split_from->y,
             split_from->width, split_from->height);
-    if (configuration.tiling.auto_equalize) {
+    if (configuration.auto_equalize) {
         apply_auto_equalize(split_from, direction);
     }
 
@@ -123,13 +123,13 @@ void remove_frame(Frame *frame)
         /* move down the parent to find the most centered new frame to focus */
         while (new->left != NULL) {
             if (new->split_direction == FRAME_SPLIT_HORIZONTALLY) {
-                if (new->left->x + (int32_t) new->left->width >= x) {
+                if (new->left->x + (int) new->left->width >= x) {
                     new = new->left;
                 } else {
                     new = new->right;
                 }
             } else {
-                if (new->left->y + (int32_t) new->left->height >= y) {
+                if (new->left->y + (int) new->left->height >= y) {
                     new = new->left;
                 } else {
                     new = new->right;
@@ -140,7 +140,7 @@ void remove_frame(Frame *frame)
         Frame_focus = new;
     }
 
-    if (configuration.tiling.auto_equalize) {
+    if (configuration.auto_equalize) {
         apply_auto_equalize(parent, direction);
     }
 

@@ -2,7 +2,7 @@
 
 #include "configuration/configuration.h"
 #include "log.h"
-#include "utility.h"
+#include "utility/utility.h"
 #include "window.h"
 #include "window_properties.h"
 
@@ -413,8 +413,8 @@ static bool is_atom_included(const Atom *atoms, Atom atom)
 }
 
 /* Initialize all properties within @properties. */
-window_mode_t initialize_window_properties(FcWindow *window,
-        struct configuration_association *output_association)
+const struct configuration_association *initialize_window_properties(
+        FcWindow *window, window_mode_t *mode)
 {
     int atom_count;
     Atom *atoms;
@@ -426,8 +426,7 @@ window_mode_t initialize_window_properties(FcWindow *window,
     Atom *states = NULL;
     Atom *types = NULL;
     window_mode_t predicted_mode = WINDOW_MODE_TILING;
-
-    memset(output_association, 0, sizeof(*output_association));
+    const struct configuration_association *matching_association = NULL;
 
     /* get a list of properties currently set on the window */
     atoms = XListProperties(display, window->client.id, &atom_count);
@@ -493,11 +492,11 @@ window_mode_t initialize_window_properties(FcWindow *window,
         for (uint32_t i = 0;
                 i < configuration.assignment.number_of_associations;
                 i++) {
-            struct configuration_association *const association =
+            const struct configuration_association *const association =
                 &configuration.assignment.associations[i];
             if (matches_pattern(association->instance_pattern, instance_name) &&
                     matches_pattern(association->class_pattern, class_name)) {
-                *output_association = *association;
+                matching_association = association;
                 break;
             }
         }
@@ -509,7 +508,8 @@ window_mode_t initialize_window_properties(FcWindow *window,
 
     XFree(atoms);
 
-    return predicted_mode;
+    *mode = predicted_mode;
+    return matching_association;
 }
 
 /* Check if @properties includes @protocol. */

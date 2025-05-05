@@ -17,9 +17,7 @@ The goals of fensterchef are:
 - `src/` contains the `.c` files that implement all functionality
 - `include/` contains the `.h` files for any declarations
 - `include/bits/` contains small header files mostly used to avoid conflicts
-- `generate/` includes code to automatically generate part of the code and
-  documentation
-- `man/` contains the manual pages
+- `doc/` contains the documentation
 - `images/` contains images showcasing possible fensterchef setups
 
 ## Getting started
@@ -47,11 +45,11 @@ all steps first before going into it):
 
 ### Window management
 
-An `FcWindow` (Fensterchef window) is a wrapper around an `XClient`. The
+An `FcWindow` (Fensterchef window) is a wrapper around an `XClient`.  The
 `XClient` is a wrapper around a raw X window and caches a few properties like
 position and size.
 
-Windows were designed to be a very easy to use abstration. You can do for
+Windows were designed to be a very easy to use abstration.  You can do for
 example `window->x = 8` and this will automatically synchronize the window X
 position with the X server on the next event cycle.
 
@@ -66,9 +64,9 @@ position with the X server on the next event cycle.
 
 ### Frame management
 
-Frames are used to partition the screen space. Each frame can be split into two
-sub frames. The parent remains and is wrapped around the children. The children
-share the parent space.
+Frames are used to partition the screen space.  Each frame can be split into two
+sub frames.  The parent remains and is wrapped around the children.
+The children share the parent space.
 
 - Remember how `src/window_state.c` shows and hides tiling windows
 - Go to `src/frame.c` to see how frames are set up, using `create_frame()` gets
@@ -78,11 +76,11 @@ share the parent space.
 - Go to `src/frame_splitting.c` to see how frames are split in two and
   unsplitted
 - Note that unlike windows, doing `frame->x = 8` visibly does not change
-  anything. In addition, you must call `reload_frame(frame)` to also size the
-  inner window. To size the inner children, use `resize_frame(frame, x, y,
+  anything.  In addition, you must call `reload_frame(frame)` to also size the
+  inner window.  To size the inner children, use `resize_frame(frame, x, y,
   width, height)` from `include/frame_sizing.h`
-- Go to `src/frame_sizing.c` to see how frames are size and how when parents
-  are size, recursively resize their chilrend
+- Go to `src/frame_sizing.c` to see how frames are sized and how when parents
+  are resized, recursively resize their children
 - Go to `src/frame_moving.c` to see how frames are moved around the tiling
   layout and how we get from one frame to another
 - Go to `src/frame_stashing.c` to see how frames are stashed, stashed frames are
@@ -91,10 +89,11 @@ share the parent space.
 ### X client management
 
 Calling any functions (besides changing the stacking order) does not synchronize
-with the X server. This approach was chosen so that user scripts can interact
-effortlessly (without any back and forth) with fensterchef.
+with the X server.  This approach was chosen to have a high tolerance against
+back and forth changes, making it easy to write new functions using existing
+functions.
 
-- Go to `src/x11_management.c`. Here the connection is initialized to the X
+- Go to `src/x11_management.c`.  Here the connection is initialized to the X
   server, we use the convenient `XkbOpenDisplay()` which does some Xkb version
   checks for us
 - Go back to `src/event.c` and look at `next_cycle()`, this is the heart of
@@ -142,12 +141,12 @@ These are files used to extend fensterchef and implement core utility features
 
 #### Program options
 
-- Go to `src/program_options.c` to see what program options are handled. There
+- Go to `src/program_options.c` to see what program options are handled.  There
   is a simple parser for the command line
 
 ## Notable files
 
-- `gmon.out` is generated when running the build. It contains code profiling,
+- `gmon.out` is generated when running the build.  It contains code profiling,
   you can use `gprof build/fensterchef gmon.out >profile.txt` to get the
   profiling information
 - `README.md` contains a short and concise introduction that should fit on a
@@ -174,22 +173,22 @@ The `Makefile` is the main tool for development and installation, it has the
 following "targets":
 
 - `build` builds the entire project and puts the object files in `build/` and
-the executable in `build/fensterchef`
+  the executable in `build/fensterchef`
 - `sandbox` builds and starts `Xephyr` with fensterchef running
 - `release` makes the release build which will be in `release/`.
   Note that this can catch additional code warnings in some cases
 - `install` installs fensterchef on the system (needs root privileges)
 - `uninstall` removes all fensterchef files from the system (needs root
   privileges)
-- `clean` removes the `build/` and `release/` directory
+- `clean` removes the `build/` and `release/` directories
 
 ## What now
 
 You should have a good understanding of fensterchef now and you can try to
-implement your own functionality. Fensterchef documents well how functions
-should be used in the header files and what is not allowed. We followed the
+implement your own functionality.  Fensterchef documents well how functions
+should be used in the header files and what is not allowed.  We followed the
 philosophy that you can not break fensterchef using any amount of global
 functions in any order making it easy to write code and test it.
-There are some expections to this case and these are always documented. Usually
+There are some expections to this case and these are always documented.  Usually
 it is just that you have to wait until some parts have been initialized in
 `main()`.

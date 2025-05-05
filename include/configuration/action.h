@@ -7,162 +7,237 @@
  * The user can invoke any actions in any order at any time.
  */
 
-#include "bits/window_typedef.h"
-
 #include "configuration/data_type.h"
 
-/* expands to all actions */
-#define DECLARE_ALL_ACTIONS \
-    /* invalid action value */ \
-    X(ACTION_NULL, false, NULL, 0) \
-\
-    /* no action at all */ \
-    X(ACTION_NONE, false, "none", DATA_TYPE_VOID) \
-    /* reload the configuration file */ \
-    X(ACTION_RELOAD_CONFIGURATION, false, "reload-configuration", DATA_TYPE_VOID) \
+/* This expands to all actions.  It should be alphabetically sorted for the
+ * parser to be faster but that is optional.
+ *
+ * Action strings are formatted like this:
+ * - The action string consists of words separated by a single space
+ * - I is an integer
+ * - S is a string
+ */
+#define DEFINE_ALL_PARSE_ACTIONS \
     /* assign a number to a frame */ \
-    X(ACTION_ASSIGN, false, "assign", DATA_TYPE_INTEGER) \
-    /* focus a frame with given number */ \
-    X(ACTION_FOCUS_FRAME, true, "focus-frame", DATA_TYPE_INTEGER) \
-    /* move the focus to the parent frame */ \
-    X(ACTION_FOCUS_PARENT, true, "focus-parent", DATA_TYPE_INTEGER) \
-    /* move the focus to the child frame */ \
-    X(ACTION_FOCUS_CHILD, true, "focus-child", DATA_TYPE_INTEGER) \
-    /* equalize the size of the child frames within a frame */ \
-    X(ACTION_EQUALIZE_FRAME, false, "equalize-frame", DATA_TYPE_VOID) \
+    X(ACTION_ASSIGN, "assign I") \
+    /* assign a number to a window */ \
+    X(ACTION_ASSIGN_WINDOW, "assign window I") \
+    /* automatically equalize the frames when a frame is split or removed */ \
+    X(ACTION_AUTO_EQUALIZE, "auto equalize I") \
+    /* automatic filling of voids */ \
+    X(ACTION_AUTO_FILL_VOID, "auto fill void I") \
+    /* automatic removal of windows (implies remove void) */ \
+    X(ACTION_AUTO_REMOVE, "auto remove I") \
+    /* automatic removal of voids */ \
+    X(ACTION_AUTO_REMOVE_VOID, "auto remove void I") \
+    /* automatic splitting */ \
+    X(ACTION_AUTO_SPLIT, "auto split I") \
+    /* the background color of the fensterchef windows */ \
+    X(ACTION_BACKGROUND, "background I") \
+    /* the border color of all windows */ \
+    X(ACTION_BORDER_COLOR, "border color I") \
+    /* the border size of all windows */ \
+    X(ACTION_BORDER_SIZE, "border size I") \
+    /* center the window to the monitor it is on */ \
+    X(ACTION_CENTER_WINDOW, "center window") \
+    /* center a window to given monitor (glob pattern) */ \
+    X(ACTION_CENTER_WINDOW_TO, "center window to S") \
     /* closes the currently active window */ \
-    X(ACTION_CLOSE_WINDOW, false, "close-window", DATA_TYPE_VOID) \
-    /* hides the window with given number of the clicked window */ \
-    X(ACTION_MINIMIZE_WINDOW, true, "minimize-window", DATA_TYPE_INTEGER) \
-    /* show the window with given number or the clicked window */ \
-    X(ACTION_SHOW_WINDOW, true, "show-window", DATA_TYPE_INTEGER) \
-    /* focus the window with given number or the clicked window */ \
-    X(ACTION_FOCUS_WINDOW, true, "focus-window", DATA_TYPE_INTEGER) \
-    /* start moving a window with the mouse */ \
-    X(ACTION_INITIATE_MOVE, false, "initiate-move", DATA_TYPE_VOID) \
-    /* start resizing a window with the mouse */ \
-    X(ACTION_INITIATE_RESIZE, false, "initiate-resize", DATA_TYPE_VOID) \
-    /* go to the next window in the window list */ \
-    X(ACTION_NEXT_WINDOW, true, "next-window", DATA_TYPE_INTEGER) \
-    /* go to the previous window in the window list */ \
-    X(ACTION_PREVIOUS_WINDOW, true, "previous-window", DATA_TYPE_INTEGER) \
-    /* remove the current frame */ \
-    X(ACTION_REMOVE_FRAME, false, "remove-frame", DATA_TYPE_VOID) \
-    /* remove the current frame and replace it with a frame from the stash */ \
-    X(ACTION_OTHER_FRAME, false, "other-frame", DATA_TYPE_VOID) \
-    /* changes a non tiling window to a tiling window and vise versa */ \
-    X(ACTION_TOGGLE_TILING, false, "toggle-tiling", DATA_TYPE_VOID) \
-    /* toggles the fullscreen state of the currently focused window */ \
-    X(ACTION_TOGGLE_FULLSCREEN, false, "toggle-fullscreen", DATA_TYPE_VOID) \
-    /* change the focus from tiling to non tiling or vise versa */ \
-    X(ACTION_TOGGLE_FOCUS, false, "toggle-focus", DATA_TYPE_VOID) \
-    /* split the current frame horizontally */ \
-    X(ACTION_SPLIT_HORIZONTALLY, false, "split-horizontally", DATA_TYPE_VOID) \
-    /* split the current frame vertically */ \
-    X(ACTION_SPLIT_VERTICALLY, false, "split-vertically", DATA_TYPE_VOID) \
-    /* split the current frame left horizontally */ \
-    X(ACTION_LEFT_SPLIT_HORIZONTALLY, false, "left-split-horizontally", DATA_TYPE_VOID) \
-    /* split the current frame left vertically */ \
-    X(ACTION_LEFT_SPLIT_VERTICALLY, false, "left-split-vertically", DATA_TYPE_VOID) \
-    /* hint that the current frame should split horizontally */ \
-    X(ACTION_HINT_SPLIT_HORIZONTALLY, false, "hint-split-horizontally", DATA_TYPE_VOID) \
-    /* hint that the current frame should split vertically */ \
-    X(ACTION_HINT_SPLIT_VERTICALLY, false, "hint-split-vertically", DATA_TYPE_VOID) \
-    /* move the focus to the above frame */ \
-    X(ACTION_FOCUS_UP, false, "focus-up", DATA_TYPE_VOID) \
-    /* move the focus to the left frame */ \
-    X(ACTION_FOCUS_LEFT, false, "focus-left", DATA_TYPE_VOID) \
-    /* move the focus to the right frame */ \
-    X(ACTION_FOCUS_RIGHT, false, "focus-right", DATA_TYPE_VOID) \
-    /* move the focus to the frame below */ \
-    X(ACTION_FOCUS_DOWN, false, "focus-down", DATA_TYPE_VOID) \
-    /* exchange the current frame with the above one */ \
-    X(ACTION_EXCHANGE_UP, false, "exchange-up", DATA_TYPE_VOID) \
-    /* exchange the current frame with the left one */ \
-    X(ACTION_EXCHANGE_LEFT, false, "exchange-left", DATA_TYPE_VOID) \
-    /* exchange the current frame with the right one */ \
-    X(ACTION_EXCHANGE_RIGHT, false, "exchange-right", DATA_TYPE_VOID) \
-    /* exchange the current frame with the below one */ \
-    X(ACTION_EXCHANGE_DOWN, false, "exchange-down", DATA_TYPE_VOID) \
-    /* move the current frame up */ \
-    X(ACTION_MOVE_UP, false, "move-up", DATA_TYPE_VOID) \
-    /* move the current frame to the left */ \
-    X(ACTION_MOVE_LEFT, false, "move-left", DATA_TYPE_VOID) \
-    /* move the current frame to the right */ \
-    X(ACTION_MOVE_RIGHT, false, "move-right", DATA_TYPE_VOID) \
-    /* move the current frame down */ \
-    X(ACTION_MOVE_DOWN, false, "move-down", DATA_TYPE_VOID) \
-    /* show the interactive window list */ \
-    X(ACTION_SHOW_WINDOW_LIST, false, "show-window-list", DATA_TYPE_VOID) \
-    /* run a shell program */ \
-    X(ACTION_RUN, false, "run", DATA_TYPE_STRING) \
-    /* show a notification with a string message */ \
-    X(ACTION_SHOW_MESSAGE, false, "show-message", DATA_TYPE_STRING) \
-    /* show a notification with a message extracted from a shell program */ \
-    X(ACTION_SHOW_MESSAGE_RUN, false, "show-message-run", DATA_TYPE_STRING) \
-    /* resize the edges of the current window by given values */ \
-    X(ACTION_RESIZE_BY, false, "resize-by", DATA_TYPE_QUAD) \
-    /* resize the edges of the current window to given values */ \
-    X(ACTION_RESIZE_TO, false, "resize-to", DATA_TYPE_QUAD) \
-    /* center a window to given monitor (glob pattern) or the monitor the window is currently on */ \
-    X(ACTION_CENTER_TO, true, "center-to", DATA_TYPE_STRING) \
+    X(ACTION_CLOSE_WINDOW, "close window") \
+    /* closes the window with given number */ \
+    X(ACTION_CLOSE_WINDOW_I, "close window I") \
+    /* set the default cursor for horizontal sizing */ \
+    X(ACTION_CURSOR_HORIZONTAL, "cursor horizontal S") \
+    /* set the default cursor for movement */ \
+    X(ACTION_CURSOR_MOVING, "cursor moving S") \
+    /* set the default root cursor */ \
+    X(ACTION_CURSOR_ROOT, "cursor root S") \
+    /* set the default cursor for sizing a corner */ \
+    X(ACTION_CURSOR_SIZING, "cursor sizing S") \
+    /* set the default cursor for vertical sizing */ \
+    X(ACTION_CURSOR_VERTICAL, "cursor vertical S") \
     /* write all fensterchef information to a file */ \
-    X(ACTION_DUMP_LAYOUT, false, "dump-layout", DATA_TYPE_STRING) \
+    X(ACTION_DUMP_LAYOUT, "dump layout S") \
+    /* equalize the size of the child frames within the current frame */ \
+    X(ACTION_EQUALIZE, "equalize") \
+    /* exchange the current frame with the below one */ \
+    X(ACTION_EXCHANGE_DOWN, "exchange down") \
+    /* exchange the current frame with the left one */ \
+    X(ACTION_EXCHANGE_LEFT, "exchange left") \
+    /* exchange the current frame with the right one */ \
+    X(ACTION_EXCHANGE_RIGHT, "exchange right") \
+    /* exchange the current frame with the above one */ \
+    X(ACTION_EXCHANGE_UP, "exchange up") \
+    /* the number of the first window */ \
+    X(ACTION_FIRST_WINDOW_NUMBER, "first window number I") \
+    /* focus the child of the current frame */ \
+    X(ACTION_FOCUS_CHILD, "focus child") \
+    /* focus the ith child of the current frame */ \
+    X(ACTION_FOCUS_CHILD_I, "focus child I") \
+    /* focus the frame below */ \
+    X(ACTION_FOCUS_DOWN, "focus down") \
+    /* focus a frame with given number or the window within the frame */ \
+    X(ACTION_FOCUS, "focus I") \
+    /* move the focus to the leaf frame */ \
+    X(ACTION_FOCUS_LEAF, "focus leaf") \
+    /* move the focus to the left frame */ \
+    X(ACTION_FOCUS_LEFT, "focus left") \
+    /* move the focus to the parent frame */ \
+    X(ACTION_FOCUS_PARENT, "focus parent") \
+    /* move the focus to the ith parent frame */ \
+    X(ACTION_FOCUS_PARENT_I, "focus parent I") \
+    /* move the focus to the right frame */ \
+    X(ACTION_FOCUS_RIGHT, "focus right") \
+    /* move the focus to the root frame */ \
+    X(ACTION_FOCUS_ROOT, "focus root") \
+    /* move the focus to the root frame of given monitor */ \
+    X(ACTION_FOCUS_ROOT_S, "focus root S") \
+    /* move the focus to the above frame */ \
+    X(ACTION_FOCUS_UP, "focus up") \
+    /* refocus the current window */ \
+    X(ACTION_FOCUS_WINDOW, "focus window") \
+    /* focus the window with given number */ \
+    X(ACTION_FOCUS_WINDOW_I, "focus window I") \
+    /* the font used for rendering */ \
+    X(ACTION_FONT, "font S") \
+    /* the foreground color of the fensterchef windows */ \
+    X(ACTION_FOREGROUND, "foreground I") \
+    /* the inner gaps between frames and windows */ \
+    X(ACTION_GAPS_INNER, "gaps inner I") \
+    /* set the horizontal and vertical inner gaps */ \
+    X(ACTION_GAPS_INNER_I_I, "gaps inner I I") \
+    /* set the left, right, top and bottom inner gaps */ \
+    X(ACTION_GAPS_INNER_I_I_I_I, "gaps inner I I I I") \
+    /* the outer gaps between frames and monitors */ \
+    X(ACTION_GAPS_OUTER, "gaps outer I") \
+    /* set the horizontal and vertical outer gaps */ \
+    X(ACTION_GAPS_OUTER_I_I, "gaps outer I I") \
+    /* set the left, right, top and bottom outer gaps */ \
+    X(ACTION_GAPS_OUTER_I_I_I_I, "gaps outer I I I I") \
+    /* hint that the current frame should split horizontally */ \
+    X(ACTION_HINT_SPLIT_HORIZONTALLY, "hint split horizontally") \
+    /* hint that the current frame should split vertically */ \
+    X(ACTION_HINT_SPLIT_VERTICALLY, "hint split vertically") \
+    /* start moving a window with the mouse */ \
+    X(ACTION_INITIATE_MOVE, "initiate move") \
+    /* start resizing a window with the mouse */ \
+    X(ACTION_INITIATE_RESIZE, "initiate resize") \
+    /* merge in the default settings */ \
+    X(ACTION_MERGE_DEFAULT, "merge default") \
+    /* hide currently active window */ \
+    X(ACTION_MINIMIZE_WINDOW, "minimize window") \
+    /* hide the window with given number */ \
+    X(ACTION_MINIMIZE_WINDOW_I, "minimize window I") \
+    /* the modifiers to use for the following bindings */ \
+    X(ACTION_MODIFIERS, "modifiers I") \
+    /* move the current frame down */ \
+    X(ACTION_MOVE_DOWN, "move down") \
+    /* move the current frame to the left */ \
+    X(ACTION_MOVE_LEFT, "move left") \
+    /* move the current frame to the right */ \
+    X(ACTION_MOVE_RIGHT, "move right") \
+    /* move the current frame up */ \
+    X(ACTION_MOVE_UP, "move up") \
+    /* resize the edges of the current window by given values */ \
+    X(ACTION_MOVE_WINDOW_BY, "move window by I I") \
+    /* move the position of the current window to given position */ \
+    X(ACTION_MOVE_WINDOW_TO, "move window to I I") \
+    /* the duration the notification window stays for */ \
+    X(ACTION_NOTIFICATION_DURATION, "notification duration I") \
+    /* the value at which a window should be counted as overlapping a monitor */ \
+    X(ACTION_OVERLAP, "overlap I") \
+    /* replace the current frame with a frame from the stash */ \
+    X(ACTION_POP_FRAME, "pop frame") \
     /* quit fensterchef */ \
-    X(ACTION_QUIT, false, "quit", DATA_TYPE_VOID)
+    X(ACTION_QUIT, "quit") \
+    /* reload the configuration file */ \
+    X(ACTION_RELOAD_CONFIGURATION, "reload configuration") \
+    /* remove the current frame */ \
+    X(ACTION_REMOVE, "remove") \
+    /* remove frame with given number */ \
+    X(ACTION_REMOVE_I, "remove I") \
+    /* resize the current window by given values */ \
+    X(ACTION_RESIZE_WINDOW_BY, "resize window by I I") \
+    /* resize the current window to given values */ \
+    X(ACTION_RESIZE_WINDOW_TO, "resize window to I I") \
+    /* run a shell program */ \
+    X(ACTION_RUN, "run S") \
+    /* set the mode of the current window to floating */ \
+    X(ACTION_SET_FLOATING, "set floating") \
+    /* set the mode of the current window to fullscreen */ \
+    X(ACTION_SET_FULLSCREEN, "set fullscreen") \
+    /* set the mode of the current window to tiling */ \
+    X(ACTION_SET_TILING, "set tiling") \
+    /* show the interactive window list */ \
+    X(ACTION_SHOW_LIST, "show list") \
+    /* show a notification with a string message */ \
+    X(ACTION_SHOW_MESSAGE, "show message S") \
+    /* go to the next window in the window list */ \
+    X(ACTION_SHOW_NEXT_WINDOW, "show next window") \
+    /* go to the ith next window in the window list */ \
+    X(ACTION_SHOW_NEXT_WINDOW_I, "show next window I") \
+    /* go to the previous window in the window list */ \
+    X(ACTION_SHOW_PREVIOUS_WINDOW, "show previous window") \
+    /* go to the previous window in the window list */ \
+    X(ACTION_SHOW_PREVIOUS_WINDOW_I, "show previous window I") \
+    /* show a notification with a message extracted from a shell program */ \
+    X(ACTION_SHOW_RUN, "show run S") \
+    /* show the currently active widnow */ \
+    X(ACTION_SHOW_WINDOW, "show window") \
+    /* show the window with given number */ \
+    X(ACTION_SHOW_WINDOW_I, "show window I") \
+    /* split the current frame horizontally */ \
+    X(ACTION_SPLIT_HORIZONTALLY, "split horizontally") \
+    /* split the current frame left horizontally */ \
+    X(ACTION_SPLIT_LEFT_HORIZONTALLY, "split left horizontally") \
+    /* split the current frame left vertically */ \
+    X(ACTION_SPLIT_LEFT_VERTICALLY, "split left vertically") \
+    /* split the current frame vertically */ \
+    X(ACTION_SPLIT_VERTICALLY, "split vertically") \
+    /* the text padding within the fensterchef windows */ \
+    X(ACTION_TEXT_PADDING, "text padding I") \
+    /* change the focus from tiling to non tiling or vise versa */ \
+    X(ACTION_TOGGLE_FOCUS, "toggle focus") \
+    /* toggles the fullscreen state of the currently focused window */ \
+    X(ACTION_TOGGLE_FULLSCREEN, "toggle fullscreen") \
+    /* changes a non tiling window to a tiling window and vise versa */ \
+    X(ACTION_TOGGLE_TILING, "toggle tiling")
 
 /* action codes */
 typedef enum {
-#define X(identifier, is_optional, string, data_type) \
+#define X(identifier, string) \
     identifier,
-    DECLARE_ALL_ACTIONS
+    DEFINE_ALL_PARSE_ACTIONS
 #undef X
     /* not a real action */
     ACTION_MAX,
-
-    /* the first valid action value */
-    ACTION_FIRST_ACTION = ACTION_NULL + 1
 } action_type_t;
 
-/* all actions and their string representation and data type */
-extern const struct action_information {
-    /* name of the action */
-    const char *name;
-    /* if the argument of this action should be optional */
-    bool is_argument_optional;
-    /* data type of the action data */
-    data_type_t data_type;
-} action_information[ACTION_MAX];
+/* A list of actions. */
+struct action_list {
+    /* all items within the list */
+    struct action_list_item {
+        /* the type of this actions */
+        action_type_t type;
+        /* the number of data points in `data` */
+        unsigned data_count;
+    } *items;
+    /* the number of items in `items` */
+    size_t number_of_items;
+    /* the data associated to the actions */
+    struct parse_generic_data *data;
+};
 
-/* Check if the given action's argument may be omitted. */
-static inline bool has_action_optional_argument(action_type_t action)
-{
-    return action_information[action].is_argument_optional;
-}
+/* Do all actions within @list. */
+void do_list_of_actions(const struct action_list *list);
 
-/* Get the data type the action expects as parameter. */
-static inline data_type_t get_action_data_type(action_type_t action)
-{
-    return action_information[action].data_type;
-}
+/* Free very deep memory associated to the action list @list. */
+void clear_list_of_actions(struct action_list *list);
 
-/* Get a string version of an action. */
-static inline const char *action_type_to_string(action_type_t action)
-{
-    return action_information[action].name;
-}
+/* Free ALL memory associated to the action list @list. */
+void clear_list_of_actions_deeply(struct action_list *list);
 
-/* Get an action from a string (case insensitive). */
-action_type_t string_to_action_type(const char *string);
-
-/* Get a string version of an action. */
-const char *action_type_to_string(action_type_t action);
-
-/* Do the given action on the given window.
- *
- * @return the status of the action. Usually false when the action had no
- *         visible result or could not be executed at all.
- */
-bool do_action(action_type_t type, GenericData *data);
+/* Do the given action using given @data. */
+void do_action(action_type_t type, const struct parse_generic_data *data);
 
 #endif

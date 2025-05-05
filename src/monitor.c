@@ -10,10 +10,10 @@
 #include "frame_stashing.h"
 #include "log.h"
 #include "monitor.h"
-#include "utility.h"
+#include "utility/utility.h"
 #include "window.h"
 #include "x11_management.h"
-#include "xalloc.h"
+#include "utility/xalloc.h"
 
 /* if Xrandr is enabled for usage */
 static bool randr_enabled = false;
@@ -339,8 +339,7 @@ FcWindow *get_window_covering_monitor(Monitor *monitor)
         /* check if the window covers at least the configured overlap percentage
          * of the monitors area
          */
-        if (area * 100 / monitor_area >=
-                (uint32_t) configuration.general.overlap_percentage &&
+        if (area * 100 / monitor_area >= configuration.overlap &&
                 area >= best_area) {
             best_window = window;
             best_area = area;
@@ -790,7 +789,7 @@ void merge_monitors(Monitor *monitors)
     for (Monitor *monitor = monitors; monitor != NULL;
             monitor = monitor->next) {
         if (monitor->frame == NULL) {
-            if (configuration.tiling.auto_fill_void) {
+            if (configuration.auto_fill_void) {
                 monitor->frame = pop_stashed_frame();
             }
             /* the popped frame might also be NULL which is why this is NOT in

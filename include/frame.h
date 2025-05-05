@@ -6,7 +6,7 @@
 #include "bits/frame_typedef.h"
 #include "bits/window_typedef.h"
 
-#include "utility.h"
+#include "utility/utility.h"
 
 /* the minimum width or height of a frame, frames are never clipped to this size
  * and can even have a size of 0, it is used when resizing frames

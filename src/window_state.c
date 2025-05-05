@@ -6,7 +6,7 @@
 #include "monitor.h"
 #include "frame_splitting.h"
 #include "frame_stashing.h"
-#include "utility.h"
+#include "utility/utility.h"
 #include "window.h"
 #include "window_properties.h"
 
@@ -437,7 +437,7 @@ static void update_shown_window(FcWindow *window)
             break;
         }
 
-        if (configuration.tiling.auto_split && Frame_focus->window != NULL) {
+        if (configuration.auto_split && Frame_focus->window != NULL) {
             Frame *const wrap = create_frame();
             wrap->window = window;
             split_frame(Frame_focus, wrap, false, Frame_focus->split_direction);
@@ -506,14 +506,14 @@ void set_window_mode(FcWindow *window, window_mode_t mode)
             window->state.mode = mode;
 
             frame->window = NULL;
-            if (configuration.tiling.auto_remove ||
-                    configuration.tiling.auto_remove_void) {
+            if (configuration.auto_remove ||
+                    configuration.auto_remove_void) {
                 /* do not remove a root */
                 if (frame->parent != NULL) {
                     remove_frame(frame);
                     destroy_frame(frame);
                 }
-            } else if (configuration.tiling.auto_fill_void) {
+            } else if (configuration.auto_fill_void) {
                 fill_void_with_stash(frame);
             }
         }
@@ -538,7 +538,7 @@ void set_window_mode(FcWindow *window, window_mode_t mode)
     if (is_window_borderless(window)) {
         window->border_size = 0;
     } else {
-        window->border_size = configuration.border.size;
+        window->border_size = configuration.border_size;
     }
 
     update_window_layer(window);
@@ -577,21 +577,21 @@ void hide_window(FcWindow *window)
         pop = pop_stashed_frame();
 
         stash = stash_frame_later(frame);
-        if (configuration.tiling.auto_remove) {
+        if (configuration.auto_remove) {
             /* if the frame is not a root frame, remove it, otherwise
              * auto-fill-void is checked
              */
             if (frame->parent != NULL) {
                 remove_frame(frame);
                 destroy_frame(frame);
-            } else if (configuration.tiling.auto_fill_void) {
+            } else if (configuration.auto_fill_void) {
                 if (pop != NULL) {
                     replace_frame(frame, pop);
                 }
             }
-        } else if (configuration.tiling.auto_remove_void) {
+        } else if (configuration.auto_remove_void) {
             /* this option takes precedence */
-            if (configuration.tiling.auto_fill_void) {
+            if (configuration.auto_fill_void) {
                 if (pop != NULL) {
                     replace_frame(frame, pop);
                 }
@@ -605,7 +605,7 @@ void hide_window(FcWindow *window)
                 remove_frame(frame);
                 destroy_frame(frame);
             }
-        } else if (configuration.tiling.auto_fill_void) {
+        } else if (configuration.auto_fill_void) {
             if (pop != NULL) {
                 replace_frame(frame, pop);
             }

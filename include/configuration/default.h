@@ -1,22 +1,15 @@
 #ifndef CONFIGURATION__DEFAULT_H
 #define CONFIGURATION__DEFAULT_H
 
-#include "configuration.h"
+#include "configuration/configuration.h"
 
-/* the default configuration */
+/* the settings of the default configuration */
 extern const struct configuration default_configuration;
 
-/* Puts the mousebindings of the default configuration into @configuration
- * without overwriting any mousebindings.
- */
-void merge_with_default_button_bindings(struct configuration *configuration);
+/* TODO: more flags */
+#define DEFAULT_CONFIGURATION_MERGE_ALL 0xff
 
-/* Puts the keybindings of the default configuration into @configuration without
- * overwriting any keybindings.
- */
-void merge_with_default_key_bindings(struct configuration *configuration);
-
-/* Load the default values into the configuration. */
-void load_default_configuration(void);
+/* Merge parts of the default configuration into the current configuration. */
+void merge_default_configuration(unsigned flags);
 
 #endif

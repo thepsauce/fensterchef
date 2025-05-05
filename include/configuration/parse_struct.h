@@ -1,0 +1,68 @@
+#ifndef PARSE_STRUCT_H
+#define PARSE_STRUCT_H
+
+/**
+ * This file is meant to be private to the parser.
+ */
+
+#include <setjmp.h>
+
+#include "configuration/action.h"
+#include "configuration/data_type.h"
+#include "utility/list.h"
+
+/* the parser struct */
+extern struct parser {
+    /* the start index of the last item */
+    size_t index;
+    /* if the parser had any error */
+    bool has_error;
+    /* the point to jump to */
+    jmp_buf throw_jump;
+
+    /* last read string */
+    LIST(utf8_t, string);
+    /* if this string has quotes */
+    bool is_string_quoted;
+
+    struct parse_action_information {
+        /* Data for this action. */
+        LIST(struct parse_generic_data, data);
+        /* The offset within the string identifiers of the actions.
+         * If this is -1, then the action was disregarded.
+         */
+        int offset;
+    } actions[ACTION_MAX];
+    /* the first/last (exclusive) action still valid within @offsets */
+    action_type_t first_action, last_action;
+
+    /* last read data */
+    struct parse_generic_data data;
+
+    /* the instance pattern of an association being parsed */
+    LIST(utf8_t, instance_pattern);
+    /* the class pattern of an association being parsed */
+    LIST(utf8_t, class_pattern);
+
+    /* the action items being parsed */
+    LIST(struct action_list_item, action_items);
+    /* data for the action list */
+    LIST(struct parse_generic_data, action_data);
+
+    /* the startup items being parsed */
+    LIST(struct action_list_item, startup_items);
+    /* data for the startup action list */
+    LIST(struct parse_generic_data, startup_data);
+
+    /* list of buttons */
+    LIST(struct configuration_button, buttons);
+    /* list of keys */
+    LIST(struct configuration_key, keys);
+    /* list of associations */
+    LIST(struct configuration_association, associations);
+} parser;
+
+/* Emit a parse error. */
+void emit_parse_error(const char *message);
+
+#endif

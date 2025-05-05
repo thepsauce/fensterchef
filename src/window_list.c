@@ -1,7 +1,6 @@
 #include <X11/XKBlib.h>
 
 #include "configuration/configuration.h"
-#include "configuration/default.h"
 #include "font.h"
 #include "frame.h"
 #include "log.h"
@@ -22,12 +21,9 @@ static int initialize_window_list(void)
         WindowList.client.y = -1;
         WindowList.client.width = 1;
         WindowList.client.height = 1;
-        WindowList.client.border_width =
-            default_configuration.notification.border_size;
-        WindowList.client.border =
-            default_configuration.notification.border_color;
-        WindowList.client.background =
-            default_configuration.notification.background;
+        WindowList.client.border_width = configuration.border_size;
+        WindowList.client.border = configuration.border_color;
+        WindowList.client.background = configuration.background;
         attributes.border_pixel = WindowList.client.border;
         attributes.backing_pixel = WindowList.client.background;
         attributes.event_mask = KeyPressMask | ExposureMask | FocusChangeMask;
@@ -126,13 +122,11 @@ static int render_window_list(void)
     unsigned width = 0, height = 0;
     int selected_y = 0, selected_height = 0;
 
-    if (allocate_xft_color(configuration.notification.background,
-                &background) == ERROR) {
+    if (allocate_xft_color(configuration.background, &background) == ERROR) {
         return ERROR;
     }
 
-    if (allocate_xft_color(configuration.notification.foreground,
-                &foreground) == ERROR) {
+    if (allocate_xft_color(configuration.foreground, &foreground) == ERROR) {
         free_xft_color(&background);
         return ERROR;
     }
@@ -206,17 +200,16 @@ static int render_window_list(void)
         }
     }
 
-    width += configuration.notification.padding;
+    width += configuration.text_padding;
     /* only apply half padding for the top, ignore the bottom */
-    height += configuration.notification.padding / 2;
+    height += configuration.text_padding / 2;
 
     width = MIN(width, monitor->width / 2);
     height = MIN(height, monitor->height);
 
     /* change border color and size of the window list window */
     change_client_attributes(&WindowList.client,
-            configuration.notification.background,
-            configuration.notification.border_color);
+            configuration.background, configuration.border_color);
 
     /* set the list position and size so it is in the top right of the monitor
      * containing the focus frame
@@ -224,10 +217,10 @@ static int render_window_list(void)
      */
     configure_client(&WindowList.client,
             monitor->x + monitor->width - width -
-                configuration.notification.border_size * 2, monitor->y,
-            width, height, configuration.notification.border_size);
+                configuration.border_size * 2, monitor->y,
+            width, height, configuration.border_size);
 
-    selected_y += configuration.notification.padding / 2;
+    selected_y += configuration.text_padding / 2;
     /* special case so that the padding is shown at the top again */
     if (WindowList.selected == 0) {
         WindowList.scrolling = 0;
@@ -238,7 +231,7 @@ static int render_window_list(void)
         WindowList.scrolling = selected_y + selected_height - height;
     }
 
-    y = configuration.notification.padding / 2 - WindowList.scrolling;
+    y = configuration.text_padding / 2 - WindowList.scrolling;
 
     LOG_DEBUG("showing items starting from %d (pixel scroll=%u)\n",
             y, WindowList.scrolling);
@@ -256,7 +249,7 @@ static int render_window_list(void)
         if (i == 0) {
             rect_y = 0;
             rect_height = text->height +
-                configuration.notification.padding / 2;
+                configuration.text_padding / 2;
         } else {
             rect_y = y;
             rect_height = text->height;
@@ -280,7 +273,7 @@ static int render_window_list(void)
             XftDrawRect(WindowList.xft_draw, background_pointer,
                     0, rect_y, width, rect_height);
             draw_text(WindowList.xft_draw, foreground_pointer,
-                    configuration.notification.padding / 2 + text->x,
+                    configuration.text_padding / 2 + text->x,
                     y + text->y, text);
         }
 

@@ -6,7 +6,7 @@
 
 #include "bits/window_typedef.h"
 
-#include "utility.h"
+#include "utility/utility.h"
 
 /* needed for `_NET_WM_STRUT_PARTIAL`/`_NET_WM_STRUT` */
 typedef struct wm_strut_partial {

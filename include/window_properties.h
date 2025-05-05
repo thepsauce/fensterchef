@@ -218,12 +218,12 @@ char *get_fensterchef_command_property(Window window);
 
 /* Initialize all properties within @window.
  *
- * @association is filled with any association found that relates to the window.
+ * @mode is set to the mode the window should be in initially.
  *
- * @return the mode the window should be in initially.
+ * @return any association found that relates to the window.
  */
-window_mode_t initialize_window_properties(FcWindow *window,
-        struct configuration_association *association);
+const struct configuration_association *initialize_window_properties(
+        FcWindow *window, window_mode_t *mode);
 
 /* Update the property within @window corresponding to given @atom. */
 bool cache_window_property(FcWindow *window, Atom atom);

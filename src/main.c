@@ -1,5 +1,6 @@
 #include "configuration/default.h"
-#include "cursor.h"
+#include "configuration/parse.h"
+#include "configuration/stream.h"
 #include "event.h"
 #include "fensterchef.h"
 #include "frame.h"
@@ -9,7 +10,7 @@
 #include "window.h"
 #include "window_properties.h"
 #include "x11_management.h"
-#include "xalloc.h"
+#include "utility/xalloc.h"
 
 /* FENSTERCHEF main entry point. */
 int main(int argc, char **argv)
@@ -66,29 +67,21 @@ int main(int argc, char **argv)
     /* set the X properties on the root window */
     initialize_root_properties();
 
-    /* load the user configuration or the default configuration; this also
-     * initializes the bindings and font
-     */
-    {
-        struct configuration configuration;
-
-        if (load_configuration(Fensterchef_configuration, &configuration,
-                    true) != OK) {
-            load_default_configuration();
-        } else {
-            set_configuration(&configuration);
-        }
-    }
-
     /* manage the windows that are already there */
     query_existing_windows();
 
     /* configure the monitor frames before running the startup actions */
     reconfigure_monitor_frames();
 
-    /* run the startup expression */
-    LOG("running startup expression: %A\n", &configuration.startup.expression);
-    evaluate_expression(&configuration.startup.expression, NULL);
+    /* load the user configuration or the default configuration */
+    {
+        if (initialize_file_stream(Fensterchef_configuration) != OK) {
+            LOG("file %s does not exist\n", Fensterchef_configuration);
+            merge_default_configuration(DEFAULT_CONFIGURATION_MERGE_ALL);
+        } else if (parse_stream_and_run_actions() != OK) {
+            merge_default_configuration(DEFAULT_CONFIGURATION_MERGE_ALL);
+        }
+    }
 
     if (!Fensterchef_is_running) {
         LOG("startup interrupted by user configuration\n");

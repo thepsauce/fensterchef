@@ -4,17 +4,17 @@
 
 #include "cursor.h"
 #include "log.h"
-#include "utility.h"
+#include "utility/utility.h"
 #include "x11_management.h"
 
-/* the maximum of cached cursor entries, it is actually lower than this because
- * the cache is only filled to a certain percentage
+/* The maximum of cached cursor entries.  It is actually lower than this because
+ * the cache is only filled to a certain percentage.
  */
 #define MAX_CURSOR_ENTRIES 64
 
-/* the maximum inverse percentage the cache is allowed to be filled
+/* The maximum inverse percentage the cache is allowed to be filled.
  *
- * do not put this macro in brackets
+ * Do not put this macro in brackets!
  */
 #define CURSOR_CACHE_THRESHOLD 5/4
 

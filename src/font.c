@@ -3,7 +3,7 @@
 #include "configuration/configuration.h"
 #include "font.h"
 #include "log.h"
-#include "utility.h"
+#include "utility/utility.h"
 #include "x11_management.h"
 
 /* a list of known fonts */
@@ -14,7 +14,8 @@ struct font {
     XftFont *font;
 };
 
-struct font_list {
+/* list of the currently used fonts */
+static struct font_list {
     /* all fonts within the font list */
     struct font *fonts;
     /* the number of fonts in the font list */
@@ -74,6 +75,9 @@ int set_font(const utf8_t *name)
 
     struct font *fonts;
     int font_count = 0;
+
+    /* reload font configuration if anything changed */
+    (void) FcInitBringUptoDate();
 
     pattern = XftNameParse(name);
     if (pattern == NULL) {

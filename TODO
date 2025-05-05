@@ -1,7 +1,4 @@
 [Tasks]
-#70 Re-add the wiki
-    Add the Github wiki again
-
 #71 Make generic menu item chooser
     Abstract parts of the window list away to make more choose menus like an
     application launcher
@@ -10,21 +7,13 @@
     Stack changes should be only locally noticed and then sent at once to the X
     server to allow more tolerance in scripts (expected to improve performance)
 
-#77 Allow multi-line for notification windows
-    Line breaks should be considered and text wrapping should be used when the
-    text overflows a maximum configured width
+#81 Simplify notification windows again
+    ...or completely remove them.  It is a bunch of code for nothing.  Programs
+    like dunst do a great job at this.  The best solution is probably to
+    downgrade to core fonts so that the absolute minimal text is shown.  The
+    user can then configure to use more advanced programs.
 
-#78 Add XML based markup options
-    Make text formatting with options for bold <b> ... </b>,
-    italic <i> ... </i>, underline <u> ... </u>,
-    hyperlinks <a href="..."> ... </a> and
-    images <img src="..." alt="..."/>
-
-#79 Add DBUS support for a notification server
-    Allow fensterchef to act as a notification server so notifications can be
-    shown using `notify-send`
-
-#80 ...
+#82 ...
 
 #200 Make repository for fensterchef-menu
     Menus of all kind for any window manager
@@ -43,11 +32,12 @@
     Make shell scripts to generate the manual page (should the wiki be
     continued?)
 
-#64 Add variables to scripting
-    Add two keywords let (local variable) and set (global variable).
-
 #69 Simplify README
-    Shorten the README to only contain the must important information
+    Shorten the README to only contain the must important information, move the
+    extended information to the website and Github Wiki
+
+#70/#69 Re-add the wiki
+    Add the Github wiki again
 
 #73 Make a CONTRIBUTING file
     Make a file explaining source code internals and where to start looking to
@@ -59,6 +49,8 @@
     Also use two configuration structures:
     One for the actual configuration, another one for the configuration being
     parsed.
+    I decided to remove all new scripting stuff, it is not necessary at all.
+    If people want to extend the behavior, they should write C code.
 
 [Recheck]
 #1 ! Hover events not working in firefox sometimes
@@ -137,6 +129,26 @@
     ```
     No window gets in a bugged state it seems anymore. This is just a poor
     script to reconfigure the monitors.
+
+#64 Add variables to scripting
+    Add two keywords local (local variable) and set (global variable).
+
+#77 Allow multi-line for notification windows
+    Line breaks should be considered and text wrapping should be used when the
+    text overflows a maximum configured width
+
+#78 Add XML based markup options
+    Make text formatting with options for bold <b> ... </b>,
+    italic <i> ... </i>, underline <u> ... </u>,
+    hyperlinks <a href="..."> ... </a> and
+    images <img src="..." alt="..."/>
+
+#79 Add DBUS support for a notification server
+    Allow fensterchef to act as a notification server so notifications can be
+    shown using `notify-send`
+
+#80 Add the dialog window mode
+    Add a window mode for dialog windows
 
 [Done]
 #9 Add maintainability macros

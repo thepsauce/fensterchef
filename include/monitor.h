@@ -2,11 +2,12 @@
 #define MONITOR_H
 
 #include "bits/frame_typedef.h"
+#include "bits/monitor_typedef.h"
 
 #include "x11_management.h"
 
 /* A monitor is a rectangular region tied to a screen. */
-typedef struct monitor {
+struct monitor {
     /* name of the monitor, used as key */
     char *name;
 
@@ -24,7 +25,7 @@ typedef struct monitor {
 
     /* next monitor in the linked list */
     struct monitor *next;
-} Monitor;
+};
 
 /* the first monitor in the monitor linked list */
 extern Monitor *Monitor_first;

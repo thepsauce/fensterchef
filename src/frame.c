@@ -8,7 +8,7 @@
 #include "frame_stashing.h"
 #include "log.h"
 #include "monitor.h"
-#include "utility.h"
+#include "utility/utility.h"
 #include "window.h"
 
 /* the last frame in the frame stashed linked list */
@@ -211,27 +211,27 @@ void get_frame_gaps(const Frame *frame, Extents *gaps)
 
     root = get_root_frame(frame);
     if (root->x == frame->x) {
-        gaps->left = configuration.gaps.outer[0];
+        gaps->left = configuration.outer_gaps[0];
     } else {
-        gaps->left = configuration.gaps.inner[2];
+        gaps->left = configuration.inner_gaps[2];
     }
 
     if (root->y == frame->y) {
-        gaps->top = configuration.gaps.outer[1];
+        gaps->top = configuration.outer_gaps[1];
     } else {
-        gaps->top = configuration.gaps.inner[3];
+        gaps->top = configuration.inner_gaps[3];
     }
 
     if (root->x + root->width == frame->x + frame->width) {
-        gaps->right = configuration.gaps.outer[2];
+        gaps->right = configuration.outer_gaps[2];
     } else {
-        gaps->right = configuration.gaps.inner[0];
+        gaps->right = configuration.inner_gaps[0];
     }
 
     if (root->y + root->height == frame->y + frame->height) {
-        gaps->bottom = configuration.gaps.outer[3];
+        gaps->bottom = configuration.outer_gaps[3];
     } else {
-        gaps->bottom = configuration.gaps.inner[1];
+        gaps->bottom = configuration.inner_gaps[1];
     }
 }
 
@@ -246,8 +246,8 @@ void reload_frame(Frame *frame)
 
     get_frame_gaps(frame, &gaps);
 
-    gaps.right += gaps.left + configuration.border.size * 2;
-    gaps.bottom += gaps.top + configuration.border.size * 2;
+    gaps.right += gaps.left + configuration.border_size * 2;
+    gaps.bottom += gaps.top + configuration.border_size * 2;
     set_window_size(frame->window,
             frame->x + gaps.left,
             frame->y + gaps.top,

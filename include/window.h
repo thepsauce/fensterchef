@@ -8,7 +8,7 @@
 
 #include "configuration/configuration.h"
 #include "monitor.h"
-#include "utility.h"
+#include "utility/utility.h"
 #include "window_state.h"
 
 #include "x11_management.h"
@@ -141,10 +141,10 @@ void dereference_window(FcWindow *window);
 
 /* Create a window object and add it to all window lists.
  *
- * @association is filled with any associations found belonging to the window.
+ * This also runs any associated actions or does the default behavior of showing
+ * the window.
  */
-FcWindow *create_window(Window id,
-        struct configuration_association *association);
+FcWindow *create_window(Window id);
 
 /* Destroy given window and removes it from the window linked list.
  * This does NOT destroy the underlying X window.

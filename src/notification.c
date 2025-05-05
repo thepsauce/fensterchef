@@ -1,6 +1,6 @@
 #include <unistd.h>
 
-#include "configuration/default.h"
+#include "configuration/configuration.h"
 #include "log.h"
 #include "notification.h"
 #include "x11_management.h"
@@ -17,10 +17,10 @@ static int initialize_notification(Notification *notification)
     notification->client.y = -1;
     notification->client.width = 1;
     notification->client.height = 1;
-    notification->client.border_width = configuration.notification.border_size;
-    notification->client.border = configuration.notification.border_color;
-    notification->client.background = configuration.notification.background;
-    notification->foreground = configuration.notification.foreground;
+    notification->client.border_width = configuration.border_size;
+    notification->client.border = configuration.border_color;
+    notification->client.background = configuration.background;
+    notification->foreground = configuration.foreground;
     attributes.border_pixel = notification->client.border;
     attributes.backing_pixel = notification->client.background;
     /* indicate to not manage the window */
@@ -94,10 +94,10 @@ static int render_notification(Notification *notification,
     initialize_text(&text, glyphs, glyph_count);
 
     /* add the padding */
-    text.x += configuration.notification.padding / 2;
-    text.y += configuration.notification.padding / 2;
-    text.width += configuration.notification.padding;
-    text.height += configuration.notification.padding;
+    text.x += configuration.text_padding / 2;
+    text.y += configuration.text_padding / 2;
+    text.width += configuration.text_padding;
+    text.height += configuration.text_padding;
 
     /* center the text window */
     x -= text.width / 2;
@@ -110,16 +110,16 @@ static int render_notification(Notification *notification,
     if (x < 0) {
         x = 0;
     } else if ((unsigned) x + text.width +
-            configuration.notification.border_size * 2 >= display_width) {
+            configuration.border_size * 2 >= display_width) {
         x = display_width - text.width -
-            configuration.notification.border_size * 2;
+            configuration.border_size * 2;
     }
     if (y < 0) {
         y = 0;
     } else if ((unsigned) y + text.height +
-            configuration.notification.border_size * 2 >= display_height) {
+            configuration.border_size * 2 >= display_height) {
         y = display_height - text.height -
-            configuration.notification.border_size * 2;
+            configuration.border_size * 2;
     }
 
     /* set the window size, position and set it above */
@@ -158,7 +158,7 @@ static int render_notification(Notification *notification,
  */
 void set_system_notification(const utf8_t *message, int x, int y)
 {
-    if (configuration.notification.duration == 0) {
+    if (configuration.notification_duration == 0) {
         return;
     }
 
@@ -172,20 +172,19 @@ void set_system_notification(const utf8_t *message, int x, int y)
 
     /* change border color and size of the notification window */
     change_client_attributes(&system_notification->client,
-            configuration.notification.background,
-            configuration.notification.border_color);
+            configuration.background, configuration.border_color);
 
     /* set the window size, position and set it above */
     configure_client(&system_notification->client,
             system_notification->client.x, system_notification->client.y,
             system_notification->client.width,
             system_notification->client.height,
-            configuration.notification.border_size);
+            configuration.border_size);
 
     if (render_notification(system_notification, message, x, y) == ERROR) {
         return;
     }
 
     /* set an alarm to trigger after the specified seconds */
-    alarm(configuration.notification.duration);
+    alarm(configuration.notification_duration);
 }
