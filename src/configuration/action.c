@@ -2,6 +2,7 @@
 #include <string.h> // strcmp()
 
 #include "configuration/action.h"
+#include "configuration/default.h"
 #include "cursor.h"
 #include "event.h"
 #include "fensterchef.h"
@@ -428,6 +429,16 @@ void do_action(action_type_t type, const struct parse_generic_data *data)
         configuration.border_color = data->u.integer;
         break;
 
+    /* the border color of "active" windows */
+    case ACTION_BORDER_COLOR_ACTIVE:
+        configuration.border_color_active = data->u.integer;
+        break;
+
+    /* the border color of focused windows */
+    case ACTION_BORDER_COLOR_FOCUS:
+        configuration.border_color_focus = data->u.integer;
+        break;
+
     /* the border size of all windows */
     case ACTION_BORDER_SIZE:
         configuration.border_size = data->u.integer;
@@ -501,6 +512,10 @@ void do_action(action_type_t type, const struct parse_generic_data *data)
     /* set the default root cursor */
     case ACTION_CURSOR_ROOT:
         configuration.root_cursor = load_cursor(data->u.string);
+        /* set the root cursor */
+        /* TODO: maybe move this into synchronize */
+        XDefineCursor(display, DefaultRootWindow(display),
+                configuration.root_cursor);
         break;
 
     /* set the default cursor for vertical sizing */
@@ -720,50 +735,50 @@ void do_action(action_type_t type, const struct parse_generic_data *data)
 
     /* the inner gaps between frames and windows */
     case ACTION_GAPS_INNER:
-        configuration.inner_gaps[0] = data->u.integer;
-        configuration.inner_gaps[1] = data->u.integer;
-        configuration.inner_gaps[2] = data->u.integer;
-        configuration.inner_gaps[3] = data->u.integer;
+        configuration.gaps_inner[0] = data->u.integer;
+        configuration.gaps_inner[1] = data->u.integer;
+        configuration.gaps_inner[2] = data->u.integer;
+        configuration.gaps_inner[3] = data->u.integer;
         break;
 
     /* set the horizontal and vertical inner gaps */
     case ACTION_GAPS_INNER_I_I:
-        configuration.inner_gaps[0] = data[0].u.integer;
-        configuration.inner_gaps[1] = data[1].u.integer;
-        configuration.inner_gaps[2] = data[0].u.integer;
-        configuration.inner_gaps[3] = data[1].u.integer;
+        configuration.gaps_inner[0] = data[0].u.integer;
+        configuration.gaps_inner[1] = data[1].u.integer;
+        configuration.gaps_inner[2] = data[0].u.integer;
+        configuration.gaps_inner[3] = data[1].u.integer;
         break;
 
     /* set the left, right, top and bottom inner gaps */
     case ACTION_GAPS_INNER_I_I_I_I:
-        configuration.inner_gaps[0] = data[0].u.integer;
-        configuration.inner_gaps[1] = data[1].u.integer;
-        configuration.inner_gaps[2] = data[2].u.integer;
-        configuration.inner_gaps[3] = data[3].u.integer;
+        configuration.gaps_inner[0] = data[0].u.integer;
+        configuration.gaps_inner[1] = data[1].u.integer;
+        configuration.gaps_inner[2] = data[2].u.integer;
+        configuration.gaps_inner[3] = data[3].u.integer;
         break;
 
     /* the outer gaps between frames and monitors */
     case ACTION_GAPS_OUTER:
-        configuration.outer_gaps[0] = data->u.integer;
-        configuration.outer_gaps[1] = data->u.integer;
-        configuration.outer_gaps[2] = data->u.integer;
-        configuration.outer_gaps[3] = data->u.integer;
+        configuration.gaps_outer[0] = data->u.integer;
+        configuration.gaps_outer[1] = data->u.integer;
+        configuration.gaps_outer[2] = data->u.integer;
+        configuration.gaps_outer[3] = data->u.integer;
         break;
 
     /* set the horizontal and vertical outer gaps */
     case ACTION_GAPS_OUTER_I_I:
-        configuration.outer_gaps[0] = data[0].u.integer;
-        configuration.outer_gaps[1] = data[1].u.integer;
-        configuration.outer_gaps[2] = data[0].u.integer;
-        configuration.outer_gaps[3] = data[1].u.integer;
+        configuration.gaps_outer[0] = data[0].u.integer;
+        configuration.gaps_outer[1] = data[1].u.integer;
+        configuration.gaps_outer[2] = data[0].u.integer;
+        configuration.gaps_outer[3] = data[1].u.integer;
         break;
 
     /* set the left, right, top and bottom outer gaps */
     case ACTION_GAPS_OUTER_I_I_I_I:
-        configuration.outer_gaps[0] = data[0].u.integer;
-        configuration.outer_gaps[1] = data[1].u.integer;
-        configuration.outer_gaps[2] = data[2].u.integer;
-        configuration.outer_gaps[3] = data[3].u.integer;
+        configuration.gaps_outer[0] = data[0].u.integer;
+        configuration.gaps_outer[1] = data[1].u.integer;
+        configuration.gaps_outer[2] = data[2].u.integer;
+        configuration.gaps_outer[3] = data[3].u.integer;
         break;
 
     /* split the current frame horizontally */
@@ -800,7 +815,7 @@ void do_action(action_type_t type, const struct parse_generic_data *data)
 
     /* merge in the default settings */
     case ACTION_MERGE_DEFAULT:
-        /* TODO: */
+        merge_default_configuration(DEFAULT_CONFIGURATION_MERGE_ALL);
         break;
 
     /* hide the window with given number */
@@ -817,7 +832,12 @@ void do_action(action_type_t type, const struct parse_generic_data *data)
 
     /* the modifiers to use for the following bindings */
     case ACTION_MODIFIERS:
-        configuration.keyboard.modifiers = data->u.integer;
+        configuration.modifiers = data->u.integer;
+        break;
+
+    /* the modifiers to ignore */
+    case ACTION_MODIFIERS_IGNORE:
+        configuration.modifiers_ignore = data->u.integer;
         break;
 
     /* move the current frame down */
@@ -878,7 +898,7 @@ void do_action(action_type_t type, const struct parse_generic_data *data)
         break;
 
     /* remove the current frame and replace it with a frame from the stash */
-    case ACTION_POP_FRAME: {
+    case ACTION_POP_STASH: {
         Frame *const pop = pop_stashed_frame();
         if (pop == NULL) {
             break;

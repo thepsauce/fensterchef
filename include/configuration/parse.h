@@ -10,6 +10,13 @@
 /* the maximum number of files to deeply source */
 #define PARSE_MAX_FILE_DEPTH 32
 
+/* The maximum number of errors that can occur before the parser stops.
+ * Outputting many errors is good as it helps with fixing files but when the
+ * user sources an invalid file, the user should be be flooded with errors, we
+ * stop prematurely because of that.
+ */
+#define PARSE_MAX_ERROR_COUNT 30
+
 /* expands to all possible parse errors */
 #define DEFINE_ALL_PARSE_ERRORS \
     /* indicates a successful parsing */ \

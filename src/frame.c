@@ -211,27 +211,27 @@ void get_frame_gaps(const Frame *frame, Extents *gaps)
 
     root = get_root_frame(frame);
     if (root->x == frame->x) {
-        gaps->left = configuration.outer_gaps[0];
+        gaps->left = configuration.gaps_outer[0];
     } else {
-        gaps->left = configuration.inner_gaps[2];
+        gaps->left = configuration.gaps_inner[2];
     }
 
     if (root->y == frame->y) {
-        gaps->top = configuration.outer_gaps[1];
+        gaps->top = configuration.gaps_outer[1];
     } else {
-        gaps->top = configuration.inner_gaps[3];
+        gaps->top = configuration.gaps_inner[3];
     }
 
     if (root->x + root->width == frame->x + frame->width) {
-        gaps->right = configuration.outer_gaps[2];
+        gaps->right = configuration.gaps_outer[2];
     } else {
-        gaps->right = configuration.inner_gaps[0];
+        gaps->right = configuration.gaps_inner[0];
     }
 
     if (root->y + root->height == frame->y + frame->height) {
-        gaps->bottom = configuration.outer_gaps[3];
+        gaps->bottom = configuration.gaps_outer[3];
     } else {
-        gaps->bottom = configuration.inner_gaps[1];
+        gaps->bottom = configuration.gaps_inner[1];
     }
 }
 

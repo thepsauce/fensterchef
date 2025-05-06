@@ -1,6 +1,7 @@
 #include <ctype.h>
 #include <string.h>
 
+#include <X11/keysym.h>
 #include <X11/Xlib.h>
 
 #include "configuration/action.h"
@@ -9,7 +10,10 @@
 #include "configuration/parse.h"
 #include "configuration/parse_struct.h"
 #include "configuration/stream.h"
+#include "cursor.h"
+#include "font.h"
 #include "log.h"
+#include "window.h"
 #include "x11_management.h"
 
 /* the parser struct */
@@ -34,7 +38,7 @@ void emit_parse_error(const char *message)
     char *string_line;
     unsigned length;
 
-    parser.has_error = true;
+    parser.error_count++;
     get_stream_position(parser.index, &line, &column);
     string_line = get_stream_line(line, &length);
 
@@ -135,8 +139,8 @@ static int read_and_resolve_next_action_word(void)
 
         /* check if next is a string parameter */
         if (action[0] == 'S') {
-            parser.data.flags = PARSE_DATA_FLAGS_IS_POINTER;
             /* append the string data point */
+            parser.data.flags = PARSE_DATA_FLAGS_IS_POINTER;
             LIST_COPY(parser.string, 0, parser.string_length + 1,
                     parser.data.u.string);
             LIST_APPEND_VALUE(parser.actions[i].data, parser.data);
@@ -300,7 +304,7 @@ static int parse_next_action_part(size_t item_index)
  *
  * Expects that a string has been read into `parser.`
  *
- * @return ERROR TODO:.
+ * @return ERROR if there is no action, OK otherwise.
  */
 static int continue_parsing_action(void)
 {
@@ -320,6 +324,37 @@ static int continue_parsing_action(void)
     } while (parse_next_action_part(item_index) == OK);
 
     return OK;
+}
+
+/* Translate a string to some extended key symbols. */
+static KeySym translate_string_to_additional_key_symbols(const char *string)
+{
+    struct {
+        const char *name;
+        KeySym key_symbol;
+    } symbol_table[] = {
+        /* since integers are interpreted as keycodes, these are needed to still
+         * use the digit keys
+         */
+        { "zero", XK_0 },
+        { "one", XK_1 },
+        { "two", XK_2 },
+        { "three", XK_3 },
+        { "four", XK_4 },
+        { "five", XK_5 },
+        { "six", XK_6 },
+        { "seven", XK_7 },
+        { "eight", XK_8 },
+        { "nine", XK_9 },
+    };
+
+    for (unsigned i = 0; i < SIZE(symbol_table); i++) {
+        if (strcmp(string, symbol_table[i].name) == 0) {
+            return symbol_table[i].key_symbol;
+        }
+    }
+
+    return NoSymbol;
 }
 
 /* Parse the next binding definition in `parser`.
@@ -372,27 +407,35 @@ static void continue_parsing_modifiers_or_binding(void)
         if (resolve_integer() == OK) {
             int min_key_code, max_key_code;
 
-            XDisplayKeycodes(display, &min_key_code, &max_key_code);
-            key_code = parser.data.u.integer;
-            if (key_code < min_key_code || key_code > max_key_code) {
-                emit_parse_error("key code is out of range");
+            /* for testing code, the display is NULL */
+            if (UNLIKELY(display != NULL)) {
+                XDisplayKeycodes(display, &min_key_code, &max_key_code);
+                key_code = parser.data.u.integer;
+                if (key_code < min_key_code || key_code > max_key_code) {
+                    emit_parse_error("key code is out of range");
+                }
             }
         } else {
             key_symbol = XStringToKeysym(parser.string);
             if (key_symbol == NoSymbol) {
-                if (has_anything) {
-                    emit_parse_error("invalid button, key symbol or key code");
-                } else {
-                    emit_parse_error("invalid action, button or key");
-                    skip_all_statements();
-                    return;
+                key_symbol = translate_string_to_additional_key_symbols(
+                        parser.string);
+                if (key_symbol == NoSymbol) {
+                    if (has_anything) {
+                        emit_parse_error(
+                                "invalid button, key symbol or key code");
+                    } else {
+                        emit_parse_error("invalid action, button or key");
+                        skip_all_statements();
+                        return;
+                    }
                 }
             }
         }
     }
 
-    printf("bind %d%d %s ...\n",
-            is_release, is_transparent, parser.string);
+    printf("bind %d%d %u + %s ...\n",
+            is_release, is_transparent, modifiers, parser.string);
 
     assert_read_string();
     if (parser.is_string_quoted) {
@@ -446,12 +489,18 @@ int parse_stream(void)
 {
     int character;
 
-    parser.has_error = false;
+    /* clear an old parser */
+    parser.error_count = 0;
     parser.startup_items_length = 0;
     parser.startup_data_length = 0;
 
     /* make it so `throw_parse_error()` jumps to after this statement */
     (void) setjmp(parser.throw_jump);
+
+    if (parser.error_count >= PARSE_MAX_ERROR_COUNT) {
+        emit_parse_error("parsing stopped: too many errors occured");
+        return ERROR;
+    }
 
     while (skip_space(), character = peek_stream_character(),
             character != EOF) {
@@ -471,7 +520,7 @@ int parse_stream(void)
         }
     }
 
-    return parser.has_error ? ERROR : OK;
+    return parser.error_count > 0 ? ERROR : OK;
 }
 
 /* Parse the currently active stream. */
@@ -484,47 +533,17 @@ int parse_stream_and_run_actions(void)
     }
 
     /* free the old configuration */
-    for (size_t i = 0;
-            i < configuration.assignment.number_of_associations;
-            i++) {
-        struct configuration_association *const association =
-            &configuration.assignment.associations[i];
-        free(association->instance_pattern);
-        free(association->class_pattern);
-        clear_list_of_actions_deeply(&association->actions);
-    }
-    free(configuration.assignment.associations);
-
-    for (size_t i = 0;
-            i < configuration.mouse.number_of_buttons;
-            i++) {
-        struct configuration_button *const button =
-            &configuration.mouse.buttons[i];
-        clear_list_of_actions_deeply(&button->actions);
-    }
-    free(configuration.mouse.buttons);
-
-    for (size_t i = 0;
-            i < configuration.keyboard.number_of_keys;
-            i++) {
-        struct configuration_key *const key =
-            &configuration.keyboard.keys[i];
-        clear_list_of_actions_deeply(&key->actions);
-    }
-    free(configuration.keyboard.keys);
+    clear_configuration(&configuration);
 
     /* extract the associations and bindings into the new configuration */
-    LIST_COPY_ALL(parser.associations, configuration.assignment.associations);
-    configuration.assignment.number_of_associations =
-        parser.associations_length;
+    LIST_COPY_ALL(parser.associations, configuration.associations);
+    configuration.number_of_associations = parser.associations_length;
 
-    LIST_COPY_ALL(parser.keys, configuration.keyboard.keys);
-    configuration.keyboard.number_of_keys =
-        parser.keys_length;
+    LIST_COPY_ALL(parser.keys, configuration.keys);
+    configuration.number_of_keys = parser.keys_length;
 
-    LIST_COPY_ALL(parser.buttons, configuration.mouse.buttons);
-    configuration.mouse.number_of_buttons =
-        parser.buttons_length;
+    LIST_COPY_ALL(parser.buttons, configuration.buttons);
+    configuration.number_of_buttons = parser.buttons_length;
 
     /* do the startup actions */
     startup.items = parser.startup_items;
@@ -534,6 +553,14 @@ int parse_stream_and_run_actions(void)
 
     /* clear but keep shallow members */
     clear_list_of_actions(&startup);
+
+    /* re-grab all bindings */
+    for (FcWindow *window = Window_first;
+            window != NULL;
+            window = window->next) {
+        grab_configured_buttons(window->client.id);
+    }
+    grab_configured_keys();
 
     return OK;
 }

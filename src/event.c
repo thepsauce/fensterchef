@@ -160,20 +160,20 @@ void synchronize_with_server(void)
 
         /* set the color of the focused window */
         if (window == Window_focus) {
-            window->border_color = configuration.border_focus_color;
+            window->border_color = configuration.border_color_focus;
         /* deeply set the colors of all windows within the focused frame */
         } else if ((Window_focus == NULL ||
                         Window_focus->state.mode == WINDOW_MODE_TILING) &&
                 window->state.mode == WINDOW_MODE_TILING &&
                 is_window_part_of(window, Frame_focus)) {
-            window->border_color = configuration.border_focus_color;
+            window->border_color = configuration.border_color_focus;
         /* if the window is the top window or within the focused frame, give it
          * the active color
          */
         } else if (is_window_part_of(window, Frame_focus) ||
                 (window->state.mode == WINDOW_MODE_FLOATING &&
                     window == Window_top)) {
-            window->border_color = configuration.border_active_color;
+            window->border_color = configuration.border_color_active;
         } else {
             window->border_color = configuration.border_color;
         }
@@ -379,32 +379,32 @@ void initiate_window_move_resize(FcWindow *window,
     if (direction == _NET_WM_MOVERESIZE_AUTO) {
         const unsigned border = 2 * configuration.border_size;
         /* check if the mouse is at the top */
-        if (start_y < window->y + configuration.mouse.resize_tolerance) {
-            if (start_x < window->x + configuration.mouse.resize_tolerance) {
+        if (start_y < window->y + configuration.resize_tolerance) {
+            if (start_x < window->x + configuration.resize_tolerance) {
                 direction = _NET_WM_MOVERESIZE_SIZE_TOPLEFT;
             } else if (start_x - (int) (border + window->width) >=
-                    window->x - configuration.mouse.resize_tolerance) {
+                    window->x - configuration.resize_tolerance) {
                 direction = _NET_WM_MOVERESIZE_SIZE_TOPRIGHT;
             } else {
                 direction = _NET_WM_MOVERESIZE_SIZE_TOP;
             }
         /* check if the mouse is at the bottom */
         } else if (start_y - (int) (border + window->height) >=
-                window->y - configuration.mouse.resize_tolerance) {
-            if (start_x < window->x + configuration.mouse.resize_tolerance) {
+                window->y - configuration.resize_tolerance) {
+            if (start_x < window->x + configuration.resize_tolerance) {
                 direction = _NET_WM_MOVERESIZE_SIZE_BOTTOMLEFT;
             } else if (start_x - (int) (border + window->width) >=
-                    window->x - configuration.mouse.resize_tolerance) {
+                    window->x - configuration.resize_tolerance) {
                 direction = _NET_WM_MOVERESIZE_SIZE_BOTTOMRIGHT;
             } else {
                 direction = _NET_WM_MOVERESIZE_SIZE_BOTTOM;
             }
         /* check if the mouse is left */
-        } else if (start_x < window->x + configuration.mouse.resize_tolerance) {
+        } else if (start_x < window->x + configuration.resize_tolerance) {
             direction = _NET_WM_MOVERESIZE_SIZE_LEFT;
         /* check if the mouse is right */
         } else if (start_x - (int) (border + window->width) >=
-                window->x - configuration.mouse.resize_tolerance) {
+                window->x - configuration.resize_tolerance) {
             direction = _NET_WM_MOVERESIZE_SIZE_RIGHT;
         /* fall back to simply moving (the mouse is within the window) */
         } else {

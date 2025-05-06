@@ -13,10 +13,23 @@
     downgrade to core fonts so that the absolute minimal text is shown.  The
     user can then configure to use more advanced programs.
 
-#82 Add default configuration
-    Currently the default configuration is not loaded, add it again
+#83 Add dynamic bindings
+    Add binding actions that dynamicall add bindings.  The bindings should be
+    synchronized with the server by sending a delta of old and new bindings.
 
-#83 ...
+#84 Give each window its own individual settings
+    Each window should have its own settings for border and gaps.  Actions have
+    to be made that set these individual settings.  Whether a setting is
+    individual or not has to be stored within the window.
+
+#85 Add sourcing to parser
+    The source command needs to be added again to load other files
+
+#86 Handle percent and pixel values
+    Add the special needing for the percent and pixel values can that be used in
+    the configuration
+
+#87 ...
 
 #200 Make repository for fensterchef-menu
     Menus of all kind for any window manager
@@ -402,3 +415,6 @@
 #69 Simplify README
     Shorten the README to only contain the must important information, move the
     extended information to the website and Github Wiki
+
+#82 Add default configuration
+    Currently the default configuration is not loaded, add it again

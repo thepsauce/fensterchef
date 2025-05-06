@@ -27,10 +27,11 @@ all steps first before going into it):
 
 ### General
 
+- You will need GNU make
 - Clone the repository using `git clone
-  https://github.com/thepsauce/fensterchef`
+  https://github.com/fensterchef/fensterchef`
 - Install `Xephyr`
-- Build and run the program using `make sandbox`
+- Build and run the program using `make -f build/GNUmakefile sandbox`
 - Use `Ctrl+Shift` to let `Xephyr` grab the keyboard and use some key bindings,
   try to open a few terminals (`Super+Return`) and try to use the window list
   to view a list of all windows (`Super+w`)
@@ -102,7 +103,7 @@ functions.
 
 ### Configuration
 
-TODO as a heavy refactoring is in order
+TODO
 
 ### Miscalleneous
 
@@ -110,8 +111,7 @@ These are files used to extend fensterchef and implement core utility features
 
 #### Utility
 
-- Go to `src/utility.c` or `src/xalloc.c` to see a lot of helpful utility that
-  is independent of fensterchef
+- See [https://gitlab.com/thepsauce/c-utility](c-utility)
 
 #### Logging
 
@@ -167,10 +167,10 @@ These are files used to extend fensterchef and implement core utility features
 
 ### Makefile
 
-We use `make` for building.
+We use `GNU make` for debug building.
 
-The `Makefile` is the main tool for development and installation, it has the
-following "targets":
+The `build/GNUmakefile` is the main tool for development, it has the following
+"targets":
 
 - `build` builds the entire project and puts the object files in `build/` and
   the executable in `build/fensterchef`

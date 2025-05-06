@@ -80,16 +80,13 @@ static inline bool is_word_character(int character)
         return false;
     }
 
-    if (character > 0x7f) {
-        /* assume it is part of ascii */
-        return true;
+    if (character == ' ' || character == '!' || character == '\"' ||
+            character == '\'' || character == ',' || character == ';' ||
+            character == '+') {
+        return false;
     }
 
-    /* check for an alphanumeric and some additional characters */
-    return isalnum(character) || character == '$' || character == '_' ||
-        character == '-' ||
-        /* # and % is needed for integers */
-        character == '#' || character == '%';
+    return true;
 }
 
 /* Read a string/word from the active input stream. */

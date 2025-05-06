@@ -57,53 +57,49 @@ struct configuration_association {
     struct action_list actions;
 };
 
-/* assignment settings */
-struct configuration_assignment {
+/* the currently loaded configuration settings */
+extern struct configuration {
     /* the associations that are wanted */
     struct configuration_association *associations;
     /* the number of associations */
     size_t number_of_associations;
-};
 
-/* mouse settings */
-struct configuration_mouse {
-    /* how many pixels off the edges of windows should be used for resizing */
-    int resize_tolerance;
-    /* the modifier key for all buttons (applied at the parsing step) */
-    unsigned modifiers;
-    /* the modifiers to ignore for a mouse binding */
-    unsigned ignore_modifiers;
     /* the configured buttons */
     struct configuration_button *buttons;
     /* the number of configured buttons */
     size_t number_of_buttons;
-};
 
-/* keyboard settings */
-struct configuration_keyboard {
-    /* the modifier key for all keys (applied at the parsing step) */
-    unsigned modifiers;
-    /* the modifiers to ignore for a key binding */
-    unsigned ignore_modifiers;
     /* the configured keys */
     struct configuration_key *keys;
     /* the number of configured keys */
     size_t number_of_keys;
-};
 
-/* the currently loaded configuration settings */
-extern struct configuration {
-    /* assignment settings */
-    struct configuration_assignment assignment;
-    /* mouse settings */
-    struct configuration_mouse mouse;
-    /* keyboard settings */
-    struct configuration_keyboard keyboard;
+    /* the cursor used on the root window */
+    Cursor root_cursor;
+    /* the cursor used for moving a window */
+    Cursor moving_cursor;
+    /* the cursor used for sizing a window horizontally */
+    Cursor horizontal_cursor;
+    /* the cursor used for sizing a window vertically */
+    Cursor vertical_cursor;
+    /* the cursor used for sizing a window */
+    Cursor sizing_cursor;
+
+    /* below this point are all simple and shallow settings */
+    int _shallow_start;
+
+    /* how many pixels off the edges of windows should be used for resizing */
+    int resize_tolerance;
+
+    /* the modifiers to be applied to all bindings */
+    unsigned modifiers;
+    /* the modifiers to ignore for a binding */
+    unsigned modifiers_ignore;
 
     /* the number the first window gets assigned */
     unsigned first_window_number;
 
-    /* at which percentage to count  */
+    /* at which percentage to count windows to be overlapped with a monitor */
     unsigned overlap;
 
     /* whether to automatically create a split when a window is shown */
@@ -119,17 +115,6 @@ extern struct configuration {
     /* whether to remove frames automatically when they become empty */
     bool auto_remove_void;
 
-    /* the cursor used on the root window */
-    Cursor root_cursor;
-    /* the cursor used for moving a window */
-    Cursor moving_cursor;
-    /* the cursor used for sizing a window horizontally */
-    Cursor horizontal_cursor;
-    /* the cursor used for sizing a window vertically */
-    Cursor vertical_cursor;
-    /* the cursor used for sizing a window */
-    Cursor sizing_cursor;
-
     /* the duration in seconds a notification window should linger for */
     unsigned notification_duration;
 
@@ -140,20 +125,27 @@ extern struct configuration {
     unsigned border_size;
     /* color of the border around the window */
     uint32_t border_color;
-    /* color of the border of an unfocused tiling window */
-    uint32_t border_active_color;
+    /* color of the border of an unfocused tiling/floating windows */
+    uint32_t border_color_active;
     /* color of the border of a focused window */
-    uint32_t border_focus_color;
+    uint32_t border_color_focus;
     /* color of the text */
     uint32_t foreground;
     /* color of the background of fensterchef windows */
     uint32_t background;
 
     /* width of the inner gaps (between frames) */
-    int inner_gaps[4];
+    int gaps_inner[4];
     /* width of the outer gaps (between frames and monitor boundaries */
-    int outer_gaps[4];
+    int gaps_outer[4];
 } configuration;
+
+/* Clear all resources associated to the given configuration. */
+void clear_configuration(struct configuration *configuration);
+
+/* Copy the shallow settings from @configuration into the current configuration.
+ */
+void copy_configuration_settings(const struct configuration *configuration);
 
 /* Get a key from button modifiers and a button index. */
 struct configuration_button *find_configured_button(

@@ -489,11 +489,9 @@ const struct configuration_association *initialize_window_properties(
 
     /* if the class property is set, try to find an association */
     if (instance_name != NULL && class_name != NULL) {
-        for (uint32_t i = 0;
-                i < configuration.assignment.number_of_associations;
-                i++) {
+        for (size_t i = 0; i < configuration.number_of_associations; i++) {
             const struct configuration_association *const association =
-                &configuration.assignment.associations[i];
+                &configuration.associations[i];
             if ((association->instance_pattern == NULL ||
                         matches_pattern(association->instance_pattern,
                             instance_name)) &&

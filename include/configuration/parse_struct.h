@@ -11,12 +11,14 @@
 #include "configuration/data_type.h"
 #include "utility/list.h"
 
-/* the parser struct */
+/* The parser struct.  All memory allocated within this struct is kept for later
+ * parsing runs/recycled.
+ */
 extern struct parser {
     /* the start index of the last item */
     size_t index;
     /* if the parser had any error */
-    bool has_error;
+    int error_count;
     /* the point to jump to */
     jmp_buf throw_jump;
 
@@ -25,6 +27,7 @@ extern struct parser {
     /* if this string has quotes */
     bool is_string_quoted;
 
+    /* the current action parsing information */
     struct parse_action_information {
         /* Data for this action. */
         LIST(struct parse_generic_data, data);

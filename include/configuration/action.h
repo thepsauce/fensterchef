@@ -9,8 +9,8 @@
 
 #include "configuration/data_type.h"
 
-/* This expands to all actions.  It should be alphabetically sorted for the
- * parser to be faster but that is optional.
+/* This expands to all actions.  Action strings with equal prefix should come
+ * after each other for higher efficiency while parsing.
  *
  * Action strings are formatted like this:
  * - The action string consists of words separated by a single space
@@ -34,6 +34,10 @@
     X(ACTION_AUTO_SPLIT, "auto split I") \
     /* the background color of the fensterchef windows */ \
     X(ACTION_BACKGROUND, "background I") \
+    /* the border color of "active" windows */ \
+    X(ACTION_BORDER_COLOR_ACTIVE, "border color active I") \
+    /* the border color of focused windows */ \
+    X(ACTION_BORDER_COLOR_FOCUS, "border color focus I") \
     /* the border color of all windows */ \
     X(ACTION_BORDER_COLOR, "border color I") \
     /* the border size of all windows */ \
@@ -130,6 +134,8 @@
     X(ACTION_MINIMIZE_WINDOW_I, "minimize window I") \
     /* the modifiers to use for the following bindings */ \
     X(ACTION_MODIFIERS, "modifiers I") \
+    /* the modifiers to ignore */ \
+    X(ACTION_MODIFIERS_IGNORE, "modifiers ignore I") \
     /* move the current frame down */ \
     X(ACTION_MOVE_DOWN, "move down") \
     /* move the current frame to the left */ \
@@ -147,7 +153,7 @@
     /* the value at which a window should be counted as overlapping a monitor */ \
     X(ACTION_OVERLAP, "overlap I") \
     /* replace the current frame with a frame from the stash */ \
-    X(ACTION_POP_FRAME, "pop frame") \
+    X(ACTION_POP_STASH, "pop stash") \
     /* quit fensterchef */ \
     X(ACTION_QUIT, "quit") \
     /* reload the configuration file */ \
