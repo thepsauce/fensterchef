@@ -19,10 +19,9 @@ static int initialize_notification(Notification *notification)
     notification->client.height = 1;
     notification->client.border_width = configuration.border_size;
     notification->client.border = configuration.border_color;
-    notification->client.background = configuration.background;
     notification->foreground = configuration.foreground;
     attributes.border_pixel = notification->client.border;
-    attributes.backing_pixel = notification->client.background;
+    attributes.backing_pixel = configuration.background;
     /* indicate to not manage the window */
     attributes.override_redirect = True;
     notification->client.id = XCreateWindow(display,
@@ -83,7 +82,7 @@ static int render_notification(Notification *notification,
         return ERROR;
     }
 
-    if (allocate_xft_color(notification->client.background,
+    if (allocate_xft_color(notification->background,
                 &background_color) == ERROR) {
         free_xft_color(&text_color);
         return ERROR;
@@ -172,7 +171,8 @@ void set_system_notification(const utf8_t *message, int x, int y)
 
     /* change border color and size of the notification window */
     change_client_attributes(&system_notification->client,
-            configuration.background, configuration.border_color);
+            configuration.border_color);
+    system_notification->background = configuration.background;
 
     /* set the window size, position and set it above */
     configure_client(&system_notification->client,

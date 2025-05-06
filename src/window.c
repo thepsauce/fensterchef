@@ -168,7 +168,6 @@ FcWindow *create_window(Window id)
     window->client.y = x;
     window->client.width = width;
     window->client.height = height;
-    window->client.background = attributes.backing_pixel;
     window->client.border = configuration.border_color;
     /* check if the window is already mapped on the X server */
     if (attributes.map_state != IsUnmapped) {

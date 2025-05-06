@@ -88,8 +88,6 @@ typedef struct x_client {
     unsigned int border_width;
     /* the color of the border */
     uint32_t border;
-    /* the background color */
-    uint32_t background;
 } XClient;
 
 /* supporting wm check window */
@@ -143,7 +141,6 @@ void configure_client(XClient *client, int x, int y, unsigned width,
         unsigned height, unsigned border_width);
 
 /* Set the background and border color of @client. */
-void change_client_attributes(XClient *client, uint32_t background_color,
-        uint32_t border_color);
+void change_client_attributes(XClient *client, uint32_t border_color);
 
 #endif

@@ -312,6 +312,9 @@ int resolve_integer(void)
             integer += isdigit(word[0]) ?
                     word[0] - '0' : tolower(word[0]) + 0xa - 'a';
         }
+        if (integer > 0 && !(integer >> 24)) {
+            integer |= 0xff << 24;
+        }
         if (word[0] == '\0') {
             error = OK;
         }

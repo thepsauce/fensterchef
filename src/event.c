@@ -141,7 +141,7 @@ void synchronize_with_server(void)
      */
     reconfigure_monitor_frames();
 
-    /* set the border colors of the windows and manage the focused state */
+    /* set the borders of the windows and manage the focused state */
     for (FcWindow *window = Window_first;
             window != NULL;
             window = window->next) {
@@ -150,6 +150,14 @@ void synchronize_with_server(void)
             atoms[0] = ATOM(_NET_WM_STATE_FOCUSED);
             remove_window_states(window, atoms, 1);
         }
+
+        /* update the border size */
+        if (is_window_borderless(window)) {
+            window->border_size = 0;
+        } else {
+            window->border_size = configuration.border_size;
+        }
+
         /* set the color of the focused window */
         if (window == Window_focus) {
             window->border_color = configuration.border_focus_color;
@@ -180,8 +188,7 @@ void synchronize_with_server(void)
         }
         configure_client(&window->client, window->x, window->y,
                 window->width, window->height, window->border_size);
-        change_client_attributes(&window->client,
-                window->client.background, window->border_color);
+        change_client_attributes(&window->client, window->border_color);
 
         atoms[0] = ATOM(_NET_WM_STATE_HIDDEN);
         remove_window_states(window, atoms, 1);

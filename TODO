@@ -13,7 +13,10 @@
     downgrade to core fonts so that the absolute minimal text is shown.  The
     user can then configure to use more advanced programs.
 
-#82 ...
+#82 Add default configuration
+    Currently the default configuration is not loaded, add it again
+
+#83 ...
 
 #200 Make repository for fensterchef-menu
     Menus of all kind for any window manager
@@ -32,25 +35,12 @@
     Make shell scripts to generate the manual page (should the wiki be
     continued?)
 
-#69 Simplify README
-    Shorten the README to only contain the must important information, move the
-    extended information to the website and Github Wiki
-
 #70/#69 Re-add the wiki
     Add the Github wiki again
 
 #73 Make a CONTRIBUTING file
     Make a file explaining source code internals and where to start looking to
     start contributing to the fensterchef project
-
-#72 Refactor configuration parser
-    Make the design easier to understand and clean up the code in
-    parse_expression().
-    Also use two configuration structures:
-    One for the actual configuration, another one for the configuration being
-    parsed.
-    I decided to remove all new scripting stuff, it is not necessary at all.
-    If people want to extend the behavior, they should write C code.
 
 [Recheck]
 #1 ! Hover events not working in firefox sometimes
@@ -399,3 +389,16 @@
 #76 Make advanced notification windows
     Allow more notification windows to be visible at the same time and
     allow them to be individually configurable
+
+#72 Refactor configuration parser
+    Make the design easier to understand and clean up the code in
+    parse_expression().
+    Also use two configuration structures:
+    One for the actual configuration, another one for the configuration being
+    parsed.
+    I decided to remove all new scripting stuff, it is not necessary at all.
+    If people want to extend the behavior, they should write C code.
+
+#69 Simplify README
+    Shorten the README to only contain the must important information, move the
+    extended information to the website and Github Wiki

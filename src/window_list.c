@@ -23,9 +23,8 @@ static int initialize_window_list(void)
         WindowList.client.height = 1;
         WindowList.client.border_width = configuration.border_size;
         WindowList.client.border = configuration.border_color;
-        WindowList.client.background = configuration.background;
         attributes.border_pixel = WindowList.client.border;
-        attributes.backing_pixel = WindowList.client.background;
+        attributes.backing_pixel = configuration.background;
         attributes.event_mask = KeyPressMask | ExposureMask | FocusChangeMask;
         /* indicate to not manage the window */
         attributes.override_redirect = True;
@@ -207,9 +206,8 @@ static int render_window_list(void)
     width = MIN(width, monitor->width / 2);
     height = MIN(height, monitor->height);
 
-    /* change border color and size of the window list window */
-    change_client_attributes(&WindowList.client,
-            configuration.background, configuration.border_color);
+    /* change border color of the window list window */
+    change_client_attributes(&WindowList.client, configuration.foreground);
 
     /* set the list position and size so it is in the top right of the monitor
      * containing the focus frame

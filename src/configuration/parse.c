@@ -206,7 +206,7 @@ static void continue_parsing_association(void)
 
         backslash_count = 0;
         for (; separator > parser.string; separator--) {
-            if (parser.string[-1] != '\\') {
+            if (separator[-1] != '\\') {
                 break;
             }
             backslash_count++;
@@ -513,13 +513,15 @@ int parse_stream_and_run_actions(void)
     }
     free(configuration.keyboard.keys);
 
-    /* extract the associations and bindings into the configuration */
+    /* extract the associations and bindings into the new configuration */
     LIST_COPY_ALL(parser.associations, configuration.assignment.associations);
     configuration.assignment.number_of_associations =
         parser.associations_length;
+
     LIST_COPY_ALL(parser.keys, configuration.keyboard.keys);
     configuration.keyboard.number_of_keys =
         parser.keys_length;
+
     LIST_COPY_ALL(parser.buttons, configuration.mouse.buttons);
     configuration.mouse.number_of_buttons =
         parser.buttons_length;
@@ -529,7 +531,8 @@ int parse_stream_and_run_actions(void)
     startup.number_of_items = parser.startup_items_length;
     startup.data = parser.startup_data;
     do_list_of_actions(&startup);
-    /* keep shallow elements */
+
+    /* clear but keep shallow members */
     clear_list_of_actions(&startup);
 
     return OK;

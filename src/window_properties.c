@@ -494,7 +494,9 @@ const struct configuration_association *initialize_window_properties(
                 i++) {
             const struct configuration_association *const association =
                 &configuration.assignment.associations[i];
-            if (matches_pattern(association->instance_pattern, instance_name) &&
+            if ((association->instance_pattern == NULL ||
+                        matches_pattern(association->instance_pattern,
+                            instance_name)) &&
                     matches_pattern(association->class_pattern, class_name)) {
                 matching_association = association;
                 break;

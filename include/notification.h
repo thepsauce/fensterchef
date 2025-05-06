@@ -13,6 +13,8 @@ typedef struct notification {
     XftDraw *xft_draw;
     /* text color */
     uint32_t foreground;
+    /* background color */
+    uint32_t background;
 } Notification;
 
 /* notification window for fensterchef windows */

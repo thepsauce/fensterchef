@@ -534,13 +534,6 @@ void set_window_mode(FcWindow *window, window_mode_t mode)
         remove_window_states(window, states, SIZE(states));
     }
 
-    /* update the window border */
-    if (is_window_borderless(window)) {
-        window->border_size = 0;
-    } else {
-        window->border_size = configuration.border_size;
-    }
-
     update_window_layer(window);
 
     synchronize_allowed_actions(window);

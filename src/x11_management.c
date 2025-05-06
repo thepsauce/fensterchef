@@ -307,17 +307,10 @@ void configure_client(XClient *client, int32_t x, int32_t y, uint32_t width,
 }
 
 /* Set the client border color. */
-void change_client_attributes(XClient *client, uint32_t background_color,
-        uint32_t border_color)
+void change_client_attributes(XClient *client, uint32_t border_color)
 {
     XSetWindowAttributes attributes;
     unsigned mask = 0;
-
-    if (client->background != background_color) {
-        client->background = background_color;
-        attributes.backing_pixel = background_color;
-        mask |= CWBackPixel;
-    }
 
     if (client->border != border_color) {
         client->border = border_color;
@@ -326,9 +319,8 @@ void change_client_attributes(XClient *client, uint32_t background_color,
     }
 
     if (mask != 0) {
-        LOG("changing attributes of client %w to " COLOR(GREEN) "#%08x, "
-                    COLOR(GREEN) "#%08x\n",
-                client->id, background_color, border_color);
+        LOG("changing attributes of client %w to " COLOR(GREEN) "#%08x\n",
+                client->id, border_color);
         XChangeWindowAttributes(display, client->id, mask, &attributes);
     }
 }

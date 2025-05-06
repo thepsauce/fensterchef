@@ -22,7 +22,7 @@
 #define LIST(type, name) \
     type *name; \
     size_t name##_length; \
-    size_t name##_capacity;
+    size_t name##_capacity
 
 /* Grow the capacity of the list to at least the given capacity.
  *
