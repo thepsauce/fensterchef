@@ -218,8 +218,8 @@ typedef struct ratio {
 /* Run @command within a shell in the background. */
 void run_shell(const char *command);
 
-/* Run @command as new process and get the first line from it. */
-char *run_command_and_get_output(const char *command);
+/* Run @command as command within a shell and get the first line from it. */
+char *run_shell_and_get_output(const char *command);
 
 /* Check if a character is a line ending character.
  *

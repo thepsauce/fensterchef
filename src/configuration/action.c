@@ -815,7 +815,7 @@ void do_action(action_type_t type, const struct parse_generic_data *data)
 
     /* merge in the default settings */
     case ACTION_MERGE_DEFAULT:
-        merge_default_configuration(DEFAULT_CONFIGURATION_MERGE_ALL);
+        //merge_default_configuration(DEFAULT_CONFIGURATION_MERGE_ALL);
         break;
 
     /* hide the window with given number */
@@ -1046,7 +1046,7 @@ void do_action(action_type_t type, const struct parse_generic_data *data)
 
     /* show a message by getting output from a shell program */
     case ACTION_SHOW_RUN:
-        shell = run_command_and_get_output(data->u.string);
+        shell = run_shell_and_get_output(data->u.string);
         if (shell == NULL) {
             break;
         }

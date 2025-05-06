@@ -303,15 +303,25 @@ int resolve_integer(void)
             error = OK;
         }
     } else if (word[0] == '#') {
+        int count = 0;
+
         word++;
         for (; isxdigit(word[0]); word++) {
+            count++;
             integer <<= 4;
             integer += isdigit(word[0]) ?
                     word[0] - '0' : tolower(word[0]) + 0xa - 'a';
         }
-        if (integer > 0 && !(integer >> 24)) {
+
+        if (count == 0) {
+            emit_parse_error("expected hexadecimal digits");
+        }
+
+        /* if no alpha channel is specified, make it fully opaque */
+        if (count <= 6) {
             integer |= 0xff << 24;
         }
+
         if (word[0] == '\0') {
             error = OK;
         }

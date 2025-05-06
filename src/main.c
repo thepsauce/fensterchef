@@ -78,8 +78,10 @@ int main(int argc, char **argv)
         if (initialize_file_stream(Fensterchef_configuration) != OK) {
             LOG("file %s does not exist\n", Fensterchef_configuration);
             merge_default_configuration(DEFAULT_CONFIGURATION_MERGE_ALL);
-        } else if (parse_stream_and_run_actions() != OK) {
+            grab_configured_keys();
+        } else if (1 || parse_stream_and_run_actions() != OK) {
             merge_default_configuration(DEFAULT_CONFIGURATION_MERGE_ALL);
+            grab_configured_keys();
         }
     }
 

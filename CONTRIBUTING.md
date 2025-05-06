@@ -11,6 +11,8 @@ The goals of fensterchef are:
 - Low CPU usage
 - Fast startup time
 - Fit as many sizes with minimal code
+    - Meant for many different users
+    - Meant for all unix systems that can run X11
 
 ## Directories
 

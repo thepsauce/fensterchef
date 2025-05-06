@@ -48,12 +48,13 @@ void run_shell(const char *command)
     }
 }
 
-/* Run @command as new process and get the first line from it. */
-char *run_command_and_get_output(const char *command)
+/* Run @command as command within a shell and get the first line from it. */
+char *run_shell_and_get_output(const char *command)
 {
     pid_t child_process_id;
     int pipe_descriptors[2];
     char buffer[1024];
+    ssize_t count;
 
     /* open a pipe */
     if (pipe(pipe_descriptors) < 0) {
@@ -83,16 +84,16 @@ char *run_command_and_get_output(const char *command)
     /* parent process */
     close(pipe_descriptors[1]);
 
-    read(pipe_descriptors[0], buffer, sizeof(buffer));
-
-    char *const new_line = strchr(buffer, '\n');
-    if (new_line != NULL) {
-        new_line[0] = '\0';
-    }
+    count = read(pipe_descriptors[0], buffer, sizeof(buffer) - 1);
 
     close(pipe_descriptors[0]);
 
-    return xstrdup(buffer);
+    char *const new_line = memchr(buffer, '\n', count);
+    if (new_line != NULL) {
+        count = new_line - buffer;
+    }
+
+    return xmemdup(buffer, count);
 }
 
 /* Check if a character is a line ending character. */

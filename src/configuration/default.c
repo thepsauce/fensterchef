@@ -134,7 +134,7 @@ const struct configuration default_configuration = {
     .border_color = 0xff49494d,
     .border_color_active = 0xff939388,
     .border_color_focus = 0xff7fd0f1,
-    .foreground = 0xff939388,
+    .foreground = 0xff7fd0f1,
     .background = 0xff49494d,
 
     .gaps_inner = { 0, 0, 0, 0 },
@@ -157,6 +157,7 @@ static void merge_with_default_button_bindings(void)
         button->is_transparent = false;
         button->is_release = default_button_bindings[i].is_release;
         button->modifiers = default_button_bindings[i].modifiers |
+            /* use the modifiers from the current configuration */
             configuration.modifiers;
         button->index = default_button_bindings[i].button_index;
 
@@ -211,6 +212,10 @@ static void merge_with_default_key_bindings(void)
 /* Merge parts of the default configuration into the current configuration. */
 void merge_default_configuration(unsigned flags)
 {
+    if ((flags & DEFAULT_CONFIGURATION_MERGE_SETTINGS)) {
+        copy_configuration_settings(&default_configuration);
+    }
+
     if ((flags & DEFAULT_CONFIGURATION_MERGE_BUTTON_BINDINGS)) {
         merge_with_default_button_bindings();
     }
@@ -230,9 +235,5 @@ void merge_default_configuration(unsigned flags)
             load_cursor(default_horizontal_cursor);
         configuration.vertical_cursor = load_cursor(default_vertical_cursor);
         configuration.sizing_cursor = load_cursor(default_sizing_cursor);
-    }
-
-    if ((flags & DEFAULT_CONFIGURATION_MERGE_SETTINGS)) {
-        copy_configuration_settings(&default_configuration);
     }
 }
