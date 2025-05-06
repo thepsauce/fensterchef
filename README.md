@@ -47,4 +47,4 @@ can try out **fensterchef**.
 - Casual IRC chat: `irc.libera.chat:6697` in `#fensterchef`
 - Questions: [Github discussions](https://github.com/fensterchef/fensterchef/discussions)
 - Bugs/Feature requests: [Github issues](https://github.com/fensterchef/fensterchef/issues)
-- Other: fensterchef*@*fensterchef*.*org
+- Other: fensterchef (at) fensterchef.org
