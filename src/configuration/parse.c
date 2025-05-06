@@ -337,7 +337,7 @@ static void continue_parsing_modifiers_or_binding(void)
     KeySym key_symbol = NoSymbol;
     KeyCode key_code = 0;
     /* position for error reporting */
-    size_t transparent_position;
+    size_t transparent_position = 0;
 
     if (strcmp(parser.string, "release") == 0) {
         assert_read_string();
