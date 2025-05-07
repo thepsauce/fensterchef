@@ -256,6 +256,40 @@ static void continue_parsing_association(void)
     }
 }
 
+/* Print all possible actions to stderr. */
+static void print_action_possibilities(void)
+{
+    fprintf(stderr, "possible words are: ");
+    for (action_type_t i = parser.first_action; i < parser.last_action; i++) {
+        const char *action, *space;
+        int length;
+
+        action = &action_strings[i][parser.actions[i].offset];
+
+        /* get the end of the next action word of the action string */
+        space = strchr(action, ' ');
+        if (space == NULL) {
+            length = strlen(action);
+            space = action + length;
+        } else {
+            length = space - action;
+        }
+
+        if (i != parser.first_action) {
+            fprintf(stderr, ", ");
+        }
+        if (action[0] == 'I') {
+            fprintf(stderr, "INTEGER");
+        } else if (action[0] == 'S') {
+            fprintf(stderr, "STRING");
+        } else {
+            fprintf(stderr, "%.*s",
+                    length, action);
+        }
+    }
+    fprintf(stderr, "\n");
+}
+
 /* Parse the next action word or check for an action separator.
  *
  * @return ERROR when there are no following actions, otherwise OK.
@@ -267,17 +301,19 @@ static int parse_next_action_part(size_t item_index)
 
     character = peek_stream_character();
     if (character == EOF || character == ',' || character == '\n') {
-        if (parser.first_action < ACTION_MAX &&
-                parser.actions[parser.first_action].offset == -1) {
-            emit_parse_error("action does not exist");
+        if (action_strings[parser.first_action]
+                [parser.actions[parser.first_action].offset] != '\0') {
+            parser.index = input_stream.index;
+            emit_parse_error("incomplete action");
+            print_action_possibilities();
+        } else {
+            parser.action_items[item_index].type = parser.first_action;
+            parser.action_items[item_index].data_count =
+                parser.actions[parser.first_action].data_length;
+            LIST_APPEND(parser.action_data,
+                parser.actions[parser.first_action].data,
+                parser.actions[parser.first_action].data_length);
         }
-
-        parser.action_items[item_index].type = parser.first_action;
-        parser.action_items[item_index].data_count =
-            parser.actions[parser.first_action].data_length;
-        LIST_APPEND(parser.action_data,
-            parser.actions[parser.first_action].data,
-            parser.actions[parser.first_action].data_length);
 
         if (character == ',') {
             /* skip ',' */

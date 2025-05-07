@@ -54,10 +54,6 @@
     Make a file explaining source code internals and where to start looking to
     start contributing to the fensterchef project
 
-#86 Handle percent and pixel values
-    Add the special needing for the percent and pixel values can that be used in
-    the configuration
-
 [Recheck]
 #1 ! Hover events not working in firefox sometimes
     This is fixed by resizing the window, try to find out why it happens in the
@@ -418,3 +414,7 @@
 
 #82 Add default configuration
     Currently the default configuration is not loaded, add it again
+
+#86 Handle percent and pixel values
+    Add the special needing for the percent and pixel values can that be used in
+    the configuration
