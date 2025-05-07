@@ -1,6 +1,8 @@
 #ifndef CONFIGURATION__LITERAL_H
 #define CONFIGURATION__LITERAL_H
 
+#include <X11/Xlib.h>
+
 /**
  * Parse very simple constructs like repeated space and resolve integers and
  * strings.
@@ -41,6 +43,8 @@ void assert_read_string(void);
 /* Translate a string like "Button1" to a button index.
  *
  * @return -1 if the button string is invalid.
+ *
+ * Technically 0 is also an invalid index since they start from 1.
  */
 int translate_string_to_button(const char *string);
 
@@ -51,5 +55,8 @@ int translate_string_to_button(const char *string);
  * @return ERROR if `parser.word` is not an integer.
  */
 int resolve_integer(void);
+
+/* Translate a string to some extended key symbols. */
+KeySym translate_string_to_additional_key_symbols(const char *string);
 
 #endif

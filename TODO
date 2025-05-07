@@ -28,7 +28,7 @@
 #85 Add sourcing to parser
     The source command needs to be added again to load other files
 
-#87 ...
+#88 ...
 
 #200 Make repository for fensterchef-menu
     Menus of all kind for any window manager
@@ -50,9 +50,9 @@
 #70/#69 Re-add the wiki
     Add the Github wiki again
 
-#73 Make a CONTRIBUTING file
-    Make a file explaining source code internals and where to start looking to
-    start contributing to the fensterchef project
+#87 Make parser better
+    The modifiers action is resolved at the wrong time.  The parser has to
+    interleave actions being executed with binding being set.
 
 [Recheck]
 #1 ! Hover events not working in firefox sometimes
@@ -418,3 +418,7 @@
 #86 Handle percent and pixel values
     Add the special needing for the percent and pixel values can that be used in
     the configuration
+
+#73 Make a CONTRIBUTING file
+    Make a file explaining source code internals and where to start looking to
+    start contributing to the fensterchef project

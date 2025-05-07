@@ -54,6 +54,7 @@ char *run_shell_and_get_output(const char *command)
     int pipe_descriptors[2];
     char buffer[1024];
     ssize_t count;
+    char *output;
 
     /* open a pipe */
     if (pipe(pipe_descriptors) < 0) {
@@ -87,12 +88,19 @@ char *run_shell_and_get_output(const char *command)
 
     close(pipe_descriptors[0]);
 
+    if (count < 0) {
+        return NULL;
+    }
+
     char *const new_line = memchr(buffer, '\n', count);
     if (new_line != NULL) {
         count = new_line - buffer;
     }
 
-    return xmemdup(buffer, count);
+    ALLOCATE(output, count + 1);
+    memcpy(output, buffer, count);
+    output[count] = '\0';
+    return output;
 }
 
 /* Check if a character is a line ending character. */

@@ -1,11 +1,12 @@
 #include <ctype.h>
 #include <string.h>
 
-#include <X11/Xlib.h>
+#include <X11/keysym.h>
 
 #include "configuration/parse.h"
 #include "configuration/parse_struct.h"
 #include "configuration/stream.h"
+#include "configuration/utility.h"
 
 /* Skip to the beginning of the next line. */
 void skip_line(void)
@@ -106,9 +107,17 @@ int read_string(void)
 
         /* skip over the opening quote */
         (void) get_stream_character();
+
         while (character = get_stream_character(),
                 character != quote && character != EOF && character != '\n') {
-            /* TODO: handle escape of quote */
+            /* escape any characters following \\ */
+            if (character == '\\') {
+                character = get_stream_character();
+                LIST_APPEND_VALUE(parser.string, '\\');
+                if (character == EOF || character == '\n') {
+                    break;
+                }
+            }
             LIST_APPEND_VALUE(parser.string, character);
         }
 
@@ -118,7 +127,6 @@ int read_string(void)
     } else {
         parser.is_string_quoted = false;
 
-        /* read all until a new line or comma */
         while (character = peek_stream_character(),
                 is_word_character(character)) {
             (void) get_stream_character();
@@ -338,4 +346,35 @@ int resolve_integer(void)
 
     parser.data.u.integer = sign * integer;
     return error;
+}
+
+/* Translate a string to some extended key symbols. */
+KeySym translate_string_to_additional_key_symbols(const char *string)
+{
+    struct {
+        const char *name;
+        KeySym key_symbol;
+    } symbol_table[] = {
+        /* since integers are interpreted as keycodes, these are needed to still
+         * use the digit keys
+         */
+        { "zero", XK_0 },
+        { "one", XK_1 },
+        { "two", XK_2 },
+        { "three", XK_3 },
+        { "four", XK_4 },
+        { "five", XK_5 },
+        { "six", XK_6 },
+        { "seven", XK_7 },
+        { "eight", XK_8 },
+        { "nine", XK_9 },
+    };
+
+    for (unsigned i = 0; i < SIZE(symbol_table); i++) {
+        if (strcmp(string, symbol_table[i].name) == 0) {
+            return symbol_table[i].key_symbol;
+        }
+    }
+
+    return NoSymbol;
 }

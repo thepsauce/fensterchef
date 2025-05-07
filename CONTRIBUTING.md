@@ -105,7 +105,29 @@ functions.
 
 ### Configuration
 
-TODO
+The configuration parser is split into a stream reader and the actual parser.
+Both are global variables (`input_stream` and `parser` (which may need to be
+renamed?)).
+
+- Go to `src/configuration/action.c`.  This is where all actions the user can
+  use are defined.  The parser will use the action strings to figure out which
+  action is used.
+- Go to `src/configuration/stream.c`.  A stream is initialized from a file or
+  string.  When it is a file, the entire file is read into memory.  The stream
+  already skips over comments (lines starting with `#`) and handles escaped line
+  endings which are denoted by (regex) `\n\s*\\`.
+- Take note of the parser struct in `include/configuration/parse_struct.h`.
+- Go to `src/configuration/parse.c`.  `parse_stream()` is the base function that
+  starts the parsing process.  We use a try-catch mechanism using `setjmp.h`.
+  The parser branches off into either action parsing and if no word starts with
+  the word, binding parsing.  If there is a starting ", then an association is
+  parsed.  Then binding and association parser then also go into the action
+  parser.
+- Go to `src/configuration/parse_action.c`.  Actions are parsed by finding those
+  actions whose prefix matches the current series of read strings.  Note that
+  strings refer to quoted strings but also just regular words.
+- Go to `src/configuration/default.c`.  This has the default configuration.  It
+  is embedded in the executable.
 
 ### Miscalleneous
 

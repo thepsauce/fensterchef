@@ -68,4 +68,12 @@ extern struct parser {
 /* Emit a parse error. */
 void emit_parse_error(const char *message);
 
+/* Parse an action.
+ *
+ * Expects that a string has been read into `parser.`
+ *
+ * @return ERROR if there is no action, OK otherwise.
+ */
+int continue_parsing_action(void);
+
 #endif
