@@ -45,12 +45,16 @@ typedef enum parse_error {
  */
 int parse_stream(void);
 
-/* Parse the currently active stream.
- *
- * This calls `parse_stream()`.
+/* Parse the currently active stream and use it to override the configuration.
  *
  * All parsed actions, bindings etc. are put into the configuration if this
  * function succeeds.
+ *
+ * @return ERROR if a parsing error occured, OK otherwise.
+ */
+int parse_stream_and_replace_configuration(void);
+
+/* Parse the currently active stream and rull all actions within it.
  *
  * @return ERROR if a parsing error occured, OK otherwise.
  */

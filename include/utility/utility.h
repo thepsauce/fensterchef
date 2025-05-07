@@ -253,7 +253,4 @@ int strcasecmp(const char *string1, const char *string2);
  */
 bool matches_pattern(char const *pattern, char const *string);
 
-/* Use the FNV-1 hash algorithm to compute the hash of @name. */
-uint32_t get_fnv1_hash(const char *name);
-
 #endif

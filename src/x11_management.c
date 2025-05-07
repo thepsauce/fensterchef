@@ -263,8 +263,8 @@ void unmap_client(XClient *client)
 }
 
 /* Set the size of a window associated to the X server. */
-void configure_client(XClient *client, int32_t x, int32_t y, uint32_t width,
-        uint32_t height, uint32_t border_width)
+void configure_client(XClient *client, int x, int y, unsigned width,
+        unsigned height, unsigned border_width)
 {
     XWindowChanges changes;
     unsigned mask = 0;
@@ -307,7 +307,7 @@ void configure_client(XClient *client, int32_t x, int32_t y, uint32_t width,
 }
 
 /* Set the client border color. */
-void change_client_attributes(XClient *client, uint32_t border_color)
+void change_client_attributes(XClient *client, unsigned border_color)
 {
     XSetWindowAttributes attributes;
     unsigned mask = 0;

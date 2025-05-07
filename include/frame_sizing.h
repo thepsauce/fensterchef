@@ -17,8 +17,7 @@ void apply_auto_equalize(Frame *to, frame_split_direction_t direction);
 void get_minimum_frame_size(Frame *frame, Size *size);
 
 /* Set the size of a frame, this also resize the child frames and windows. */
-void resize_frame(Frame *frame, int32_t x, int32_t y,
-        uint32_t width, uint32_t height);
+void resize_frame(Frame *frame, int x, int y, unsigned width, unsigned height);
 
 /* Set the size of a frame, this also resizes the child frames and windows.
  *
@@ -27,11 +26,11 @@ void resize_frame(Frame *frame, int32_t x, int32_t y,
  *
  * This function is good for reloading child frames if the parent resized.
  */
-void resize_frame_and_ignore_ratio(Frame *frame, int32_t x, int32_t y,
-        uint32_t width, uint32_t height);
+void resize_frame_and_ignore_ratio(Frame *frame, int x, int y,
+        unsigned width, unsigned height);
 
 /* Increases the @edge of @frame by @amount. */
-int32_t bump_frame_edge(Frame *frame, frame_edge_t edge, int32_t amount);
+int bump_frame_edge(Frame *frame, frame_edge_t edge, int amount);
 
 /* Set the size of all children within @frame to be equal within a certain
  * direction.

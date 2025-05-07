@@ -32,7 +32,7 @@ static void show_and_dereference_inner_windows(Frame *frame)
  *
  * @return the number of valid windows.
  */
-static uint32_t validate_inner_windows(Frame *frame)
+static unsigned validate_inner_windows(Frame *frame)
 {
     if (frame->left != NULL) {
         return validate_inner_windows(frame->left) +

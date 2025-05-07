@@ -1325,7 +1325,7 @@ void log_formatted(log_severity_t severity, const char *file, int line,
 
             /* standard print format specifiers */
             default: {
-                uint32_t i = 0;
+                unsigned i = 0;
 
                 fputs(COLOR(GREEN), stderr);
 

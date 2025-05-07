@@ -1,11 +1,10 @@
 #include <ctype.h>
-#include <errno.h> // EINTR
 #include <stdbool.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#include <sys/wait.h> // waitpid()
-#include <unistd.h> // fork(), setsid(), _exit(), execl()
+#include <sys/wait.h> /* waitpid() */
+#include <unistd.h> /* fork(), setsid(), _exit(), execl() */
 
 #include "utility/utility.h"
 
@@ -228,20 +227,4 @@ backtrack:
             break;
         }
     }
-}
-
-/* Use the FNV-1 hash algorithm to compute the hash of @name. */
-uint32_t get_fnv1_hash(const char *name)
-{
-    const uint32_t fnv_prime = 0x01000193;
-    const uint32_t fnv_offset_basis = 0x811c9dc5;
-
-    uint32_t hash = 0;
-
-    hash = fnv_offset_basis;
-    for (; name[0] != '\0'; name++) {
-        hash *= fnv_prime;
-        hash ^= name[0];
-    }
-    return hash;
 }

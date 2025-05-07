@@ -61,7 +61,9 @@ int main(int argc, char **argv)
      */
     initialize_signal_handlers();
 
-    /* initialize randr if possible and the initial frames */
+    /* initialize randr if possible and the initial monitors with their
+     * root frames
+     */
     initialize_monitors();
 
     /* set the X properties on the root window */
@@ -79,7 +81,7 @@ int main(int argc, char **argv)
             LOG("file %s does not exist\n", Fensterchef_configuration);
             merge_default_configuration(DEFAULT_CONFIGURATION_MERGE_ALL);
             grab_configured_keys();
-        } else if (1 || parse_stream_and_run_actions() != OK) {
+        } else if (1 || parse_stream_and_replace_configuration() != OK) {
             merge_default_configuration(DEFAULT_CONFIGURATION_MERGE_ALL);
             grab_configured_keys();
         }

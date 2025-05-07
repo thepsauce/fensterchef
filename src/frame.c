@@ -94,7 +94,7 @@ void destroy_frame(Frame *frame)
 /* Check if @frame has given number and if not, try to find a child frame with
  * this number.
  */
-static Frame *get_frame_by_number_recursively(Frame *frame, uint32_t number)
+static Frame *get_frame_by_number_recursively(Frame *frame, unsigned number)
 {
     Frame *left;
 
@@ -115,7 +115,7 @@ static Frame *get_frame_by_number_recursively(Frame *frame, uint32_t number)
 }
 
 /* Look through all visible frames to find a frame with given @number. */
-Frame *get_frame_by_number(uint32_t number)
+Frame *get_frame_by_number(unsigned number)
 {
     Frame *frame = NULL;
 
@@ -136,15 +136,15 @@ inline bool is_frame_void(const Frame *frame)
 }
 
 /* Check if the given point is within the given frame. */
-bool is_point_in_frame(const Frame *frame, int32_t x, int32_t y)
+bool is_point_in_frame(const Frame *frame, int x, int y)
 {
     return x >= frame->x && y >= frame->y &&
-        x - (int32_t) frame->width < frame->x &&
-        y - (int32_t) frame->height < frame->y;
+        x - (int) frame->width < frame->x &&
+        y - (int) frame->height < frame->y;
 }
 
 /* Get the frame at given position. */
-Frame *get_frame_at_position(int32_t x, int32_t y)
+Frame *get_frame_at_position(int x, int y)
 {
     Frame *frame;
 
@@ -251,9 +251,9 @@ void reload_frame(Frame *frame)
     set_window_size(frame->window,
             frame->x + gaps.left,
             frame->y + gaps.top,
-            gaps.right > 0 && frame->width < (uint32_t) gaps.right ? 0 :
+            gaps.right > 0 && frame->width < (unsigned) gaps.right ? 0 :
                 frame->width - gaps.right,
-            gaps.bottom > 0 && frame->height < (uint32_t) gaps.bottom ? 0 :
+            gaps.bottom > 0 && frame->height < (unsigned) gaps.bottom ? 0 :
                 frame->height - gaps.bottom);
 }
 
@@ -281,19 +281,6 @@ void set_focus_frame(Frame *frame)
     }
 
     Frame_focus = frame;
-}
-
-/* Focus @window and the frame it is contained in if any. */
-void set_focus_window_with_frame(FcWindow *window)
-{
-    Frame *frame;
-
-    set_focus_window(window);
-
-    frame = get_frame_of_window(window);
-    if (frame != NULL) {
-        Frame_focus = frame;
-    }
 }
 
 /* Get the frame above the given one that has no parent. */

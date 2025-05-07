@@ -88,7 +88,7 @@ static inline int get_window_string(FcWindow *window, utf8_t *buffer,
 /* Get the window currently selected in the window list. */
 static FcWindow *get_selected_window(void)
 {
-    uint32_t index;
+    unsigned index;
 
     index = WindowList.selected;
     for (FcWindow *window = Window_first;
@@ -131,15 +131,13 @@ static int render_window_list(void)
     }
 
     /* get the monitor the window list should be on */
-    if (Window_focus == NULL || Frame_focus->window == Window_focus) {
+    if (Window_focus == NULL) {
         monitor = get_monitor_containing_frame(Frame_focus);
     } else {
-        monitor = get_monitor_from_rectangle_or_primary(
-                Window_focus->x, Window_focus->y, Window_focus->width,
-                Window_focus->height);
+        monitor = get_monitor_containing_window(Window_focus);
     }
 
-    /* put enough windows on the stack */
+    /* put enough text items on the stack */
     Text texts[Window_count + 1];
 
     /* measure the maximum needed width/height and count the windows */
@@ -176,7 +174,7 @@ static int render_window_list(void)
     /* add a single text item indicating that there are no focusable windows */
     if (item_count == 0) {
         const int length = snprintf(buffer, sizeof(buffer),
-                    "There are %d other windows",
+                    "There are %u other windows",
                 Window_count);
         glyphs = get_glyphs(buffer, length, &glyph_count);
         initialize_text(&texts[0], glyphs, glyph_count);
@@ -350,7 +348,7 @@ static void handle_key_press(XKeyPressedEvent *event)
 
     /* go to the last item */
     case XK_End:
-        WindowList.selected = INT32_MAX;
+        WindowList.selected = INT_MAX;
         break;
 
     /* go to the previous item */
@@ -436,7 +434,7 @@ void handle_window_list_event(XEvent *event)
 int show_window_list(void)
 {
     FcWindow *selected;
-    uint32_t index = 0;
+    unsigned index = 0;
 
     if (initialize_window_list() != OK) {
         return ERROR;

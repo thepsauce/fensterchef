@@ -85,9 +85,9 @@ void quit_fensterchef(int exit_code)
 }
 
 /* Dump a frame into a file. */
-static void dump_frame(Frame *frame, uint32_t indentation, FILE *file)
+static void dump_frame(Frame *frame, unsigned indentation, FILE *file)
 {
-    for (uint32_t i = 0; i < indentation; i++) {
+    for (unsigned i = 0; i < indentation; i++) {
         fputs("  ", file);
     }
     fprintf(file, "%p %u ",

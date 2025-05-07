@@ -13,14 +13,8 @@ typedef ptrdiff_t parse_data_align_t;
  */
 #define PARSE_DATA_FLAGS_IS_PERCENT (1 << 0)
 
-/* If the integer is a pixel value.  When talking about units, 1 != 1px.
- * The first "1" is a device independent 1 that is combined with the monitors
- * DPI.  The second "1px" is always 1 pixel, no matter the device.
- */
-#define PARSE_DATA_FLAGS_IS_PIXEL (1 << 1)
-
 /* If the data must be freed. */
-#define PARSE_DATA_FLAGS_IS_POINTER (1 << 2)
+#define PARSE_DATA_FLAGS_IS_POINTER (1 << 1)
 
 /* generic action data */
 struct parse_generic_data {

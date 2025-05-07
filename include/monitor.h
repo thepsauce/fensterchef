@@ -45,6 +45,9 @@ void reconfigure_monitor_frames(void);
  */
 Monitor *get_monitor_containing_frame(Frame *frame);
 
+/* Get the monitor the window is on. */
+Monitor *get_monitor_containing_window(FcWindow *window);
+
 /* Get the monitor that overlaps given rectangle the most.
  *
  * @return NULL if no monitor intersects the rectangle at all.

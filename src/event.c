@@ -460,7 +460,7 @@ static void cancel_window_move_resize(void)
     LOG("cancelling move/resize for %W\n", move_resize.window);
 
     /* restore the old position and size as good as we can */
-    frame = get_frame_of_window(move_resize.window);
+    frame = get_window_frame(move_resize.window);
     if (frame != NULL) {
         bump_frame_edge(frame, FRAME_EDGE_LEFT,
                 move_resize.window->x - move_resize.initial_geometry.x);
@@ -504,7 +504,7 @@ static void handle_key_press(XKeyPressedEvent *event)
 
         LOG("running actions: %A\n",
                 &key->actions);
-        do_list_of_actions(&key->actions);
+        do_action_list(&key->actions);
     }
 }
 
@@ -518,7 +518,7 @@ static void handle_key_release(XKeyReleasedEvent *event)
     if (key != NULL) {
         LOG("running actions: %A\n",
                 &key->actions);
-        do_list_of_actions(&key->actions);
+        do_action_list(&key->actions);
     }
 }
 
@@ -541,7 +541,7 @@ static void handle_button_press(XButtonPressedEvent *event)
     if (button != NULL) {
         LOG("running actions: %A\n",
                 &button->actions);
-        do_list_of_actions(&button->actions);
+        do_action_list(&button->actions);
         if (button->is_transparent) {
             XAllowEvents(display, ReplayPointer, event->time);
         }
@@ -572,7 +572,7 @@ static void handle_button_release(XButtonReleasedEvent *event)
     if (button != NULL) {
         LOG("running actions: %A\n",
                 &button->actions);
-        do_list_of_actions(&button->actions);
+        do_action_list(&button->actions);
     }
 
     Window_pressed = NULL;
@@ -697,7 +697,7 @@ static void handle_motion_notify(XMotionEvent *event)
         break;
     }
 
-    frame = get_frame_of_window(move_resize.window);
+    frame = get_window_frame(move_resize.window);
     if (frame != NULL) {
         bump_frame_edge(frame, FRAME_EDGE_LEFT,
                 move_resize.window->x - new_geometry.x);

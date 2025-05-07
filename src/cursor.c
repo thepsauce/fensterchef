@@ -10,7 +10,7 @@
 /* The maximum of cached cursor entries.  It is actually lower than this because
  * the cache is only filled to a certain percentage.
  */
-#define MAX_CURSOR_ENTRIES 64
+#define MAX_CURSOR_ENTRIES 128
 
 /* The maximum inverse percentage the cache is allowed to be filled.
  *
@@ -37,11 +37,39 @@ static struct cursor_cache {
 /* Load the cursor with given name using the user's preferred style. */
 Cursor load_cursor(const char *name)
 {
-    uint32_t step = 0, index;
+    size_t length;
+    unsigned hash = 0, step = 0, index;
     Cursor cursor = None;
 
-    /* use quadratic probing to find an index within the hash map */
-    const uint32_t hash = get_fnv1_hash(name);
+    length = strlen(name);
+    if (length == 0) {
+        LOG_ERROR("invalid cursor: empty string\n");
+        return None;
+    }
+
+    /* These constans were found by trying random values and seeing what has the
+     * least collisions on the default X cursor names.  This specific hash
+     * function has 3 collisions which are:
+     * - based_arrow_up and tcross
+     * - dotbox and top_side
+     * - fleur and sb_up_arrow
+     */
+    const int t1 = 50371, t2 = 10842, t3 = 37464, t4 = 54389, t5 = 594;
+    switch (length) {
+    default:
+        hash ^= length * t1;
+        hash ^= name[length - 1] * t2;
+        hash ^= name[3] * t3;
+        /* fall through */
+    case 2:
+        hash ^= name[1] * t4;
+        /* fall through */
+    case 1:
+        hash ^= name[0] * t5;
+        break;
+    }
+
+    /* Use quadratic probing to find an index within the hash map. */
     do {
         index = hash + (step * step + step) / 2;
         index %= MAX_CURSOR_ENTRIES;

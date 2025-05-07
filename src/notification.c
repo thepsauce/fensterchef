@@ -108,17 +108,15 @@ static int render_notification(Notification *notification,
         display_height = DisplayHeight(display, DefaultScreen(display));
     if (x < 0) {
         x = 0;
-    } else if ((unsigned) x + text.width +
-            configuration.border_size * 2 >= display_width) {
-        x = display_width - text.width -
-            configuration.border_size * 2;
+    } else if ((unsigned) x + text.width + configuration.border_size * 2 >=
+            display_width) {
+        x = display_width - text.width - configuration.border_size * 2;
     }
     if (y < 0) {
         y = 0;
-    } else if ((unsigned) y + text.height +
-            configuration.border_size * 2 >= display_height) {
-        y = display_height - text.height -
-            configuration.border_size * 2;
+    } else if ((unsigned) y + text.height + configuration.border_size * 2 >=
+            display_height) {
+        y = display_height - text.height - configuration.border_size * 2;
     }
 
     /* set the window size, position and set it above */

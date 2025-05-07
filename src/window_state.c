@@ -138,8 +138,7 @@ static void configure_floating_size(FcWindow *window)
          * the focused window or the focused frame
          */
         if (Window_focus != NULL) {
-            monitor = get_monitor_from_rectangle_or_primary(Window_focus->x,
-                    Window_focus->y, Window_focus->width, Window_focus->height);
+            monitor = get_monitor_containing_window(Window_focus);
         } else {
             monitor = get_monitor_containing_frame(Frame_focus);
         }
@@ -199,8 +198,7 @@ static void configure_fullscreen_size(FcWindow *window)
                 window->fullscreen_monitors.bottom -
                     window->fullscreen_monitors.left);
     } else {
-        monitor = get_monitor_from_rectangle_or_primary(window->x,
-                window->y, window->width, window->height);
+        monitor = get_monitor_containing_window(window);
         set_window_size(window, monitor->x, monitor->y,
                 monitor->width, monitor->height);
     }
@@ -213,7 +211,7 @@ void configure_dock_size(FcWindow *window)
     int x, y;
     unsigned width, height;
 
-    monitor = get_monitor_from_rectangle_or_primary(window->x, window->y, 1, 1);
+    monitor = get_monitor_containing_window(window);
 
     if (!is_strut_empty(&window->strut)) {
         x = monitor->x;
@@ -420,7 +418,7 @@ static void update_shown_window(FcWindow *window)
     case WINDOW_MODE_TILING: {
         Frame *frame;
 
-        frame = get_frame_of_window(window);
+        frame = get_window_frame(window);
         /* we never would want this to happen */
         if (frame != NULL) {
             LOG_ERROR("window %W is already in frame %F\n", window, frame);
@@ -500,9 +498,9 @@ void set_window_mode(FcWindow *window, window_mode_t mode)
     if (window->state.is_visible) {
         /* pop out from tiling layout */
         if (window->state.previous_mode == WINDOW_MODE_TILING) {
-            /* make sure no shortcut is taken in `get_frame_of_window()` */
+            /* make sure no shortcut is taken in `get_window_frame()` */
             window->state.mode = WINDOW_MODE_TILING;
-            Frame *const frame = get_frame_of_window(window);
+            Frame *const frame = get_window_frame(window);
             window->state.mode = mode;
 
             frame->window = NULL;
@@ -565,7 +563,7 @@ void hide_window(FcWindow *window)
     case WINDOW_MODE_TILING: {
         Frame *pop;
 
-        frame = get_frame_of_window(window);
+        frame = get_window_frame(window);
 
         pop = pop_stashed_frame();
 

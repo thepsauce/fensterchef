@@ -4,7 +4,7 @@
 #include <X11/extensions/Xrandr.h>
 
 #include "configuration/configuration.h"
-#include "event.h" // randr_event_base
+#include "event.h"
 #include "frame.h"
 #include "frame_sizing.h"
 #include "frame_stashing.h"
@@ -25,7 +25,7 @@ static bool randr_has_primary_outputs = false;
 Monitor *Monitor_first;
 
 /* Create a screenless monitor. */
-static Monitor *create_monitor(const char *name, uint32_t name_len)
+static Monitor *create_monitor(const char *name, size_t name_len)
 {
     Monitor *monitor;
 
@@ -186,12 +186,12 @@ void reconfigure_monitor_frames(void)
 
     /* resize all frames to their according size */
     for (monitor = Monitor_first; monitor != NULL; monitor = monitor->next) {
-        const int32_t strut_x = MIN((uint32_t) monitor->strut.left,
+        const int strut_x = MIN((unsigned) monitor->strut.left,
                 monitor->width);
-        const int32_t strut_y = MIN((uint32_t) monitor->strut.top,
+        const int strut_y = MIN((unsigned) monitor->strut.top,
                 monitor->height);
-        const uint32_t strut_sum_x = strut_x + monitor->strut.right;
-        const uint32_t strut_sum_y = strut_y + monitor->strut.bottom;
+        const unsigned strut_sum_x = strut_x + monitor->strut.right;
+        const unsigned strut_sum_y = strut_y + monitor->strut.bottom;
         resize_frame_and_ignore_ratio(monitor->frame,
                 monitor->x + strut_x,
                 monitor->y + strut_y,
@@ -207,11 +207,11 @@ void reconfigure_monitor_frames(void)
  *
  * @return true if the rectangles intersect.
  */
-static inline bool get_overlap(int32_t x1, int32_t y1, uint32_t width1,
-        uint32_t height1, int32_t x2, int32_t y2, uint32_t width2,
-        uint32_t height2, Size *overlap)
+static inline bool get_overlap(int x1, int y1, unsigned width1,
+        unsigned height1, int x2, int y2, unsigned width2,
+        unsigned height2, Size *overlap)
 {
-    int32_t x, y;
+    int x, y;
 
     x = MIN(x1 + width1, x2 + width2);
     x -= MAX(x1, x2);
@@ -240,9 +240,19 @@ Monitor *get_monitor_containing_frame(Frame *frame)
     return NULL;
 }
 
+/* Get the monitor the window is on. */
+inline Monitor *get_monitor_containing_window(FcWindow *window)
+{
+    if (window->state.mode == WINDOW_MODE_TILING) {
+        return get_monitor_containing_frame(get_window_frame(window));
+    }
+    return get_monitor_from_rectangle_or_primary(window->x, window->y,
+            window->width, window->height);
+}
+
 /* Get the monitor that overlaps given rectangle the most. */
-Monitor *get_monitor_from_rectangle(int32_t x, int32_t y,
-        uint32_t width, uint32_t height)
+Monitor *get_monitor_from_rectangle(int x, int y,
+        unsigned width, unsigned height)
 {
     Monitor *best_monitor = NULL;
     uint64_t best_area = 0, area;
@@ -252,15 +262,15 @@ Monitor *get_monitor_from_rectangle(int32_t x, int32_t y,
      * might not get the monitor the rectangle overlaps most but this is
      * preferred
      */
-    const int32_t center_x = x + width / 2;
-    const int32_t center_y = y + height / 2;
+    const int center_x = x + width / 2;
+    const int center_y = y + height / 2;
     for (Monitor *monitor = Monitor_first; monitor != NULL;
             monitor = monitor->next) {
-        const int32_t relative_x = center_x - monitor->x;
-        const int32_t relative_y = center_y - monitor->y;
+        const int relative_x = center_x - monitor->x;
+        const int relative_y = center_y - monitor->y;
         if (relative_x >= 0 && relative_y >= 0 &&
-                relative_x < (int32_t) monitor->width &&
-                relative_y < (int32_t) monitor->height) {
+                relative_x < (int) monitor->width &&
+                relative_y < (int) monitor->height) {
             return monitor;
         }
     }
@@ -285,8 +295,8 @@ Monitor *get_monitor_from_rectangle(int32_t x, int32_t y,
 /* Get the monitor that overlaps given rectangle the most or primary if there
  * are there are no intersections.
  */
-Monitor *get_monitor_from_rectangle_or_primary(int32_t x, int32_t y,
-        uint32_t width, uint32_t height)
+Monitor *get_monitor_from_rectangle_or_primary(int x, int y,
+        unsigned width, unsigned height)
 {
     Monitor *monitor;
 
@@ -356,21 +366,21 @@ FcWindow *get_window_covering_monitor(Monitor *monitor)
 Monitor *get_left_monitor(Monitor *monitor)
 {
     Monitor *best_monitor = NULL;
-    int32_t best_y = INT32_MAX, y;
-    int32_t best_right = INT32_MAX;
+    int best_y = INT32_MAX, y;
+    int best_right = INT32_MAX;
     bool best_is_y_axis_overlapping = false;
 
-    const int32_t center_y = monitor->y + monitor->height / 2;
-    const int32_t right = monitor->x + monitor->width;
-    const int32_t bottom = monitor->y + monitor->height;
+    const int center_y = monitor->y + monitor->height / 2;
+    const int right = monitor->x + monitor->width;
+    const int bottom = monitor->y + monitor->height;
     for (Monitor *other = Monitor_first; other != NULL; other = other->next) {
         /* ignore monitors not on the left */
-        const int32_t other_right = other->x + other->width;
+        const int other_right = other->x + other->width;
         if (other_right >= right) {
             continue;
         }
 
-        const int32_t other_bottom = other->y + other->height;
+        const int other_bottom = other->y + other->height;
         const bool is_y_axis_overlapping =
             other->y < bottom && monitor->y < other_bottom;
 
@@ -418,21 +428,21 @@ Monitor *get_left_monitor(Monitor *monitor)
 Monitor *get_above_monitor(Monitor *monitor)
 {
     Monitor *best_monitor = NULL;
-    int32_t best_x = INT32_MAX, x;
-    int32_t best_bottom = INT32_MAX;
+    int best_x = INT32_MAX, x;
+    int best_bottom = INT32_MAX;
     bool best_is_x_axis_overlapping = false;
 
-    const int32_t center_x = monitor->x + monitor->width / 2;
-    const int32_t right = monitor->x + monitor->width;
-    const int32_t bottom = monitor->y + monitor->height;
+    const int center_x = monitor->x + monitor->width / 2;
+    const int right = monitor->x + monitor->width;
+    const int bottom = monitor->y + monitor->height;
     for (Monitor *other = Monitor_first; other != NULL; other = other->next) {
         /* ignore monitors not below */
-        const int32_t other_bottom = other->y + other->height;
+        const int other_bottom = other->y + other->height;
         if (other_bottom >= bottom) {
             continue;
         }
 
-        const int32_t other_right = other->x + other->width;
+        const int other_right = other->x + other->width;
         const bool is_x_axis_overlapping =
             other->x < right && monitor->x < other_right;
 
@@ -480,18 +490,18 @@ Monitor *get_above_monitor(Monitor *monitor)
 Monitor *get_right_monitor(Monitor *monitor)
 {
     Monitor *best_monitor = NULL;
-    int32_t best_y = INT32_MAX, y;
+    int best_y = INT32_MAX, y;
     bool best_is_y_axis_overlapping = false;
 
-    const int32_t center_y = monitor->y + monitor->height / 2;
-    const int32_t bottom = monitor->y + monitor->height;
+    const int center_y = monitor->y + monitor->height / 2;
+    const int bottom = monitor->y + monitor->height;
     for (Monitor *other = Monitor_first; other != NULL; other = other->next) {
         /* ignore monitors not on the right */
         if (other->x <= monitor->x) {
             continue;
         }
 
-        const int32_t other_bottom = other->y + other->height;
+        const int other_bottom = other->y + other->height;
         const bool is_y_axis_overlapping =
             other->y < bottom && monitor->y < other_bottom;
 
@@ -538,18 +548,18 @@ Monitor *get_right_monitor(Monitor *monitor)
 Monitor *get_below_monitor(Monitor *monitor)
 {
     Monitor *best_monitor = NULL;
-    int32_t best_x = INT32_MAX, x;
+    int best_x = INT32_MAX, x;
     bool best_is_x_axis_overlapping = false;
 
-    const int32_t center_x = monitor->x + monitor->width / 2;
-    const int32_t right = monitor->x + monitor->width;
+    const int center_x = monitor->x + monitor->width / 2;
+    const int right = monitor->x + monitor->width;
     for (Monitor *other = Monitor_first; other != NULL; other = other->next) {
         /* ignore monitors not below */
         if (other->y <= monitor->y) {
             continue;
         }
 
-        const int32_t other_right = other->x + other->width;
+        const int other_right = other->x + other->width;
         const bool is_x_axis_overlapping =
             other->x < right && monitor->x < other_right;
 
@@ -702,10 +712,10 @@ Monitor *query_monitors(void)
                 break;
             }
 
-            const int32_t right = monitor->x + monitor->width;
-            const int32_t bottom = monitor->y + monitor->height;
-            const int32_t next_right = next->x + next->width;
-            const int32_t next_bottom = next->y + next->height;
+            const int right = monitor->x + monitor->width;
+            const int bottom = monitor->y + monitor->height;
+            const int next_right = next->x + next->width;
+            const int next_bottom = next->y + next->height;
             /* check if `monitor` is within `next` */
             if (monitor->x >= next->x && monitor->y >= next->y &&
                     right <= next_right && bottom <= next_bottom) {

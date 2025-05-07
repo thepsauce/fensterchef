@@ -397,7 +397,7 @@ static void continue_parsing_modifiers_or_binding(void)
         if (resolve_integer() != OK) {
             emit_parse_error("invalid integer value");
         }
-        modifiers += parser.data.u.integer;
+        modifiers |= parser.data.u.integer;
         assert_read_string();
         has_anything = true;
     }
@@ -523,8 +523,31 @@ int parse_stream(void)
     return parser.error_count > 0 ? ERROR : OK;
 }
 
-/* Parse the currently active stream. */
+/* Parse the currently active stream and run all actions. */
 int parse_stream_and_run_actions(void)
+{
+    struct action_list startup;
+
+    if (parse_stream() != OK) {
+        return ERROR;
+    }
+
+    /* do the startup actions */
+    startup.items = parser.startup_items;
+    startup.number_of_items = parser.startup_items_length;
+    startup.data = parser.startup_data;
+    do_action_list(&startup);
+    clear_action_list(&startup);
+
+    /* TODO: clear key bindings?? */
+    /* TODO: clear button bindings?? */
+    /* TODO: clear associations?? */
+
+    return OK;
+}
+
+/* Parse the currently active stream and use it to override the configuration. */
+int parse_stream_and_replace_configuration(void)
 {
     struct action_list startup;
 
@@ -549,10 +572,10 @@ int parse_stream_and_run_actions(void)
     startup.items = parser.startup_items;
     startup.number_of_items = parser.startup_items_length;
     startup.data = parser.startup_data;
-    do_list_of_actions(&startup);
+    do_action_list(&startup);
 
     /* clear but keep shallow members */
-    clear_list_of_actions(&startup);
+    clear_action_list(&startup);
 
     /* re-grab all bindings */
     for (FcWindow *window = Window_first;

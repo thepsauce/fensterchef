@@ -235,13 +235,13 @@ struct action_list {
 };
 
 /* Do all actions within @list. */
-void do_list_of_actions(const struct action_list *list);
+void do_action_list(const struct action_list *list);
 
 /* Free very deep memory associated to the action list @list. */
-void clear_list_of_actions(struct action_list *list);
+void clear_action_list(struct action_list *list);
 
 /* Free ALL memory associated to the action list @list. */
-void clear_list_of_actions_deeply(struct action_list *list);
+void clear_action_list_deeply(struct action_list *list);
 
 /* Do the given action using given @data. */
 void do_action(action_type_t type, const struct parse_generic_data *data);

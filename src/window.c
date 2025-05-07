@@ -14,7 +14,7 @@
 /* the number of all windows within the linked list, this value is kept up to
  * date through `create_window()` and `destroy_window()`
  */
-uint32_t Window_count;
+unsigned Window_count;
 
 /* the window that was created before any other */
 FcWindow *Window_oldest;
@@ -91,7 +91,7 @@ static inline FcWindow *find_number_gap(void)
  *
  * @return NULL when the window should be inserted before the first window.
  */
-static inline FcWindow *find_window_number(uint32_t number)
+static inline FcWindow *find_window_number(unsigned number)
 {
     FcWindow *previous;
 
@@ -249,7 +249,7 @@ FcWindow *create_window(Window id)
 
     if (association != NULL) {
         /* run the user defined actions */
-        do_list_of_actions(&association->actions);
+        do_action_list(&association->actions);
     /* if a window does not start in normal state, do not map it */
     } else if ((window->hints.flags & StateHint) &&
             window->hints.initial_state != NormalState) {
@@ -311,7 +311,7 @@ void destroy_window(FcWindow *window)
     }
 
     /* this should also never happen but we check just in case */
-    frame = get_frame_of_window(window);
+    frame = get_window_frame(window);
     if (frame != NULL) {
         frame->window = NULL;
         LOG_ERROR("window being destroyed is still within a frame\n");
@@ -358,13 +358,13 @@ void destroy_window(FcWindow *window)
     dereference_window(window);
 }
 
-/* Get a window with given @id or NULL if no window has that id. */
-FcWindow *get_window_by_id(uint32_t id)
+/* Get a window with given @number or NULL if no window has that id. */
+FcWindow *get_window_by_number(unsigned number)
 {
     FcWindow *window;
 
     for (window = Window_first; window != NULL; window = window->next) {
-        if (window->number == id) {
+        if (window->number == number) {
             break;
         }
     }
@@ -656,7 +656,7 @@ static Frame *find_frame_recursively(Frame *frame, const FcWindow *window)
 }
 
 /* Get the frame this window is contained in. */
-Frame *get_frame_of_window(const FcWindow *window)
+Frame *get_window_frame(const FcWindow *window)
 {
     /* shortcut: only tiling windows are within a frame */
     if (window->state.mode != WINDOW_MODE_TILING) {
@@ -719,4 +719,17 @@ void set_focus_window(FcWindow *window)
     }
 
     Window_focus = window;
+}
+
+/* Focus @window and the frame it is contained in if any. */
+void set_focus_window_with_frame(FcWindow *window)
+{
+    Frame *frame;
+
+    set_focus_window(window);
+
+    frame = get_window_frame(window);
+    if (frame != NULL) {
+        Frame_focus = frame;
+    }
 }

@@ -152,7 +152,7 @@ FcWindow *create_window(Window id);
 void destroy_window(FcWindow *window);
 
 /* Get a window with given @id or NULL if no window has that id. */
-FcWindow *get_window_by_id(unsigned id);
+FcWindow *get_window_by_number(unsigned id);
 
 /* time in seconds to wait for a second close */
 #define REQUEST_CLOSE_MAX_DURATION 2
@@ -194,12 +194,15 @@ FcWindow *get_fensterchef_window(Window id);
  *
  * @return NULL when the window is not in any frame.
  */
-Frame *get_frame_of_window(const FcWindow *window);
+Frame *get_window_frame(const FcWindow *window);
 
 /* Check if the window accepts input focus. */
 bool is_window_focusable(FcWindow *window);
 
 /* Set the window that is in focus. */
 void set_focus_window(FcWindow *window);
+
+/* Focus @window and the frame it is contained in if any. */
+void set_focus_window_with_frame(FcWindow *window);
 
 #endif

@@ -291,10 +291,7 @@ int resolve_integer(void)
             }
         }
 
-        if (word[0] == 'p' && word[1] == 'x') {
-            parser.data.flags |= PARSE_DATA_FLAGS_IS_PIXEL;
-            word += 2;
-        } else if (word[0] == '%') {
+        if (word[0] == '%') {
             parser.data.flags |= PARSE_DATA_FLAGS_IS_PERCENT;
             word++;
         }

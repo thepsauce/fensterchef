@@ -61,11 +61,11 @@ void configure_dock_size(FcWindow *window);
 
 /* Add window states to the window's properties. */
 void add_window_states(FcWindow *window, Atom *states,
-        uint32_t number_of_states);
+        unsigned number_of_states);
 
 /* Remove window states from the window's properties. */
 void remove_window_states(FcWindow *window, Atom *states,
-        uint32_t number_of_states);
+        unsigned number_of_states);
 
 /* Change the mode to given value and reconfigures the window if it is visible.
  *

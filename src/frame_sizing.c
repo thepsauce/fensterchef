@@ -46,11 +46,11 @@ void get_minimum_frame_size(Frame *frame, Size *size)
 }
 
 /* Set the size of a frame, this also resizes the inner frames and windows. */
-void resize_frame(Frame *frame, int32_t x, int32_t y,
-        uint32_t width, uint32_t height)
+void resize_frame(Frame *frame, int x, int y,
+        unsigned width, unsigned height)
 {
     Frame *left, *right;
-    uint32_t left_size;
+    unsigned left_size;
 
     frame->x = x;
     frame->y = y;
@@ -88,11 +88,11 @@ void resize_frame(Frame *frame, int32_t x, int32_t y,
 }
 
 /* Set the size of a frame, this also resizes the child frames and windows. */
-void resize_frame_and_ignore_ratio(Frame *frame, int32_t x, int32_t y,
-        uint32_t width, uint32_t height)
+void resize_frame_and_ignore_ratio(Frame *frame, int x, int y,
+        unsigned width, unsigned height)
 {
     Frame *left, *right;
-    uint32_t left_size;
+    unsigned left_size;
 
     frame->x = x;
     frame->y = y;
@@ -160,12 +160,12 @@ static inline void propagate_size(Frame *frame,
 }
 
 /* Increase the @edge of @frame by @amount. */
-int32_t bump_frame_edge(Frame *frame, frame_edge_t edge, int32_t amount)
+int bump_frame_edge(Frame *frame, frame_edge_t edge, int amount)
 {
     Frame *parent, *right = NULL;
     Size size;
-    int32_t space;
-    int32_t self_amount;
+    int space;
+    int self_amount;
 
     parent = frame->parent;
 
@@ -285,9 +285,9 @@ int32_t bump_frame_edge(Frame *frame, frame_edge_t edge, int32_t amount)
 }
 
 /* Count the frames in horizontal direction. */
-static uint32_t count_horizontal_frames(Frame *frame)
+static unsigned count_horizontal_frames(Frame *frame)
 {
-    uint32_t left_count, right_count;
+    unsigned left_count, right_count;
 
     if (frame->left == NULL) {
         return 1;
@@ -308,9 +308,9 @@ static uint32_t count_horizontal_frames(Frame *frame)
 }
 
 /* Count the frames in vertical direction. */
-static uint32_t count_vertical_frames(Frame *frame)
+static unsigned count_vertical_frames(Frame *frame)
 {
-    uint32_t left_count, right_count;
+    unsigned left_count, right_count;
 
     if (frame->left == NULL) {
         return 1;
@@ -335,7 +335,7 @@ static uint32_t count_vertical_frames(Frame *frame)
  */
 void equalize_frame(Frame *frame, frame_split_direction_t direction)
 {
-    uint32_t left_count, right_count;
+    unsigned left_count, right_count;
 
     /* check if the frame has any children */
     if (frame->left == NULL) {

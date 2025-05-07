@@ -1,5 +1,6 @@
+#include <errno.h>
 #include <inttypes.h>
-#include <string.h> // strcmp()
+#include <string.h> /* strcmp() */
 
 #include "configuration/action.h"
 #include "configuration/default.h"
@@ -17,7 +18,7 @@
 #include "window_list.h"
 
 /* Do all actions within @list. */
-void do_list_of_actions(const struct action_list *list)
+void do_action_list(const struct action_list *list)
 {
     const struct action_list_item *item;
     const struct parse_generic_data *generic_data;
@@ -31,7 +32,7 @@ void do_list_of_actions(const struct action_list *list)
 }
 
 /* Free deep memory associated to the action list @list. */
-void clear_list_of_actions(struct action_list *list)
+void clear_action_list(struct action_list *list)
 {
     struct parse_generic_data *data;
 
@@ -47,9 +48,9 @@ void clear_list_of_actions(struct action_list *list)
 }
 
 /* Free ALL memory associated to the action list @list. */
-void clear_list_of_actions_deeply(struct action_list *list)
+void clear_action_list_deeply(struct action_list *list)
 {
-    clear_list_of_actions(list);
+    clear_action_list(list);
     free(list->items);
     free(list->data);
 }
@@ -66,7 +67,7 @@ static bool resize_frame_or_window_by(FcWindow *window, int left, int top,
             return false;
         }
     } else {
-        frame = get_frame_of_window(window);
+        frame = get_window_frame(window);
     }
 
     if (frame != NULL) {
@@ -337,6 +338,27 @@ static bool move_to_below_frame(Frame *relative, bool do_exchange)
     return true;
 }
 
+/* Translate the integer data if not using pixels. */
+static inline int translate_integer_data(Monitor *monitor,
+        const struct parse_generic_data *data, bool is_x_axis)
+{
+    if ((data->flags & PARSE_DATA_FLAGS_IS_PERCENT)) {
+        unsigned size;
+
+        if (is_x_axis) {
+            size = monitor->width;
+        } else {
+            size = monitor->height;
+        }
+        if (data->u.integer == 0) {
+            return size;
+        }
+        return 100 * size / (unsigned) data->u.integer;
+    }
+
+    return data->u.integer;
+}
+
 /* Do the given action. */
 void do_action(action_type_t type, const struct parse_generic_data *data)
 {
@@ -452,13 +474,7 @@ void do_action(action_type_t type, const struct parse_generic_data *data)
             break;
         }
 
-        monitor = get_monitor_from_rectangle_or_primary(window->x,
-                window->y, window->width, window->height);
-
-        if (monitor == NULL) {
-            break;
-        }
-
+        monitor = get_monitor_containing_window(window);
         set_window_size(window,
                 monitor->x + (monitor->width - window->width) / 2,
                 monitor->y + (monitor->height - window->height) / 2,
@@ -489,7 +505,7 @@ void do_action(action_type_t type, const struct parse_generic_data *data)
 
     /* closes the window with given number */
     case ACTION_CLOSE_WINDOW_I:
-        window = get_window_by_id(data->u.integer);
+        window = get_window_by_number(data->u.integer);
         /* fall through */
     /* closes the currently active window */
     case ACTION_CLOSE_WINDOW:
@@ -710,7 +726,7 @@ void do_action(action_type_t type, const struct parse_generic_data *data)
 
     /* focus the window with given number */
     case ACTION_FOCUS_WINDOW_I:
-        window = get_window_by_id(data->u.integer);
+        window = get_window_by_number(data->u.integer);
         /* fall through */
     /* refocus the current window */
     case ACTION_FOCUS_WINDOW:
@@ -815,12 +831,12 @@ void do_action(action_type_t type, const struct parse_generic_data *data)
 
     /* merge in the default settings */
     case ACTION_MERGE_DEFAULT:
-        //merge_default_configuration(DEFAULT_CONFIGURATION_MERGE_ALL);
+        /* TODO: */
         break;
 
     /* hide the window with given number */
     case ACTION_MINIMIZE_WINDOW_I:
-        window = get_window_by_id(data->u.integer);
+        window = get_window_by_number(data->u.integer);
         /* fall through */
     /* hide the currently active window */
     case ACTION_MINIMIZE_WINDOW:
@@ -861,28 +877,36 @@ void do_action(action_type_t type, const struct parse_generic_data *data)
         break;
 
     /* resize the current window */
-    case ACTION_MOVE_WINDOW_BY:
-        /* TODO: handle percent/pixel */
-        resize_frame_or_window_by(window,
-                data[0].u.integer,
-                data[1].u.integer,
-                data[0].u.integer,
-                data[1].u.integer);
-        break;
-
-    /* resize the current window relative to the current monitor*/
-    case ACTION_MOVE_WINDOW_TO: {
+    case ACTION_MOVE_WINDOW_BY: {
         Monitor *monitor;
+        int x, y;
 
         if (window == NULL) {
             break;
         }
 
-        monitor = get_monitor_from_rectangle_or_primary(window->x,
-                window->y, window->width, window->height);
+        monitor = get_monitor_containing_window(window);
+        x = translate_integer_data(monitor, &data[0], true);
+        y = translate_integer_data(monitor, &data[1], false);
+        resize_frame_or_window_by(window, x, y, x, y);
+        break;
+    }
+
+    /* resize the current window relative to the current monitor*/
+    case ACTION_MOVE_WINDOW_TO: {
+        Monitor *monitor;
+        int x, y;
+
+        if (window == NULL) {
+            break;
+        }
+
+        monitor = get_monitor_containing_window(window);
+        x = translate_integer_data(monitor, &data[0], true);
+        y = translate_integer_data(monitor, &data[1], false);
         resize_frame_or_window_by(window,
-                monitor->x + data[0].u.integer - window->x,
-                monitor->y + data[1].u.integer - window->y,
+                monitor->x + x - window->x,
+                monitor->y + y - window->y,
                 0, 0);
         break;
     }
@@ -951,30 +975,37 @@ void do_action(action_type_t type, const struct parse_generic_data *data)
         break;
 
     /* resize the current window */
-    case ACTION_RESIZE_WINDOW_BY:
-        /* TODO: handle percent/pixel */
-        resize_frame_or_window_by(window,
-                0, 0,
-                data[0].u.integer,
-                data[1].u.integer);
-        break;
-
-    /* resize the current window relative to the current monitor*/
-    case ACTION_RESIZE_WINDOW_TO: {
+    case ACTION_RESIZE_WINDOW_BY: {
         Monitor *monitor;
+        int x, y;
 
         if (window == NULL) {
             break;
         }
 
-        monitor = get_monitor_from_rectangle_or_primary(window->x,
-                window->y, window->width, window->height);
+        monitor = get_monitor_containing_window(window);
+        x = translate_integer_data(monitor, &data[0], true);
+        y = translate_integer_data(monitor, &data[1], false);
+        resize_frame_or_window_by(window, 0, 0, x, y);
+        break;
+    }
+
+    /* resize the current window relative to the current monitor*/
+    case ACTION_RESIZE_WINDOW_TO: {
+        Monitor *monitor;
+        int x, y;
+
+        if (window == NULL) {
+            break;
+        }
+
+        monitor = get_monitor_containing_window(window);
+        x = translate_integer_data(monitor, &data[0], true);
+        y = translate_integer_data(monitor, &data[1], false);
         resize_frame_or_window_by(window,
                 0, 0,
-                monitor->x + data[0].u.integer
-                    - (window->x + window->width),
-                monitor->y + data[1].u.integer
-                    - (window->y + window->height));
+                monitor->x + x - (window->x + window->width),
+                monitor->y + y - (window->y + window->height));
         break;
     }
 
@@ -1058,7 +1089,7 @@ void do_action(action_type_t type, const struct parse_generic_data *data)
 
     /* show the window with given number */
     case ACTION_SHOW_WINDOW_I:
-        window = get_window_by_id(data->u.integer);
+        window = get_window_by_number(data->u.integer);
         /* fall through */
     /* show a window */
     case ACTION_SHOW_WINDOW:

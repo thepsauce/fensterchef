@@ -12,7 +12,7 @@ static void clear_configured_buttons(struct configuration *configuration)
 {
     for (size_t i = 0; i < configuration->number_of_buttons; i++) {
         struct configuration_button *const button = &configuration->buttons[i];
-        clear_list_of_actions_deeply(&button->actions);
+        clear_action_list_deeply(&button->actions);
     }
     free(configuration->buttons);
     configuration->buttons = NULL;
@@ -24,7 +24,7 @@ static void clear_configured_keys(struct configuration *configuration)
 {
     for (size_t i = 0; i < configuration->number_of_keys; i++) {
         struct configuration_key *const key = &configuration->keys[i];
-        clear_list_of_actions_deeply(&key->actions);
+        clear_action_list_deeply(&key->actions);
     }
     free(configuration->keys);
     configuration->keys = NULL;
@@ -40,7 +40,7 @@ void clear_configuration(struct configuration *configuration)
             &configuration->associations[i];
         free(association->instance_pattern);
         free(association->class_pattern);
-        clear_list_of_actions_deeply(&association->actions);
+        clear_action_list_deeply(&association->actions);
     }
     free(configuration->associations);
     configuration->associations = NULL;

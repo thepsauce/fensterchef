@@ -151,9 +151,6 @@ void reload_frame(Frame *frame);
  */
 void set_focus_frame(Frame *frame);
 
-/* Focus @window and the frame it is in. */
-void set_focus_window_with_frame(FcWindow *window);
-
 /* Get the frame above the given one that has no parent.
  *
  * @frame may be NULL, then simply NULL is returned.
