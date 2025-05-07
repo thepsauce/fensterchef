@@ -350,10 +350,7 @@ static inline int translate_integer_data(Monitor *monitor,
         } else {
             size = monitor->height;
         }
-        if (data->u.integer == 0) {
-            return size;
-        }
-        return 100 * size / (unsigned) data->u.integer;
+        return size * (unsigned) data->u.integer / 100;
     }
 
     return data->u.integer;
@@ -493,6 +490,8 @@ void do_action(action_type_t type, const struct parse_generic_data *data)
         monitor = get_monitor_by_pattern(data->u.string);
 
         if (monitor == NULL) {
+            LOG_ERROR("no monitor matches %s\n",
+                    data->u.string);
             break;
         }
 
@@ -547,6 +546,8 @@ void do_action(action_type_t type, const struct parse_generic_data *data)
     /* write all frensterchef information to a file */
     case ACTION_DUMP_LAYOUT:
         if (dump_frames_and_windows(data->u.string) == ERROR) {
+            LOG_ERROR("can not write dump to %s: %s\n",
+                    data->u.string, strerror(errno));
             break;
         }
         break;
@@ -712,6 +713,8 @@ void do_action(action_type_t type, const struct parse_generic_data *data)
 
         monitor = get_monitor_by_pattern(data->u.string);
         if (monitor == NULL) {
+            LOG_ERROR("no monitor matches %s\n",
+                    data->u.string);
             break;
         }
 
@@ -876,7 +879,7 @@ void do_action(action_type_t type, const struct parse_generic_data *data)
         move_frame_up(Frame_focus);
         break;
 
-    /* resize the current window */
+    /* move the current window */
     case ACTION_MOVE_WINDOW_BY: {
         Monitor *monitor;
         int x, y;
@@ -888,11 +891,11 @@ void do_action(action_type_t type, const struct parse_generic_data *data)
         monitor = get_monitor_containing_window(window);
         x = translate_integer_data(monitor, &data[0], true);
         y = translate_integer_data(monitor, &data[1], false);
-        resize_frame_or_window_by(window, x, y, x, y);
+        resize_frame_or_window_by(window, -x, -y, x, y);
         break;
     }
 
-    /* resize the current window relative to the current monitor*/
+    /* move the current window relative to the current monitor */
     case ACTION_MOVE_WINDOW_TO: {
         Monitor *monitor;
         int x, y;
@@ -905,9 +908,8 @@ void do_action(action_type_t type, const struct parse_generic_data *data)
         x = translate_integer_data(monitor, &data[0], true);
         y = translate_integer_data(monitor, &data[1], false);
         resize_frame_or_window_by(window,
-                monitor->x + x - window->x,
-                monitor->y + y - window->y,
-                0, 0);
+                -(monitor->x + x - window->x), -(monitor->y + y - window->y),
+                  monitor->x + x - window->x,    monitor->y + y - window->y);
         break;
     }
 
@@ -977,35 +979,35 @@ void do_action(action_type_t type, const struct parse_generic_data *data)
     /* resize the current window */
     case ACTION_RESIZE_WINDOW_BY: {
         Monitor *monitor;
-        int x, y;
+        int width_change, height_change;
 
         if (window == NULL) {
             break;
         }
 
         monitor = get_monitor_containing_window(window);
-        x = translate_integer_data(monitor, &data[0], true);
-        y = translate_integer_data(monitor, &data[1], false);
-        resize_frame_or_window_by(window, 0, 0, x, y);
+        height_change = translate_integer_data(monitor, &data[0], true);
+        width_change = translate_integer_data(monitor, &data[1], false);
+        resize_frame_or_window_by(window, 0, 0, width_change, height_change);
         break;
     }
 
     /* resize the current window relative to the current monitor*/
     case ACTION_RESIZE_WINDOW_TO: {
         Monitor *monitor;
-        int x, y;
+        int width, height;
 
         if (window == NULL) {
             break;
         }
 
         monitor = get_monitor_containing_window(window);
-        x = translate_integer_data(monitor, &data[0], true);
-        y = translate_integer_data(monitor, &data[1], false);
+        width = translate_integer_data(monitor, &data[0], true);
+        height = translate_integer_data(monitor, &data[1], false);
         resize_frame_or_window_by(window,
                 0, 0,
-                monitor->x + x - (window->x + window->width),
-                monitor->y + y - (window->y + window->height));
+                width - window->width,
+                height - window->height);
         break;
     }
 

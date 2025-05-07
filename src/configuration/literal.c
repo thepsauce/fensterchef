@@ -268,11 +268,15 @@ int resolve_integer(void)
 
     char *word;
     int error = ERROR;
-    parse_data_align_t integer = 0;
+    parse_data_align_t sign = 1, integer = 0;
 
     word = parser.string;
     parser.data.flags = 0;
-    if (isdigit(word[0])) {
+    if ((word[0] == '-' && isdigit(word[1])) || isdigit(word[0])) {
+        if (word[0] == '-') {
+            sign = -1;
+            word++;
+        }
         integer = word[0] - '0';
         word++;
         while (isdigit(word[0])) {
@@ -332,6 +336,6 @@ int resolve_integer(void)
         }
     }
 
-    parser.data.u.integer = integer;
+    parser.data.u.integer = sign * integer;
     return error;
 }

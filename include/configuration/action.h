@@ -144,7 +144,7 @@
     X(ACTION_MOVE_RIGHT, "move right") \
     /* move the current frame up */ \
     X(ACTION_MOVE_UP, "move up") \
-    /* resize the edges of the current window by given values */ \
+    /* move the current window by given amount */ \
     X(ACTION_MOVE_WINDOW_BY, "move window by I I") \
     /* move the position of the current window to given position */ \
     X(ACTION_MOVE_WINDOW_TO, "move window to I I") \
