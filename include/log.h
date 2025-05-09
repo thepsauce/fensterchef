@@ -80,4 +80,7 @@ extern log_severity_t log_severity;
 void log_formatted(log_severity_t severity, const char *file, int line,
         const char *format, ...);
 
+/* Same as above but write no prolog. */
+void _log_formatted(const char *format, ...);
+
 #endif

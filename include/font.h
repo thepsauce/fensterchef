@@ -3,7 +3,7 @@
 
 #include <X11/Xft/Xft.h>
 
-#include "utility/utility.h"
+#include "utility/types.h"
 
 /* the maximum number of glyphs */
 #define MAX_GLYPH_COUNT 1024

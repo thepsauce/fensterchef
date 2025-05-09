@@ -2,8 +2,8 @@
 #include <inttypes.h>
 #include <string.h> /* strcmp() */
 
-#include "configuration/action.h"
-#include "configuration/default.h"
+#include "action.h"
+#include "binding.h"
 #include "cursor.h"
 #include "event.h"
 #include "fensterchef.h"
@@ -15,44 +15,214 @@
 #include "log.h"
 #include "monitor.h"
 #include "notification.h"
+#include "parse/data_type.h"
+#include "parse/parse.h"
+#include "parse/stream.h"
 #include "window_list.h"
+#include "x11_synchronize.h"
+
+/* the corresponding string identifier for all actions */
+static const char *action_strings[ACTION_MAX] = {
+#define X(identifier, string) \
+    [identifier] = string,
+    DEFINE_ALL_PARSE_ACTIONS
+#undef X
+};
+
+/* Get the action string of given action type. */
+inline const char *get_action_string(action_type_t type)
+{
+    return action_strings[type];
+}
+
+static void free_action_list(struct action_list *list)
+{
+    clear_action_list_but_keep_shallow(list);
+    free(list->items);
+    free(list->data);
+}
 
 /* Do all actions within @list. */
-void do_action_list(const struct action_list *list)
+void run_action_list(const struct action_list *original_list)
 {
-    const struct action_list_item *item;
-    const struct parse_generic_data *generic_data;
+    struct action_list list;
+    struct action_list_item *item;
+    struct parse_generic_data *data;
 
-    generic_data = list->data;
-    for (size_t i = 0; i < list->number_of_items; i++) {
+    /* make a copy so we need to to worry about its origin and whether the next
+     * action will invalidate the pointer or items within it
+     */
+    list = *original_list;
+    duplicate_action_list(&list);
+
+    data = list.data;
+    for (unsigned i = 0; i < list.number_of_items; i++) {
+        item = &list.items[i];
+        do_action(item->type, data);
+        data += item->data_count;
+    }
+
+    clear_action_list(&list);
+}
+
+/* Make a deep copy of @list and put it into itself. */
+void duplicate_action_list(struct action_list *list)
+{
+    struct action_list_item *item;
+    struct parse_generic_data *data;
+    size_t data_count = 0;
+
+    for (unsigned i = 0; i < list->number_of_items; i++) {
         item = &list->items[i];
-        do_action(item->type, generic_data);
-        generic_data += item->data_count;
+        data_count += item->data_count;
+    }
+
+    list->items = DUPLICATE(list->items, list->number_of_items);
+    list->data = DUPLICATE(list->data, data_count);
+
+    data = list->data;
+    for (size_t i = 0; i < data_count; i++) {
+        switch (data->type) {
+        case PARSE_DATA_TYPE_INTEGER:
+            /* nothing */
+            break;
+
+        case PARSE_DATA_TYPE_STRING:
+            data->u.string = xstrdup(data->u.string);
+            break;
+
+        case PARSE_DATA_TYPE_BUTTON:
+            duplicate_action_list(&data->u.button.actions);
+            break;
+
+        case PARSE_DATA_TYPE_KEY:
+            duplicate_action_list(&data->u.key.actions);
+            break;
+        }
+        data++;
     }
 }
 
 /* Free deep memory associated to the action list @list. */
-void clear_action_list(struct action_list *list)
+void clear_action_list_but_keep_shallow(struct action_list *list)
 {
     struct parse_generic_data *data;
 
     data = list->data;
-    for (size_t i = 0; i < list->number_of_items; i++) {
+    for (unsigned i = 0; i < list->number_of_items; i++) {
         for (unsigned j = 0; j < list->items[i].data_count; j++) {
-            if ((data->flags & PARSE_DATA_FLAGS_IS_POINTER)) {
-                free(data->u.pointer);
+            switch (data->type) {
+            case PARSE_DATA_TYPE_INTEGER:
+                /* nothing */
+                break;
+
+            case PARSE_DATA_TYPE_STRING:
+                free(data->u.string);
+                break;
+
+            case PARSE_DATA_TYPE_BUTTON:
+                free_action_list(&data->u.button.actions);
+                break;
+
+            case PARSE_DATA_TYPE_KEY:
+                free_action_list(&data->u.key.actions);
+                break;
             }
             data++;
         }
     }
 }
 
-/* Free ALL memory associated to the action list @list. */
-void clear_action_list_deeply(struct action_list *list)
+/* Free ALL memory associated to the action list @list and set it to 0. */
+void clear_action_list(struct action_list *list)
 {
-    clear_action_list(list);
-    free(list->items);
-    free(list->data);
+    free_action_list(list);
+    list->items = NULL;
+    list->number_of_items = 0;
+    list->data = NULL;
+}
+
+/* Log a list of actions to stderr. */
+void log_action_list(const struct action_list *list)
+{
+    const struct action_list_item *item;
+    const struct parse_generic_data *data, *previous_data;
+
+    data = list->data;
+    for (size_t i = 0; i < list->number_of_items; i++) {
+        const char *action, *space;
+        int length;
+
+        if (i > 0) {
+            fputs(CLEAR_COLOR ", ", stderr);
+        }
+
+        item = &list->items[i];
+        if (item->type == ACTION_BUTTON_BINDING) {
+            const struct button_binding *const binding = &data->u.button;
+            if (binding->is_release) {
+                fprintf(stderr, COLOR(YELLOW) "release ");
+            }
+            if (binding->is_transparent) {
+                fprintf(stderr, COLOR(YELLOW) "transparent ");
+            }
+            if (binding->modifiers != 0) {
+                fprintf(stderr, COLOR(BLUE) "%u" CLEAR_COLOR "+",
+                        binding->modifiers);
+            }
+            _log_formatted("%u %A",
+                    binding->modifiers, &binding->actions);
+            data++;
+            continue;
+        } else if (item->type == ACTION_KEY_BINDING) {
+            const struct key_binding *const binding = &data->u.key;
+            if (binding->is_release) {
+                fprintf(stderr, COLOR(YELLOW) "release ");
+            }
+            if (binding->modifiers != 0) {
+                fprintf(stderr, COLOR(BLUE) "%u" CLEAR_COLOR "+",
+                        binding->modifiers);
+            }
+            _log_formatted("%ld %A",
+                    binding->key_symbol, &binding->actions);
+            data++;
+            continue;
+        }
+        action = action_strings[item->type];
+        previous_data = data;
+        while (action != NULL) {
+            space = strchr(action, ' ');
+            if (space != NULL) {
+                length = space - action;
+                space++;
+            } else {
+                length = strlen(action);
+            }
+
+            /* check if this is after the first part of the action */
+            if (action != action_strings[item->type]) {
+                fputs(" ", stderr);
+            }
+
+            if (length == 1 && action[0] == 'S') {
+                fprintf(stderr, COLOR(GREEN) "%s",
+                        data->u.string);
+                data++;
+            } else if (length == 1 && action[0] == 'I') {
+                fprintf(stderr, COLOR(GREEN) "%" PRIiPARSE_INTEGER,
+                        data->u.integer);
+                data++;
+            } else {
+                fprintf(stderr, COLOR(YELLOW) "%.*s",
+                        length, action);
+            }
+
+            action = space;
+        }
+        data = previous_data + item->data_count;
+    }
+
+    fputs(CLEAR_COLOR, stderr);
 }
 
 /* Resize the current window or current frame if it does not exist. */
@@ -516,31 +686,28 @@ void do_action(action_type_t type, const struct parse_generic_data *data)
 
     /* set the default cursor for horizontal sizing */
     case ACTION_CURSOR_HORIZONTAL:
-        configuration.horizontal_cursor = load_cursor(data->u.string);
+        (void) load_cursor(CURSOR_HORIZONTAL, data->u.string);
         break;
 
     /* set the default cursor for movement */
     case ACTION_CURSOR_MOVING:
-        configuration.moving_cursor = load_cursor(data->u.string);
+        (void) load_cursor(CURSOR_MOVING, data->u.string);
         break;
 
     /* set the default root cursor */
     case ACTION_CURSOR_ROOT:
-        configuration.root_cursor = load_cursor(data->u.string);
-        /* set the root cursor */
-        /* TODO: maybe move this into synchronize */
-        XDefineCursor(display, DefaultRootWindow(display),
-                configuration.root_cursor);
+        (void) load_cursor(CURSOR_ROOT, data->u.string);
+        synchronization_flags |= SYNCHRONIZE_ROOT_CURSOR;
         break;
 
     /* set the default cursor for vertical sizing */
     case ACTION_CURSOR_SIZING:
-        configuration.sizing_cursor = load_cursor(data->u.string);
+        (void) load_cursor(CURSOR_VERTICAL, data->u.string);
         break;
 
     /* set the default cursor for vertical sizing */
     case ACTION_CURSOR_VERTICAL:
-        configuration.vertical_cursor = load_cursor(data->u.string);
+        (void) load_cursor(CURSOR_VERTICAL, data->u.string);
         break;
 
     /* write all frensterchef information to a file */
@@ -834,7 +1001,7 @@ void do_action(action_type_t type, const struct parse_generic_data *data)
 
     /* merge in the default settings */
     case ACTION_MERGE_DEFAULT:
-        /* TODO: */
+        merge_default_configuration(DEFAULT_CONFIGURATION_MERGE_ALL);
         break;
 
     /* hide the window with given number */
@@ -851,12 +1018,12 @@ void do_action(action_type_t type, const struct parse_generic_data *data)
 
     /* the modifiers to use for the following bindings */
     case ACTION_MODIFIERS:
-        configuration.modifiers = data->u.integer;
+        set_additional_modifiers(data->u.integer);
         break;
 
     /* the modifiers to ignore */
     case ACTION_MODIFIERS_IGNORE:
-        configuration.modifiers_ignore = data->u.integer;
+        set_ignored_modifiers(data->u.integer);
         break;
 
     /* move the current frame down */
@@ -944,11 +1111,7 @@ void do_action(action_type_t type, const struct parse_generic_data *data)
 
     /* reload the configuration file */
     case ACTION_RELOAD_CONFIGURATION:
-        /* this needs to be delayed because if this is called by a binding and
-         * the configuration is immediately reloaded, the pointer to the binding
-         * becomes invalid and a crash occurs
-         */
-        is_reload_requested = true;
+        reload_configuration();
         break;
 
     /* remove frame with given number */
@@ -1153,6 +1316,16 @@ void do_action(action_type_t type, const struct parse_generic_data *data)
         set_window_mode(window,
                 window->state.mode == WINDOW_MODE_TILING ?
                 WINDOW_MODE_FLOATING : WINDOW_MODE_TILING);
+        break;
+
+    /* set a button binding */
+    case ACTION_BUTTON_BINDING:
+        set_button_binding(&data->u.button);
+        break;
+
+    /* set a key binding */
+    case ACTION_KEY_BINDING:
+        set_key_binding(&data->u.key);
         break;
 
     /* not a real action */

@@ -1,8 +1,6 @@
 #ifndef PROGRAM_OPTIONS_H
 #define PROGRAM_OPTIONS_H
 
-#include "log.h"
-
 /* Parse the given program arguments.
  *
  * The syntax of the arguments can be:
@@ -17,8 +15,9 @@
  * -<short option> value
  * ```
  *
- * @return ERROR if the program should not continue, OK otherwise.
+ * This function exits if the user requested it via e.g. `--help` or if an error
+ * occured.
  */
-int parse_program_arguments(int argc, char **argv);
+void parse_program_arguments(int argc, char **argv);
 
 #endif

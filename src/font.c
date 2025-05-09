@@ -1,10 +1,10 @@
 #include <inttypes.h>
 
-#include "configuration/configuration.h"
+#include "configuration.h"
 #include "font.h"
 #include "log.h"
 #include "utility/utility.h"
-#include "x11_management.h"
+#include "x11_synchronize.h"
 
 /* a list of known fonts */
 struct font {

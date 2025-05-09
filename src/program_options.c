@@ -1,6 +1,7 @@
 #include <string.h>
 
 #include "fensterchef.h"
+#include "log.h"
 #include "program_options.h"
 
 /* how fensterchef is started */
@@ -38,9 +39,10 @@ static const struct parse_option {
 };
 
 /* Print the usage to standard error output. */
-static void print_usage(void)
+static void print_usage(int exit_code)
 {
-    fprintf(stderr, "Usage: %s [OPTIONS...]\n", program_name);
+    fprintf(stderr, "Usage: %s [OPTIONS...]\n",
+            program_name);
     fputs("Options:\n\
         -h, --help                  show this help\n\
         -v, --version               show the version\n\
@@ -53,6 +55,7 @@ static void print_usage(void)
         --config        FILE        set the path of the configuration\n\
         -e, --command   COMMAND     run a command within fensterchef\n",
         stderr);
+    exit(exit_code);
 
 }
 
@@ -60,13 +63,11 @@ static void print_usage(void)
 static void print_version(void)
 {
     fputs("fensterchef " FENSTERCHEF_VERSION "\n", stderr);
+    exit(EXIT_SUCCESS);
 }
 
-/* Handles given option with given argument @value.
- *
- * @return `ERROR` if the parsing should stop.
- */
-static int handle_option(option_t option, char *value)
+/* Handles given option with given argument @value. */
+static void handle_option(option_t option, char *value)
 {
     const char *verbosities[] = {
         [LOG_SEVERITY_ALL] = "all",
@@ -79,20 +80,20 @@ static int handle_option(option_t option, char *value)
     /* the user wants to receive information */
     case OPTION_HELP:
     case OPTION_USAGE:
-        /* nothing to do */
+        print_usage(EXIT_SUCCESS);
         break;
 
     /* print the version */
     case OPTION_VERSION:
         print_version();
-        return ERROR;
+        break;
 
     /* change of logging verbosity */
     case OPTION_VERBOSITY:
         for (log_severity_t i = 0; i < SIZE(verbosities); i++) {
             if (strcasecmp(verbosities[i], value) == 0) {
                 log_severity = i;
-                return OK;
+                return;
             }
         }
 
@@ -101,32 +102,34 @@ static int handle_option(option_t option, char *value)
             fprintf(stderr, ", %s", verbosities[i]);
         }
         fprintf(stderr, "\n");
+        exit(EXIT_FAILURE);
         break;
 
     /* verbose logging */
     case OPTION_VERBOSE:
         log_severity = LOG_SEVERITY_ALL;
-        return OK;
+        break;
 
     /* set the configuration */
     case OPTION_CONFIG:
         free(Fensterchef_configuration);
         Fensterchef_configuration = xstrdup(value);
-        return OK;
+        break;
 
     /* run a command */
     case OPTION_COMMAND:
         run_external_command(value);
-        return ERROR;
-    }
+        break;
 
-    print_usage();
-    return ERROR;
+    default:
+        print_usage(EXIT_FAILURE);
+        break;
+    }
 }
 
 /* Parse the given program arguments and load their data into `program_options`.
  */
-int parse_program_arguments(int argc, char **argv)
+void parse_program_arguments(int argc, char **argv)
 {
     char *argument, *value;
     bool is_long;
@@ -138,9 +141,9 @@ int parse_program_arguments(int argc, char **argv)
         option_t option = 0;
 
         if (argument[0] != '-') {
-            fprintf(stderr, "argument %s is unexpected\n", argument);
-            print_usage();
-            return ERROR;
+            fprintf(stderr, "argument \"%s\" is unexpected\n",
+                    argument);
+            print_usage(EXIT_FAILURE);
         }
 
         /* check for a long option */
@@ -150,7 +153,7 @@ int parse_program_arguments(int argc, char **argv)
             /* jump over the leading `--` */
             argument += 2;
 
-            /* check for a follong `=` and make it a null terminator */
+            /* check for a following `=` and make it a null terminator */
             equality = strchr(argument, '=');
             if (equality != NULL) {
                 equality[0] = '\0';
@@ -193,8 +196,7 @@ int parse_program_arguments(int argc, char **argv)
         /* check if the option exists */
         if (option >= SIZE(parse_options)) {
             fprintf(stderr, "invalid option %s\n", argument);
-            print_usage();
-            return ERROR;
+            print_usage(EXIT_FAILURE);
         }
 
         value = NULL;
@@ -204,8 +206,7 @@ int parse_program_arguments(int argc, char **argv)
             /* if the option had the form `--option=value` */
             if (argument[0] != '\0' && is_long) {
                 fprintf(stderr, "did not expect argument %s\n", argument);
-                print_usage();
-                return ERROR;
+                print_usage(EXIT_FAILURE);
             }
         } else {
             /* try to take the next argument if the current one has no more */
@@ -213,8 +214,7 @@ int parse_program_arguments(int argc, char **argv)
                 i++;
                 if (i == argc) {
                     fprintf(stderr, "expected argument\n");
-                    print_usage();
-                    return ERROR;
+                    print_usage(EXIT_FAILURE);
                 }
                 value = argv[i];
             } else {
@@ -234,9 +234,6 @@ int parse_program_arguments(int argc, char **argv)
             }
         }
 
-        if (handle_option(option, value) != OK) {
-            return ERROR;
-        }
+        handle_option(option, value);
     }
-    return OK;
 }

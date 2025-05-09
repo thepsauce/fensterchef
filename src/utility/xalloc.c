@@ -1,7 +1,6 @@
-#include <errno.h>
-#include <stdarg.h>
-#include <stdio.h>
-#include <string.h>
+#include <errno.h> /* errno */
+#include <stdarg.h> /* va_list, va_start(), va_end() */
+#include <string.h> /* strerror(), vsnprintf(), vsprintf(), memcpy() */
 
 #include "utility/utility.h"
 #include "utility/xalloc.h"

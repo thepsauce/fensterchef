@@ -4,7 +4,7 @@
 #include <stdbool.h>
 #include <time.h>
 
-#include "bits/window_typedef.h"
+#include "bits/window.h"
 
 /* the mode of the window */
 typedef enum window_mode {

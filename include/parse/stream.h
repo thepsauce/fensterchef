@@ -8,7 +8,7 @@
  * a backslash \.  It also skips comments which are lines starting with '#'.
  */
 
-#include "utility/utility.h" /* utf8_t */
+#include "utility/types.h"
 
 /* The stream struct.
  *

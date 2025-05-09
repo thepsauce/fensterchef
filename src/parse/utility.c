@@ -1,12 +1,13 @@
 #include <ctype.h>
+#include <stdio.h>
 #include <string.h>
 
 #include <X11/keysym.h>
 
-#include "configuration/parse.h"
-#include "configuration/parse_struct.h"
-#include "configuration/stream.h"
-#include "configuration/utility.h"
+#include "parse/parse.h"
+#include "parse/struct.h"
+#include "parse/stream.h"
+#include "parse/utility.h"
 
 /* Skip to the beginning of the next line. */
 void skip_line(void)
@@ -163,35 +164,29 @@ int translate_string_to_button(const char *string)
         /* the string representation of the button */
         const char *name;
         /* the button index */
-        int button_index;
+        button_t button_index;
     } button_strings[] = {
         /* buttons can also be Button<integer> to directly address the index */
-        { "LButton", 1 },
-        { "LeftButton", 1 },
+        { "LButton", BUTTON_LEFT },
+        { "LeftButton", BUTTON_LEFT },
 
-        { "MButton", 2 },
-        { "MiddleButton", 2 },
+        { "MButton", BUTTON_MIDDLE },
+        { "MiddleButton", BUTTON_MIDDLE },
 
-        { "RButton", 3 },
-        { "RightButton", 3 },
+        { "RButton", BUTTON_RIGHT },
+        { "RightButton", BUTTON_RIGHT },
 
-        { "ScrollUp", 4 },
-        { "WheelUp", 4 },
+        { "ScrollUp", BUTTON_WHEEL_UP },
+        { "WheelUp", BUTTON_WHEEL_UP },
 
-        { "ScrollDown", 5 },
-        { "WheelDown", 5 },
+        { "ScrollDown", BUTTON_WHEEL_DOWN },
+        { "WheelDown", BUTTON_WHEEL_DOWN },
 
-        { "ScrollLeft", 6 },
-        { "WheelLeft", 6 },
+        { "ScrollLeft", BUTTON_WHEEL_LEFT },
+        { "WheelLeft", BUTTON_WHEEL_LEFT },
 
-        { "ScrollRight", 7 },
-        { "WheelRight", 7 },
-
-#define FIRST_X_BUTTON 8
-#define NUMBER_OF_X_BUTTONS (UINT8_MAX - FIRST_X_BUTTON)
-        /* X buttons (extra buttons on the mouse usually) going from X1 (8) to
-         * X247 (255), they have their own handling and are not listed here
-         */
+        { "ScrollRight", BUTTON_WHEEL_RIGHT },
+        { "WheelRight", BUTTON_WHEEL_RIGHT },
     };
 
     int index = -1;
@@ -204,17 +199,15 @@ int translate_string_to_button(const char *string)
         while (isdigit(string[0])) {
             x_index *= 10;
             x_index += string[0] - '0';
-            if (x_index > NUMBER_OF_X_BUTTONS) {
-                return -1;
+            if (x_index >= BUTTON_MAX - BUTTON_X1) {
+                emit_parse_error("X button value is too high");
+                x_index = 1 - BUTTON_X1;
+                break;
             }
             string++;
         }
 
-        if (x_index == 0) {
-            return -1;
-        }
-
-        index = FIRST_X_BUTTON + x_index - 1;
+        index = BUTTON_X1 + x_index - 1;
     /* parse strings starting with "Button" */
     } else if (strncmp(string, "Button", strlen("Button")) == 0) {
         index = 0;
@@ -223,20 +216,23 @@ int translate_string_to_button(const char *string)
             index *= 10;
             index += string[0] - '0';
             if (index > UINT8_MAX) {
-                return -1;
+                index = BUTTON_NONE;
+                emit_parse_error("button value is too high");
+                break;
             }
             string++;
         }
     } else {
         for (unsigned i = 0; i < SIZE(button_strings); i++) {
             if (strcmp(string, button_strings[i].name) == 0) {
-                return button_strings[i].button_index;
+                index = button_strings[i].button_index;
+                break;
             }
         }
     }
 
     if (string[0] != '\0') {
-        return -1;
+        index = BUTTON_NONE;
     }
 
     return index;
@@ -251,7 +247,7 @@ int resolve_integer(void)
     /* a translation table from string to integer */
     static const struct {
         const char *string;
-        parse_data_align_t integer;
+        parse_integer_t integer;
     } string_to_integer[] = {
         { "true", 1 },
         { "false", 0 },
@@ -276,7 +272,7 @@ int resolve_integer(void)
 
     char *word;
     int error = ERROR;
-    parse_data_align_t sign = 1, integer = 0;
+    parse_integer_t sign = 1, integer = 0;
 
     word = parser.string;
     parser.data.flags = 0;

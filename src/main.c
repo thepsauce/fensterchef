@@ -1,59 +1,39 @@
-#include "configuration/default.h"
-#include "configuration/parse.h"
-#include "configuration/stream.h"
+#include <stdlib.h>
+
+#include "configuration.h"
 #include "event.h"
 #include "fensterchef.h"
-#include "frame.h"
 #include "log.h"
 #include "monitor.h"
 #include "program_options.h"
-#include "window.h"
 #include "window_properties.h"
-#include "x11_management.h"
-#include "utility/xalloc.h"
+#include "x11_synchronize.h"
 
 /* FENSTERCHEF main entry point. */
 int main(int argc, char **argv)
 {
     Fensterchef_home = getenv("HOME");
     if (Fensterchef_home == NULL) {
-        fprintf(stderr, "to run fensterchef, you must set HOME\n");
-        exit(EXIT_FAILURE);
-    }
-
-    /* either use XDG_CONFIG_HOME as the configuration directory or ~/.config */
-    {
-        const char *xdg_config_home;
-
-        xdg_config_home = getenv("XDG_CONFIG_HOME");
-        if (xdg_config_home == NULL) {
-            Fensterchef_configuration = xasprintf("%s/.config/"
-                        FENSTERCHEF_CONFIGURATION,
-                    Fensterchef_home);
-        } else {
-            Fensterchef_configuration = xasprintf("%s/"
-                        FENSTERCHEF_CONFIGURATION,
-                    xdg_config_home);
-        }
+        Fensterchef_home = ".";
+        LOG_ERROR("HOME is not set, using the arbritary %s\n",
+                Fensterchef_home);
     }
 
     /* parse the program arguments */
-    if (parse_program_arguments(argc, argv) != OK) {
-        exit(EXIT_FAILURE);
-    }
+    parse_program_arguments(argc, argv);
 
     LOG("parsed arguments, starting to log\n");
     LOG("welcome to " FENSTERCHEF_NAME " " FENSTERCHEF_VERSION "\n");
-    LOG("the configuration file may reside in %s\n", Fensterchef_configuration);
+    LOG("the configuration file resides in %s\n",
+            get_configuration_file());
 
-    /* initialize the X display and atoms */
-    if (initialize_connection() != OK) {
-        quit_fensterchef(EXIT_FAILURE);
-    }
+    /* open connection to the X server */
+    open_connection();
 
-    /* try to take control of the window manager role, this will quit on its own
-     * if it failed
-     */
+    /* initialize the X atoms */
+    initialize_atoms();
+
+    /* try to take control of the window manager role */
     take_control();
 
     /* set the signal handlers (very crucial because if we do not handle
@@ -76,25 +56,15 @@ int main(int argc, char **argv)
     reconfigure_monitor_frames();
 
     /* load the user configuration or the default configuration */
-    {
-        if (initialize_file_stream(Fensterchef_configuration) != OK) {
-            LOG("file %s does not exist\n", Fensterchef_configuration);
-            merge_default_configuration(DEFAULT_CONFIGURATION_MERGE_ALL);
-            grab_configured_keys();
-        } else if (1 || parse_stream_and_replace_configuration() != OK) {
-            merge_default_configuration(DEFAULT_CONFIGURATION_MERGE_ALL);
-            grab_configured_keys();
-        }
-    }
+    reload_configuration();
 
     if (!Fensterchef_is_running) {
         LOG("startup interrupted by user configuration\n");
-        quit_fensterchef(EXIT_SUCCESS);
+        quit_fensterchef(EXIT_FAILURE);
     }
 
     /* do an inital synchronization */
-    synchronize_with_server();
-    synchronize_client_list();
+    synchronize_with_server(SYNCHRONIZE_ALL);
 
     /* before entering the loop, flush all the initialization calls */
     XFlush(display);

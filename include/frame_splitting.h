@@ -1,7 +1,7 @@
 #ifndef SPLIT_H
 #define SPLIT_H
 
-#include "bits/frame_typedef.h"
+#include "bits/frame.h"
 
 /* Split a frame horizontally or vertically.
  *

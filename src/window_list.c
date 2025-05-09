@@ -1,12 +1,13 @@
 #include <X11/XKBlib.h>
 
-#include "configuration/configuration.h"
+#include "configuration.h"
 #include "font.h"
 #include "frame.h"
 #include "log.h"
 #include "notification.h"
 #include "frame_stashing.h"
 #include "window_list.h"
+#include "x11_synchronize.h"
 
 /* user window list window */
 struct window_list WindowList;

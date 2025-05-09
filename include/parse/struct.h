@@ -7,9 +7,10 @@
 
 #include <setjmp.h>
 
-#include "configuration/action.h"
-#include "configuration/data_type.h"
+#include "action.h"
+#include "parse/data_type.h"
 #include "utility/list.h"
+#include "window.h"
 
 /* The parser struct.  All memory allocated within this struct is kept for later
  * parsing runs/recycled.
@@ -57,12 +58,8 @@ extern struct parser {
     /* data for the startup action list */
     LIST(struct parse_generic_data, startup_data);
 
-    /* list of buttons */
-    LIST(struct configuration_button, buttons);
-    /* list of keys */
-    LIST(struct configuration_key, keys);
     /* list of associations */
-    LIST(struct configuration_association, associations);
+    LIST(struct window_association, associations);
 } parser;
 
 /* Emit a parse error. */

@@ -1,10 +1,11 @@
 #include <string.h>
 
-#include "configuration/configuration.h"
+#include "configuration.h"
 #include "log.h"
 #include "utility/utility.h"
 #include "window.h"
 #include "window_properties.h"
+#include "x11_synchronize.h"
 
 /* all X atom names */
 const char *x_atom_names[ATOM_MAX] = {
@@ -28,8 +29,8 @@ void initialize_root_properties(void)
 {
     Window root;
 
-    /* set the supported ewmh atoms of our window manager, ewmh support was easy
-     * to add with the help of:
+    /* set the supported ewmh atoms of our window manager,
+     * see the specification:
      * https://specifications.freedesktop.org/wm-spec/latest/index.html#id-1.2
      */
     const Atom supported_atoms[] = {
@@ -413,20 +414,15 @@ static bool is_atom_included(const Atom *atoms, Atom atom)
 }
 
 /* Initialize all properties within @properties. */
-const struct configuration_association *initialize_window_properties(
-        FcWindow *window, window_mode_t *mode)
+void initialize_window_properties(FcWindow *window, window_mode_t *mode)
 {
     int atom_count;
     Atom *atoms;
-    char *wm_class;
     unsigned long wm_class_length;
     unsigned long instance_length;
-    utf8_t *instance_name = NULL;
-    utf8_t *class_name = NULL;
     Atom *states = NULL;
     Atom *types = NULL;
     window_mode_t predicted_mode = WINDOW_MODE_TILING;
-    const struct configuration_association *matching_association = NULL;
 
     /* get a list of properties currently set on the window */
     atoms = XListProperties(display, window->client.id, &atom_count);
@@ -434,6 +430,9 @@ const struct configuration_association *initialize_window_properties(
     /* cache all properties */
     for (int i = 0; i < atom_count; i++) {
         if (atoms[i] == XA_WM_CLASS) {
+            char *wm_class;
+            utf8_t *instance_name, *class_name;
+
             wm_class = get_text_property(window->client.id, XA_WM_CLASS,
                     &wm_class_length);
 
@@ -447,6 +446,9 @@ const struct configuration_association *initialize_window_properties(
                     wm_class_length - instance_length);
 
             XFree(wm_class);
+
+            window->instance = instance_name;
+            window->class = class_name;
         } else if (atoms[i] == ATOM(_NET_WM_STATE)) {
             states = get_atom_list_property(window->client.id,
                     ATOM(_NET_WM_STATE));
@@ -487,29 +489,11 @@ const struct configuration_association *initialize_window_properties(
 
     window->states = states;
 
-    /* if the class property is set, try to find an association */
-    if (instance_name != NULL && class_name != NULL) {
-        for (size_t i = 0; i < configuration.number_of_associations; i++) {
-            const struct configuration_association *const association =
-                &configuration.associations[i];
-            if ((association->instance_pattern == NULL ||
-                        matches_pattern(association->instance_pattern,
-                            instance_name)) &&
-                    matches_pattern(association->class_pattern, class_name)) {
-                matching_association = association;
-                break;
-            }
-        }
-    }
-
-    free(instance_name);
-    free(class_name);
     free(types);
 
     XFree(atoms);
 
     *mode = predicted_mode;
-    return matching_association;
 }
 
 /* Check if @properties includes @protocol. */

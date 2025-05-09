@@ -1,9 +1,9 @@
 #include <unistd.h>
 
-#include "configuration/configuration.h"
+#include "configuration.h"
 #include "log.h"
 #include "notification.h"
-#include "x11_management.h"
+#include "x11_synchronize.h"
 
 /* notification window */
 Notification *system_notification;
@@ -18,7 +18,7 @@ static int initialize_notification(Notification *notification)
     notification->client.width = 1;
     notification->client.height = 1;
     notification->client.border_width = configuration.border_size;
-    notification->client.border = configuration.border_color;
+    notification->client.border = configuration.foreground;
     notification->foreground = configuration.foreground;
     attributes.border_pixel = notification->client.border;
     attributes.backing_pixel = configuration.background;

@@ -1,8 +1,10 @@
+#include <ctype.h>
+#include <stdio.h>
 #include <string.h>
-#include <wchar.h>
 
-#include "configuration/parse.h"
-#include "configuration/stream.h"
+#include "parse/parse.h"
+#include "parse/stream.h"
+#include "utility/utility.h"
 
 /* The stream struct.  */
 struct input_stream input_stream = {

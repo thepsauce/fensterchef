@@ -1,9 +1,6 @@
 #include <inttypes.h>
 #include <string.h>
 
-#include <X11/XKBlib.h>
-#include <X11/Xproto.h>
-
 #include "event.h"
 #include "log.h"
 #include "fensterchef.h"
@@ -12,65 +9,13 @@
 #include "window_list.h"
 #include "window_properties.h"
 #include "x11_management.h"
+#include "x11_synchronize.h"
 
 /* supporting wm check window */
 Window wm_check_window;
 
-/* display to the X server */
-Display *display;
-
 /* file descriptor associated to the X display */
 int x_file_descriptor;
-
-/* Initialize the X display. */
-int initialize_connection(void)
-{
-    int major_version, minor_version;
-    int status;
-
-    major_version = XkbMajorVersion;
-    minor_version = XkbMinorVersion;
-    display = XkbOpenDisplay(NULL, &xkb_event_base, &xkb_error_base,
-            &major_version, &minor_version, &status);
-    if (display == NULL) {
-        LOG_ERROR("could not open display: " COLOR(RED));
-        switch (status) {
-        case XkbOD_BadLibraryVersion:
-            fprintf(stderr, "using a bad XKB library version\n");
-            break;
-
-        case XkbOD_ConnectionRefused:
-            fprintf(stderr, "could not open connection\n");
-            break;
-
-        case XkbOD_BadServerVersion:
-            fprintf(stderr, "the server and client XKB versions mismatch\n");
-            break;
-
-        case XkbOD_NonXkbServer:
-            fprintf(stderr, "the server does not have the XKB extension\n");
-            break;
-        }
-        return ERROR;
-    }
-
-    /* receive events when the keyboard changes */
-    XkbSelectEventDetails(display, XkbUseCoreKbd, XkbNewKeyboardNotify,
-            XkbNKN_KeycodesMask,
-            XkbNKN_KeycodesMask);
-    /* listen for changes to key symbols and the modifier map */
-    XkbSelectEventDetails(display, XkbUseCoreKbd, XkbMapNotify,
-            XkbAllClientInfoMask,
-            XkbAllClientInfoMask);
-
-    x_file_descriptor = XConnectionNumber(display);
-
-    LOG("%D\n", display);
-
-    /* initialize the X atoms */
-    initialize_atoms();
-    return OK;
-}
 
 /* The handler for X errors. */
 static int x_error_handler(Display *display, XErrorEvent *error)
@@ -84,14 +29,17 @@ static int x_error_handler(Display *display, XErrorEvent *error)
     }
 
     if (error->error_code == randr_error_base) {
-        LOG_ERROR("Xkb request failed: %d\n",
+        LOG_ERROR("XRandr request failed: %d\n",
                 error->request_code);
         return 0;
     }
 
-    /* TODO: ignore BadWindow errors because they appear even when everything is
-     * fine
-     */
+    /* ignore the BadWindow error for non debug builds */
+#ifndef DEBUG
+    if (error->error_code == BadWindow) {
+        return 0;
+    }
+#endif
 
     XGetErrorText(display, error->error_code, buffer, sizeof(buffer));
 

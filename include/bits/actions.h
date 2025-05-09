@@ -1,13 +1,5 @@
-#ifndef CONFIGURATION__ACTION_H
-#define CONFIGURATION__ACTION_H
-
-/**
- * Actions expose internal functionality to the user.
- *
- * The user can invoke any actions in any order at any time.
- */
-
-#include "configuration/data_type.h"
+#ifndef BITS__ACTIONS_H
+#define BITS__ACTIONS_H
 
 /* This expands to all actions.  Action strings with equal prefix should come
  * after each other for higher efficiency while parsing.
@@ -208,42 +200,5 @@
     X(ACTION_TOGGLE_FULLSCREEN, "toggle fullscreen") \
     /* changes a non tiling window to a tiling window and vise versa */ \
     X(ACTION_TOGGLE_TILING, "toggle tiling")
-
-/* action codes */
-typedef enum {
-#define X(identifier, string) \
-    identifier,
-    DEFINE_ALL_PARSE_ACTIONS
-#undef X
-    /* not a real action */
-    ACTION_MAX,
-} action_type_t;
-
-/* A list of actions. */
-struct action_list {
-    /* all items within the list */
-    struct action_list_item {
-        /* the type of this actions */
-        action_type_t type;
-        /* the number of data points in `data` */
-        unsigned data_count;
-    } *items;
-    /* the number of items in `items` */
-    size_t number_of_items;
-    /* the data associated to the actions */
-    struct parse_generic_data *data;
-};
-
-/* Do all actions within @list. */
-void do_action_list(const struct action_list *list);
-
-/* Free very deep memory associated to the action list @list. */
-void clear_action_list(struct action_list *list);
-
-/* Free ALL memory associated to the action list @list. */
-void clear_action_list_deeply(struct action_list *list);
-
-/* Do the given action using given @data. */
-void do_action(action_type_t type, const struct parse_generic_data *data);
 
 #endif

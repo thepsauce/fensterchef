@@ -3,27 +3,26 @@
 
 #include <stdbool.h>
 
+#include "utility/utility.h"
+
 #define FENSTERCHEF_NAME "fensterchef"
 
 #define FENSTERCHEF_VERSION "1.3"
 
-#define FENSTERCHEF_CONFIGURATION "fensterchef/fensterchef.config"
+#define FENSTERCHEF_CONFIGURATION "fensterchef/config"
 
 /* the home directory */
 extern const char *Fensterchef_home;
 
-/* the path of the configuration file */
-extern char *Fensterchef_configuration;
+/* the path of the configuration file as specified by the user */
+extern _Nullable char *Fensterchef_configuration;
 
 /* true while the window manager is running */
 extern bool Fensterchef_is_running;
 
 /* Spawn a window that has the `FENSTERCHEF_COMMAND` property.
  *
- * This should be called before any initialization has be done.
- *
- * This requests to close fensterchef by setting `is_fensterchef_running` to
- * false.
+ * This will exit the program.
  */
 void run_external_command(const char *command);
 

@@ -3,17 +3,17 @@
 
 #include <X11/Xlib.h>
 
-#include "configuration/action.h"
-#include "configuration/configuration.h"
-#include "configuration/parse.h"
-#include "configuration/parse_struct.h"
-#include "configuration/stream.h"
-#include "configuration/utility.h"
+#include "action.h"
+#include "configuration.h"
+#include "parse/parse.h"
+#include "parse/struct.h"
+#include "parse/stream.h"
+#include "parse/utility.h"
 #include "cursor.h"
 #include "font.h"
 #include "log.h"
 #include "window.h"
-#include "x11_management.h"
+#include "x11_synchronize.h"
 
 /* the parser struct */
 struct parser parser;
@@ -90,7 +90,7 @@ static void continue_parsing_association(void)
         emit_parse_error("expected word and not a string for association");
         skip_all_statements();
     } else if (continue_parsing_action() == OK) {
-        struct configuration_association association;
+        struct window_association association;
 
         if (parser.instance_pattern_length == 0) {
             association.instance_pattern = NULL;
@@ -125,7 +125,7 @@ static void continue_parsing_modifiers_or_binding(void)
     bool is_transparent = false;
     int character;
     unsigned modifiers = 0;
-    int button_index;
+    button_t button_index;
     KeySym key_symbol = NoSymbol;
     KeyCode key_code = 0;
     /* position for error reporting */
@@ -160,7 +160,7 @@ static void continue_parsing_modifiers_or_binding(void)
     }
 
     button_index = translate_string_to_button(parser.string);
-    if (button_index == -1) {
+    if (button_index == BUTTON_NONE) {
         if (resolve_integer() == OK) {
             int min_key_code, max_key_code;
 
@@ -200,28 +200,39 @@ static void continue_parsing_modifiers_or_binding(void)
         skip_all_statements();
     }
 
-    if (button_index != -1) {
-        struct configuration_button button;
+    if (button_index != BUTTON_NONE) {
+        struct button_binding button;
+        struct action_list_item item;
+        struct parse_generic_data data;
 
         button.is_release = is_release;
         button.is_transparent = is_transparent;
         button.modifiers = modifiers;
-        button.index = button_index;
+        button.button = button_index;
         LIST_COPY_ALL(parser.action_items, button.actions.items);
         button.actions.number_of_items = parser.action_items_length;
         LIST_COPY_ALL(parser.action_data, button.actions.data);
 
-        /* set all to zero */
+        /* set all to zero, ready for the next action */
         LIST_SET(parser.action_data, 0, NULL, parser.action_data_length);
 
-        LIST_APPEND_VALUE(parser.buttons, button);
-    } else {
-        struct configuration_key key;
+        item.type = ACTION_BUTTON_BINDING;
+        item.data_count = 1;
+        LIST_APPEND_VALUE(parser.startup_items, item);
 
+        data.flags = 0;
+        data.type = PARSE_DATA_TYPE_BUTTON;
+        data.u.button = button;
+        LIST_APPEND_VALUE(parser.startup_data, data);
+    } else {
         if (is_transparent) {
             parser.index = transparent_position;
             emit_parse_error("key bindings do not support 'transparent'");
         } else {
+            struct key_binding key;
+            struct action_list_item item;
+            struct parse_generic_data data;
+
             key.is_release = is_release;
             key.modifiers = modifiers;
             key.key_symbol = key_symbol;
@@ -230,10 +241,17 @@ static void continue_parsing_modifiers_or_binding(void)
             key.actions.number_of_items = parser.action_items_length;
             LIST_COPY_ALL(parser.action_data, key.actions.data);
 
-            /* set all to zero */
+            /* set all to zero, ready for the next action */
             LIST_SET(parser.action_data, 0, NULL, parser.action_data_length);
 
-            LIST_APPEND_VALUE(parser.keys, key);
+            item.type = ACTION_KEY_BINDING;
+            item.data_count = 1;
+            LIST_APPEND_VALUE(parser.startup_items, item);
+
+            data.flags = 0;
+            data.type = PARSE_DATA_TYPE_KEY;
+            data.u.key = key;
+            LIST_APPEND_VALUE(parser.startup_data, data);
         }
     }
 }
@@ -247,6 +265,7 @@ int parse_stream(void)
     parser.error_count = 0;
     parser.startup_items_length = 0;
     parser.startup_data_length = 0;
+    parser.associations_length = 0;
 
     /* make it so `throw_parse_error()` jumps to after this statement */
     (void) setjmp(parser.throw_jump);
@@ -286,16 +305,18 @@ int parse_stream_and_run_actions(void)
         return ERROR;
     }
 
+    add_window_associations(parser.associations, parser.associations_length);
+
     /* do the startup actions */
     startup.items = parser.startup_items;
     startup.number_of_items = parser.startup_items_length;
     startup.data = parser.startup_data;
-    do_action_list(&startup);
-    clear_action_list(&startup);
+    LOG_DEBUG("running startup actions: %A\n",
+            &startup);
+    run_action_list(&startup);
 
-    /* TODO: clear key bindings?? */
-    /* TODO: clear button bindings?? */
-    /* TODO: clear associations?? */
+    /* keep shallow elements so we can recycle the memory */
+    clear_action_list_but_keep_shallow(&startup);
 
     return OK;
 }
@@ -309,35 +330,21 @@ int parse_stream_and_replace_configuration(void)
         return ERROR;
     }
 
-    /* free the old configuration */
-    clear_configuration(&configuration);
+    /* clear the old configuration */
+    clear_configuration();
 
-    /* extract the associations and bindings into the new configuration */
-    LIST_COPY_ALL(parser.associations, configuration.associations);
-    configuration.number_of_associations = parser.associations_length;
-
-    LIST_COPY_ALL(parser.keys, configuration.keys);
-    configuration.number_of_keys = parser.keys_length;
-
-    LIST_COPY_ALL(parser.buttons, configuration.buttons);
-    configuration.number_of_buttons = parser.buttons_length;
+    add_window_associations(parser.associations, parser.associations_length);
 
     /* do the startup actions */
     startup.items = parser.startup_items;
     startup.number_of_items = parser.startup_items_length;
     startup.data = parser.startup_data;
-    do_action_list(&startup);
+    LOG_DEBUG("running startup actions: %A\n",
+            &startup);
+    run_action_list(&startup);
 
-    /* clear but keep shallow members */
-    clear_action_list(&startup);
-
-    /* re-grab all bindings */
-    for (FcWindow *window = Window_first;
-            window != NULL;
-            window = window->next) {
-        grab_configured_buttons(window->client.id);
-    }
-    grab_configured_keys();
+    /* keep shallow elements so we can recycle the memory */
+    clear_action_list_but_keep_shallow(&startup);
 
     return OK;
 }

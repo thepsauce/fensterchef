@@ -1,7 +1,7 @@
 #ifndef STASH_FRAME_H
 #define STASH_FRAME_H
 
-#include "bits/frame_typedef.h"
+#include "bits/frame.h"
 
 /* Take frame away from the screen, this leaves a singular empty frame.
  *

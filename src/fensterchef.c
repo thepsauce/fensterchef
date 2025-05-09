@@ -1,24 +1,21 @@
 #include <inttypes.h>
-#include <string.h>
 
 #include <X11/Xatom.h>
 
-#include "fensterchef.h"
 #include "font.h"
 #include "frame.h"
 #include "log.h"
-#include "monitor.h"
 #include "window.h"
-#include "x11_management.h"
+#include "x11_synchronize.h"
 
 /* the home directory */
 const char *Fensterchef_home;
 
+/* the user specified path for the configuration file */
+char *Fensterchef_configuration;
+
 /* true while the window manager is running */
 bool Fensterchef_is_running;
-
-/* the path of the configuration file */
-char *Fensterchef_configuration;
 
 /* Spawn a window that has the `FENSTERCHEF_COMMAND` property. */
 void run_external_command(const char *command)
@@ -36,7 +33,7 @@ void run_external_command(const char *command)
     if (display == NULL) {
         fprintf(stderr, "fensterchef command: "
                     "could not connect to the X server\n");
-        return;
+        exit(EXIT_FAILURE);
     }
 
     attributes.event_mask = PropertyChangeMask;
@@ -56,7 +53,7 @@ void run_external_command(const char *command)
 
     XFlush(display);
 
-    /* wait until the property gets removed or an error occurs */
+    /* wait until the property gets removed */
     while (true) {
         XNextEvent(display, &event);
         if (event.type == PropertyNotify) {
@@ -70,6 +67,7 @@ void run_external_command(const char *command)
     }
 
     XCloseDisplay(display);
+    exit(EXIT_SUCCESS);
 }
 
 /* Close the display to the X server and exit the program with given exit

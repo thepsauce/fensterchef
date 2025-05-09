@@ -4,8 +4,7 @@
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 
-#include "bits/window_typedef.h"
-
+#include "bits/window.h"
 #include "utility/utility.h"
 
 /* needed for `_NET_WM_STRUT_PARTIAL`/`_NET_WM_STRUT` */
@@ -93,9 +92,6 @@ typedef struct x_client {
 /* supporting wm check window */
 extern Window wm_check_window;
 
-/* display to the X server */
-extern Display *display;
-
 /* file descriptor associated to the X display */
 extern int x_file_descriptor;
 
@@ -105,9 +101,6 @@ static inline bool is_strut_empty(wm_strut_partial_t *strut)
     return strut->left == 0 && strut->top == 0 &&
         strut->right == 0 && strut->bottom == 0;
 }
-
-/* Initialize the X11 display. */
-int initialize_connection(void);
 
 /* Try to take control of the window manager role.
  *

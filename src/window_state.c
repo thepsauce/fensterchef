@@ -1,14 +1,15 @@
 #include <inttypes.h>
 
-#include "configuration/configuration.h"
+#include "configuration.h"
 #include "frame.h"
-#include "log.h"
-#include "monitor.h"
 #include "frame_splitting.h"
 #include "frame_stashing.h"
+#include "log.h"
+#include "monitor.h"
 #include "utility/utility.h"
 #include "window.h"
 #include "window_properties.h"
+#include "x11_synchronize.h"
 
 /* The whole purpose of this file is to handle window state changes
  * This includes visibility and window mode.

@@ -1,14 +1,14 @@
 #ifndef UTILITY__UTILITY_H
 #define UTILITY__UTILITY_H
 
-/* Various utility macros and data types. */
+/**
+ * Various utility macros and functions.
+ */
 
-#include <ctype.h>
-
-#include <stdbool.h>
-#include <stdio.h>
-#include <stdint.h>
-#include <wchar.h>
+#include <stdbool.h> /* bool */
+#include <stdio.h> /* fprintf(), stderr */
+#include <string.h> /* memset(), memcpy(), memmove() */
+#include <wchar.h> /* wchar_t */
 
 #include "utility/xalloc.h"
 
@@ -17,13 +17,10 @@
 #  define __has_attribute(x) 0
 #endif
 
-/* If the compiler does not have __has_bulitin, always make it false. */
+/* If the compiler does not have __has_builtin, always make it false. */
 #ifndef __has_builtin
 #  define __has_builtin(x) 0
 #endif
-
-/* byte of a utf8 sequence */
-typedef char utf8_t;
 
 /* success indicator value */
 #define OK 0
@@ -133,6 +130,10 @@ typedef char utf8_t;
 #define COPY(dest, src, n) \
     (memcpy((dest), (src), sizeof(*(dest)) * (n)))
 
+/* Move a memory block. */
+#define MOVE(dest, src, n) \
+    (memmove((dest), (src), sizeof(*(dest)) * (n)))
+
 /* Duplicate a memory block. */
 #define DUPLICATE(p, n) (xmemdup((p), sizeof(*(p)) * (n)))
 
@@ -145,19 +146,18 @@ typedef char utf8_t;
 /* Get the absolute difference between two numbers. */
 #define ABSOLUTE_DIFFERENCE(a, b) ((a) < (b) ? (b) - (a) : (a) - (b))
 
-/* Check if the multiplication overflows and store the result in @c. */
-#if defined __GNUC__ || __has_builtin(__built_mul_overflow)
-#   define OVERFLOW_MULTIPLY(a, b, c) \
-        __builtin_mul_overflow((a), (b), &(c))
-#else
-#   define OVERFLOW_MULTIPLY(a, b, c) \
-        __builtin_mul_overflow((a), (b), &(c))
-#endif
-
 /* Check if the addition overflows and store the result in @c. */
-#if defined __GNUC__ || __has_builtin(__built_add_overflow)
+#if defined __GNUC__ || __has_builtin(__builtin_add_overflow)
 #   define OVERFLOW_ADD(a, b, c) \
         __builtin_add_overflow((a), (b), &(c))
+#else
+#   error "currently not supporting this compiler"
+#endif
+
+/* Check if the multiplication overflows and store the result in @c. */
+#if defined __GNUC__ || __has_builtin(__builtin_mul_overflow)
+#   define OVERFLOW_MULTIPLY(a, b, c) \
+        __builtin_mul_overflow((a), (b), &(c))
 #else
 #   error "currently not supporting this compiler"
 #endif
@@ -174,52 +174,6 @@ typedef char utf8_t;
         (a) = MIN(_c, (maximum)); \
     } \
 } while (false)
-
-/* a point at position x, y */
-typedef struct position {
-    /* horizontal position */
-    int x;
-    /* vertical position */
-    int y;
-} Point;
-
-/* a size of width x height */
-typedef struct size {
-    /* horizontal size */
-    unsigned int width;
-    /* vertical size */
-    unsigned int height;
-} Size;
-
-/* offsets from the edges of *something* */
-typedef struct extents {
-    /* left extent */
-    int left;
-    /* right extent */
-    int right;
-    /* top extent */
-    int top;
-    /* bottom extent */
-    int bottom;
-} Extents;
-
-/* a rectangular region */
-typedef struct rectangle {
-    /* horizontal position */
-    int x;
-    /* vertical position */
-    int y;
-    /* horizontal size */
-    unsigned int width;
-    /* vertical size */
-    unsigned int height;
-} Rectangle;
-
-/* fraction: numerator over denominator */
-typedef struct ratio {
-    unsigned int numerator;
-    unsigned int denominator;
-} Ratio;
 
 /* Run @command within a shell in the background. */
 void run_shell(const char *command);

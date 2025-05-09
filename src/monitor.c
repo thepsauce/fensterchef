@@ -3,17 +3,16 @@
 
 #include <X11/extensions/Xrandr.h>
 
-#include "configuration/configuration.h"
-#include "event.h"
+#include "configuration.h"
 #include "frame.h"
 #include "frame_sizing.h"
 #include "frame_stashing.h"
 #include "log.h"
 #include "monitor.h"
 #include "utility/utility.h"
-#include "window.h"
-#include "x11_management.h"
 #include "utility/xalloc.h"
+#include "window.h"
+#include "x11_synchronize.h"
 
 /* if Xrandr is enabled for usage */
 static bool randr_enabled = false;

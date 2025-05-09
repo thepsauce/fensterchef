@@ -1,19 +1,12 @@
 #include <string.h>
 
-#include "configuration/action.h"
-#include "configuration/parse.h"
-#include "configuration/parse_struct.h"
-#include "configuration/stream.h"
-#include "configuration/utility.h"
+#include "action.h"
+#include "parse/parse.h"
+#include "parse/struct.h"
+#include "parse/stream.h"
+#include "parse/utility.h"
+#include "log.h"
 #include "utility/utility.h"
-
-/* the corresponding string identifier for all actions */
-const char *action_strings[ACTION_MAX] = {
-#define X(identifier, string) \
-    [identifier] = string,
-    DEFINE_ALL_PARSE_ACTIONS
-#undef X
-};
 
 /* Find a section in the action strings that match the word loaded into
  * `parser`.
@@ -28,7 +21,11 @@ static int resolve_action_word(void)
         const char *action, *space;
         unsigned skip_length;
 
-        action = action_strings[i];
+        action = get_action_string(i);
+        if (action == NULL) {
+            /* some actions have special constructs */
+            continue;
+        }
 
         /* get the end of the next action word of the action string */
         space = strchr(action, ' ');
@@ -85,7 +82,8 @@ static int read_and_resolve_next_action_word(void)
             continue;
         }
 
-        action = &action_strings[i][parser.actions[i].offset];
+        action = get_action_string(i);
+        action = &action[parser.actions[i].offset];
 
         /* get the end of the next action word of the action string */
         space = strchr(action, ' ');
@@ -99,7 +97,7 @@ static int read_and_resolve_next_action_word(void)
         /* check if next is a string parameter */
         if (action[0] == 'S') {
             /* append the string data point */
-            parser.data.flags = PARSE_DATA_FLAGS_IS_POINTER;
+            parser.data.type = PARSE_DATA_TYPE_STRING;
             LIST_COPY(parser.string, 0, parser.string_length + 1,
                     parser.data.u.string);
             LIST_APPEND_VALUE(parser.actions[i].data, parser.data);
@@ -114,6 +112,7 @@ static int read_and_resolve_next_action_word(void)
             if (action[0] == 'I') {
                 if (resolve_integer() == OK) {
                     /* append the integer data point */
+                    parser.data.type = PARSE_DATA_TYPE_INTEGER;
                     LIST_APPEND_VALUE(parser.actions[i].data, parser.data);
                 } else {
                     parser.actions[i].offset = -1;
@@ -153,13 +152,13 @@ static void print_action_possibilities(void)
         const char *action, *space;
         int length;
 
-        action = &action_strings[i][parser.actions[i].offset];
+        action = get_action_string(i);
+        action = &action[parser.actions[i].offset];
 
         /* get the end of the next action word of the action string */
         space = strchr(action, ' ');
         if (space == NULL) {
             length = strlen(action);
-            space = action + length;
         } else {
             length = space - action;
         }
@@ -167,16 +166,16 @@ static void print_action_possibilities(void)
         if (i != parser.first_action) {
             fprintf(stderr, ", ");
         }
-        if (action[0] == 'I') {
-            fprintf(stderr, "INTEGER");
-        } else if (action[0] == 'S') {
-            fprintf(stderr, "STRING");
+        if (length == 1 && action[0] == 'I') {
+            fprintf(stderr, COLOR(BLUE) "INTEGER");
+        } else if (length == 1 && action[0] == 'S') {
+            fprintf(stderr, COLOR(BLUE) "STRING");
         } else {
-            fprintf(stderr, "%.*s",
+            fprintf(stderr, COLOR(GREEN) "%.*s",
                     length, action);
         }
     }
-    fprintf(stderr, "\n");
+    fprintf(stderr, CLEAR_COLOR "\n");
 }
 
 /* Parse the next action word or check for an action separator.
@@ -190,8 +189,8 @@ static int parse_next_action_part(size_t item_index)
 
     character = peek_stream_character();
     if (character == EOF || character == ',' || character == '\n') {
-        if (action_strings[parser.first_action]
-                [parser.actions[parser.first_action].offset] != '\0') {
+        const char *const action = get_action_string(parser.first_action);
+        if (action[parser.actions[parser.first_action].offset] != '\0') {
             parser.index = input_stream.index;
             emit_parse_error("incomplete action");
             print_action_possibilities();

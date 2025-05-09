@@ -2,14 +2,22 @@
 #include <limits.h>
 #include <string.h>
 
-#include "configuration/parse.h"
-#include "configuration/stream.h"
+#include "binding.h"
 #include "event.h"
 #include "frame.h"
 #include "log.h"
 #include "monitor.h"
+#include "parse/parse.h"
+#include "parse/stream.h"
 #include "window.h"
 #include "window_properties.h"
+#include "x11_synchronize.h"
+
+/* the window associations */
+struct window_association *window_associations;
+
+/* the number of elments in `window_associations` */
+unsigned number_of_window_associations;
 
 /* the number of all windows within the linked list, this value is kept up to
  * date through `create_window()` and `destroy_window()`
@@ -51,6 +59,65 @@ inline void dereference_window(FcWindow *window)
     if (window->reference_count == 0) {
         free(window);
     }
+}
+
+/* Add a new association from window instance/class to actions. */
+void add_window_associations(struct window_association *associations,
+        unsigned number_of_associations)
+{
+    /* prepend the associations */
+    REALLOCATE(window_associations,
+            number_of_associations + number_of_window_associations);
+    /* make a gap at the front */
+    MOVE(&window_associations[number_of_associations],
+            &window_associations[0],
+            number_of_window_associations);
+    /* move them into the front */
+    COPY(&window_associations[0], associations, number_of_associations);
+    number_of_window_associations += number_of_associations;
+}
+
+/* Clear all currently set window associations. */
+void clear_window_associations(void)
+{
+    for (unsigned i = 0; i < number_of_window_associations; i++) {
+        struct window_association *const association = &window_associations[i];
+        free(association->instance_pattern);
+        free(association->class_pattern);
+        clear_action_list(&association->actions);
+    }
+    free(window_associations);
+
+    window_associations = NULL;
+    number_of_window_associations = 0;
+}
+
+/* Run the action associated to given window. */
+bool run_window_association(FcWindow *window)
+{
+    if (window->instance == NULL && window->class == NULL) {
+        return false;
+    }
+
+    /* if the class property is set, try to find an association */
+    for (unsigned i = 0; i < number_of_window_associations; i++) {
+        struct window_association *const association = &window_associations[i];
+        if ((association->instance_pattern == NULL ||
+                    matches_pattern(association->instance_pattern,
+                        window->instance)) &&
+                matches_pattern(association->class_pattern, window->class)) {
+            LOG_DEBUG("running associated actions: %A\n",
+                    &association->actions);
+
+            FcWindow *const old_pressed = Window_pressed;
+            Window_pressed = window;
+            run_action_list(&association->actions);
+            Window_pressed = old_pressed;
+            return true;
+        }
+    }
+
+    return false;
 }
 
 /* Find where in the number linked list a gap is.
@@ -122,7 +189,6 @@ FcWindow *create_window(Window id)
     FcWindow *window;
     FcWindow *previous;
     window_mode_t mode;
-    const struct configuration_association *association;
 
     XGetWindowAttributes(display, id, &attributes);
 
@@ -182,8 +248,8 @@ FcWindow *create_window(Window id)
     window->height = height;
     window->border_color = window->client.border;
 
-    /* get the initial mode and a defined association */
-    association = initialize_window_properties(window, &mode);
+    /* setup window properties and get the initial mode */
+    initialize_window_properties(window, &mode);
 
     /* link into the Z, age and number linked lists */
     if (Window_first == NULL) {
@@ -240,16 +306,13 @@ FcWindow *create_window(Window id)
     set_window_mode(window, mode);
     update_window_layer(window);
 
-    has_client_list_changed = true;
-
     /* grab the buttons for this window */
     grab_configured_buttons(id);
 
     LOG("created new window %W\n", window);
 
-    if (association != NULL) {
-        /* run the user defined actions */
-        do_action_list(&association->actions);
+    if (run_window_association(window)) {
+        /* nothing */
     /* if a window does not start in normal state, do not map it */
     } else if ((window->hints.flags & StateHint) &&
             window->hints.initial_state != NormalState) {
@@ -285,8 +348,6 @@ static void unlink_window_from_z_list(FcWindow *window)
 
     window->above = NULL;
     window->below = NULL;
-
-    has_client_list_changed = true;
 }
 
 /* Destroys given window and removes it from the window linked list. */
@@ -346,8 +407,6 @@ void destroy_window(FcWindow *window)
 
     /* window is gone from the list now */
     Window_count--;
-
-    has_client_list_changed = true;
 
     /* setting the id to None marks the window as destroyed */
     window->client.id = None;
@@ -532,9 +591,6 @@ void set_window_size(FcWindow *window, int x, int y, unsigned int width,
  */
 static void link_window_into_z_list(FcWindow *below, FcWindow *window)
 {
-    XWindowChanges changes;
-    unsigned mask = CWStackMode;
-
     /* link onto the bottom of the Z linked list */
     if (below == NULL) {
         LOG("putting %W at the bottom of the stack\n", window);
@@ -546,8 +602,6 @@ static void link_window_into_z_list(FcWindow *below, FcWindow *window)
             Window_top = window;
         }
         Window_bottom = window;
-
-        changes.stack_mode = Below;
     /* link it above `below` */
     } else {
         LOG("putting %W above %W\n", window, below);
@@ -562,15 +616,7 @@ static void link_window_into_z_list(FcWindow *below, FcWindow *window)
         if (below == Window_top) {
             Window_top = window;
         }
-
-        changes.sibling = below->client.id;
-        changes.stack_mode = Above;
-        mask |= CWSibling;
     }
-
-    XConfigureWindow(display, window->client.id, mask, &changes);
-
-    has_client_list_changed = true;
 }
 
 /* Put the window on the best suited Z stack position. */

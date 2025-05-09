@@ -1,5 +1,5 @@
-#ifndef WINDOW_TYPEDEF_H
-#define WINDOW_TYPEDEF_H
+#ifndef BITS__WINDOW_H
+#define BITS__WINDOW_H
 
 struct fensterchef_window;
 typedef struct fensterchef_window FcWindow;

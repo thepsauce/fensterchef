@@ -1,5 +1,5 @@
-#ifndef MONITOR_TYPEDEF_H
-#define MONITOR_TYPEDEF_H
+#ifndef BITS__MONITOR_H
+#define BITS__MONITOR_H
 
 struct monitor;
 typedef struct monitor Monitor;

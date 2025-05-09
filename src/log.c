@@ -7,7 +7,7 @@
 
 #include <X11/extensions/Xrandr.h>
 
-#include "configuration/action.h"
+#include "action.h"
 #include "event.h"
 #include "frame.h"
 #include "log.h"
@@ -15,7 +15,7 @@
 #include "window.h"
 #include "window_list.h"
 #include "window_properties.h"
-#include "x11_management.h"
+#include "x11_synchronize.h"
 
 /* the severity of the logging */
 log_severity_t log_severity = LOG_SEVERITY_INFO;
@@ -1168,14 +1168,6 @@ static void log_frame(const Frame *frame)
     }
 }
 
-/* Log a list of actions. */
-static void log_action_list(const struct action_list *list)
-{
-    for (size_t i = 0; i < list->number_of_items; i++) {
-        fprintf(stderr, "%d ", list->items[i].type);
-    }
-}
-
 /* Log the display information to standard error output. */
 static void log_display(Display *display)
 {
@@ -1217,31 +1209,11 @@ static void log_display(Display *display)
     fputs("]", stderr);
 }
 
-/* Print a formatted string to standard error output. */
-void log_formatted(log_severity_t severity, const char *file, int line,
-        const char *format, ...)
+/* Log to stderr and use the variable argument list. */
+void _log_va_formatted(const char *format, va_list list)
 {
-    va_list list;
     char buffer[64];
-    time_t current_time;
-    struct tm *tm;
 
-    /* omit logging if not severe enough */
-    if (log_severity > severity) {
-        return;
-    }
-
-    /* print the time and file with line number at the front */
-    current_time = time(NULL);
-    tm = localtime(&current_time);
-    strftime(buffer, sizeof(buffer),
-            severity == LOG_SEVERITY_ERROR ? COLOR(RED) "{%F %T}" :
-                COLOR(GREEN) "[%F %T]", tm);
-    fprintf(stderr, "%s" COLOR(YELLOW) "(%s:%d) " CLEAR_COLOR,
-            buffer, file, line);
-
-    /* parse the format string */
-    va_start(list, format);
     for (; format[0] != '\0'; format++) {
         if (format[0] == '%') {
             switch (format[1]) {
@@ -1361,5 +1333,43 @@ void log_formatted(log_severity_t severity, const char *file, int line,
             fputc(format[0], stderr);
         }
     }
+}
+
+/* Print a formatted string to standard error output. */
+void log_formatted(log_severity_t severity, const char *file, int line,
+        const char *format, ...)
+{
+    va_list list;
+    char buffer[64];
+    time_t current_time;
+    struct tm *tm;
+
+    /* omit logging if not severe enough */
+    if (log_severity > severity) {
+        return;
+    }
+
+    /* print the time and file with line number at the front */
+    current_time = time(NULL);
+    tm = localtime(&current_time);
+    strftime(buffer, sizeof(buffer),
+            severity == LOG_SEVERITY_ERROR ? COLOR(RED) "{%F %T}" :
+                COLOR(GREEN) "[%F %T]", tm);
+    fprintf(stderr, "%s" COLOR(YELLOW) "(%s:%d) " CLEAR_COLOR,
+            buffer, file, line);
+
+    /* parse the format string */
+    va_start(list, format);
+    _log_va_formatted(format, list);
+    va_end(list);
+}
+
+/* Same as above but write no prolog. */
+void _log_formatted(const char *format, ...)
+{
+    va_list list;
+
+    va_start(list, format);
+    _log_va_formatted(format, list);
     va_end(list);
 }

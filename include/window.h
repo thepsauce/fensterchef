@@ -3,10 +3,9 @@
 
 #include <stdint.h>
 
-#include "bits/window_typedef.h"
-#include "bits/frame_typedef.h"
-
-#include "configuration/configuration.h"
+#include "bits/window.h"
+#include "bits/frame.h"
+#include "configuration.h"
 #include "monitor.h"
 #include "utility/utility.h"
 #include "window_state.h"
@@ -21,6 +20,18 @@
 
 /* the minimum length of the window that needs to stay visible */
 #define WINDOW_MINIMUM_VISIBLE_SIZE 8
+
+/* association between class/instance and actions */
+struct window_association {
+    /* the pattern the instance should match, may be NULL which implies its
+     * value is '*'
+     */
+    _Nullable utf8_t *instance_pattern;
+    /* the pattern the class should match */
+    utf8_t *class_pattern;
+    /* the actions to execute */
+    struct action_list actions;
+};
 
 /* A window is a wrapper around an X window, it is always part of a few global
  * linked list and has a unique id (number).
@@ -37,6 +48,11 @@ struct fensterchef_window {
 
     /* window name */
     utf8_t *name;
+
+    /* window instance */
+    utf8_t *instance;
+    /* window class */
+    utf8_t *class;
 
     /* X size hints of the window */
     XSizeHints size_hints;
@@ -127,7 +143,7 @@ extern FcWindow *Window_first;
 extern FcWindow *Window_focus;
 
 /* the last pressed window, this only gets set when a window is pressed by a
- * grabbed button
+ * grabbed button or when an association runs
  */
 extern FcWindow *Window_pressed;
 
@@ -138,6 +154,23 @@ void reference_window(FcWindow *window);
  * 0.
  */
 void dereference_window(FcWindow *window);
+
+/* Add a new association from window instance/class to actions.
+ *
+ * This function takes control of all memory within @associations.
+ * Do NOT free it.
+ */
+void add_window_associations(struct window_association *associations,
+        unsigned number_of_associations);
+
+/* Run the action associated to given window.
+ *
+ * @return true if any association existed, false otherwise.
+ */
+bool run_window_association(FcWindow *window);
+
+/* Clear all currently set window associations. */
+void clear_window_associations(void);
 
 /* Create a window object and add it to all window lists.
  *

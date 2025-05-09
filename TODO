@@ -10,12 +10,6 @@
 #80 Add the dialog window mode
     Add a window mode for dialog windows
 
-#81 Simplify notification windows again
-    ...or completely remove them.  It is a bunch of code for nothing.  Programs
-    like dunst do a great job at this.  The best solution is probably to
-    downgrade to core fonts so that the absolute minimal text is shown.  The
-    user can then configure to use more advanced programs.
-
 #83 Add dynamic bindings
     Add binding actions that dynamicall add bindings.  The bindings should be
     synchronized with the server by sending a delta of old and new bindings.
@@ -28,7 +22,10 @@
 #85 Add sourcing to parser
     The source command needs to be added again to load other files
 
-#88 ...
+#89 Improve focus management
+    Move focus X11 management into x11_synchronize (out of event.c).
+
+#90 ...
 
 #200 Make repository for fensterchef-menu
     Menus of all kind for any window manager
@@ -44,15 +41,7 @@
 
 [In Progress]
 #14 Generate documentation
-    Make shell scripts to generate the manual page (should the wiki be
-    continued?)
-
-#70/#69 Re-add the wiki
-    Add the Github wiki again
-
-#87 Make parser better
-    The modifiers action is resolved at the wrong time.  The parser has to
-    interleave actions being executed with binding being set.
+    Make shell scripts to generate the manual page
 
 [Recheck]
 #1 ! Hover events not working in firefox sometimes
@@ -148,6 +137,16 @@
 #79 Add DBUS support for a notification server
     Allow fensterchef to act as a notification server so notifications can be
     shown using `notify-send`
+
+#81 Simplify notification windows again
+    ...or completely remove them.  It is a bunch of code for nothing.  Programs
+    like dunst do a great job at this.  The best solution is probably to
+    downgrade to core fonts so that the absolute minimal text is shown.  The
+    user can then configure to use more advanced programs.
+    This is a bad idea for various reasons.
+
+#70 Re-add the wiki
+    Add the Github wiki again
 
 [Done]
 #9 Add maintainability macros
@@ -422,3 +421,16 @@
 #73 Make a CONTRIBUTING file
     Make a file explaining source code internals and where to start looking to
     start contributing to the fensterchef project
+
+#87 Resolve modifier actions at the right time
+    The modifier action is resolved at the wrong time.  The parser has to
+    interleave actions being executed with bindings being set.
+
+#88 Make a binding map
+    Not sure why does never came into my head.  But simple make a 256 sized
+    array to store the keybindings and 16 sized array for buttons.
+    Make two, one that is the server state and another that is the local state.
+    On the next cycle, this should be synchronized with the server.
+    Move server synchronization out of event.c into its own file.
+    Maybe merge this with window properties.
+    I decided not to make two lists and simply update all if anything changed.

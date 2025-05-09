@@ -1,32 +1,22 @@
 #ifndef EVENT_H
 #define EVENT_H
 
-#include "bits/window_typedef.h"
-
-#include "x11_management.h"
-
-/* first index of an xkb event/error */
-extern int xkb_event_base, xkb_error_base;
-
-/* this is the first index of a randr event/error */
-extern int randr_event_base, randr_error_base;
-
-/* if the user requested to reload the configuration */
-extern bool is_reload_requested;
-
-/* if the client list has changed (if stacking changed, windows were removed or
- * added)
+/**
+ * This handles all kinds of X events.
+ *
+ * Note the difference between REQUESTS and NOTIFICATIONS.
+ * REQUEST: What is requested has not happened yet and will not happen
+ * until the window manager does something.
+ *
+ * NOTIFICATIONS: What is notified ALREADY happened, there is nothing
+ * to do now but to take note of it.
  */
-extern bool has_client_list_changed;
+
+#include "bits/window.h"
+#include "x11_management.h"
 
 /* Create a signal handler for `SIGALRM`. */
 void initialize_signal_handlers(void);
-
-/* Set the client list root property. */
-void synchronize_client_list(void);
-
-/* Synchronize the local data with the X server. */
-void synchronize_with_server(void);
 
 /* Runs the next cycle of the event loop. This handles signals and all events
  * that are currently queued.

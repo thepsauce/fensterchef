@@ -8,7 +8,7 @@
  * the program is aborted.
  */
 
-#include <stdlib.h>
+#include <stdlib.h> /* NULL, size_t, malloc(), calloc(), realloc(), free() */
 
 /* Allocate a minimum of @size bytes of memory.
  *

@@ -4,7 +4,7 @@ CC=cc
 CFLAGS='-std=c99 -Iinclude -Wall -Wextra -O3 -DNO_ANSII_COLORS'
 LDLIBS=
 # Packages (added to CFLAGS and LDLIBS before compiling/linking)
-PACKAGES='x11 xrandr xcursor xft fontconfig'
+PACKAGES='x11 xrandr xcursor xft'
 PREFIX=/usr
 SOURCES=src/*.c\ src/utility/*.c\ src/configuration/*.c
 

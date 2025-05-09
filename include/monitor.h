@@ -1,9 +1,8 @@
 #ifndef MONITOR_H
 #define MONITOR_H
 
-#include "bits/frame_typedef.h"
-#include "bits/monitor_typedef.h"
-
+#include "bits/frame.h"
+#include "bits/monitor.h"
 #include "x11_management.h"
 
 /* A monitor is a rectangular region tied to a screen. */

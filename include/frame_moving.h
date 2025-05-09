@@ -11,7 +11,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include "bits/frame_typedef.h"
+#include "bits/frame.h"
 
 /* Note for all `get_XXX_frame()` functions that the frame returned usually is a
  * parent frame, meaning it has children, for example:
