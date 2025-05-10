@@ -24,6 +24,7 @@
 #include "window.h"
 #include "window_list.h"
 #include "window_properties.h"
+#include "window_stacking.h"
 #include "x11_synchronize.h"
 
 /* signals whether the alarm signal was received */

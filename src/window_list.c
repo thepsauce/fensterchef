@@ -7,6 +7,7 @@
 #include "notification.h"
 #include "frame_stashing.h"
 #include "window_list.h"
+#include "window_stacking.h"
 #include "x11_synchronize.h"
 
 /* user window list window */

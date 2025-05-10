@@ -19,6 +19,7 @@
 #include "parse/parse.h"
 #include "parse/stream.h"
 #include "window_list.h"
+#include "window_stacking.h"
 #include "x11_synchronize.h"
 
 /* the corresponding string identifier for all actions */

@@ -11,12 +11,15 @@
  * event cycle.
  */
 
-/* TODO: make more constants */
 #define SYNCHRONIZE_CLIENT_LIST     (1 << 0)
 #define SYNCHRONIZE_ROOT_CURSOR     (1 << 1)
 #define SYNCHRONIZE_BUTTON_BINDING  (1 << 2)
 #define SYNCHRONIZE_KEY_BINDING     (1 << 3)
 #define SYNCHRONIZE_ALL            ((1 << 4) - 1)
+
+/* More information is synchronized without the use of flags which includes:
+ * - Updating the window stack ordering
+ */
 
 /* hints set by all parts of the program indicating that a specific part needs
  * to be synchronized

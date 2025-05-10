@@ -71,8 +71,8 @@ void take_control(void)
     XChangeWindowAttributes(display, DefaultRootWindow(display), CWEventMask,
             &attributes);
 
-    /* create the wm check window, this can be used by other applications to
-     * identify our window manager, we also use it as fallback focus
+    /* Create the wm check window.  This can be used by other applications to
+     * identify our window manager.  We also use it as fallback focus.
      */
     wm_check_window = XCreateWindow(display, DefaultRootWindow(display),
             -1, -1, 1, 1, 0, CopyFromParent, InputOnly,

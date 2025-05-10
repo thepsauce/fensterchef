@@ -111,11 +111,18 @@ struct fensterchef_window {
      * hidden now.
      *
      * The terms Z stack, Z linked list and Z stacking are used interchangeably.
+     *
+     * There is a second linked list to store the server state.  This is not
+     * updated by the window module but the synchronization function.
      */
     /* the window above this window */
     FcWindow *below;
     /* the window below this window */
     FcWindow *above;
+    /* the window that is below on the actual server side */
+    FcWindow *server_below;
+    /* the window that is above on the actual server side */
+    FcWindow *server_above;
 
     /* The number linked list stores the windows sorted by their number. */
     /* the next window in the linked list */
@@ -138,6 +145,11 @@ extern FcWindow *Window_top;
 
 /* the first window in the number linked list */
 extern FcWindow *Window_first;
+
+/* The window at the top of the Z stack on the server.  We do not need the
+ * bottom one, it is simply not needed.
+ */
+extern FcWindow *Window_server_top;
 
 /* the currently focused window */
 extern FcWindow *Window_focus;
@@ -213,9 +225,6 @@ void get_maximum_window_size(const FcWindow *window, Size *size);
  */
 void set_window_size(FcWindow *window, int x, int y, unsigned int width,
         unsigned int height);
-
-/* Put the window on the best suited Z stack position. */
-void update_window_layer(FcWindow *window);
 
 /* Get the internal window that has the associated X window.
  *

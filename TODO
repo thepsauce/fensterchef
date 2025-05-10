@@ -19,9 +19,6 @@
     to be made that set these individual settings.  Whether a setting is
     individual or not has to be stored within the window.
 
-#85 Add sourcing to parser
-    The source command needs to be added again to load other files
-
 #89 Improve focus management
     Move focus X11 management into x11_synchronize (out of event.c).
 
@@ -42,6 +39,9 @@
 [In Progress]
 #14 Generate documentation
     Make shell scripts to generate the manual page
+
+#85 Add sourcing to parser
+    The source command needs to be added again to load other files
 
 [Recheck]
 #1 ! Hover events not working in firefox sometimes
@@ -87,7 +87,8 @@
     When starting Discord, it sometimes hides itself again
     Try to check electron source code I guess... I do not know if it was made
     using electron actually. Is this on purpose?? I believe it is.
-    Using WM_STATE I believe fixed this bug.
+    Using WM_STATE I believe fixed this bug.  This causes a bug with stacking
+    orders.
 
 [Trash]
 #10 ? Add frame indication for empty frames

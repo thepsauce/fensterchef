@@ -9,6 +9,7 @@
 #include "utility/utility.h"
 #include "window.h"
 #include "window_properties.h"
+#include "window_stacking.h"
 #include "x11_synchronize.h"
 
 /* The whole purpose of this file is to handle window state changes
@@ -422,14 +423,16 @@ static void update_shown_window(FcWindow *window)
         frame = get_window_frame(window);
         /* we never would want this to happen */
         if (frame != NULL) {
-            LOG_ERROR("window %W is already in frame %F\n", window, frame);
+            LOG_ERROR("window %W is already in frame %F\n",
+                    window, frame);
             reload_frame(frame);
             break;
         }
 
         frame = get_frame_by_number(window->number);
         if (frame != NULL) {
-            LOG("found frame %F matching the window id\n", frame);
+            LOG("found frame %F matching the window id\n",
+                    frame);
             (void) stash_frame(frame);
             frame->window = window;
             reload_frame(frame);

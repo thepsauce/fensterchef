@@ -1,6 +1,8 @@
 #ifndef X11_MANAGEMENT_H
 #define X11_MANAGEMENT_H
 
+#include <stdint.h>
+
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 

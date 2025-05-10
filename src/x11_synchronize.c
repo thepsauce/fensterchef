@@ -7,6 +7,7 @@
 #include "log.h"
 #include "window.h"
 #include "window_properties.h"
+#include "window_stacking.h"
 #include "x11_synchronize.h"
 
 /* hints set by all parts of the program indicating that a specific part needs
@@ -83,14 +84,13 @@ static void synchronize_client_list(void)
     Window root;
     FcWindow *window;
     unsigned index = 0;
-    XWindowChanges changes;
 
     root = DefaultRootWindow(display);
 
     /* allocate more ids if needed or trim if there are way too many */
     if (Window_count > client_list.length ||
             MAX(Window_count, 4) * 4 < client_list.length) {
-        LOG_DEBUG("trimming client list to %u\n",
+        LOG_DEBUG("resizing client list to %u\n",
                 Window_count);
         client_list.length = Window_count;
         REALLOCATE(client_list.ids, client_list.length);
@@ -102,28 +102,9 @@ static void synchronize_client_list(void)
         index++;
     }
     /* set the `_NET_CLIENT_LIST_STACKING` property */
-    XChangeProperty(display, root, ATOM(_NET_CLIENT_LIST_STACKING), XA_WINDOW,
-            32, PropModeReplace,
+    XChangeProperty(display, root, ATOM(_NET_CLIENT_LIST_STACKING),
+            XA_WINDOW, 32, PropModeReplace,
             (unsigned char*) client_list.ids, Window_count);
-
-    /* TODO: optimize this so only changes are sent */
-    switch (Window_count) {
-    default:
-        for (unsigned i = 1; i < Window_count; i++) {
-            changes.stack_mode = Above;
-            changes.sibling = client_list.ids[i - 1];
-            XConfigureWindow(display, client_list.ids[i],
-                    CWStackMode | CWSibling, &changes);
-        }
-        /* fall through */
-    case 1:
-        changes.stack_mode = Below;
-        XConfigureWindow(display, client_list.ids[0], CWStackMode, &changes);
-        break;
-
-    case 0:
-        break;
-    }
 
     index = 0;
     /* sort the list in order of their age (oldest to newest) */
@@ -132,8 +113,9 @@ static void synchronize_client_list(void)
         index++;
     }
     /* set the `_NET_CLIENT_LIST` property */
-    XChangeProperty(display, root, ATOM(_NET_CLIENT_LIST), XA_WINDOW, 32,
-            PropModeReplace, (unsigned char*) client_list.ids, Window_count);
+    XChangeProperty(display, root, ATOM(_NET_CLIENT_LIST),
+            XA_WINDOW, 32, PropModeReplace,
+            (unsigned char*) client_list.ids, Window_count);
 }
 
 /* Recursively check if the window is contained within @frame. */
@@ -150,6 +132,7 @@ static bool is_window_part_of(FcWindow *window, Frame *frame)
 void synchronize_with_server(unsigned flags)
 {
     Atom atoms[2];
+    FcWindow *window;
 
     if (flags == 0) {
         flags = synchronization_flags;
@@ -181,9 +164,7 @@ void synchronize_with_server(unsigned flags)
     reconfigure_monitor_frames();
 
     /* set the borders of the windows and manage the focused state */
-    for (FcWindow *window = Window_first;
-            window != NULL;
-            window = window->next) {
+    for (window = Window_first; window != NULL; window = window->next) {
         /* remove the focused state from windows that are not focused */
         if (window != Window_focus) {
             atoms[0] = ATOM(_NET_WM_STATE_FOCUSED);
@@ -218,13 +199,14 @@ void synchronize_with_server(unsigned flags)
         }
     }
 
+    synchronize_window_stacking_order();
+
     /* update the client list and stacking order */
+    /* TODO: only change if it actually changed */
     synchronize_client_list();
 
     /* configure all visible windows and map them */
-    for (FcWindow *window = Window_top;
-            window != NULL;
-            window = window->below) {
+    for (window = Window_top; window != NULL; window = window->below) {
         if (!window->state.is_visible) {
             continue;
         }

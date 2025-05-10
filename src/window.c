@@ -11,6 +11,7 @@
 #include "parse/stream.h"
 #include "window.h"
 #include "window_properties.h"
+#include "window_stacking.h"
 #include "x11_synchronize.h"
 
 /* the window associations */
@@ -32,6 +33,9 @@ FcWindow *Window_bottom;
 
 /* the window at the top of the Z stack */
 FcWindow *Window_top;
+
+/* the window at the top of the Z stack on the server */
+FcWindow *Window_server_top;
 
 /* the first window in the number linked list */
 FcWindow *Window_first;
@@ -256,6 +260,7 @@ FcWindow *create_window(Window id)
         Window_oldest = window;
         Window_bottom = window;
         Window_top = window;
+        Window_server_top = window;
         Window_first = window;
         if (window->number == 0) {
             window->number = configuration.first_window_number;
@@ -291,6 +296,15 @@ FcWindow *create_window(Window id)
         Window_top->above = window;
         Window_top = window;
 
+        /* Put the window at the top of the Z server linked list.  That is where
+         * the server puts new windows.
+         */
+        window->server_below = Window_server_top;
+        Window_server_top->server_above = window;
+        Window_server_top = window;
+
+        /* TODO: do we need to make sure the window is REALLY at the top? */
+
         /* put the window into the age linked list */
         previous = Window_oldest;
         while (previous->newer != NULL) {
@@ -309,18 +323,19 @@ FcWindow *create_window(Window id)
     /* grab the buttons for this window */
     grab_configured_buttons(id);
 
-    LOG("created new window %W\n", window);
+    LOG("created new window %W\n",
+            window);
 
     if (run_window_association(window)) {
         /* nothing */
     /* if a window does not start in normal state, do not map it */
     } else if ((window->hints.flags & StateHint) &&
             window->hints.initial_state != NormalState) {
-        LOG("window %W starts off as hidden window\n", window);
+        LOG("window %W starts off as hidden window\n",
+                window);
     } else {
         /* run the default behavior */
         show_window(window);
-        update_window_layer(window);
         if (is_window_focusable(window)) {
             set_focus_window_with_frame(window);
         }
@@ -329,35 +344,14 @@ FcWindow *create_window(Window id)
     return window;
 }
 
-/* Remove @window from the Z linked list. */
-static void unlink_window_from_z_list(FcWindow *window)
-{
-    if (window->below != NULL) {
-        window->below->above = window->above;
-    }
-    if (window->above != NULL) {
-        window->above->below = window->below;
-    }
-
-    if (window == Window_bottom) {
-        Window_bottom = window->above;
-    }
-    if (window == Window_top) {
-        Window_top = window->below;
-    }
-
-    window->above = NULL;
-    window->below = NULL;
-}
-
 /* Destroys given window and removes it from the window linked list. */
 void destroy_window(FcWindow *window)
 {
     Frame *frame;
     FcWindow *previous;
 
-    /* really make sure the window is hidden, not sure if this case can ever
-     * happen because usually a MapUnnotify event hides the window beforehand
+    /* Really make sure the window is hidden.  Not sure if this case can ever
+     * happen because usually a MapUnnotify event hides the window beforehand.
      */
     hide_window_abruptly(window);
 
@@ -382,6 +376,9 @@ void destroy_window(FcWindow *window)
 
     /* remove from the z linked list */
     unlink_window_from_z_list(window);
+
+    /* remove from the server z linked list */
+    unlink_window_from_z_server_list(window);
 
     /* remove from the age linked list */
     if (Window_oldest == window) {
@@ -580,94 +577,6 @@ void set_window_size(FcWindow *window, int x, int y, unsigned int width,
     window->y = y;
     window->width = width;
     window->height = height;
-}
-
-/* Links the window into the z linked list at a specific place and synchronizes
- * this change with the X server.
- *
- * The window should have been unlinked from the Z linked list first.
- *
- * The window will be inserted after @below or at the bottom if @below is NULL.
- */
-static void link_window_into_z_list(FcWindow *below, FcWindow *window)
-{
-    /* link onto the bottom of the Z linked list */
-    if (below == NULL) {
-        LOG("putting %W at the bottom of the stack\n", window);
-
-        if (Window_bottom != NULL) {
-            Window_bottom->below = window;
-            window->above = Window_bottom;
-        } else {
-            Window_top = window;
-        }
-        Window_bottom = window;
-    /* link it above `below` */
-    } else {
-        LOG("putting %W above %W\n", window, below);
-
-        window->below = below;
-        window->above = below->above;
-        if (below->above != NULL) {
-            below->above->below = window;
-        }
-        below->above = window;
-
-        if (below == Window_top) {
-            Window_top = window;
-        }
-    }
-}
-
-/* Put the window on the best suited Z stack position. */
-void update_window_layer(FcWindow *window)
-{
-    FcWindow *below = NULL;
-
-    unlink_window_from_z_list(window);
-
-    switch (window->state.mode) {
-    /* if there are desktop windows, put the window on top of the desktop
-     * windows otherwise put it at the bottom
-     */
-    case WINDOW_MODE_TILING:
-        if (Window_bottom != NULL &&
-                Window_bottom->state.mode == WINDOW_MODE_DESKTOP) {
-            below = Window_bottom;
-            while (below->above != NULL &&
-                    below->state.mode == WINDOW_MODE_DESKTOP) {
-                below = below->above;
-            }
-        }
-        break;
-
-    /* put the window at the top */
-    case WINDOW_MODE_FLOATING:
-    case WINDOW_MODE_FULLSCREEN:
-    case WINDOW_MODE_DOCK:
-        below = Window_top;
-        break;
-
-    /* put the window at the bottom */
-    case WINDOW_MODE_DESKTOP:
-        /* below = NULL */
-        break;
-
-    /* not a real window mode */
-    case WINDOW_MODE_MAX:
-        return;
-    }
-
-    link_window_into_z_list(below, window);
-
-    /* put windows that are transient for this window above it */
-    for (below = window->below; below != NULL; below = below->below) {
-        if (below->transient_for == window->client.id) {
-            unlink_window_from_z_list(below);
-            link_window_into_z_list(window, below);
-            below = window;
-        }
-    }
 }
 
 /* Get the internal window that has the associated X window. */
