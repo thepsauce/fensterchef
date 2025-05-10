@@ -11,8 +11,8 @@
     Add a window mode for dialog windows
 
 #83 Add dynamic bindings
-    Add binding actions that dynamicall add bindings.  The bindings should be
-    synchronized with the server by sending a delta of old and new bindings.
+    Add binding actions that dynamically add bindings.  This simply requires the
+    parser to parse key bindings within key bindings.
 
 #84 Give each window its own individual settings
     Each window should have its own settings for border and gaps.  Actions have
@@ -20,9 +20,14 @@
     individual or not has to be stored within the window.
 
 #89 Improve focus management
-    Move focus X11 management into x11_synchronize (out of event.c).
+    Move focus X11 management into x11_synchronize (out of event.c) and bundle
+    all relevant parts.
 
-#90 ...
+#90 Simplify window lining
+    When floating windows are spawned, they are placed along a line.  Simplify
+    this and only use the top window.
+
+#91 ...
 
 #200 Make repository for fensterchef-menu
     Menus of all kind for any window manager

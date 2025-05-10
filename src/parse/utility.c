@@ -14,7 +14,7 @@ void skip_line(void)
 {
     int character;
 
-    while (character = get_stream_character(),
+    while (character = get_stream_character(parser.stream),
             character != '\n' && character != EOF) {
         /* nothing */
     }
@@ -23,16 +23,16 @@ void skip_line(void)
 /* Skip over any blank (`isblank()`). */
 void skip_blanks(void)
 {
-    while (isblank(peek_stream_character())) {
-        (void) get_stream_character();
+    while (isblank(peek_stream_character(parser.stream))) {
+        (void) get_stream_character(parser.stream);
     }
 }
 
 /* Skip over any white space (`isspace()`). */
 void skip_space(void)
 {
-    while (isspace(peek_stream_character())) {
-        (void) get_stream_character();
+    while (isspace(peek_stream_character(parser.stream))) {
+        (void) get_stream_character(parser.stream);
     }
 }
 
@@ -44,13 +44,13 @@ void skip_statement(void)
 {
     int character;
 
-    while (character = get_stream_character(),
+    while (character = get_stream_character(parser.stream),
             character != ',' && character != '\n' && character != EOF) {
         /* skip over quotes */
         if (character == '\"' || character == '\'') {
             const int quote = character;
-            while (parser.index = input_stream.index,
-                    character = get_stream_character(),
+            while (parser.index = parser.stream->index,
+                    character = get_stream_character(parser.stream),
                     character != quote && character != EOF &&
                     character != '\n') {
                 /* nothing */
@@ -64,8 +64,8 @@ void skip_all_statements(void)
 {
     do {
         skip_statement();
-        if (peek_stream_character() == ',') {
-            (void) get_stream_character();
+        if (peek_stream_character(parser.stream) == ',') {
+            (void) get_stream_character(parser.stream);
             continue;
         }
     } while (false);
@@ -98,22 +98,22 @@ int read_string(void)
 
     skip_space();
 
-    parser.index = input_stream.index;
+    parser.index = parser.stream->index;
     parser.string_length = 0;
-    character = peek_stream_character();
+    character = peek_stream_character(parser.stream);
     if (character == '\"' || character == '\'') {
         parser.is_string_quoted = true;
 
         const int quote = character;
 
         /* skip over the opening quote */
-        (void) get_stream_character();
+        (void) get_stream_character(parser.stream);
 
-        while (character = get_stream_character(),
+        while (character = get_stream_character(parser.stream),
                 character != quote && character != EOF && character != '\n') {
             /* escape any characters following \\ */
             if (character == '\\') {
-                character = get_stream_character();
+                character = get_stream_character(parser.stream);
                 LIST_APPEND_VALUE(parser.string, '\\');
                 if (character == EOF || character == '\n') {
                     break;
@@ -128,9 +128,9 @@ int read_string(void)
     } else {
         parser.is_string_quoted = false;
 
-        while (character = peek_stream_character(),
+        while (character = peek_stream_character(parser.stream),
                 is_word_character(character)) {
-            (void) get_stream_character();
+            (void) get_stream_character(parser.stream);
 
             LIST_APPEND_VALUE(parser.string, character);
         }

@@ -1,5 +1,5 @@
-#ifndef CONFIGURATION__LITERAL_H
-#define CONFIGURATION__LITERAL_H
+#ifndef PARSE__UTILITY_H
+#define PARSE__UTILITY_H
 
 #include <X11/Xlib.h>
 
@@ -42,9 +42,7 @@ void assert_read_string(void);
 
 /* Translate a string like "Button1" to a button index.
  *
- * @return -1 if the button string is invalid.
- *
- * Technically 0 is also an invalid index since they start from 1.
+ * @return `BUTTON_NONE` if the button string is invalid.
  */
 int translate_string_to_button(const char *string);
 

@@ -23,14 +23,14 @@ void emit_parse_error(const char *message)
 {
     unsigned line, column;
     const utf8_t *file;
-    char *string_line;
+    const char *string_line;
     unsigned length;
 
     parser.error_count++;
-    get_stream_position(parser.index, &line, &column);
-    string_line = get_stream_line(line, &length);
+    get_stream_position(parser.stream, parser.index, &line, &column);
+    string_line = get_stream_line(parser.stream, line, &length);
 
-    file = input_stream.file_path;
+    file = parser.stream->file_path;
     if (file == NULL) {
         file = "<string>";
     }
@@ -146,10 +146,10 @@ static void continue_parsing_modifiers_or_binding(void)
 
     /* read any modifiers */
     while (skip_blanks(),
-            character = peek_stream_character(),
+            character = peek_stream_character(parser.stream),
             character == '+') {
         /* skip over '+' */
-        (void) get_stream_character();
+        (void) get_stream_character(parser.stream);
 
         if (resolve_integer() != OK) {
             emit_parse_error("invalid integer value");
@@ -257,10 +257,11 @@ static void continue_parsing_modifiers_or_binding(void)
 }
 
 /* Parse the currently active stream. */
-int parse_stream(void)
+int parse_stream(InputStream *stream)
 {
     int character;
 
+    parser.stream = stream;
     /* clear an old parser */
     parser.error_count = 0;
     parser.startup_items_length = 0;
@@ -275,7 +276,7 @@ int parse_stream(void)
         return ERROR;
     }
 
-    while (skip_space(), character = peek_stream_character(),
+    while (skip_space(), character = peek_stream_character(parser.stream),
             character != EOF) {
         assert_read_string();
 
@@ -297,11 +298,11 @@ int parse_stream(void)
 }
 
 /* Parse the currently active stream and run all actions. */
-int parse_stream_and_run_actions(void)
+int parse_stream_and_run_actions(InputStream *stream)
 {
     struct action_list startup;
 
-    if (parse_stream() != OK) {
+    if (parse_stream(stream) != OK) {
         return ERROR;
     }
 
@@ -322,11 +323,11 @@ int parse_stream_and_run_actions(void)
 }
 
 /* Parse the currently active stream and use it to override the configuration. */
-int parse_stream_and_replace_configuration(void)
+int parse_stream_and_replace_configuration(InputStream *stream)
 {
     struct action_list startup;
 
-    if (parse_stream() != OK) {
+    if (parse_stream(stream) != OK) {
         return ERROR;
     }
 

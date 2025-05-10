@@ -212,6 +212,8 @@ void clear_configuration(void)
 /* Reload the fensterchef configuration. */
 void reload_configuration(void)
 {
+    InputStream *stream;
+
     const char *const configuration = get_configuration_file();
 
     if (configuration == NULL) {
@@ -224,11 +226,13 @@ void reload_configuration(void)
     set_additional_modifiers(Mod4Mask);
     set_ignored_modifiers(LockMask | Mod2Mask);
 
-    if (initialize_file_stream(configuration) != OK) {
+    stream = create_file_stream(configuration);
+    if (stream == NULL) {
         LOG("could not open %s: %s\n",
                 configuration, strerror(errno));
         merge_default_configuration(DEFAULT_CONFIGURATION_MERGE_ALL);
-    } else if (parse_stream_and_run_actions() != OK) {
+    } else if (parse_stream_and_run_actions(stream) != OK) {
         merge_default_configuration(DEFAULT_CONFIGURATION_MERGE_ALL);
     }
+    destroy_stream(stream);
 }

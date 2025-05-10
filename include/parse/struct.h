@@ -1,5 +1,5 @@
-#ifndef PARSE_STRUCT_H
-#define PARSE_STRUCT_H
+#ifndef PARSE__STRUCT_H
+#define PARSE__STRUCT_H
 
 /**
  * This file is meant to be private to the parser.
@@ -9,6 +9,7 @@
 
 #include "action.h"
 #include "parse/data_type.h"
+#include "parse/stream.h"
 #include "utility/list.h"
 #include "window.h"
 
@@ -16,6 +17,8 @@
  * parsing runs/recycled.
  */
 extern struct parser {
+    /* the input stream object */
+    InputStream *stream;
     /* the start index of the last item */
     size_t index;
     /* if the parser had any error */

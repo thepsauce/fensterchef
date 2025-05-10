@@ -8,7 +8,6 @@
 #include "log.h"
 #include "monitor.h"
 #include "parse/parse.h"
-#include "parse/stream.h"
 #include "window.h"
 #include "window_properties.h"
 #include "window_stacking.h"
@@ -204,11 +203,14 @@ FcWindow *create_window(Window id)
         /* check if the window holds a command */
         utf8_t *const command = get_fensterchef_command_property(id);
         if (command != NULL) {
+            InputStream *stream;
+
             LOG("window %#lx has command: %s\n",
                     id, command);
 
-            (void) initialize_string_stream(command);
-            (void) parse_stream_and_run_actions();
+            stream = create_string_stream(command);
+            (void) parse_stream_and_run_actions(stream);
+            destroy_stream(stream);
 
             free(command);
 

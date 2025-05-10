@@ -1,5 +1,5 @@
-#ifndef CONFIGURATION__DATA_TYPE_H
-#define CONFIGURATION__DATA_TYPE_H
+#ifndef PARSE__DATA_TYPE_H
+#define PARSE__DATA_TYPE_H
 
 #include <stddef.h>
 

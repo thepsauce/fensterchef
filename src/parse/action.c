@@ -187,11 +187,11 @@ static int parse_next_action_part(size_t item_index)
     int error = OK;
     int character;
 
-    character = peek_stream_character();
+    character = peek_stream_character(parser.stream);
     if (character == EOF || character == ',' || character == '\n') {
         const char *const action = get_action_string(parser.first_action);
         if (action[parser.actions[parser.first_action].offset] != '\0') {
-            parser.index = input_stream.index;
+            parser.index = parser.stream->index;
             emit_parse_error("incomplete action");
             print_action_possibilities();
         } else {
@@ -205,7 +205,7 @@ static int parse_next_action_part(size_t item_index)
 
         if (character == ',') {
             /* skip ',' */
-            (void) get_stream_character();
+            (void) get_stream_character(parser.stream);
             skip_space();
             assert_read_string();
         } else {

@@ -6,50 +6,45 @@
 #include "parse/stream.h"
 #include "utility/utility.h"
 
-/* The stream struct.  */
-struct input_stream input_stream = {
-    .string = input_stream.local_string_storage,
-    .capacity = sizeof(input_stream.local_string_storage)
-};
-
 /* Get a character from the stream without advancing the cursor. */
-static inline int peek_character(void)
+static inline int peek_character(InputStream *stream)
 {
-    if (input_stream.index == input_stream.length) {
+    if (stream->index == stream->length) {
         return EOF;
     }
-    return (unsigned char) input_stream.string[input_stream.index];
+    return (unsigned char) stream->string[stream->index];
 }
 
 /* Get the next character from stream. */
-static INLINE int get_or_peek_stream_character(bool should_advance)
+static INLINE int get_or_peek_stream_character(InputStream *stream,
+        bool should_advance)
 {
     int character, other;
 
     /* join lines when the next one starts with a backslash */
     while (true) {
-        character = peek_character();
+        character = peek_character(stream);
         if (character == EOF) {
             return EOF;
         }
 
         /* skip comment when there was a line end before */
         if (character == '#' &&
-                (input_stream.index == 0 ||
-                    islineend(input_stream.string[input_stream.index - 1]))) {
+                (stream->index == 0 ||
+                    islineend(stream->string[stream->index - 1]))) {
             /* skip over the end of the line */
-            while (character = peek_character(),
+            while (character = peek_character(stream),
                     !islineend(character) && character != EOF) {
-                input_stream.index++;
+                stream->index++;
             }
 
             if (character == EOF) {
                 return EOF;
             }
-            input_stream.index++;
+            stream->index++;
         } else {
             if (should_advance) {
-                input_stream.index++;
+                stream->index++;
                 if (!islineend(character)) {
                     return character;
                 }
@@ -57,74 +52,75 @@ static INLINE int get_or_peek_stream_character(bool should_advance)
                 if (!islineend(character)) {
                     return character;
                 }
-                input_stream.index++;
+                stream->index++;
             }
         }
 
-        other = peek_character();
+        other = peek_character(stream);
         /* put \r\n and \n\r together */
         if ((other == '\n' && character == '\r') ||
                 (other == '\r' && character == '\n')) {
-            input_stream.index++;
+            stream->index++;
         }
 
-        character = peek_character();
+        character = peek_character(stream);
         /* let the above part take care of this */
         if (character == '#') {
             continue;
         }
 
-        const size_t save_index = input_stream.index - 1;
+        const size_t save_index = stream->index - 1;
 
         /* skip over any leading blanks */
         while (isblank(character)) {
-            input_stream.index++;
-            character = peek_character();
+            stream->index++;
+            character = peek_character(stream);
         }
 
         if (character != '\\') {
             if (!should_advance) {
-                input_stream.index = save_index;
+                stream->index = save_index;
             }
             return '\n';
         }
 
         /* skip over \ */
-        input_stream.index++;
+        stream->index++;
     }
 }
 
 /* Get the next character from stream. */
-int get_stream_character(void)
+int get_stream_character(InputStream *stream)
 {
-    return get_or_peek_stream_character(true);
+    return get_or_peek_stream_character(stream, true);
 }
 
 /* Get the next character from given stream without advancing to the following
  * character.
  */
-int peek_stream_character(void)
+int peek_stream_character(InputStream *stream)
 {
-    return get_or_peek_stream_character(false);
+    return get_or_peek_stream_character(stream, false);
 }
 
 /* Get the column and line of @index within the active stream. */
-void get_stream_position(size_t index, unsigned *line, unsigned *column)
+void get_stream_position(const InputStream *stream, size_t index,
+        unsigned *line, unsigned *column)
 {
     unsigned current_line = 0, current_column = 0;
     int character;
     wchar_t wide_character;
 
-    index = MIN(index, input_stream.length);
+    index = MIN(index, stream->length);
     for (size_t i = 0; i < index; i++) {
-        character = (unsigned char) input_stream.string[i];
+        character = (unsigned char) stream->string[i];
         if (isprint(character)) {
             current_column++;
         } else if (islineend(character)) {
             current_column = 0;
             current_line++;
             if (i + 1 < index) {
-                character = (unsigned char) input_stream.string[i + 1];
+                character = (unsigned char) stream->string[i + 1];
                 if (islineend(character)) {
                     i++;
                 }
@@ -137,7 +133,7 @@ void get_stream_position(size_t index, unsigned *line, unsigned *column)
             current_column++;
         } else {
             const int result = mbtowc(&wide_character,
-                    &input_stream.string[i], input_stream.length - i);
+                    &stream->string[i], stream->length - i);
             if (result == -1) {
                 /* these characters are printed as ? */
                 current_column++;
@@ -153,20 +149,21 @@ void get_stream_position(size_t index, unsigned *line, unsigned *column)
 }
 
 /* Get the beginning of the line at given line index. */
-char *get_stream_line(unsigned line, unsigned *length)
+const char *get_stream_line(const InputStream *stream, unsigned line,
+        unsigned *length)
 {
     size_t line_index = 0, end_line_index;
     size_t index = 0;
     int character;
 
-    while (index < input_stream.length) {
+    while (index < stream->length) {
         end_line_index = index;
 
-        character = (unsigned char) input_stream.string[index];
+        character = (unsigned char) stream->string[index];
         index++;
         if (islineend(character)) {
-            if (index + 1 < input_stream.length) {
-                character = (unsigned char) input_stream.string[index];
+            if (index + 1 < stream->length) {
+                character = (unsigned char) stream->string[index];
                 if (islineend(character)) {
                     index++;
                 }
@@ -181,55 +178,59 @@ char *get_stream_line(unsigned line, unsigned *length)
     }
 
     *length = index - line_index;
-    return &input_stream.string[line_index];
-}
-
-/* Grow the memory the stream contains. */
-static inline void grow_stream(void)
-{
-    if (input_stream.length > input_stream.capacity) {
-        if (input_stream.string == input_stream.local_string_storage) {
-            input_stream.string = NULL;
-        }
-        REALLOCATE(input_stream.string, input_stream.length);
-        input_stream.capacity = input_stream.length;
-    }
+    return &stream->string[line_index];
 }
 
 /* Initialize a stream object to parse file at given path. */
-int initialize_file_stream(const utf8_t *path)
+InputStream *create_file_stream(const utf8_t *path)
 {
     FILE *file;
     long size;
+    InputStream *stream;
 
     file = fopen(path, "r");
     if (file == NULL) {
-        return ERROR;
+        return NULL;
     }
-
-    input_stream.file_path = path;
 
     fseek(file, 0, SEEK_END);
     size = ftell(file);
 
-    input_stream.index = 0;
-    input_stream.length = size;
-    grow_stream();
+    stream = xmalloc(sizeof(*stream) + size);
+    stream->file_path = xstrdup(path);
+    stream->index = 0;
+    stream->length = size;
 
     fseek(file, 0, SEEK_SET);
-    fread(input_stream.string, 1, input_stream.length, file);
+    fread(stream->string, 1, size, file);
 
     fclose(file);
-    return OK;
+
+    return stream;
 }
 
 /* Initialize a stream object to parse a given string. */
-int initialize_string_stream(const utf8_t *string)
+InputStream *create_string_stream(const utf8_t *string)
 {
-    input_stream.file_path = NULL;
-    input_stream.index = 0;
-    input_stream.length = strlen(string);
-    grow_stream();
-    memcpy(input_stream.string, string, input_stream.length);
-    return OK;
+    size_t size;
+    InputStream *stream;
+
+    size = strlen(string);
+
+    stream = xmalloc(sizeof(*stream) + size);
+    stream->file_path = NULL;
+    stream->index = 0;
+    stream->length = size;
+
+    COPY(stream->string, string, size);
+    return stream;
+}
+
+/* Destroy a previously allocated input stream object. */
+void destroy_stream(InputStream *stream)
+{
+    if (stream != NULL) {
+        free(stream->file_path);
+        free(stream);
+    }
 }
